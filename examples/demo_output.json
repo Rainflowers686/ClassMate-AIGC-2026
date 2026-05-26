@@ -1,0 +1,129 @@
+{
+  "course_title": "高等数学：泰勒公式与麦克劳林公式",
+  "summary": "本节课讲解泰勒公式、麦克劳林公式与其间关系，并强调余项与近似计算中的误差来源。",
+  "segments": [
+    {
+      "segment_id": "seg_001",
+      "time_range": "00:00-01:00",
+      "corrected_text": "今天我们分别看泰勒公式和麦克劳林公式。泰勒公式是在某个展开点附近进行函数展开，而麦克劳林公式是展开点为零时的特殊情况。",
+      "knowledge_points": [
+        {
+          "kp_id": "kp_001",
+          "name": "麦克劳林公式是泰勒公式的特殊情况",
+          "importance": 5,
+          "difficulty": 3,
+          "source_segment_id": "seg_001",
+          "evidence_span": "麦克劳林公式是展开点为零时的特殊情况",
+          "explanation": "当泰勒公式的展开点取 0 时，就得到了麦克劳林公式。"
+        }
+      ],
+      "confusion_points": [
+        "容易把任意展开点的泰勒公式都称为麦克劳林公式。"
+      ]
+    },
+    {
+      "segment_id": "seg_002",
+      "time_range": "01:00-02:00",
+      "corrected_text": "泰勒公式的一般形式包含函数在展开点的各阶导数值以及一个余项。余项的存在意味着我们用有限阶多项式近似一个函数时，会引入误差。",
+      "knowledge_points": [
+        {
+          "kp_id": "kp_002",
+          "name": "泰勒公式包含余项",
+          "importance": 4,
+          "difficulty": 3,
+          "source_segment_id": "seg_002",
+          "evidence_span": "泰勒公式的一般形式包含函数在展开点的各阶导数值以及一个余项",
+          "explanation": "余项描述用有限阶多项式逼近函数时的误差。"
+        }
+      ],
+      "confusion_points": []
+    },
+    {
+      "segment_id": "seg_003",
+      "time_range": "02:00-03:00",
+      "corrected_text": "当我们令展开点为零时，泰勒公式就退化为麦克劳林公式。麦克劳林公式在工程近似计算中非常常用，因为零点附近的近似计算往往简单且足够精确。",
+      "knowledge_points": [
+        {
+          "kp_id": "kp_003",
+          "name": "麦克劳林公式适用于零点附近的近似计算",
+          "importance": 4,
+          "difficulty": 2,
+          "source_segment_id": "seg_003",
+          "evidence_span": "麦克劳林公式在工程近似计算中非常常用",
+          "explanation": "零点附近的近似计算简单且足够精确，工程中常用。"
+        }
+      ],
+      "confusion_points": []
+    }
+  ],
+  "quizzes": [
+    {
+      "quiz_id": "q_001",
+      "question": "麦克劳林公式与泰勒公式的关系是什么？",
+      "options": [
+        "麦克劳林公式是泰勒公式在展开点为 0 时的特殊形式",
+        "泰勒公式是麦克劳林公式在展开点为 0 时的特殊形式",
+        "二者完全无关",
+        "麦克劳林公式只能用于三角函数"
+      ],
+      "answer_index": 0,
+      "explanation": "麦克劳林公式是泰勒公式在展开点为 0 时的特例。",
+      "source_segment_id": "seg_001",
+      "related_kp_id": "kp_001",
+      "evidence_span": "麦克劳林公式是展开点为零时的特殊情况"
+    },
+    {
+      "quiz_id": "q_002",
+      "question": "泰勒公式中的余项主要描述什么？",
+      "options": [
+        "函数在展开点的值",
+        "用有限阶多项式逼近函数时的误差",
+        "导数的阶数",
+        "展开点的选取"
+      ],
+      "answer_index": 1,
+      "explanation": "余项就是有限阶逼近带来的误差。",
+      "source_segment_id": "seg_002",
+      "related_kp_id": "kp_002",
+      "evidence_span": "余项的存在意味着我们用有限阶多项式近似一个函数时，会引入误差"
+    },
+    {
+      "quiz_id": "q_003",
+      "question": "麦克劳林公式在工程中常用于：",
+      "options": [
+        "任意展开点附近的高精度计算",
+        "零点附近的近似计算",
+        "解析延拓",
+        "无界函数的展开"
+      ],
+      "answer_index": 1,
+      "explanation": "麦克劳林公式适用于零点附近的近似计算。",
+      "source_segment_id": "seg_003",
+      "related_kp_id": "kp_003",
+      "evidence_span": "麦克劳林公式在工程近似计算中非常常用"
+    }
+  ],
+  "review_plan": [
+    {
+      "step_id": "rp_001",
+      "duration_minutes": 5,
+      "task": "复述泰勒公式与麦克劳林公式的关系",
+      "related_kp_ids": ["kp_001"],
+      "reason": "重要性最高且最易混淆。"
+    },
+    {
+      "step_id": "rp_002",
+      "duration_minutes": 5,
+      "task": "用自己的话解释余项的物理意义",
+      "related_kp_ids": ["kp_002"],
+      "reason": "余项是后续误差分析的基础。"
+    },
+    {
+      "step_id": "rp_003",
+      "duration_minutes": 5,
+      "task": "举一个用麦克劳林公式做近似的例子",
+      "related_kp_ids": ["kp_003"],
+      "reason": "巩固应用场景。"
+    }
+  ]
+}

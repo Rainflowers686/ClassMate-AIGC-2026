@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Compose owns the real theming; this XML is only here so the
+         manifest's android:theme attribute resolves. Setting the parent to a
+         Material3-friendly Theme.Material3.* base keeps system bars / status
+         bar tinting sane before Compose takes over. -->
+    <style name="Theme.ClassMate" parent="Theme.Material3.DayNight.NoActionBar" />
+</resources>

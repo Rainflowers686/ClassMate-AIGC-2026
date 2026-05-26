@@ -1,0 +1,39 @@
+# Local config — must never be committed
+config.local.json
+.env
+.env.*
+*.local.json
+
+# Gradle
+.gradle/
+build/
+**/build/
+local.properties
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+
+# Android
+*.apk
+*.aab
+*.ap_
+*.dex
+captures/
+.externalNativeBuild/
+.cxx/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs (real logs may contain secrets; only redacted samples go in proof/)
+logs/
+*.log
+
+# Keystores
+*.jks
+*.keystore
