@@ -40,11 +40,11 @@ Output schema is the CourseAnalysisResult contract supplied by the caller.
     fun build(input: CourseAnalysisInput): String = buildString {
         appendLine(SYSTEM_RULES.trim())
         appendLine()
-        appendLine("Course title: ${input.course_title}")
+        appendLine("Course title: ${input.courseTitle}")
         appendLine("Hotwords: ${input.hotwords.joinToString(", ")}")
         appendLine("Segments:")
         input.segments.forEach { seg ->
-            appendLine("- segment_id=${seg.segment_id} time_range=${seg.time_range}")
+            appendLine("- segment_id=${seg.segmentId} time_range=${seg.timeRange}")
             appendLine("  text: ${seg.text}")
         }
         appendLine()
