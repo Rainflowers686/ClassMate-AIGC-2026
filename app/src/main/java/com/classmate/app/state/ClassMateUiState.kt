@@ -14,6 +14,12 @@ import com.classmate.core.model.ReviewPlanItem
  * the screens mostly need cross-cutting reads (e.g. TimelineScreen wants
  * segments + analysisResult + wrongKnowledgePointIds together). Copy-on-write
  * is fine at this size; if it ever stops being fine, split per-screen.
+ *
+ * v0.3.5 adds three provider-call diagnostics:
+ *   - [requestedProvider]: what config.local.json asked for
+ *   - [activeProvider]: what actually ran (may differ if fallback fired)
+ *   - [fallbackUsed], [structureValid] — surfaced on AnalyzeScreen so
+ *     reviewers can tell a real call apart from a Demo response.
  */
 data class ClassMateUiState(
     /** Currently visible screen — drives AppRoot's `when` dispatch. */
@@ -27,9 +33,18 @@ data class ClassMateUiState(
     val segments: List<InputSegment> = emptyList(),
 
     // Analysis pipeline ------------------------------------------------------
-    val providerName: String = "demo",
+    /** Provider name from config.local.json. Stays stable across runs. */
+    val requestedProvider: String = "demo",
+    /** Provider that actually produced [analysisResult]. Differs from requested when fallback fires. */
+    val activeProvider: String = "demo",
     val analysisResult: CourseAnalysisResult? = null,
     val evidenceValidation: EvidenceValidationResult? = null,
+    /** Result of ResultValidator on the model output. Null until a call completes. */
+    val structureValid: Boolean? = null,
+    /** True iff the analysis pipeline fell back to a lower-priority provider. */
+    val fallbackUsed: Boolean = false,
+    /** Last provider-call failure reason (verbatim from ModelCallException) — null on success. */
+    val lastProviderError: String? = null,
 
     // Interaction state ------------------------------------------------------
     val selectedKnowledgePoint: KnowledgePoint? = null,
@@ -52,6 +67,9 @@ data class ClassMateUiState(
 
     val reviewPlan: List<ReviewPlanItem>
         get() = analysisResult?.reviewPlan.orEmpty()
+
+    /** Convenience for the AnalyzeScreen header — back-compat alias. */
+    val providerName: String get() = activeProvider
 }
 
 /**

@@ -6,13 +6,20 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.classmate.app.data.ApiConfigRepository
 import com.classmate.app.data.DemoInputRepository
+import com.classmate.core.adapter.BlueLMProvider
+import com.classmate.core.adapter.CompatibleProvider
 import com.classmate.core.adapter.DemoProvider
+import com.classmate.core.adapter.ModelCallException
 import com.classmate.core.adapter.ModelProvider
+import com.classmate.core.adapter.ProviderConfig
+import com.classmate.core.evidence.EvidenceValidationResult
 import com.classmate.core.evidence.EvidenceValidator
 import com.classmate.core.logging.ModelCallLog
 import com.classmate.core.logging.RedactedLogger
 import com.classmate.core.model.CourseAnalysisInput
+import com.classmate.core.model.CourseAnalysisResult
 import com.classmate.core.model.KnowledgePoint
+import com.classmate.core.network.SimpleHttpEngine
 import com.classmate.core.segmenter.Segmenter
 import com.classmate.core.validation.ResultValidator
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,10 +38,15 @@ private const val UI_LOG_TAG = "ClassMateVM"
 /**
  * Owns the v0.3 main-flow state.
  *
- * Extends [AndroidViewModel] so we can reach [android.content.res.AssetManager]
- * via the application context — DemoInputRepository / ApiConfigRepository
- * both need it. A constructor-injected Application is intentional: the
- * Activity does NOT thread its context into every callback.
+ * v0.3.5 fallback policy (task §7):
+ *   1. Try the provider named in config.local.json (compatible / bluelm).
+ *   2. If that provider throws ModelCallException, log the reason and fall
+ *      back to DemoProvider so the demo flow still renders.
+ *   3. Mark [ClassMateUiState.fallbackUsed]=true so the UI can warn that the
+ *      result was canned, not a real model call.
+ *
+ * Provider = "demo" is treated as the intended path, not a fallback — its
+ * fallbackUsed stays false.
  */
 class ClassMateViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -42,13 +54,16 @@ class ClassMateViewModel(application: Application) : AndroidViewModel(applicatio
     val state: StateFlow<ClassMateUiState> = _state.asStateFlow()
 
     private val redactedLogger = RedactedLogger { line -> Log.i(LOG_TAG, line) }
+    private val httpEngine = SimpleHttpEngine()
+    private val providerConfig: ProviderConfig
 
     init {
-        // Surface which config file we found before the user touches anything.
         val cfg = ApiConfigRepository.load(application)
+        providerConfig = cfg.providerConfig
         _state.update {
             it.copy(
-                providerName = cfg.provider,
+                requestedProvider = cfg.provider,
+                activeProvider = cfg.provider,
                 configHint = "provider=${cfg.provider} (config.local.json " +
                     "${if (cfg.loadedFromLocalFile) "found" else "missing — using example defaults"})"
             )
@@ -64,7 +79,6 @@ class ClassMateViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun back() {
-        // Linear flow per spec §5.1; back walks the chain. Home stays Home.
         val previous = when (_state.value.screen) {
             ClassMateScreen.Home -> ClassMateScreen.Home
             ClassMateScreen.CourseInput -> ClassMateScreen.Home
@@ -89,11 +103,6 @@ class ClassMateViewModel(application: Application) : AndroidViewModel(applicatio
         _state.update { it.copy(courseText = text) }
     }
 
-    /**
-     * Populates title + text + hotwords from the bundled demo course. This is
-     * the entry point that backs both Home's "Load Demo" button and
-     * CourseInputScreen's "Load demo_course" button.
-     */
     fun loadDemoInput() {
         viewModelScope.launch {
             runCatching {
@@ -144,7 +153,6 @@ class ClassMateViewModel(application: Application) : AndroidViewModel(applicatio
     // Step 3: segmentation + analysis
     // ---------------------------------------------------------------------
 
-    /** Runs the Segmenter on courseText and stores the result. */
     fun runSegmentation() {
         val text = _state.value.courseText
         val segs = Segmenter.segment(text)
@@ -152,10 +160,10 @@ class ClassMateViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     /**
-     * v0.3 only wires DemoProvider. BlueLM/Compatible providers are still
-     * placeholders — see [com.classmate.core.adapter.BlueLMProvider]. Using a
-     * `when` keeps the UI's intent explicit so a reviewer can see exactly
-     * what's wired vs. stubbed without grepping the core module.
+     * Runs the configured provider. On any [ModelCallException], logs the
+     * reason and falls back to DemoProvider so the demo flow always renders.
+     * The UI sees both [ClassMateUiState.activeProvider] and
+     * [ClassMateUiState.fallbackUsed] so reviewers can spot a canned result.
      */
     fun runAnalysis() {
         if (_state.value.isLoading) return
@@ -163,98 +171,184 @@ class ClassMateViewModel(application: Application) : AndroidViewModel(applicatio
 
         viewModelScope.launch {
             val started = System.currentTimeMillis()
-            try {
-                if (_state.value.segments.isEmpty()) {
-                    runSegmentation()
+            if (_state.value.segments.isEmpty()) {
+                runSegmentation()
+            }
+            val current = _state.value
+            val input = CourseAnalysisInput(
+                courseTitle = current.courseTitle.ifBlank { "Untitled" },
+                hotwords = current.hotwords,
+                segments = current.segments
+            )
+
+            val requested = providerConfig.provider
+            val outcome = runWithFallback(requested, input)
+            val elapsed = System.currentTimeMillis() - started
+
+            when (outcome) {
+                is AnalysisOutcome.Success -> {
+                    val structurePassed = outcome.structureValid && outcome.evidence.schemaPassed
+                    redactedLogger.courseAnalysisCall(
+                        ModelCallLog(
+                            timestamp = isoNow(),
+                            provider = outcome.providerUsed,
+                            task = "course_analysis",
+                            inputSegmentCount = input.segments.size,
+                            hotwordCount = input.hotwords.size,
+                            success = true,
+                            latencyMs = elapsed,
+                            structureValid = structurePassed,
+                            evidenceMatchRate = outcome.evidence.evidenceMatchRate,
+                            fallbackUsed = outcome.fallbackUsed,
+                            errorType = outcome.fallbackReason
+                        )
+                    )
+                    _state.update {
+                        it.copy(
+                            analysisResult = outcome.result,
+                            evidenceValidation = outcome.evidence,
+                            activeProvider = outcome.providerUsed,
+                            structureValid = structurePassed,
+                            fallbackUsed = outcome.fallbackUsed,
+                            lastProviderError = outcome.fallbackReason,
+                            isLoading = false,
+                            errorMessage = null,
+                            currentQuizIndex = 0,
+                            quizAnswers = emptyMap(),
+                            wrongKnowledgePointIds = emptySet()
+                        )
+                    }
                 }
-                val current = _state.value
-                val input = CourseAnalysisInput(
-                    courseTitle = current.courseTitle.ifBlank { "Untitled" },
-                    hotwords = current.hotwords,
-                    segments = current.segments
-                )
-
-                val provider: ModelProvider = buildProvider(current.providerName)
-                val result = provider.analyzeCourse(input)
-
-                val structural = ResultValidator.validate(result)
-                if (!structural.passed) {
-                    Log.w(UI_LOG_TAG, "ResultValidator issues: ${structural.issues}")
-                }
-                val evidence = EvidenceValidator.validate(input, result)
-                val elapsed = System.currentTimeMillis() - started
-
-                redactedLogger.courseAnalysisCall(
-                    ModelCallLog(
-                        timestamp = isoNow(),
-                        provider = provider.name,
-                        task = "course_analysis",
-                        inputSegmentCount = input.segments.size,
-                        hotwordCount = input.hotwords.size,
-                        success = true,
-                        latencyMs = elapsed,
-                        schemaValid = structural.passed && evidence.schemaPassed,
-                        evidenceMatchRate = evidence.evidenceMatchRate,
-                        errorType = null
+                is AnalysisOutcome.HardFailure -> {
+                    redactedLogger.courseAnalysisCall(
+                        ModelCallLog(
+                            timestamp = isoNow(),
+                            provider = outcome.providerAttempted,
+                            task = "course_analysis",
+                            inputSegmentCount = input.segments.size,
+                            hotwordCount = input.hotwords.size,
+                            success = false,
+                            latencyMs = elapsed,
+                            structureValid = false,
+                            evidenceMatchRate = null,
+                            fallbackUsed = true,
+                            errorType = outcome.errorType
+                        )
                     )
-                )
-
-                _state.update {
-                    it.copy(
-                        analysisResult = result,
-                        evidenceValidation = evidence,
-                        providerName = provider.name,
-                        isLoading = false,
-                        errorMessage = null,
-                        currentQuizIndex = 0,
-                        quizAnswers = emptyMap(),
-                        wrongKnowledgePointIds = emptySet()
-                    )
-                }
-            } catch (t: Throwable) {
-                Log.w(UI_LOG_TAG, "analysis failed", t)
-                val elapsed = System.currentTimeMillis() - started
-                redactedLogger.courseAnalysisCall(
-                    ModelCallLog(
-                        timestamp = isoNow(),
-                        provider = _state.value.providerName,
-                        task = "course_analysis",
-                        inputSegmentCount = _state.value.segments.size,
-                        hotwordCount = _state.value.hotwords.size,
-                        success = false,
-                        latencyMs = elapsed,
-                        schemaValid = false,
-                        evidenceMatchRate = null,
-                        errorType = t::class.simpleName ?: "Unknown"
-                    )
-                )
-                _state.update {
-                    it.copy(
-                        isLoading = false,
-                        errorMessage = t.message ?: t::class.simpleName ?: "unknown error"
-                    )
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            fallbackUsed = true,
+                            lastProviderError = outcome.message,
+                            errorMessage = outcome.message
+                        )
+                    }
                 }
             }
         }
     }
 
-    private suspend fun buildProvider(name: String): ModelProvider {
-        // v0.3 scope: only DemoProvider is wired. The other two throw on call;
-        // we intentionally fall back here so the demo-flow walkthrough never
-        // depends on a key being present.
-        return when (name) {
-            "demo" -> DemoProvider(DemoInputRepository.loadDemoOutputRaw(getApplication()))
-            "bluelm", "compatible" -> {
-                _state.update { it.copy(providerName = "demo") }
-                Log.w(
-                    UI_LOG_TAG,
-                    "provider=$name not wired in v0.3; falling back to demo. Set provider=demo in config to silence."
-                )
-                DemoProvider(DemoInputRepository.loadDemoOutputRaw(getApplication()))
-            }
-            else -> DemoProvider(DemoInputRepository.loadDemoOutputRaw(getApplication()))
+    /**
+     * Runs [requested] provider; on ModelCallException, drops to DemoProvider
+     * and reports both providers + the reason. DemoProvider failure becomes
+     * a hard error (nothing left to fall back to).
+     */
+    private suspend fun runWithFallback(
+        requested: String,
+        input: CourseAnalysisInput
+    ): AnalysisOutcome {
+        // DemoProvider intentionally has no fallback chain — it IS the floor.
+        if (requested == "demo") {
+            return runProviderAndValidate(
+                provider = buildDemoProvider(),
+                input = input,
+                fallbackUsed = false,
+                fallbackReason = null
+            )
+        }
+
+        // Try the requested non-demo provider first.
+        val primary = try {
+            buildProvider(requested)
+        } catch (e: ModelCallException) {
+            Log.w(UI_LOG_TAG, "provider $requested unavailable (${e.reason}); falling back to demo")
+            return demoFallback(input, "${e.reason}: ${e.message}")
+        }
+
+        return try {
+            runProviderAndValidate(primary, input, fallbackUsed = false, fallbackReason = null)
+        } catch (e: ModelCallException) {
+            Log.w(UI_LOG_TAG, "provider ${primary.name} failed (${e.reason}); falling back to demo", e)
+            demoFallback(input, "${e.reason}: ${e.message}")
         }
     }
+
+    private suspend fun demoFallback(input: CourseAnalysisInput, reason: String): AnalysisOutcome {
+        return try {
+            runProviderAndValidate(buildDemoProvider(), input, fallbackUsed = true, fallbackReason = reason)
+        } catch (e: Throwable) {
+            AnalysisOutcome.HardFailure(
+                providerAttempted = "demo",
+                errorType = e::class.simpleName ?: "Unknown",
+                message = "demo fallback also failed: ${e.message}"
+            )
+        }
+    }
+
+    /**
+     * Calls [provider], then runs Result and Evidence validators. Wraps any
+     * non-ModelCallException Throwable in a ModelCallException so the caller's
+     * try/catch is uniform.
+     */
+    private suspend fun runProviderAndValidate(
+        provider: ModelProvider,
+        input: CourseAnalysisInput,
+        fallbackUsed: Boolean,
+        fallbackReason: String?
+    ): AnalysisOutcome.Success {
+        val result: CourseAnalysisResult = try {
+            provider.analyzeCourse(input)
+        } catch (e: ModelCallException) {
+            throw e
+        } catch (e: Throwable) {
+            throw ModelCallException(
+                ModelCallException.Reason.HTTP_ERROR,
+                "unexpected error from provider ${provider.name}: ${e.message}",
+                e
+            )
+        }
+
+        val structural = ResultValidator.validate(result)
+        if (!structural.passed) {
+            Log.w(UI_LOG_TAG, "ResultValidator issues for ${provider.name}: ${structural.issues}")
+        }
+        val evidence: EvidenceValidationResult = EvidenceValidator.validate(input, result)
+        // Per spec §11.2 we do NOT raise on imperfect span match — UI degrades.
+        if (evidence.evidenceMatchRate < 1.0) {
+            Log.i(UI_LOG_TAG, "evidence match rate ${evidence.evidenceMatchRate} for ${provider.name}; UI will downgrade highlights")
+        }
+        return AnalysisOutcome.Success(
+            result = result,
+            evidence = evidence,
+            structureValid = structural.passed,
+            providerUsed = provider.name,
+            fallbackUsed = fallbackUsed,
+            fallbackReason = fallbackReason
+        )
+    }
+
+    private fun buildProvider(name: String): ModelProvider = when (name) {
+        "demo" -> buildDemoProvider()
+        "compatible" -> CompatibleProvider(providerConfig.compatible, httpEngine)
+        "bluelm" -> BlueLMProvider(providerConfig.bluelm, httpEngine)
+        else -> throw ModelCallException(
+            ModelCallException.Reason.PROVIDER_NOT_IMPLEMENTED,
+            "unknown provider '$name' (expected demo | compatible | bluelm)"
+        )
+    }
+
+    private fun buildDemoProvider(): DemoProvider =
+        DemoProvider(DemoInputRepository.loadDemoOutputRaw(getApplication()))
 
     // ---------------------------------------------------------------------
     // Step 4: evidence + quiz interaction
@@ -276,7 +370,6 @@ class ClassMateViewModel(application: Application) : AndroidViewModel(applicatio
     fun submitQuizAnswer(quizId: String, chosenIndex: Int) {
         val current = _state.value
         val quiz = current.quizzes.firstOrNull { it.quizId == quizId } ?: return
-        // Idempotent: a second submit with the same choice is fine.
         val updated = current.quizAnswers + (quizId to chosenIndex)
         val wrong = current.wrongKnowledgePointIds.toMutableSet()
         if (chosenIndex == quiz.answerIndex) {
@@ -305,7 +398,8 @@ class ClassMateViewModel(application: Application) : AndroidViewModel(applicatio
     fun resetSession() {
         _state.update {
             ClassMateUiState(
-                providerName = it.providerName,
+                requestedProvider = it.requestedProvider,
+                activeProvider = it.requestedProvider,
                 configHint = it.configHint
             )
         }
@@ -315,5 +409,26 @@ class ClassMateViewModel(application: Application) : AndroidViewModel(applicatio
         val fmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US)
         fmt.timeZone = TimeZone.getTimeZone("Asia/Shanghai")
         return fmt.format(Date())
+    }
+
+    /**
+     * Internal discriminator for the runAnalysis pipeline. Lifted out of
+     * runAnalysis so the fallback + logging path can be read top-to-bottom.
+     */
+    private sealed interface AnalysisOutcome {
+        data class Success(
+            val result: CourseAnalysisResult,
+            val evidence: EvidenceValidationResult,
+            val structureValid: Boolean,
+            val providerUsed: String,
+            val fallbackUsed: Boolean,
+            val fallbackReason: String?
+        ) : AnalysisOutcome
+
+        data class HardFailure(
+            val providerAttempted: String,
+            val errorType: String,
+            val message: String
+        ) : AnalysisOutcome
     }
 }

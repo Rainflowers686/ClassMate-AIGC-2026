@@ -25,15 +25,13 @@ import androidx.compose.ui.unit.dp
 import com.classmate.app.state.ClassMateUiState
 
 /**
- * Shows the result of running Segmenter + ModelProvider.
+ * Shows the result of running Segmenter + ModelProvider, plus v0.3.5's
+ * provider-call diagnostics: which provider was requested, which actually
+ * ran, whether fallback fired, and the validator / evidence-match outcome.
  *
- * Two distinct phases share the screen:
- *   - **Pre-segment**: user just landed here; "Run segmentation" runs the
- *     rule-based segmenter and lists the chunks.
- *   - **Pre-analyze / post-analyze**: once segments are visible, the user can
- *     tap "调用 DemoProvider 分析" to actually populate analysisResult.
- *
- * This keeps the two cheap-vs-expensive operations visible to the reviewer.
+ * The provider chip is the single most important thing on this screen for a
+ * reviewer — it's how they know a "successful analysis" came from a real
+ * model and not from DemoProvider's canned JSON.
  */
 @Composable
 fun AnalyzeScreen(
@@ -54,11 +52,9 @@ fun AnalyzeScreen(
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.SemiBold
         )
-        Text(
-            "当前 provider: ${state.providerName} (DemoProvider 已接入；BlueLM / Compatible 为占位)",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+
+        ProviderStatusCard(state)
+
         Text(
             "分段数：${state.segments.size}    热词数：${state.hotwords.size}",
             style = MaterialTheme.typography.bodySmall
@@ -72,7 +68,7 @@ fun AnalyzeScreen(
             Button(
                 onClick = onRunAnalyze,
                 enabled = !state.isLoading && state.segments.isNotEmpty()
-            ) { Text("调用 ${state.providerName} 分析") }
+            ) { Text("调用 ${state.requestedProvider} 分析") }
         }
 
         if (state.isLoading) {
@@ -90,16 +86,6 @@ fun AnalyzeScreen(
                 "Error: $it",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.error
-            )
-        }
-
-        state.evidenceValidation?.let { v ->
-            Text(
-                "Evidence chain: schemaPassed=${v.schemaPassed}, " +
-                    "spanMatchRate=${"%.2f".format(v.evidenceMatchRate)}, " +
-                    "mismatches=${v.spanMismatches.size}",
-                style = MaterialTheme.typography.bodySmall,
-                color = if (v.schemaPassed && v.spanMismatches.isEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
             )
         }
 
@@ -137,6 +123,76 @@ fun AnalyzeScreen(
                 onClick = onNext,
                 enabled = state.analysisResult != null
             ) { Text("继续到时间轴") }
+        }
+    }
+}
+
+/**
+ * Provider-status card. Renders four facts:
+ *   - 当前 Provider (active vs. requested)
+ *   - 是否使用兜底 (fallbackUsed)
+ *   - 校验状态 (ResultValidator + EvidenceValidator schema)
+ *   - 证据命中率 (EvidenceValidator span-match rate)
+ *
+ * Color flips to error when fallback fired or validation failed, so a
+ * reviewer can tell at a glance whether the result is trustworthy.
+ */
+@Composable
+private fun ProviderStatusCard(state: ClassMateUiState) {
+    val fallbackColor = if (state.fallbackUsed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+    val structureColor = when (state.structureValid) {
+        true -> MaterialTheme.colorScheme.primary
+        false -> MaterialTheme.colorScheme.error
+        null -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val matchRateText = state.evidenceValidation?.let { "%.0f%%".format(it.evidenceMatchRate * 100) } ?: "—"
+    val structureText = when (state.structureValid) {
+        true -> "通过"
+        false -> "有问题"
+        null -> "未运行"
+    }
+    val fallbackText = if (state.fallbackUsed) "是 (回退到 ${state.activeProvider})" else "否"
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            Text(
+                "当前 Provider: ${state.activeProvider} (config 请求: ${state.requestedProvider})",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                "是否使用兜底: $fallbackText",
+                style = MaterialTheme.typography.bodySmall,
+                color = fallbackColor
+            )
+            Text(
+                "校验状态: $structureText",
+                style = MaterialTheme.typography.bodySmall,
+                color = structureColor
+            )
+            Text(
+                "证据命中率: $matchRateText",
+                style = MaterialTheme.typography.bodySmall
+            )
+            state.lastProviderError?.let {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Provider note: $it",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+            if (state.configHint.isNotBlank()) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    state.configHint,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }

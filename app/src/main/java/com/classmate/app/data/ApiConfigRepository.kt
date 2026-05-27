@@ -2,6 +2,8 @@ package com.classmate.app.data
 
 import android.content.Context
 import android.util.Log
+import com.classmate.core.adapter.BlueLmConfig
+import com.classmate.core.adapter.CompatibleConfig
 import com.classmate.core.adapter.ProviderConfig
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -12,14 +14,19 @@ import java.io.File
  *
  * Search order — first hit wins:
  *   1. Internal storage:  filesDir/config.local.json
- *   2. App assets:        config.example.json (safe defaults, no real keys)
+ *   2. App assets:        config.example.json (placeholder-only, never has real keys)
  *
  * config.local.json is NEVER bundled into the APK. It must be pushed onto the
  * device by the developer (e.g. `adb push config.local.json
  * /data/data/com.classmate.app/files/`) once real credentials are in play.
- * For the v0.2.5 probe with provider="demo", neither file is strictly
- * required — the loader degrades to in-memory defaults and the demo flow
- * still works.
+ *
+ * v0.3.5 layout — top-level chooses the intended provider; the nested
+ * "compatible" / "bluelm" objects hold per-provider credentials. The legacy
+ * flat fields are still tolerated (parser uses default values) but only the
+ * nested shape is documented.
+ *
+ * The repository never logs key material. Only field-present flags are
+ * surfaced.
  */
 object ApiConfigRepository {
 
@@ -49,12 +56,7 @@ object ApiConfigRepository {
 
         // Hardcoded last resort — provider=demo so no network call ever happens.
         return ResolvedConfig(
-            providerConfig = ProviderConfig(
-                provider = "demo",
-                apiBaseUrl = "",
-                appId = "",
-                appKey = ""
-            ),
+            providerConfig = ProviderConfig(provider = "demo"),
             loadedFromLocalFile = false
         )
     }
@@ -62,15 +64,41 @@ object ApiConfigRepository {
     @Serializable
     private data class RawConfig(
         val provider: String = "demo",
-        val api_base_url: String = "",
-        val app_id: String = "",
-        val app_key: String = ""
+        val compatible: RawCompatible = RawCompatible(),
+        val bluelm: RawBlueLm = RawBlueLm()
     ) {
         fun toProviderConfig() = ProviderConfig(
             provider = provider,
+            compatible = compatible.toConfig(),
+            bluelm = bluelm.toConfig()
+        )
+    }
+
+    @Serializable
+    private data class RawCompatible(
+        val api_base_url: String = "",
+        val api_key: String = "",
+        val model: String = ""
+    ) {
+        fun toConfig() = CompatibleConfig(
+            apiBaseUrl = api_base_url,
+            apiKey = api_key,
+            model = model
+        )
+    }
+
+    @Serializable
+    private data class RawBlueLm(
+        val api_base_url: String = "",
+        val app_id: String = "",
+        val app_key: String = "",
+        val model: String = ""
+    ) {
+        fun toConfig() = BlueLmConfig(
             apiBaseUrl = api_base_url,
             appId = app_id,
-            appKey = app_key
+            appKey = app_key,
+            model = model
         )
     }
 
