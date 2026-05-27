@@ -28,9 +28,11 @@ class RedactedLogger(
             put("hotword_count", JsonPrimitive(log.hotwordCount))
             put("success", JsonPrimitive(log.success))
             put("latency_ms", JsonPrimitive(log.latencyMs))
-            put("schema_valid", JsonPrimitive(log.schemaValid))
+            put("structure_valid", JsonPrimitive(log.structureValid))
             put("evidence_match_rate", log.evidenceMatchRate?.let(::JsonPrimitive) ?: JsonNull)
+            put("fallback_used", JsonPrimitive(log.fallbackUsed))
             put("error_type", log.errorType?.let(::JsonPrimitive) ?: JsonNull)
+            put("api_key_redacted", JsonPrimitive(log.apiKeyRedacted))
         }
         sink(JSON.encodeToString(JsonObject(record)))
     }
