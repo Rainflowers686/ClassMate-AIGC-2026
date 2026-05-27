@@ -2,44 +2,51 @@ package com.classmate.core.adapter
 
 import com.classmate.core.model.CourseAnalysisInput
 import com.classmate.core.model.CourseAnalysisResult
+import com.classmate.core.network.HttpEngine
 
 /**
- * Placeholder for the vivo BlueLM (蓝心) provider.
+ * Safe-wired placeholder for the vivo BlueLM (蓝心) provider.
  *
- * v0.2.5 status: NOT WIRED. The probe deliberately avoids issuing any real
- * network request. Calling [analyzeCourse] throws so we never accidentally
- * ship a half-done integration that looks like it works.
+ * Status: the official API contract — endpoint URL pattern, request body
+ * shape, App Key signing scheme, response envelope — is NOT in this repo.
+ * Until that information is supplied through official docs, this provider
+ * MUST NOT issue a network request. Inventing the signing scheme would just
+ * yield a stub that fails authentication while looking like a real
+ * integration, which is the opposite of what the contest expects.
  *
- * v0.3 will:
- *  1. Build the prompt from PromptBuilder + input;
- *  2. POST to [config].api_base_url with App ID / App Key signing;
- *  3. Parse the response, validate against the JSON schema;
- *  4. Return CourseAnalysisResult.
+ * What is wired:
+ *  - config reading via [com.classmate.core.adapter.BlueLmConfig];
+ *  - dependency on [HttpEngine] so the eventual real implementation has no
+ *    extra plumbing to add;
+ *  - clear, typed failure via [ModelCallException].
+ *
+ * To go live, supply (and reference here):
+ *   - the exact base URL for chat-style course analysis;
+ *   - the request body schema (model name, temperature, message shape);
+ *   - the signature algorithm (header names, payload to sign, hash);
+ *   - the response envelope (where to read the JSON content from).
  */
 class BlueLMProvider(
-    private val config: ProviderConfig
+    private val config: BlueLmConfig,
+    @Suppress("unused") private val httpEngine: HttpEngine,
+    @Suppress("unused") private val promptBuilder: (CourseAnalysisInput) -> String = PromptBuilder::build
 ) : ModelProvider {
 
     override val name: String = "bluelm"
 
     override suspend fun analyzeCourse(input: CourseAnalysisInput): CourseAnalysisResult {
-        throw NotImplementedError(
-            "BlueLM provider not wired in v0.2.5 probe. " +
-                "Configured base_url=${config.apiBaseUrl}, app_id_present=${config.appId.isNotBlank()}. " +
-                "Fall back to DemoProvider or wait for v0.3."
+        if (!config.isUsable()) {
+            throw ModelCallException(
+                ModelCallException.Reason.CONFIG_MISSING,
+                "BlueLM config is missing or contains placeholders (base_url present=${config.apiBaseUrl.isNotBlank()}, " +
+                    "app_id present=${config.appId.isNotBlank()}, app_key present=${config.appKey.isNotBlank()}, " +
+                    "model present=${config.model.isNotBlank()})"
+            )
+        }
+        throw ModelCallException(
+            ModelCallException.Reason.PROVIDER_NOT_IMPLEMENTED,
+            "BlueLM provider is not configured or official API contract is missing. " +
+                "Endpoint/signing scheme must be supplied from official docs before any real call is made."
         )
     }
 }
-
-/**
- * Credentials + endpoint loaded from `config.local.json`.
- *
- * Held as plain data so the core module stays free of Android dependencies.
- * The app module is responsible for reading the file and instantiating this.
- */
-data class ProviderConfig(
-    val provider: String,
-    val apiBaseUrl: String,
-    val appId: String,
-    val appKey: String
-)
