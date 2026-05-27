@@ -1,22 +1,34 @@
-# ClassMate v0.3 — Main-Flow Skeleton
+# ClassMate v0.3.5 — Real-Model Probe
 
-> 本仓库当前版本为 **v0.3 主流程工程骨架**，基于 v0.2.5 技术探针推进得到。
-> 目标：跑通 课程文本导入 → 热词 → 分段 → DemoProvider 分析 → 时间轴 → 微测 → 证据回溯 → 复习计划 的端到端单机闭环。
-> 仍 **不实现** 登录、社区、小 V、原子通知、负一屏、穿戴、长期画像、真实课堂录音、真实大模型 HTTP 调用。
+> 当前版本：**v0.3.5_real_model_probe**，在 v0.3 主流程骨架基础上接入了
+> 可用的真实 HTTP 调用链与可校验的兜底策略。
+> 目标：把 ClassMate 从 “DemoProvider 主流程可运行” 推进到
+> **“真实模型调用链可接入、可验证、可留证据”**。
+>
+> 仍 **不实现**：登录、社区、小 V、原子通知、负一屏、穿戴、长期画像、
+> 真实课堂录音、BlueLM 真实接入（缺官方契约）、UI 美化。
 
 ---
 
 ## 1. 项目简介
 
-ClassMate 是面向课程内容的证据链式讲解与微测复习助手。v0.3 的核心交付是：
+ClassMate 是面向课程内容的证据链式讲解与微测复习助手。v0.3.5 在 v0.3 基础上
+新增：
 
-- 6 个主流程页面 + 首页，全部基于 Jetpack Compose；
-- 单一 `ClassMateViewModel` + `ClassMateUiState`，sealed `ClassMateScreen` 驱动导航；
-- 真实的规则分段器 `Segmenter`（自然段 → 150-300 字归并）；
-- `ModelProvider` 抽象 + 三种实现：`DemoProvider`（已接入主流程）/ `BlueLMProvider`、`CompatibleProvider`（占位，被调用时回退到 demo）；
-- `ResultValidator`（轻量 Kotlin 引用 / 范围校验）+ `EvidenceValidator`（证据链命中率）；
-- API Key 从 `config.local.json` 本地读取，**不进入仓库**；
-- 英文 `RedactedLogger` JSON 单行日志，闭合字段集（`ModelCallLog`）。
+- `core/network/` — `HttpEngine` 抽象 + `SimpleHttpEngine`（JDK
+  `HttpURLConnection` 实现）；Provider 业务逻辑只依赖接口，可替换；
+- `core/adapter/CompatibleProvider` — 真实 HTTP 调用，针对任何
+  OpenAI-compatible chat/completions 端点；
+- `core/adapter/JsonExtractor` — 处理纯 JSON / ```json 代码块 / 含散文响应；
+- `core/adapter/ModelCallException` — 6 种 reason，驱动 ViewModel 兜底决策；
+- `core/adapter/ProviderConfig` — 分 `compatible` / `bluelm` 两段配置；
+- 闭合校验链 `JsonExtractor → deserialize → ResultValidator →
+  EvidenceValidator → RedactedLogger → UI state`；
+- AnalyzeScreen 显示 **当前 Provider / 是否使用兜底 / 校验状态 /
+  证据命中率**；
+- `RedactedLogger` 日志新增 `structure_valid`、`fallback_used`、
+  `api_key_redacted` 字段；
+- `proof/logs_redacted/sample_model_call_redacted.jsonl` — 脱敏日志样例。
 
 ---
 
@@ -35,171 +47,231 @@ ClassMate 是面向课程内容的证据链式讲解与微测复习助手。v0.3
 
 ---
 
-## 3. 配置方式
+## 3. Provider 当前状态
 
-### 3.1 API Key
+| Provider | 状态 | 行为 |
+| --- | --- | --- |
+| `DemoProvider` | **已接入主流程** | 解析 `assets/demo_output.json` 返回 `CourseAnalysisResult` |
+| `CompatibleProvider` | **真实 HTTP 已接线** | 走 `SimpleHttpEngine` → OpenAI-compatible `chat/completions`；失败时由 ViewModel 兜底到 demo |
+| `BlueLMProvider` | **占位、安全接线** | `analyzeCourse` 抛 `ModelCallException(PROVIDER_NOT_IMPLEMENTED)`，附说明 “BlueLM provider is not configured or official API contract is missing.” ViewModel 捕获后回退 demo |
 
-API Key **不进入代码仓库**。复制 `config.example.json` 为 `config.local.json` 并填入凭据：
+⚠ 仓库内 **没有** BlueLM 官方 endpoint、请求体、签名算法。为避免伪造，
+`BlueLMProvider` 只接线了 config 读取、`HttpEngine` 依赖、错误分类，**不会**
+发出任何网络请求。要走真实 BlueLM，需要先补齐：
+
+- 课堂分析任务对应的 base_url；
+- 请求体格式（model 名、temperature、消息体）；
+- App Key 签名算法（header 名、被签名 payload、hash）；
+- 响应体结构（content 字段路径）。
+
+---
+
+## 4. 配置方式（`config.local.json`）
+
+API Key **不进入代码仓库**。复制根目录 `config.example.json` 为
+`config.local.json` 并填入凭据：
 
 ```json
 {
   "provider": "demo",
-  "api_base_url": "https://example.api.endpoint",
-  "app_id": "YOUR_APP_ID",
-  "app_key": "YOUR_APP_KEY"
+  "compatible": {
+    "api_base_url": "https://your-compatible-endpoint/v1/chat/completions",
+    "api_key": "YOUR_API_KEY",
+    "model": "YOUR_MODEL_NAME"
+  },
+  "bluelm": {
+    "api_base_url": "FILL_FROM_OFFICIAL_DOCS",
+    "app_id": "YOUR_APP_ID",
+    "app_key": "YOUR_APP_KEY",
+    "model": "FILL_FROM_OFFICIAL_DOCS"
+  }
 }
 ```
 
-- `provider` 可取 `demo` / `bluelm` / `compatible`。
-- v0.3 仅 `DemoProvider` 已接入；选 `bluelm` / `compatible` 时会自动回退到 demo 并在 Logcat 提示。
-- `config.local.json` 已被 `.gitignore` 屏蔽。
-- 设备上的查找顺序：`/data/data/com.classmate.app/files/config.local.json` → `assets/config.example.json` → 硬编码 `provider=demo` 兜底。
+- `provider` 取 `demo` / `compatible` / `bluelm`。
+- `config.local.json` 已被 `.gitignore` 屏蔽（`*.local.json` 兜底）。
+- 设备查找顺序：
+  1. `/data/data/com.classmate.app/files/config.local.json`
+  2. `assets/config.example.json`（仅占位符，永不含真实 key）
+  3. 硬编码 `provider=demo` 兜底
+- 推送到设备示例：
 
-### 3.2 运行方式
+  ```bash
+  adb push config.local.json /data/data/com.classmate.app/files/
+  ```
 
-1. Android Studio 打开 [ClassMate/](.) 根目录；
-2. 等待 Gradle 同步（首次会生成 `gradle/wrapper/gradle-wrapper.jar` 与 `gradlew*`，仓库不携带二进制 wrapper jar）；
-3. 选 `app` 配置，连模拟器或 vivo 真机；
-4. 点击 Run。
-
----
-
-## 4. 主流程操作指引
-
-进入 APP 后页面顺序固定为：
-
-1. **HomeScreen** — 标题 + 副标 + 两个按钮。
-   - **开始 / Start** → CourseInputScreen（空白）；
-   - **加载 Demo / Load demo** → 一并填好课程标题、文本、热词，然后跳到 CourseInputScreen。
-2. **CourseInputScreen** — 输入 / 粘贴课程标题与文本；按 **加载 demo_course** 可一键填入演示数据；点击 **下一步：热词**。
-3. **HotwordScreen** — 输入框 + 添加 / 已有热词 chip 列表，点击 chip 可移除；**下一步：分析**。
-4. **AnalyzeScreen** — 显示当前 provider、分段数、热词数。先点 **运行分段** 看 `Segmenter` 结果，再点 **调用 demo 分析** 触发 DemoProvider；分析完会显示一行 `Evidence chain: ...`。
-5. **TimelineScreen** — 课程摘要 + 知识点卡片列表（重要性 / 难度 / 来源段 ID / 释义）；点 **查看证据** 在上方面板里高亮 `evidence_span`；**进入微测** 进入下一步。
-6. **QuizScreen** — 一次一题，选项 + 提交 + 正确 / 错误反馈 + 证据片段 + **查看依据段落** 高亮源段；**上一题 / 下一题** 切换；底部 **查看复习计划**。
-7. **ReviewPlanScreen** — 列出每条复习任务（步骤号、时长、关联知识点、原因），底部可回时间轴或回首页。
-
-错答会把对应 `relatedKpId` 加入 `wrongKnowledgePointIds`；返回时间轴时该卡片的边框会变红。
+⚠ 任何形式的 key、App Key、Authorization 完整头都 **禁止** 写入代码、
+assets、commit message、日志、issue。
 
 ---
 
-## 5. 目录结构
+## 5. 运行流程
+
+### 5.1 跑 Demo 路径（无需 key）
+
+1. 打开 [ClassMate/](.) 根目录，等待 Gradle 同步；
+2. 默认 `provider=demo`，直接 Run；
+3. **HomeScreen → CourseInputScreen → HotwordScreen → AnalyzeScreen →
+   TimelineScreen → QuizScreen → ReviewPlanScreen** 走通；
+4. AnalyzeScreen 上的 Provider 卡显示
+   `当前 Provider: demo / 是否使用兜底: 否 / 校验状态: 通过 / 证据命中率: 100%`。
+
+### 5.2 跑 CompatibleProvider 真实调用
+
+1. 在 `config.local.json` 中：
+   - 把 `provider` 改为 `"compatible"`；
+   - 填入 `compatible.api_base_url` / `api_key` / `model`（任何 OpenAI-compatible
+     提供商均可：DashScope、DeepSeek、SiliconFlow、Together、本地 vLLM 等）；
+2. 推送到设备 `/data/data/com.classmate.app/files/config.local.json`；
+3. 启动应用，进入 AnalyzeScreen 点 “调用 compatible 分析”；
+4. 成功时 Provider 卡显示 `当前 Provider: compatible / 是否使用兜底: 否`，
+   `证据命中率` 取决于模型遵守 verbatim 引用规则的程度；
+5. 任何异常（HTTP_ERROR / DESERIALIZE_FAILED / VALIDATION_FAILED 等）
+   都会自动回退到 demo，并把 Provider 卡的 `是否使用兜底` 标红，
+   `Provider note:` 显示 reason。
+
+### 5.3 检查 fallback
+
+UI 直接显示，但要看完整日志：
+
+```bash
+adb logcat -s ClassMateLog
+```
+
+每次分析会输出一条 JSON Line，例如：
+
+```json
+{"timestamp":"2026-05-27T10:18:11+08:00","provider":"compatible","task":"course_analysis","input_segment_count":3,"hotword_count":5,"success":true,"latency_ms":3842,"structure_valid":true,"evidence_match_rate":0.83,"fallback_used":false,"error_type":null,"api_key_redacted":true}
+```
+
+`fallback_used=true` 时 `error_type` 会带上 `ModelCallException.Reason` 与
+裁剪过的 message。
+
+---
+
+## 6. 校验与日志（闭合链）
+
+```text
+raw model output
+  │
+  ├─► JsonExtractor.extract            (剥 ```json 围栏 + 平衡 brace 扫描)
+  │
+  ├─► Json.decodeFromString            (CourseAnalysisResult)
+  │
+  ├─► ResultValidator                  (引用闭合 / 范围 / answer_index 边界)
+  │     └─► 致命问题 → ModelCallException(VALIDATION_FAILED)
+  │
+  ├─► EvidenceValidator                (schemaPassed + evidenceMatchRate)
+  │     └─► matchRate < 1.0 不抛错，记录日志 + UI 降级高亮
+  │
+  ├─► RedactedLogger                   (ModelCallLog 闭合字段集)
+  │
+  └─► UI state                         (activeProvider / fallbackUsed /
+                                        structureValid / evidenceMatchRate)
+```
+
+### 6.1 日志脱敏
+
+字段集合由 [core/logging/ModelCallLog.kt](core/src/main/kotlin/com/classmate/core/logging/ModelCallLog.kt)
+锁死；`RedactedLogger` 只会序列化这个 data class 的字段。**严禁** 出现：
+
+- 真实 API Key
+- 真实 App KEY
+- 完整 Authorization 头
+- 未授权课堂文本
+- 隐私信息
+
+`api_key_redacted` 字段恒为 `true`，作为审计 grep 锚点。
+
+样例日志：[proof/logs_redacted/sample_model_call_redacted.jsonl](proof/logs_redacted/sample_model_call_redacted.jsonl)
+（标记 `"_sample": true`；非真实 call，仅用于展示字段形态）。
+
+---
+
+## 7. 目录结构（v0.3.5 增量）
 
 ```text
 ClassMate/
-├── app/                                  Android 应用模块
-│   ├── build.gradle.kts
-│   └── src/main/
-│       ├── AndroidManifest.xml
-│       ├── java/com/classmate/app/
-│       │   ├── MainActivity.kt
-│       │   ├── data/
-│       │   │   ├── ApiConfigRepository.kt
-│       │   │   └── DemoInputRepository.kt
-│       │   ├── state/
-│       │   │   ├── ClassMateUiState.kt   ← UiState + sealed Screen
-│       │   │   └── ClassMateViewModel.kt
-│       │   ├── ui/
-│       │   │   ├── AppRoot.kt            ← sealed-screen dispatch
-│       │   │   ├── HomeScreen.kt
-│       │   │   ├── CourseInputScreen.kt
-│       │   │   ├── HotwordScreen.kt
-│       │   │   ├── AnalyzeScreen.kt
-│       │   │   ├── TimelineScreen.kt
-│       │   │   ├── QuizScreen.kt
-│       │   │   ├── ReviewPlanScreen.kt
-│       │   │   ├── components/
-│       │   │   │   ├── KnowledgePointCard.kt
-│       │   │   │   ├── SegmentCard.kt
-│       │   │   │   ├── QuizCard.kt
-│       │   │   │   └── ReviewPlanCard.kt
-│       │   │   └── theme/Theme.kt
-│       ├── res/                          strings / themes / colors / 自适应图标 / 备份规则
-│       └── assets/
-│           ├── demo_input.json
-│           ├── demo_output.json
-│           ├── config.example.json
-│           ├── schema/course_analysis_result.schema.json
-│           └── prompts/{00_system_rules,01_course_analysis}.md
-├── core/                                 纯 JVM Kotlin 库模块
-│   ├── build.gradle.kts
-│   └── src/main/kotlin/com/classmate/core/
-│       ├── model/                        CourseAnalysisInput / Result / CourseSegment / KnowledgePoint / Quiz / ReviewPlanItem
-│       ├── adapter/                      ModelProvider / DemoProvider / BlueLMProvider / CompatibleProvider / PromptBuilder
-│       ├── segmenter/Segmenter.kt        自然段 + 150-300 字归并 + 标点兜底
-│       ├── evidence/                     EvidenceValidator + EvidenceValidationResult
-│       ├── validation/ResultValidator.kt 引用闭合 + 取值范围 + answer_index 边界
-│       └── logging/                      RedactedLogger + ModelCallLog
-├── schema/course_analysis_result.schema.json    仓库权威副本
-├── prompts/{00_system_rules,01_course_analysis}.md
-├── examples/{demo_course.txt,demo_hotwords.json,demo_input.json,demo_output.json}
-├── docs/v0.3-tasklist.md                 下一步给 Codex 的清单
-├── proof/logs_redacted/README.md         redacted 日志落点（当前为空）
-├── config.example.json
-├── .gitignore
-├── settings.gradle.kts / build.gradle.kts / gradle.properties / gradle/libs.versions.toml
-└── README.md
+├── core/src/main/kotlin/com/classmate/core/
+│   ├── adapter/
+│   │   ├── ModelProvider.kt
+│   │   ├── DemoProvider.kt
+│   │   ├── CompatibleProvider.kt        ← 真实 HTTP
+│   │   ├── BlueLMProvider.kt            ← 安全占位
+│   │   ├── ProviderConfig.kt            ← compatible/bluelm 分段
+│   │   ├── PromptBuilder.kt
+│   │   ├── JsonExtractor.kt             ← NEW
+│   │   └── ModelCallException.kt        ← NEW (6 种 reason)
+│   ├── network/                         ← NEW 包
+│   │   ├── HttpEngine.kt
+│   │   ├── HttpRequest.kt
+│   │   ├── HttpResponse.kt
+│   │   ├── HttpError.kt
+│   │   └── SimpleHttpEngine.kt
+│   ├── evidence/
+│   ├── logging/
+│   ├── model/
+│   ├── segmenter/
+│   └── validation/
+├── app/src/main/
+│   ├── AndroidManifest.xml              ← +INTERNET permission
+│   ├── assets/config.example.json       ← 新版结构（占位符）
+│   └── java/com/classmate/app/
+│       ├── data/ApiConfigRepository.kt  ← 支持嵌套 compatible/bluelm
+│       ├── state/ClassMateUiState.kt    ← +activeProvider/fallbackUsed/structureValid
+│       ├── state/ClassMateViewModel.kt  ← 兜底策略
+│       └── ui/AnalyzeScreen.kt          ← ProviderStatusCard
+├── config.example.json                  ← 新版结构（占位符）
+├── proof/logs_redacted/
+│   ├── README.md
+│   └── sample_model_call_redacted.jsonl ← NEW
+└── README.md                            ← 你正在看
 ```
 
 ---
 
-## 6. 命名约定（v0.3 起统一）
+## 8. 能力边界
 
-- Kotlin 字段一律 camelCase（`sourceSegmentId`、`evidenceSpan`、`reviewPlan` …）
-- JSON 字段保留 snake_case，由 `@SerialName` 显式映射
-- UI 不直接处理原始 JSON 字符串，所有数据先反序列化到 data class
+### 8.1 已实现
 
----
+- 6 个主流程页面 + 首页；
+- `Segmenter` 真实规则分段；
+- `DemoProvider`（主流程）；
+- `CompatibleProvider`（真实 HTTP，OpenAI-compatible）；
+- `JsonExtractor` 处理 fenced / 散文包裹响应；
+- `ResultValidator` + `EvidenceValidator` 双层校验；
+- ViewModel 兜底策略（compatible/bluelm 失败 → demo，错误分类入日志）；
+- AnalyzeScreen 显示 Provider / fallback / 校验 / 命中率；
+- `RedactedLogger` 闭合字段集英文 JSON Line；
+- 脱敏日志样例文件。
 
-## 7. 当前 Provider 状态
+### 8.2 占位 / 未实现
 
-| Provider | v0.3 状态 | 调用结果 |
-| --- | --- | --- |
-| `DemoProvider` | **已接入主流程** | 解析 `assets/demo_output.json` 返回 `CourseAnalysisResult` |
-| `BlueLMProvider` | **占位** | `analyzeCourse` 抛 `NotImplementedError`；ViewModel 捕获并回退到 demo |
-| `CompatibleProvider` | **占位** | 同上 |
+- `BlueLMProvider` —— 缺官方契约，不发请求；
+- 复习计划仍取自模型输出，**未做** 基于本地 quiz state 重新生成；
+- JSON Schema 文件存在但 **运行时未做完整 schema 校验**，仅依赖
+  `ResultValidator` + `EvidenceValidator` 双层校验；
+- HTTP 没有重试 / 指数退避（一次失败直接兜底）。
 
-切换：编辑 `config.local.json` 的 `provider` 字段。v0.3 仍只能跑 demo 路径；BlueLM / Compatible 的 HTTP 接线放在 v0.3.5+。
-
----
-
-## 8. 日志样例
-
-```text
-ClassMateLog: {"timestamp":"2026-05-26T12:00:00+08:00","provider":"demo","task":"course_analysis","input_segment_count":1,"hotword_count":5,"success":true,"latency_ms":3,"schema_valid":true,"evidence_match_rate":1.0,"error_type":null}
-```
-
-字段集合由 [`core/logging/ModelCallLog.kt`](core/src/main/kotlin/com/classmate/core/logging/ModelCallLog.kt) 锁死；新增字段需改这个 data class。
-
----
-
-## 9. 能力边界
-
-### 9.1 已实现
-
-- 6 个主流程页面 + 首页，单 Activity + Compose；
-- `Segmenter` 实际规则分段；
-- `DemoProvider` 主流程；
-- `ResultValidator`（引用闭合 / 范围）；
-- `EvidenceValidator`（命中率 / 失败降级）；
-- 证据回溯 UI（点击知识点 / 题目 → 高亮源段）；
-- 错题回标（错题对应 `relatedKpId` 在时间轴上红边框）；
-- 本次会话复习计划展示；
-- 失败兜底（任何异常不崩 APP，写入英文 redacted 日志）。
-
-### 9.2 占位 / 模拟
-
-- `BlueLMProvider` / `CompatibleProvider` —— 接口占位；
-- 复习计划仍然取自模型输出，**未做** 本地 quiz state + difficulty + importance 重新生成；
-- JSON Schema 文件存在但 **运行时未做完整 schema 校验**，目前依赖 `ResultValidator` + `EvidenceValidator` 双层校验。
-
-### 9.3 显式禁止 / 永不在本工程实现
+### 8.3 显式禁止 / 永不在本工程实现
 
 - 登录 / 注册 / 社区；
 - 小 V 真实唤起、原子通知真实接入、负一屏真实接入；
 - 课中实时录音；
 - 端侧大模型部署；
 - 穿戴；
-- 长期学习画像。
+- 长期学习画像；
+- 未授权使用任何第三方大模型 key；
+- 任何形式的 “已完整接入蓝心大模型” / “学习效率提升 XX%” / “课堂实时录音已实现” 文案。
+
+---
+
+## 9. 命名约定
+
+- Kotlin 字段一律 camelCase（`sourceSegmentId`、`evidenceSpan`、`reviewPlan` …）
+- JSON 字段保留 snake_case，由 `@SerialName` / 显式映射桥接
+- UI 不直接处理原始 JSON 字符串，所有数据先反序列化到 data class
+- 真实密钥永远不进入仓库、日志、commit、issue
 
 ---
 
