@@ -10,42 +10,27 @@ import kotlinx.serialization.json.JsonPrimitive
 /**
  * Emits structured, English-only JSON log lines.
  *
- * Spec §13 forbids logging:
- *   - real API keys / App keys
- *   - user PII
- *   - raw classroom audio
- *   - full request headers
- *
- * Therefore this logger only accepts a small, hand-listed set of fields and
- * NEVER takes a free-form payload. If you find yourself wanting to pass more
- * context, add a named parameter — don't widen the API to a map.
+ * Spec §13.1 forbids logging real API/App keys, user PII, raw audio, or full
+ * request headers. The log record is constrained by [ModelCallLog] — we
+ * encode that struct rather than accepting a free-form map, so widening the
+ * payload requires editing a typed data class.
  */
 class RedactedLogger(
     private val sink: (String) -> Unit
 ) {
 
-    fun courseAnalysisCall(
-        timestamp: String,
-        provider: String,
-        inputSegmentCount: Int,
-        hotwordCount: Int,
-        success: Boolean,
-        latencyMs: Long,
-        schemaValid: Boolean,
-        evidenceMatchRate: Double?,
-        errorType: String?
-    ) {
-        val record = buildMap<String, JsonElement> {
-            put("timestamp", JsonPrimitive(timestamp))
-            put("provider", JsonPrimitive(provider))
-            put("task", JsonPrimitive("course_analysis"))
-            put("input_segment_count", JsonPrimitive(inputSegmentCount))
-            put("hotword_count", JsonPrimitive(hotwordCount))
-            put("success", JsonPrimitive(success))
-            put("latency_ms", JsonPrimitive(latencyMs))
-            put("schema_valid", JsonPrimitive(schemaValid))
-            put("evidence_match_rate", evidenceMatchRate?.let(::JsonPrimitive) ?: JsonNull)
-            put("error_type", errorType?.let(::JsonPrimitive) ?: JsonNull)
+    fun courseAnalysisCall(log: ModelCallLog) {
+        val record: Map<String, JsonElement> = buildMap {
+            put("timestamp", JsonPrimitive(log.timestamp))
+            put("provider", JsonPrimitive(log.provider))
+            put("task", JsonPrimitive(log.task))
+            put("input_segment_count", JsonPrimitive(log.inputSegmentCount))
+            put("hotword_count", JsonPrimitive(log.hotwordCount))
+            put("success", JsonPrimitive(log.success))
+            put("latency_ms", JsonPrimitive(log.latencyMs))
+            put("schema_valid", JsonPrimitive(log.schemaValid))
+            put("evidence_match_rate", log.evidenceMatchRate?.let(::JsonPrimitive) ?: JsonNull)
+            put("error_type", log.errorType?.let(::JsonPrimitive) ?: JsonNull)
         }
         sink(JSON.encodeToString(JsonObject(record)))
     }
