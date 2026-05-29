@@ -1,59 +1,120 @@
 package com.classmate.core.validation
 
+import com.classmate.core.model.CourseAnalysisInput
 import com.classmate.core.model.CourseAnalysisResult
 
 /**
- * Lightweight Kotlin-side validator for [CourseAnalysisResult].
+ * Structural + cross-reference validator for [CourseAnalysisResult].
  *
- * Scope (task §4.6):
+ * v0.4 changes (vs v0.3.5):
+ *  - Issues are typed via [ValidationIssue] so the UI can show actionable
+ *    messages.
+ *  - When [validate] receives a non-null [CourseAnalysisInput], it also checks
+ *    that every result.segment_id is present in input.segment_id (this is the
+ *    root cause of the v0.3.5 "structure_valid=false + 100% match" bug).
+ *
+ * Scope (still no full JSON-schema engine here):
  *  - segments must not be empty
- *  - every knowledgePoint.sourceSegmentId resolves to one of the result's
- *    segments (NOT the input segments — that's EvidenceValidator's job, which
- *    sees both sides)
- *  - every quiz.sourceSegmentId resolves
- *  - every quiz.relatedKpId resolves
- *  - quiz.answerIndex lies inside its options list
- *  - importance and difficulty are in [1, 5]
- *
- * We deliberately do NOT pull a full JSON-schema engine in here; that's
- * v0.3.5+ and tracked in docs/v0.3-tasklist.md. This validator catches the
- * structural mistakes the demo flow actually hits.
+ *  - every knowledge_point / quiz source_segment_id resolves inside the result
+ *  - every knowledge_point source_segment_id appears in input.segments (when given)
+ *  - every quiz related_kp_id resolves to a kp_id
+ *  - every quiz answer_index is in [0, options.size)
+ *  - importance / difficulty are in [1, 5]
+ *  - review_plan related_kp_ids resolve
  */
 object ResultValidator {
 
-    fun validate(result: CourseAnalysisResult): ResultValidation {
-        val issues = mutableListOf<String>()
+    fun validate(
+        result: CourseAnalysisResult,
+        input: CourseAnalysisInput? = null
+    ): ResultValidation {
+        val issues = mutableListOf<ValidationIssue>()
 
         if (result.segments.isEmpty()) {
-            issues += "segments is empty"
+            issues += ValidationIssue(
+                ValidationIssueKind.EMPTY_SEGMENTS,
+                ownerId = "",
+                detail = "result.segments is empty"
+            )
         }
 
-        val segmentIds = result.segments.map { it.segmentId }.toSet()
+        val resultSegmentIds = result.segments.map { it.segmentId }.toSet()
+        val inputSegmentIds = input?.segments?.map { it.segmentId }?.toSet().orEmpty()
         val kpIds = result.segments.flatMap { it.knowledgePoints }.map { it.kpId }.toSet()
 
         result.segments.forEach { seg ->
             seg.knowledgePoints.forEach { kp ->
-                if (kp.sourceSegmentId !in segmentIds) {
-                    issues += "knowledge_point ${kp.kpId} source_segment_id ${kp.sourceSegmentId} not in result.segments"
+                if (kp.sourceSegmentId !in resultSegmentIds) {
+                    issues += ValidationIssue(
+                        ValidationIssueKind.KP_SOURCE_SEGMENT_NOT_IN_RESULT,
+                        ownerId = kp.kpId,
+                        detail = "source_segment_id=${kp.sourceSegmentId}"
+                    )
+                }
+                if (input != null && kp.sourceSegmentId !in inputSegmentIds) {
+                    issues += ValidationIssue(
+                        ValidationIssueKind.KP_SOURCE_SEGMENT_NOT_IN_INPUT,
+                        ownerId = kp.kpId,
+                        detail = "source_segment_id=${kp.sourceSegmentId} (input segments: ${inputSegmentIds.size})"
+                    )
                 }
                 if (kp.importance !in 1..5) {
-                    issues += "knowledge_point ${kp.kpId} importance ${kp.importance} out of [1,5]"
+                    issues += ValidationIssue(
+                        ValidationIssueKind.KP_IMPORTANCE_OUT_OF_RANGE,
+                        ownerId = kp.kpId,
+                        detail = "importance=${kp.importance}"
+                    )
                 }
                 if (kp.difficulty !in 1..5) {
-                    issues += "knowledge_point ${kp.kpId} difficulty ${kp.difficulty} out of [1,5]"
+                    issues += ValidationIssue(
+                        ValidationIssueKind.KP_DIFFICULTY_OUT_OF_RANGE,
+                        ownerId = kp.kpId,
+                        detail = "difficulty=${kp.difficulty}"
+                    )
                 }
             }
         }
 
         result.quizzes.forEach { quiz ->
-            if (quiz.sourceSegmentId !in segmentIds) {
-                issues += "quiz ${quiz.quizId} source_segment_id ${quiz.sourceSegmentId} not in result.segments"
+            if (quiz.sourceSegmentId !in resultSegmentIds) {
+                issues += ValidationIssue(
+                    ValidationIssueKind.QUIZ_SOURCE_SEGMENT_NOT_IN_RESULT,
+                    ownerId = quiz.quizId,
+                    detail = "source_segment_id=${quiz.sourceSegmentId}"
+                )
+            }
+            if (input != null && quiz.sourceSegmentId !in inputSegmentIds) {
+                issues += ValidationIssue(
+                    ValidationIssueKind.QUIZ_SOURCE_SEGMENT_NOT_IN_INPUT,
+                    ownerId = quiz.quizId,
+                    detail = "source_segment_id=${quiz.sourceSegmentId}"
+                )
             }
             if (quiz.relatedKpId !in kpIds) {
-                issues += "quiz ${quiz.quizId} related_kp_id ${quiz.relatedKpId} not in any knowledge_point"
+                issues += ValidationIssue(
+                    ValidationIssueKind.QUIZ_RELATED_KP_MISSING,
+                    ownerId = quiz.quizId,
+                    detail = "related_kp_id=${quiz.relatedKpId}"
+                )
             }
             if (quiz.answerIndex !in quiz.options.indices) {
-                issues += "quiz ${quiz.quizId} answer_index ${quiz.answerIndex} not in options range 0..${quiz.options.lastIndex}"
+                issues += ValidationIssue(
+                    ValidationIssueKind.QUIZ_ANSWER_INDEX_OUT_OF_RANGE,
+                    ownerId = quiz.quizId,
+                    detail = "answer_index=${quiz.answerIndex}, options=${quiz.options.size}"
+                )
+            }
+        }
+
+        result.reviewPlan.forEach { step ->
+            step.relatedKpIds.forEach { kpId ->
+                if (kpId !in kpIds) {
+                    issues += ValidationIssue(
+                        ValidationIssueKind.REVIEW_PLAN_KP_MISSING,
+                        ownerId = step.stepId,
+                        detail = "related_kp_id=$kpId"
+                    )
+                }
             }
         }
 
@@ -63,5 +124,5 @@ object ResultValidator {
 
 data class ResultValidation(
     val passed: Boolean,
-    val issues: List<String>
+    val issues: List<ValidationIssue>
 )

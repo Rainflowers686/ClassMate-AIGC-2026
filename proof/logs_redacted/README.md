@@ -16,23 +16,24 @@ Redacted call logs collected during real-device or cloud-emulator runs.
 
 | File | Status | Notes |
 | --- | --- | --- |
-| `sample_model_call_redacted.jsonl` | **SAMPLE** | Hand-crafted illustration of the v0.3.5 line shape. NOT collected from a real call. |
+| `sample_model_call_redacted.jsonl` | **SAMPLE** | Hand-crafted illustration of the v0.4 line shape. NOT collected from a real call. |
 
 ## Reading the sample
 
-Each line is one model-analysis call. Field meanings:
+Each line is one model-analysis call. Field meanings (v0.4):
 
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `timestamp` | string (RFC 3339, Asia/Shanghai) | when the call was issued |
-| `provider` | `demo` \| `compatible` \| `bluelm` | which provider produced the result |
-| `task` | string | always `course_analysis` in v0.3.5 |
-| `input_segment_count` | int | how many Segmenter chunks were sent |
+| `provider` | `local` \| `compatible` \| `bluelm` | which provider produced the result |
+| `task` | string | always `course_analysis` in v0.4 |
+| `input_segment_count` | int | how many input segments were sent |
 | `hotword_count` | int | how many hotwords were in the prompt |
 | `success` | bool | true if a CourseAnalysisResult was returned |
 | `latency_ms` | int | wall-clock from request issued to result rendered |
-| `structure_valid` | bool | ResultValidator + EvidenceValidator schema check |
-| `evidence_match_rate` | float \| null | fraction of evidence_span values that matched verbatim |
+| `structure_valid` | bool | ResultValidator(passed) AND EvidenceValidator(schemaPassed) |
+| `strict_evidence_match_rate` | float \| null | fraction of evidence_span values that matched verbatim **in input text** |
+| `lenient_evidence_match_rate` | float \| null | fraction matched in input OR result.correctedText |
 | `fallback_used` | bool | true iff the run fell back to a lower-priority provider |
 | `error_type` | string \| null | ModelCallException.Reason or fallback reason; null on clean success |
 | `api_key_redacted` | bool | always true at construction — the marker reviewers grep for |
@@ -41,10 +42,9 @@ Each line is one model-analysis call. Field meanings:
 
 1. Put real keys in `config.local.json` and push to
    `/data/data/com.classmate.app/files/config.local.json`.
-2. Set `provider` to `compatible` (the only fully-wired non-demo path).
+2. Set `provider` to `compatible` (the only fully-wired non-local path).
 3. Run the demo flow.
 4. `adb logcat -s ClassMateLog` captures the log lines.
-5. Pipe through a redactor (the in-app `RedactedLogger` already drops keys —
-   no extra step needed for the field shape, but verify before committing).
+5. The in-app `RedactedLogger` already drops keys — verify before committing.
 6. Save as `api_call_course_analysis_<yyyymmdd_hhmm>_redacted.jsonl` next to
    the sample. Do NOT delete or alter the sample file.

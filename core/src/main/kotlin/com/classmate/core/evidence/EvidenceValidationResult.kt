@@ -3,13 +3,16 @@ package com.classmate.core.evidence
 /**
  * Outcome of running EvidenceValidator over one CourseAnalysisResult.
  *
- * - [schemaPassed]: all referential integrity checks succeeded
- *   (segment_id and related_kp_id all resolve).
- * - [evidenceMatchRate]: fraction of evidence_span values that appeared
- *   verbatim in their declared source segment. 1.0 means every quote checks
- *   out; 0.0 means none did.
- * - [spanMismatches]: items the UI should NOT highlight (spec §14.3) —
- *   show the source-segment animation only.
+ * v0.4 separates two match rates so a UI panel can never again say
+ * "structure invalid + 100% match":
+ *  - [strictEvidenceMatchRate]: span found verbatim in the ORIGINAL input
+ *    segment's text. This is the truthful number for "is the model quoting
+ *    real source material".
+ *  - [lenientEvidenceMatchRate]: span found in either the original input
+ *    text OR the model's correctedText. Tolerant of ASR-fix rewrites.
+ *
+ * - [schemaPassed]: all referential integrity checks succeeded.
+ * - [spanMismatches]: items the UI should downgrade per spec §11.2 item 4.
  */
 data class EvidenceValidationResult(
     val schemaPassed: Boolean,
@@ -17,7 +20,8 @@ data class EvidenceValidationResult(
     val missingQuizSegmentRefs: List<String>,
     val missingRelatedKpRefs: List<String>,
     val spanMismatches: List<EvidenceSpanMismatch>,
-    val evidenceMatchRate: Double
+    val strictEvidenceMatchRate: Double,
+    val lenientEvidenceMatchRate: Double
 )
 
 data class EvidenceSpanMismatch(

@@ -1,32 +1,26 @@
 package com.classmate.app.data
 
 import android.content.Context
-import com.classmate.core.adapter.DemoProvider
 import com.classmate.core.model.CourseAnalysisInput
+import kotlinx.serialization.json.Json
 
 /**
- * Reads bundled demo files from `assets/`. The home screen uses this to feed
- * the DemoProvider during the probe smoke test.
+ * Reads the bundled demo input from `assets/demo_input.json`.
+ *
+ * v0.4 removed `loadDemoOutputRaw` — DemoProvider's static replay is gone;
+ * LocalRuleProvider now produces a result from the real input instead.
  */
 object DemoInputRepository {
 
     private const val INPUT_ASSET = "demo_input.json"
-    private const val OUTPUT_ASSET = "demo_output.json"
 
-    fun loadDemoInput(context: Context): CourseAnalysisInput {
-        val raw = readAsset(context, INPUT_ASSET)
-        return DemoProvider.DefaultJson.decodeFromString(
-            CourseAnalysisInput.serializer(),
-            raw
-        )
+    private val json = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
     }
 
-    /**
-     * Returns demo_output.json raw text — DemoProvider takes a JSON string so
-     * we don't deserialize twice. The validator handles structural checks.
-     */
-    fun loadDemoOutputRaw(context: Context): String = readAsset(context, OUTPUT_ASSET)
-
-    private fun readAsset(context: Context, name: String): String =
-        context.assets.open(name).bufferedReader().use { it.readText() }
+    fun loadDemoInput(context: Context): CourseAnalysisInput {
+        val raw = context.assets.open(INPUT_ASSET).bufferedReader().use { it.readText() }
+        return json.decodeFromString(CourseAnalysisInput.serializer(), raw)
+    }
 }

@@ -18,8 +18,9 @@ interface ModelProvider {
      * Run a single course-analysis pass.
      *
      * Implementations MUST return JSON-schema-conforming output OR throw.
-     * They MUST NOT silently fake a result — DemoProvider is the only one
-     * allowed to return canned data, and it makes that explicit via [name].
+     * They MUST NOT silently fake a result — only [LocalRuleProvider] is
+     * allowed to generate non-model output, and it does so deterministically
+     * from real input and tags itself as `name == "local"`.
      */
     suspend fun analyzeCourse(input: CourseAnalysisInput): CourseAnalysisResult
 }

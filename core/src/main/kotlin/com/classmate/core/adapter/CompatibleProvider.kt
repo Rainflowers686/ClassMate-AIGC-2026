@@ -32,7 +32,7 @@ import kotlinx.serialization.json.buildJsonObject
  *
  * Everything that can go wrong is translated into [ModelCallException] with a
  * specific [ModelCallException.Reason] so the ViewModel can decide whether to
- * surface the error or fall back to DemoProvider.
+ * surface the error or fall back to LocalRuleProvider.
  */
 class CompatibleProvider(
     private val config: CompatibleConfig,

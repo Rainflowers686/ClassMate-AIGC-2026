@@ -1,55 +1,51 @@
 package com.classmate.app.state
 
+import com.classmate.app.ui.theme.ThemeId
 import com.classmate.core.evidence.EvidenceValidationResult
 import com.classmate.core.model.CourseAnalysisResult
 import com.classmate.core.model.InputSegment
 import com.classmate.core.model.KnowledgePoint
 import com.classmate.core.model.Quiz
 import com.classmate.core.model.ReviewPlanItem
+import com.classmate.core.validation.ValidationIssue
 
 /**
- * Single source of truth for v0.3 main-flow UI.
+ * Single source of truth for v0.4 main-flow UI.
  *
- * Kept as one immutable struct rather than ten separate StateFlows because
- * the screens mostly need cross-cutting reads (e.g. TimelineScreen wants
- * segments + analysisResult + wrongKnowledgePointIds together). Copy-on-write
- * is fine at this size; if it ever stops being fine, split per-screen.
- *
- * v0.3.5 adds three provider-call diagnostics:
- *   - [requestedProvider]: what config.local.json asked for
- *   - [activeProvider]: what actually ran (may differ if fallback fired)
- *   - [fallbackUsed], [structureValid] — surfaced on AnalyzeScreen so
- *     reviewers can tell a real call apart from a Demo response.
+ * v0.4 changes vs v0.3.5:
+ *  - replaces single matchRate with strict + lenient
+ *  - carries typed [ValidationIssue]s so the UI can render specific reasons
+ *  - holds the current [themeId] so the user can switch from Settings
+ *  - keeps fallback semantics (requested vs active vs fallbackUsed)
  */
 data class ClassMateUiState(
-    /** Currently visible screen — drives AppRoot's `when` dispatch. */
     val screen: ClassMateScreen = ClassMateScreen.Home,
+
+    // Theme ------------------------------------------------------------------
+    val themeId: ThemeId = ThemeId.FocusGlass,
 
     // Input pipeline ---------------------------------------------------------
     val courseTitle: String = "",
     val courseText: String = "",
     val hotwords: List<String> = emptyList(),
     val pendingHotword: String = "",
+    /** Segments fed to the provider. May be loaded from demo_input.json verbatim
+     *  (preserving 1:1 ids/timings) or produced by Segmenter from courseText. */
     val segments: List<InputSegment> = emptyList(),
 
     // Analysis pipeline ------------------------------------------------------
-    /** Provider name from config.local.json. Stays stable across runs. */
     val requestedProvider: String = "demo",
-    /** Provider that actually produced [analysisResult]. Differs from requested when fallback fires. */
     val activeProvider: String = "demo",
     val analysisResult: CourseAnalysisResult? = null,
     val evidenceValidation: EvidenceValidationResult? = null,
-    /** Result of ResultValidator on the model output. Null until a call completes. */
+    val validationIssues: List<ValidationIssue> = emptyList(),
     val structureValid: Boolean? = null,
-    /** True iff the analysis pipeline fell back to a lower-priority provider. */
     val fallbackUsed: Boolean = false,
-    /** Last provider-call failure reason (verbatim from ModelCallException) — null on success. */
     val lastProviderError: String? = null,
 
     // Interaction state ------------------------------------------------------
     val selectedKnowledgePoint: KnowledgePoint? = null,
     val selectedEvidenceSegmentId: String? = null,
-    /** quizId -> chosen answer index. Absent key = unanswered. */
     val quizAnswers: Map<String, Int> = emptyMap(),
     val wrongKnowledgePointIds: Set<String> = emptySet(),
     val currentQuizIndex: Int = 0,
@@ -68,14 +64,13 @@ data class ClassMateUiState(
     val reviewPlan: List<ReviewPlanItem>
         get() = analysisResult?.reviewPlan.orEmpty()
 
-    /** Convenience for the AnalyzeScreen header — back-compat alias. */
-    val providerName: String get() = activeProvider
+    val strictMatchRate: Double?
+        get() = evidenceValidation?.strictEvidenceMatchRate
+
+    val lenientMatchRate: Double?
+        get() = evidenceValidation?.lenientEvidenceMatchRate
 }
 
-/**
- * Screen identity. Sealed so AppRoot's `when` is exhaustive — adding a new
- * screen forces an update at the dispatch site.
- */
 sealed interface ClassMateScreen {
     data object Home : ClassMateScreen
     data object CourseInput : ClassMateScreen
@@ -84,4 +79,5 @@ sealed interface ClassMateScreen {
     data object Timeline : ClassMateScreen
     data object Quiz : ClassMateScreen
     data object ReviewPlan : ClassMateScreen
+    data object Settings : ClassMateScreen
 }
