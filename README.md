@@ -215,8 +215,8 @@ input ─► Provider ─► CourseAnalysisResult
 字段集合由 [`core/logging/ModelCallLog.kt`](core/src/main/kotlin/com/classmate/core/logging/ModelCallLog.kt)
 锁死。**严禁** 出现真实 key、Authorization、隐私文本。
 
-样例日志：[proof/logs_redacted/sample_model_call_redacted.jsonl](proof/logs_redacted/sample_model_call_redacted.jsonl)
-（带 `"_sample": true` 标记）。
+手写示例：[proof/logs_redacted/sample_model_call_redacted.example.jsonl](proof/logs_redacted/sample_model_call_redacted.example.jsonl)。
+该 `.example.jsonl` 文件只用于说明字段含义，不是 `RedactedLogger` 真实输出。
 
 ---
 
@@ -258,7 +258,7 @@ v0.4 默认锁定亮色主题，以保证 vivo 云真机和答辩投屏视觉稳
 
 - BlueLM 真实接入（缺官方契约）；
 - 持久化（Theme / Provider 选择、quiz state 跨重启）；
-- core 单元测试（v0.4 暂无；Codex 第 1 优先）；
+- evidence-chain 边界测试扩展（空输入、长段落、hotword 保留、validator 边界）；
 - R8 / ProGuard 规则；
 - 真实 compatible 调用日志归档。
 
@@ -280,6 +280,8 @@ v0.4 默认锁定亮色主题，以保证 vivo 云真机和答辩投屏视觉稳
 
 ```text
 ClassMate/
+├── .github/workflows/
+│   └── android-ci.yml
 ├── core/src/main/kotlin/com/classmate/core/
 │   ├── adapter/
 │   │   ├── ModelProvider.kt
@@ -298,6 +300,7 @@ ClassMate/
 │   ├── evidence/                         ← ENHANCED，原文/兜底命中率
 │   ├── logging/                          ← ENHANCED，双 match rate
 │   └── model/
+├── core/src/test/                         ← unit tests for validators/providers
 ├── app/src/main/java/com/classmate/app/
 │   ├── data/
 │   ├── domain/                           ← NEW
@@ -325,12 +328,13 @@ ClassMate/
 │   │   ├── components/                   ← REWRITE (4 cards)
 │   │   └── screens/                      ← NEW dir (8 screens)
 │   └── MainActivity.kt
+├── app/src/test/                          ← app/domain unit tests
 ├── docs/
 │   ├── opus48-foundation-rebuild.md      ← NEW，本轮重构主文档
 │   └── v0.3-tasklist.md                  历史归档
 ├── proof/logs_redacted/
 │   ├── README.md
-│   └── sample_model_call_redacted.jsonl
+│   └── sample_model_call_redacted.example.jsonl
 ├── schema/course_analysis_result.schema.json
 ├── prompts/
 └── examples/
@@ -354,7 +358,7 @@ ClassMate/
 完整版见 [docs/opus48-foundation-rebuild.md §8](docs/opus48-foundation-rebuild.md#8-codex-handover-list)。
 高优先级 8 项：
 
-1. core 单测（LocalRuleProvider / Validators / JsonExtractor）。
+1. 扩展 evidence-chain 边界测试（empty input / long paragraph / hotword preservation / validator boundaries）。
 2. Theme + Provider 选择持久化。
 3. 跑一次真实 compatible 调用，归档 redacted 日志。
 4. BlueLM 官方契约就位后补 30 行接线。

@@ -1,6 +1,8 @@
 # proof/logs_redacted/
 
 Redacted call logs collected during real-device or cloud-emulator runs.
+Files ending in `.example.jsonl` are hand-written examples, not captured
+`RedactedLogger` output.
 
 ## Rules (spec §13.1)
 
@@ -16,11 +18,12 @@ Redacted call logs collected during real-device or cloud-emulator runs.
 
 | File | Status | Notes |
 | --- | --- | --- |
-| `sample_model_call_redacted.jsonl` | **SAMPLE** | Hand-crafted illustration of the v0.4 line shape. NOT collected from a real call. |
+| `sample_model_call_redacted.example.jsonl` | **EXAMPLE** | Hand-crafted illustration of the v0.4 line shape. NOT collected from a real call and not emitted by `RedactedLogger`. |
 
 ## Reading the sample
 
-Each line is one model-analysis call. Field meanings (v0.4):
+Each line in a real `api_call_*_redacted.jsonl` file is one model-analysis
+call. Field meanings (v0.4):
 
 | Field | Type | Meaning |
 | --- | --- | --- |
@@ -38,6 +41,10 @@ Each line is one model-analysis call. Field meanings (v0.4):
 | `error_type` | string \| null | short enum-like label only; null on clean success |
 | `api_key_redacted` | bool | always true at construction — the marker reviewers grep for |
 
+The `.example.jsonl` file may include an example-only `_sample` marker so it is
+not mistaken for production output. Real `RedactedLogger` output must use only
+the locked `ModelCallLog` fields above.
+
 ## How to collect a real log
 
 1. Put real keys in `config.local.json` and push to
@@ -47,4 +54,4 @@ Each line is one model-analysis call. Field meanings (v0.4):
 4. `adb logcat -s ClassMateLog` captures the log lines.
 5. The in-app `RedactedLogger` already drops keys — verify before committing.
 6. Save as `api_call_course_analysis_<yyyymmdd_hhmm>_redacted.jsonl` next to
-   the sample. Do NOT delete or alter the sample file.
+   the `.example.jsonl` file. Do NOT delete or alter the example file.
