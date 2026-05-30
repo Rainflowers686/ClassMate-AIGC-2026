@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -25,8 +26,16 @@ import com.classmate.app.ui.theme.LocalClassMateShapes
 import com.classmate.app.ui.theme.LocalClassMateSpacing
 
 /**
- * Generic hero block: a heading line plus 0..N inline metrics with status
- * dots. Used by AnalyzeScreen's "Provider Status" front-and-center.
+ * Generic hero block: eyebrow + title + subtitle + a 2×2 metrics grid +
+ * optional CTA + footnote. Used by AnalyzeScreen's "Provider Status"
+ * front-and-center.
+ *
+ * v0.4 visual QA fix:
+ *  - metrics moved from a single 4-column row to a 2×2 grid so Chinese
+ *    labels don't get crushed by horizontal share
+ *  - each metric is a tinted chip (status-toned background + value)
+ *  - CTA no longer overlaps text; it lives below the metrics grid
+ *  - footnote is small and clearly muted
  */
 data class HeroMetric(
     val label: String,
@@ -66,7 +75,7 @@ fun HeroCard(
                 color = colors.brandPrimary
             )
             if (!subtitle.isNullOrBlank()) {
-                Spacer(Modifier.height(spacing.xxs))
+                Spacer(Modifier.height(spacing.xs))
                 Text(
                     subtitle,
                     style = MaterialTheme.typography.labelSmall,
@@ -82,14 +91,7 @@ fun HeroCard(
                         .background(colors.outline)
                 )
                 Spacer(Modifier.height(spacing.md))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(spacing.md)
-                ) {
-                    metrics.forEach { m ->
-                        MetricColumn(metric = m, modifier = Modifier.weight(1f))
-                    }
-                }
+                MetricsGrid(metrics = metrics)
             }
             if (cta != null) {
                 Spacer(Modifier.height(spacing.lg))
@@ -108,21 +110,51 @@ fun HeroCard(
 }
 
 @Composable
-private fun MetricColumn(metric: HeroMetric, modifier: Modifier = Modifier) {
+private fun MetricsGrid(metrics: List<HeroMetric>) {
+    val spacing = LocalClassMateSpacing.current
+    // Lay out in fixed 2-column rows; pad the trailing slot if odd count.
+    val rows = metrics.chunked(2)
+    Column(verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
+        rows.forEach { row ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(spacing.sm)
+            ) {
+                row.forEach { m ->
+                    MetricChip(metric = m, modifier = Modifier.weight(1f))
+                }
+                if (row.size == 1) {
+                    Spacer(Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MetricChip(metric: HeroMetric, modifier: Modifier = Modifier) {
     val colors = LocalClassMateColors.current
+    val shapes = LocalClassMateShapes.current
+    val spacing = LocalClassMateSpacing.current
     val motion = LocalClassMateMotion.current
+    val toneColor = when (metric.tone) {
+        StatusTone.Error -> colors.statusError
+        StatusTone.Warning -> colors.statusWarning
+        StatusTone.Success -> colors.statusSuccess
+        StatusTone.Brand -> colors.brandPrimary
+        StatusTone.Neutral -> colors.fgSecondary
+    }
     val valueColor by animateColorAsState(
-        targetValue = when (metric.tone) {
-            StatusTone.Error -> colors.statusError
-            StatusTone.Warning -> colors.statusWarning
-            StatusTone.Success -> colors.statusSuccess
-            StatusTone.Brand -> colors.brandPrimary
-            StatusTone.Neutral -> colors.fgPrimary
-        },
+        targetValue = toneColor,
         animationSpec = tween(durationMillis = motion.statusColorMs),
         label = "metricValue"
     )
-    Column(modifier = modifier) {
+    val chipBg = toneColor.copy(alpha = 0.10f)
+    Column(
+        modifier = modifier
+            .background(chipBg, shapes.medium)
+            .padding(horizontal = spacing.md, vertical = spacing.sm)
+    ) {
         Text(
             metric.label,
             style = MaterialTheme.typography.labelSmall,

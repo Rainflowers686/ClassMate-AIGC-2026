@@ -69,10 +69,12 @@ fun CourseInputScreen(
                 modifier = Modifier.fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = colors.brandPrimary,
-                    unfocusedBorderColor = colors.outline,
+                    unfocusedBorderColor = colors.brandPrimary.copy(alpha = 0.28f),
                     cursorColor = colors.brandPrimary,
                     focusedLabelColor = colors.brandPrimary,
-                    unfocusedLabelColor = colors.fgMuted
+                    unfocusedLabelColor = colors.fgMuted,
+                    focusedContainerColor = colors.surface,
+                    unfocusedContainerColor = colors.surface
                 )
             )
             OutlinedTextField(
@@ -85,10 +87,12 @@ fun CourseInputScreen(
                     .height(260.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = colors.brandPrimary,
-                    unfocusedBorderColor = colors.outline,
+                    unfocusedBorderColor = colors.brandPrimary.copy(alpha = 0.28f),
                     cursorColor = colors.brandPrimary,
                     focusedLabelColor = colors.brandPrimary,
-                    unfocusedLabelColor = colors.fgMuted
+                    unfocusedLabelColor = colors.fgMuted,
+                    focusedContainerColor = colors.surface,
+                    unfocusedContainerColor = colors.surface
                 )
             )
             Text(

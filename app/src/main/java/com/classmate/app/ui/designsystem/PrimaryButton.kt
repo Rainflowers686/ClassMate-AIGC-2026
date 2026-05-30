@@ -42,8 +42,10 @@ fun PrimaryButton(
         colors = ButtonDefaults.buttonColors(
             containerColor = colors.brandPrimary,
             contentColor = colors.fgOnAccent,
-            disabledContainerColor = colors.brandPrimary.copy(alpha = 0.4f),
-            disabledContentColor = colors.fgOnAccent.copy(alpha = 0.8f)
+            // Disabled CTA: muted brand tint background + dimmed white text.
+            // Avoids the "broken" feel of M3's default light-gray fill.
+            disabledContainerColor = colors.brandPrimary.copy(alpha = 0.32f),
+            disabledContentColor = colors.fgOnAccent
         )
     ) {
         Row(

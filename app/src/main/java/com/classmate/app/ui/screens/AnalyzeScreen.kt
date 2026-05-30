@@ -76,14 +76,14 @@ fun AnalyzeScreen(
             verticalArrangement = Arrangement.spacedBy(spacing.md)
         ) {
             HeroCard(
-                eyebrow = "Provider · 校验 · 证据",
+                eyebrow = "当前 Provider",
                 title = state.activeProvider,
-                subtitle = "config 请求: ${state.requestedProvider}  ·  分段 ${state.segments.size}  ·  热词 ${state.hotwords.size}",
+                subtitle = "config 请求 ${state.requestedProvider}  ·  分段 ${state.segments.size}  ·  热词 ${state.hotwords.size}",
                 metrics = metrics,
                 footnote = state.configHint.ifBlank { null },
                 cta = {
                     PrimaryButton(
-                        text = "调用 ${state.requestedProvider} 分析",
+                        text = "运行分析",
                         onClick = onRunAnalyze,
                         enabled = !state.isLoading && (state.segments.isNotEmpty() || state.courseText.isNotBlank()),
                         loading = state.isLoading
@@ -177,26 +177,26 @@ private fun buildMetrics(state: ClassMateUiState): List<HeroMetric> {
     val lenientTone = matchRateTone(state.lenientMatchRate)
     return listOf(
         HeroMetric(
-            label = "兜底",
+            label = "是否兜底",
             value = if (state.fallbackUsed) "是" else "否",
             tone = fallbackTone
         ),
         HeroMetric(
-            label = "校验",
+            label = "结构校验",
             value = when (state.structureValid) {
                 true -> "通过"
                 false -> "有问题"
-                null -> "—"
+                null -> "未运行"
             },
             tone = structureTone
         ),
         HeroMetric(
-            label = "证据 strict",
+            label = "严格命中率",
             value = percent(state.strictMatchRate),
             tone = strictTone
         ),
         HeroMetric(
-            label = "证据 lenient",
+            label = "宽松命中率",
             value = percent(state.lenientMatchRate),
             tone = lenientTone
         )

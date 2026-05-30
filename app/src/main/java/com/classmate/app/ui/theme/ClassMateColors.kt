@@ -42,12 +42,15 @@ data class ClassMateColors(
 ) {
     companion object {
         // ---------- Focus Glass (default) ----------
+        // v0.4 visual QA: brightened canvas + opaque card so the demo never
+        // reads as "gray Low Power" on a vivo device. Glass effect is now a
+        // hairline stroke + soft tint rather than a translucent overlay.
         val FocusGlassLight = ClassMateColors(
-            canvas = Color(0xFFF5F7FB),
+            canvas = Color(0xFFF7FAFD),
             surface = Color(0xFFFFFFFF),
             surfaceElevated = Color(0xFFFFFFFF),
-            glass = Color(0xB8FFFFFF),
-            glassStroke = Color(0x263A6EA5),
+            glass = Color(0xFFFFFFFF),
+            glassStroke = Color(0x1F3A6EA5),
             fgPrimary = Color(0xFF0F1A2A),
             fgSecondary = Color(0xFF3D4B5E),
             fgMuted = Color(0xFF7A8696),
@@ -59,9 +62,9 @@ data class ClassMateColors(
             statusError = Color(0xFFC0392B),
             evidenceHighlight = Color(0xFFFFF1B8),
             evidenceHighlightFg = Color(0xFF3D2E00),
-            outline = Color(0x140F1A2A),
+            outline = Color(0x143A6EA5),
             enableGlass = true,
-            enableGradient = true,
+            enableGradient = false,
             enableShadow = true
         )
         val FocusGlassDark = ClassMateColors(
@@ -89,11 +92,11 @@ data class ClassMateColors(
 
         // ---------- Vivid Study ----------
         val VividStudyLight = ClassMateColors(
-            canvas = Color(0xFFFFF9F2),
+            canvas = Color(0xFFFFFAF3),
             surface = Color(0xFFFFFFFF),
             surfaceElevated = Color(0xFFFFFFFF),
-            glass = Color(0xC2FFFFFF),
-            glassStroke = Color(0x2EFF7A3D),
+            glass = Color(0xFFFFFFFF),
+            glassStroke = Color(0x29FF7A3D),
             fgPrimary = Color(0xFF1F1A14),
             fgSecondary = Color(0xFF5A4B36),
             fgMuted = Color(0xFF8C7C5F),
@@ -105,9 +108,9 @@ data class ClassMateColors(
             statusError = Color(0xFFD94545),
             evidenceHighlight = Color(0xFFFFE08C),
             evidenceHighlightFg = Color(0xFF3D2E00),
-            outline = Color(0x141F1A14),
+            outline = Color(0x14FF7A3D),
             enableGlass = true,
-            enableGradient = true,
+            enableGradient = false,
             enableShadow = true
         )
         val VividStudyDark = ClassMateColors(

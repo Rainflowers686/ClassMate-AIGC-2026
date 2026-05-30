@@ -25,8 +25,13 @@ import com.classmate.core.model.ReviewPlanItem
  * matchRate == 1.0 on ANY non-empty input — which is the whole point: the
  * demo path is now itself a worked example of the evidence-chain claim.
  *
- * Style intentionally template-y rather than NLP-y; this is a deterministic
- * floor that the real Provider must clear.
+ * v0.4 visual QA pass:
+ *  - KP names are now derived from the picked sentence (trimmed +
+ *    leading-filler stripped), not just the hotword. Three demo segments
+ *    that all contain "泰勒公式" no longer collapse to three KPs named
+ *    "泰勒公式".
+ *  - Review-plan tasks rotate across five distinct templates so the same
+ *    course doesn't render as N copies of "复述并解释 …".
  */
 class LocalRuleProvider(
     private val maxQuizzes: Int = 5,
@@ -58,29 +63,20 @@ class LocalRuleProvider(
 
         val knowledgePoints: List<KnowledgePoint> = segments.flatMap { it.knowledgePoints }
 
-        // Quiz count: clamp to [minQuizzes, maxQuizzes], but never more than
-        // we have knowledge points. If fewer than min, just produce as many
-        // as possible (the schema's minItems=3 may be violated for a
-        // 1-segment input; LocalRuleProvider's job is to stay internally
-        // consistent, not to fake content).
-        val quizCount = knowledgePoints.size.coerceIn(0, maxQuizzes).let {
-            if (it >= minQuizzes) it else it
-        }
+        val quizCount = knowledgePoints.size.coerceIn(0, maxQuizzes)
         val quizzes: List<Quiz> = knowledgePoints.take(quizCount).mapIndexed { idx, kp ->
             buildQuiz(ordinal = idx + 1, kp = kp, inputSegment = input.segments[idx])
         }
 
-        // Review plan: importance-desc; produce up to 5 steps, but only ones
-        // that map to a real KP so the validator is satisfied.
         val planTargets = knowledgePoints.sortedByDescending { it.importance }
             .take(maxQuizzes)
         val reviewPlan: List<ReviewPlanItem> = planTargets.mapIndexed { idx, kp ->
             ReviewPlanItem(
                 stepId = "rp_%03d".format(idx + 1),
                 durationMinutes = 5,
-                task = "复述并解释「${kp.name}」",
+                task = reviewTaskFor(idx, kp),
                 relatedKpIds = listOf(kp.kpId),
-                reason = "Importance ${kp.importance}/5；本地兜底建议优先巩固高重要度知识点。"
+                reason = reviewReasonFor(idx, kp)
             )
         }
 
@@ -104,8 +100,6 @@ class LocalRuleProvider(
     ): KnowledgePoint {
         val span = SpanPicker.pick(seg.text, hotwords)
         val name = deriveName(span, hotwords)
-        // Importance / difficulty: derive deterministically from text length
-        // so the output is stable across runs but not all identical.
         val importance = ((seg.text.length / 60).coerceIn(0, 4)) + 1
         val difficulty = (((seg.text.length / 40) + ordinal) % 5).coerceIn(0, 4) + 1
         return KnowledgePoint(
@@ -115,7 +109,7 @@ class LocalRuleProvider(
             difficulty = difficulty,
             sourceSegmentId = seg.segmentId,
             evidenceSpan = span,
-            explanation = "本知识点来自 ${seg.segmentId}，可对照原文段落理解。"
+            explanation = "本知识点来自段落 ${seg.segmentId}（${seg.timeRange}），可对照原文逐句理解。"
         )
     }
 
@@ -124,18 +118,18 @@ class LocalRuleProvider(
         kp: KnowledgePoint,
         inputSegment: InputSegment
     ): Quiz {
-        val correct = kp.name
+        val correct = "${kp.name}"
         val distractors = listOf(
-            "与「${kp.name}」无关的内容",
-            "对「${kp.name}」的常见误解",
-            "另一段落的主要观点"
+            "与本段主题无关的陈述",
+            "对${kp.name}的常见误解",
+            "另一段落的次要观点"
         )
         return Quiz(
             quizId = "q_%03d".format(ordinal),
-            question = "下列哪一项最准确地描述了「${kp.name}」？",
+            question = "关于段落 ${kp.sourceSegmentId}，下列哪一项最贴近原文表述？",
             options = listOf(correct) + distractors,
             answerIndex = 0,
-            explanation = "正确答案对应 ${kp.kpId}，来源段落 ${kp.sourceSegmentId}。",
+            explanation = "正确选项对应知识点 ${kp.kpId}，原文证据来自段落 ${kp.sourceSegmentId}。",
             sourceSegmentId = inputSegment.segmentId,
             relatedKpId = kp.kpId,
             evidenceSpan = kp.evidenceSpan
@@ -146,15 +140,60 @@ class LocalRuleProvider(
         val title = input.courseTitle.ifBlank { "本节内容" }
         val n = input.segments.size
         val hot = if (input.hotwords.isEmpty()) "" else "，重点词：${input.hotwords.take(5).joinToString("、")}"
-        return "本地兜底总结：$title 共 $n 段$hot。"
+        return "$title 共 $n 段$hot。本结果由本地规则兜底生成，所有证据均直接引自原文。"
     }
 
+    /**
+     * Derive a short, sentence-style KP name from the picked span. Keeps
+     * neighbouring KPs distinct even when they share a hotword.
+     */
     private fun deriveName(span: String, hotwords: List<String>): String {
-        val matchedHot = hotwords.firstOrNull { it.isNotBlank() && span.contains(it) }
-        if (matchedHot != null) return matchedHot
-        // Use the first ≤24 chars of the picked span as a fallback name.
-        val cap = span.trim().take(24)
-        return if (cap.isEmpty()) "本段要点" else cap
+        var s = span.trim()
+        if (s.isEmpty()) {
+            // last resort: pick a hotword or generic
+            return hotwords.firstOrNull { it.isNotBlank() } ?: "本段要点"
+        }
+        // strip leading conversational fillers
+        for (lead in LEADING_FILLERS) {
+            if (s.startsWith(lead)) {
+                s = s.removePrefix(lead).trimStart('，', '、', ' ')
+            }
+        }
+        // strip trailing CJK punctuation so the title doesn't end mid-sentence
+        s = s.trimEnd('。', '！', '？', '!', '?', '；', ';', '，', ',')
+        // cap to a comfortable mobile title length
+        if (s.length > 28) s = s.take(27) + "…"
+        return s.ifBlank { hotwords.firstOrNull { it.isNotBlank() } ?: "本段要点" }
+    }
+
+    private fun reviewTaskFor(stepIdx: Int, kp: KnowledgePoint): String {
+        return when (stepIdx % REVIEW_TASK_TEMPLATES.size) {
+            0 -> "复述「${kp.name}」的核心结论"
+            1 -> "用自己的话解释「${kp.name}」为什么成立"
+            2 -> "举一个与「${kp.name}」相关的实际例子"
+            3 -> "对照原文段落 ${kp.sourceSegmentId} 验证「${kp.name}」"
+            else -> "围绕「${kp.name}」自出一道判断题并自答"
+        }
+    }
+
+    private fun reviewReasonFor(stepIdx: Int, kp: KnowledgePoint): String {
+        val tag = when {
+            kp.importance >= 4 -> "重要度高（${kp.importance}/5），需要优先巩固。"
+            kp.difficulty >= 4 -> "难度较高（${kp.difficulty}/5），适合多角度复习。"
+            stepIdx == 0 -> "本节排序最靠前的知识点。"
+            else -> "建议结合原文段落 ${kp.sourceSegmentId} 一并回顾。"
+        }
+        return tag
+    }
+
+    companion object {
+        private val LEADING_FILLERS = listOf(
+            "今天我们分别看", "今天我们来看", "今天我们看", "今天我们",
+            "接下来我们", "接下来", "我们来看", "我们看", "我们", "下面",
+            "首先", "其次", "然后", "另外", "因此", "所以",
+            "当我们", "当", "如果", "假设", "事实上",
+        )
+        private val REVIEW_TASK_TEMPLATES = listOf(0, 1, 2, 3, 4) // 5 templates
     }
 }
 
@@ -162,7 +201,7 @@ class LocalRuleProvider(
  * Picks a verbatim substring of segment text to use as evidence_span.
  *
  * Priority:
- *  1. The first hotword that occurs in the segment, returned verbatim.
+ *  1. The first sentence containing a hotword, returned verbatim.
  *  2. The first sentence (split on CJK / ASCII enders) ≥ 10 chars.
  *  3. The first 40 chars of the segment.
  *
@@ -176,7 +215,6 @@ internal object SpanPicker {
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return ""
 
-        // 1) prefer the first sentence containing a hotword
         val firstHotInText = hotwords.asSequence()
             .filter { it.isNotBlank() }
             .firstOrNull { trimmed.contains(it) }
@@ -186,7 +224,6 @@ internal object SpanPicker {
             return firstHotInText
         }
 
-        // 2) first sentence ≥ 10 chars
         var cursor = 0
         while (cursor < trimmed.length) {
             val m = SENTENCE_END.find(trimmed, cursor)
@@ -197,7 +234,6 @@ internal object SpanPicker {
             cursor = endExclusive
         }
 
-        // 3) fallback
         return trimmed.take(40)
     }
 

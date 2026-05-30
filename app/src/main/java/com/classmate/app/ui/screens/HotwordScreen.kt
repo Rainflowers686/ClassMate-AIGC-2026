@@ -81,10 +81,12 @@ fun HotwordScreen(
                     modifier = Modifier.weight(1f),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = colors.brandPrimary,
-                        unfocusedBorderColor = colors.outline,
+                        unfocusedBorderColor = colors.brandPrimary.copy(alpha = 0.28f),
                         cursorColor = colors.brandPrimary,
                         focusedLabelColor = colors.brandPrimary,
-                        unfocusedLabelColor = colors.fgMuted
+                        unfocusedLabelColor = colors.fgMuted,
+                        focusedContainerColor = colors.surface,
+                        unfocusedContainerColor = colors.surface
                     )
                 )
                 Spacer(Modifier.width(spacing.sm))
@@ -108,9 +110,9 @@ fun HotwordScreen(
                 state.hotwords.forEach { word ->
                     AssistChip(
                         onClick = { onRemove(word) },
-                        label = { Text("$word ×") },
+                        label = { Text("$word  ×") },
                         colors = AssistChipDefaults.assistChipColors(
-                            containerColor = colors.surface,
+                            containerColor = colors.brandPrimary.copy(alpha = 0.10f),
                             labelColor = colors.brandPrimary
                         ),
                         shape = shapes.pill
