@@ -2,30 +2,28 @@ package com.classmate.app.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import com.classmate.app.state.ClassMateUiState
 import com.classmate.app.ui.designsystem.AppScaffold
-import com.classmate.app.ui.designsystem.GlassCard
 import com.classmate.app.ui.designsystem.OutlinedActionButton
 import com.classmate.app.ui.designsystem.PrimaryButton
-import com.classmate.app.ui.designsystem.StatusDot
+import com.classmate.app.ui.designsystem.StatusBar
 import com.classmate.app.ui.designsystem.StatusTone
 import com.classmate.app.ui.theme.LocalClassMateColors
 import com.classmate.app.ui.theme.LocalClassMateSpacing
 
 /**
- * Brand wordmark + tagline + provider/config status + 2 CTAs + Settings link.
+ * Brand wordmark + tagline + inline provider status strip + primary/secondary
+ * CTA. The Settings entry is moved to the trailing slot of the top bar so it
+ * stops looking like a third primary action.
  */
 @Composable
 fun HomeScreen(
@@ -36,7 +34,15 @@ fun HomeScreen(
 ) {
     val colors = LocalClassMateColors.current
     val spacing = LocalClassMateSpacing.current
-    AppScaffold {
+    val providerLabel = providerDisplayName(state)
+    val providerTone = if (state.fallbackUsed) StatusTone.Warning else StatusTone.Success
+    AppScaffold(
+        trailing = {
+            TextButton(onClick = onOpenSettings) {
+                Text("设置", color = colors.brandPrimary)
+            }
+        }
+    ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.Top
@@ -50,45 +56,43 @@ fun HomeScreen(
             )
             Spacer(Modifier.height(spacing.sm))
             Text(
-                "证据链式课堂讲解与微测复习助手",
+                "把课堂内容变成可追溯的知识点、微测与复习计划。",
                 style = MaterialTheme.typography.titleMedium,
                 color = colors.fgSecondary
             )
             Spacer(Modifier.height(spacing.lg))
-            GlassCard(modifier = Modifier.fillMaxWidth()) {
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        StatusDot(tone = StatusTone.Brand)
-                        Spacer(Modifier.width(spacing.sm))
-                        Text(
-                            "Provider · ${state.requestedProvider}",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = colors.fgPrimary
-                        )
-                    }
-                    Spacer(Modifier.height(spacing.xs))
-                    Text(
-                        state.configHint.ifBlank { "等待配置加载" },
-                        style = MaterialTheme.typography.labelSmall,
-                        color = colors.fgMuted
-                    )
-                }
-            }
+            StatusBar(
+                tone = providerTone,
+                title = "当前分析方式：$providerLabel",
+                secondary = state.configHint.ifBlank { null }
+            )
             Spacer(Modifier.height(spacing.xl))
-            PrimaryButton(text = "开始 / Start", onClick = onStart)
+            PrimaryButton(text = "开始导入课程", onClick = onStart)
             Spacer(Modifier.height(spacing.md))
-            OutlinedActionButton(text = "加载 Demo / Load demo", onClick = onLoadDemo)
-            Spacer(Modifier.height(spacing.md))
-            TextButton(onClick = onOpenSettings) {
-                Text("⚙ 主题 / About", color = colors.brandPrimary)
-            }
-            Spacer(Modifier.height(spacing.lg))
+            OutlinedActionButton(text = "体验示例课程", onClick = onLoadDemo)
+            Spacer(Modifier.weight(1f))
             Text(
-                "v0.4 foundation rebuild · 强制证据闭合 · 三主题 · 兜底可见",
+                "ClassMate v0.4 · 仅文本输入 · 不接入录音、不收集隐私",
                 style = MaterialTheme.typography.labelSmall,
                 color = colors.fgMuted
             )
+            Spacer(Modifier.height(spacing.sm))
         }
+    }
+}
+
+private fun providerDisplayName(state: ClassMateUiState): String {
+    // Active provider is internally "local" / "compatible" / "bluelm". Map to
+    // user-facing Chinese names; if a fallback fired, surface that fact.
+    val baseName = when (state.activeProvider) {
+        "local" -> "本地证据引擎"
+        "compatible" -> "云端大模型（兼容协议）"
+        "bluelm" -> "蓝心大模型"
+        else -> state.activeProvider
+    }
+    return if (state.fallbackUsed && state.activeProvider == "local") {
+        "$baseName（已自动降级）"
+    } else {
+        baseName
     }
 }

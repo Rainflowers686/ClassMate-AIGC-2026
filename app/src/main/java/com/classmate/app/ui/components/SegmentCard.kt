@@ -25,12 +25,17 @@ import com.classmate.app.ui.theme.LocalClassMateSpacing
 
 /**
  * One course segment, with optional in-text evidence highlight + a
- * footer line stating whether the highlight is a verbatim match.
+ * footer line explaining the highlight.
  *
- * If [highlightSpan] is non-blank AND appears verbatim in [text], the span
- * is wrapped in a warm-yellow background and the footer reads "证据匹配：
- * 严格命中". If it doesn't appear, the text renders plain and the footer
- * reads "未在原文中找到，仅展示来源段落".
+ * v0.4.1 productization:
+ *  - The header shows a human-friendly "第 N 段 · 时间段" instead of raw
+ *    `seg_001`.
+ *  - Above the body text, a small caption explains what users are looking
+ *    at ("以下高亮内容是本知识点的原文依据 · 来自 第 N 段"). The caption
+ *    text can be customised via [captionOverride] so the Timeline panel
+ *    can add the source-segment label.
+ *  - Footer tells whether the span was actually found in the original text
+ *    (strict match) or the panel is only showing the source segment.
  */
 @Composable
 fun SegmentCard(
@@ -38,6 +43,7 @@ fun SegmentCard(
     timeRange: String,
     text: String,
     highlightSpan: String? = null,
+    captionOverride: String? = null,
     modifier: Modifier = Modifier
 ) {
     val colors = LocalClassMateColors.current
@@ -46,7 +52,14 @@ fun SegmentCard(
         buildHighlighted(text, highlightSpan, colors)
     }
     val matched = !highlightSpan.isNullOrBlank() && text.contains(highlightSpan)
-    val showFooter = !highlightSpan.isNullOrBlank()
+    val hasHighlight = !highlightSpan.isNullOrBlank()
+    val humanLabel = humanSegmentLabel(segmentId)
+    val headerLine = "$humanLabel  ·  $timeRange"
+    val caption = captionOverride ?: if (hasHighlight) {
+        "以下高亮内容是本知识点的原文依据"
+    } else {
+        "以下是该知识点对应的原文段落"
+    }
     GlassCard(modifier = modifier) {
         Column {
             Row(
@@ -54,22 +67,31 @@ fun SegmentCard(
                 horizontalArrangement = Arrangement.spacedBy(spacing.sm)
             ) {
                 Text(
-                    "$segmentId  ·  $timeRange",
+                    headerLine,
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold,
                     color = colors.fgSecondary
                 )
             }
+            Spacer(Modifier.height(spacing.xs))
+            Text(
+                caption,
+                style = MaterialTheme.typography.labelSmall,
+                color = colors.fgMuted
+            )
             Spacer(Modifier.height(spacing.sm))
             Text(annotated, style = MaterialTheme.typography.bodyMedium, color = colors.fgPrimary)
-            if (showFooter) {
+            if (hasHighlight) {
                 Spacer(Modifier.height(spacing.sm))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    StatusDot(tone = if (matched) StatusTone.Success else StatusTone.Warning, sizeDp = 8)
+                    StatusDot(
+                        tone = if (matched) StatusTone.Success else StatusTone.Warning,
+                        sizeDp = 8
+                    )
                     Spacer(Modifier.width(spacing.xs))
                     Text(
-                        if (matched) "证据匹配：严格命中"
-                        else "未在原文中找到，仅展示来源段落",
+                        if (matched) "已从原文中找到完整依据"
+                        else "未在原文中找到完整依据，仅展示来源段落",
                         style = MaterialTheme.typography.labelSmall,
                         color = if (matched) colors.statusSuccess else colors.statusWarning
                     )

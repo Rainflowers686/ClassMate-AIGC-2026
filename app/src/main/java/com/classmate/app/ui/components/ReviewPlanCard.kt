@@ -11,7 +11,9 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,6 +27,17 @@ import com.classmate.app.ui.theme.LocalClassMateShapes
 import com.classmate.app.ui.theme.LocalClassMateSpacing
 import com.classmate.core.model.ReviewPlanItem
 
+/**
+ * Single review step card.
+ *
+ * v0.4.1 productization pass:
+ *  - Layout split into three labelled blocks — 「怎么做」(task) + 「为什么」
+ *    (reason) + 「多久」(duration) — so each step reads as a real study
+ *    suggestion instead of a template row.
+ *  - Step number is a small circular badge (not a giant brand-coloured
+ *    headline) — keeps the title as the main read.
+ *  - Red left rail + small "错题强化" pill on reinforcement items.
+ */
 @Composable
 fun ReviewPlanCard(
     item: ReviewPlanItem,
@@ -52,23 +65,34 @@ fun ReviewPlanCard(
             Column(modifier = Modifier.weight(1f)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.Top,
+                    verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            (index + 1).toString(),
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (isReinforcement) colors.statusError else colors.brandPrimary
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .background(
+                                    color = if (isReinforcement)
+                                        colors.statusError.copy(alpha = 0.14f)
+                                    else
+                                        colors.brandPrimary.copy(alpha = 0.10f),
+                                    shape = CircleShape
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                (index + 1).toString(),
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (isReinforcement) colors.statusError else colors.brandPrimary
+                            )
+                        }
                         Spacer(Modifier.width(spacing.sm))
                         Text(
-                            item.task,
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = colors.fgPrimary,
-                            modifier = Modifier.weight(1f, fill = false)
+                            "约 ${item.durationMinutes} 分钟",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.fgMuted
                         )
                     }
                     if (isReinforcement) {
@@ -86,22 +110,45 @@ fun ReviewPlanCard(
                         }
                     }
                 }
-                Spacer(Modifier.height(spacing.xs))
-                val kpLabel = item.relatedKpIds.joinToString("、")
-                Text(
-                    "⏱ ${item.durationMinutes} 分钟  ·  关联 $kpLabel",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = colors.fgMuted
-                )
+
+                Spacer(Modifier.height(spacing.sm))
+
+                // 「怎么做」
+                LabelledBlock(label = "怎么做", body = item.task)
+
                 if (item.reason.isNotBlank()) {
-                    Spacer(Modifier.height(spacing.xs))
+                    Spacer(Modifier.height(spacing.sm))
+                    LabelledBlock(label = "为什么", body = item.reason)
+                }
+
+                val kpLabel = item.relatedKpIds.joinToString("、")
+                if (kpLabel.isNotBlank()) {
+                    Spacer(Modifier.height(spacing.sm))
                     Text(
-                        item.reason,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colors.fgSecondary
+                        "覆盖知识点：$kpLabel",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.fgMuted
                     )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun LabelledBlock(label: String, body: String) {
+    val colors = LocalClassMateColors.current
+    Column {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = colors.fgMuted
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            body,
+            style = MaterialTheme.typography.bodyMedium,
+            color = colors.fgPrimary
+        )
     }
 }

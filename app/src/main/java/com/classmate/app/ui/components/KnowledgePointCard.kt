@@ -20,7 +20,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.classmate.app.ui.designsystem.BarMeter
 import com.classmate.app.ui.designsystem.GlassCard
+import com.classmate.app.ui.designsystem.MetaChip
+import com.classmate.app.ui.designsystem.StatusTone
 import com.classmate.app.ui.theme.LocalClassMateColors
 import com.classmate.app.ui.theme.LocalClassMateShapes
 import com.classmate.app.ui.theme.LocalClassMateSpacing
@@ -29,14 +32,14 @@ import com.classmate.core.model.KnowledgePoint
 /**
  * Knowledge-point card for TimelineScreen.
  *
- * Layout: 4 dp red rail on the left when the related quiz was answered
- * wrong; KP name, importance / difficulty meta, explanation, and a
- * "view evidence" affordance.
- *
- * v0.4 visual QA fix: the red rail now uses [IntrinsicSize.Min] to match
- * the actual card height instead of a fixed 80 dp (which looked wrong on
- * 2-line titles). The "source segment" chip is muted-toned and small so
- * it stops competing with the KP title for attention.
+ * v0.4.1 productization pass:
+ *  - importance / difficulty are rendered as 5-cell [BarMeter] rows; the
+ *    glyph rows of stars/dots felt like ASCII art on a phone.
+ *  - The source segment id is humanised to "第 N 段" inside a neutral
+ *    [MetaChip] so users never see raw seg_001 in normal flow.
+ *  - The wrong-answer state keeps the left red rail (and adds a small
+ *    "需要复习" pill); the KP title stays primary-coloured rather than
+ *    going red — that read like an error message.
  */
 @Composable
 fun KnowledgePointCard(
@@ -48,6 +51,7 @@ fun KnowledgePointCard(
     val colors = LocalClassMateColors.current
     val spacing = LocalClassMateSpacing.current
     val shapes = LocalClassMateShapes.current
+    val segmentLabel = humanSegmentLabel(kp.sourceSegmentId)
     GlassCard(modifier = modifier) {
         Row(
             modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
@@ -63,6 +67,7 @@ fun KnowledgePointCard(
                 Spacer(Modifier.width(spacing.sm))
             }
             Column(modifier = Modifier.weight(1f)) {
+                // Header row: title + (segment chip [+ "需要复习" chip])
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.Top,
@@ -72,34 +77,44 @@ fun KnowledgePointCard(
                         kp.name,
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
-                        color = if (isWrong) colors.statusError else colors.fgPrimary,
+                        color = colors.fgPrimary,
                         modifier = Modifier.weight(1f).padding(end = spacing.sm)
                     )
-                    Box(
-                        modifier = Modifier
-                            .background(colors.outline, shapes.pill)
-                            .padding(horizontal = spacing.sm, vertical = 2.dp)
-                    ) {
-                        Text(
-                            kp.sourceSegmentId,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = colors.fgMuted
-                        )
-                    }
+                    MetaChip(label = segmentLabel, tone = StatusTone.Neutral)
                 }
-                Spacer(Modifier.height(spacing.xs))
-                Text(
-                    importanceDifficultyLabel(kp),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = colors.fgMuted
-                )
-                Spacer(Modifier.height(spacing.xs))
-                Text(
-                    kp.explanation,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = colors.fgSecondary
-                )
-                Spacer(Modifier.height(spacing.xs))
+                if (isWrong) {
+                    Spacer(Modifier.height(spacing.xs))
+                    MetaChip(label = "需要复习", tone = StatusTone.Error)
+                }
+                Spacer(Modifier.height(spacing.sm))
+
+                // Meters — importance + difficulty as restrained bar rows.
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(spacing.md),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    BarMeter(
+                        label = "重要度",
+                        value = kp.importance,
+                        color = colors.brandPrimary
+                    )
+                    BarMeter(
+                        label = "难度",
+                        value = kp.difficulty,
+                        color = colors.brandSecondary
+                    )
+                }
+                Spacer(Modifier.height(spacing.sm))
+
+                if (kp.explanation.isNotBlank()) {
+                    Text(
+                        kp.explanation,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.fgSecondary
+                    )
+                    Spacer(Modifier.height(spacing.xs))
+                }
+
                 TextButton(
                     onClick = onShowEvidence,
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(
@@ -107,17 +122,22 @@ fun KnowledgePointCard(
                         vertical = 0.dp
                     )
                 ) {
-                    Text("查看证据 →", color = colors.brandPrimary)
+                    Text("查看原文依据 →", color = colors.brandPrimary)
                 }
             }
         }
+        // 'shapes' kept in scope for future tweaks.
+        @Suppress("UNUSED_EXPRESSION") shapes
     }
 }
 
-private fun importanceDifficultyLabel(kp: KnowledgePoint): String {
-    val imp = kp.importance.coerceIn(0, 5)
-    val diff = kp.difficulty.coerceIn(0, 5)
-    val stars = "★".repeat(imp) + "☆".repeat(5 - imp)
-    val diffMark = "●".repeat(diff) + "○".repeat(5 - diff)
-    return "重要 $stars   难度 $diffMark"
+/**
+ * Maps "seg_001" → "第 1 段". Falls back to the raw id when the pattern
+ * doesn't match so we still surface SOMETHING in edge cases.
+ */
+internal fun humanSegmentLabel(segmentId: String): String {
+    val trimmed = segmentId.trim()
+    val digits = trimmed.removePrefix("seg_").trimStart('0')
+    val n = digits.toIntOrNull()
+    return if (n != null && n > 0) "第 $n 段" else trimmed
 }

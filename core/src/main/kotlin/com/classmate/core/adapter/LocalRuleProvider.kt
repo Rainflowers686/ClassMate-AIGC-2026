@@ -109,7 +109,7 @@ class LocalRuleProvider(
             difficulty = difficulty,
             sourceSegmentId = seg.segmentId,
             evidenceSpan = span,
-            explanation = "本知识点来自段落 ${seg.segmentId}（${seg.timeRange}），可对照原文逐句理解。"
+            explanation = explanationFor(seg)
         )
     }
 
@@ -118,18 +118,18 @@ class LocalRuleProvider(
         kp: KnowledgePoint,
         inputSegment: InputSegment
     ): Quiz {
-        val correct = "${kp.name}"
+        val correct = kp.name
         val distractors = listOf(
-            "与本段主题无关的陈述",
-            "对${kp.name}的常见误解",
-            "另一段落的次要观点"
+            "与本段主题无关的说法",
+            "对「${kp.name}」的常见误解",
+            "另一段课程里出现的次要观点"
         )
         return Quiz(
             quizId = "q_%03d".format(ordinal),
-            question = "关于段落 ${kp.sourceSegmentId}，下列哪一项最贴近原文表述？",
+            question = "在这一段课程中，下列哪一项最贴近原文表述？",
             options = listOf(correct) + distractors,
             answerIndex = 0,
-            explanation = "正确选项对应知识点 ${kp.kpId}，原文证据来自段落 ${kp.sourceSegmentId}。",
+            explanation = "这是「${kp.name}」对应的原话；可在下方原文依据中对照。",
             sourceSegmentId = inputSegment.segmentId,
             relatedKpId = kp.kpId,
             evidenceSpan = kp.evidenceSpan
@@ -139,8 +139,27 @@ class LocalRuleProvider(
     private fun buildSummary(input: CourseAnalysisInput): String {
         val title = input.courseTitle.ifBlank { "本节内容" }
         val n = input.segments.size
-        val hot = if (input.hotwords.isEmpty()) "" else "，重点词：${input.hotwords.take(5).joinToString("、")}"
-        return "$title 共 $n 段$hot。本结果由本地规则兜底生成，所有证据均直接引自原文。"
+        val hot = if (input.hotwords.isEmpty())
+            ""
+        else
+            "；重点词：${input.hotwords.take(5).joinToString("、")}"
+        return "已从《$title》共 $n 段课程中提取知识点$hot。所有知识点和题目均直接对应到原文段落。"
+    }
+
+    /**
+     * Friendly explanation copy for a knowledge point — references the
+     * segment as "第 N 段（时间段）" instead of leaking the raw `seg_xxx`
+     * identifier so users see something readable.
+     */
+    private fun explanationFor(seg: InputSegment): String {
+        val human = humanSegmentLabel(seg.segmentId)
+        return "本知识点来自$human（${seg.timeRange}），可对照下方的原文依据快速回顾。"
+    }
+
+    private fun humanSegmentLabel(segmentId: String): String {
+        val digits = segmentId.trim().removePrefix("seg_").trimStart('0')
+        val n = digits.toIntOrNull()
+        return if (n != null && n > 0) "第 $n 段" else segmentId
     }
 
     /**
@@ -167,23 +186,24 @@ class LocalRuleProvider(
     }
 
     private fun reviewTaskFor(stepIdx: Int, kp: KnowledgePoint): String {
+        val seg = humanSegmentLabel(kp.sourceSegmentId)
         return when (stepIdx % REVIEW_TASK_TEMPLATES.size) {
             0 -> "复述「${kp.name}」的核心结论"
             1 -> "用自己的话解释「${kp.name}」为什么成立"
             2 -> "举一个与「${kp.name}」相关的实际例子"
-            3 -> "对照原文段落 ${kp.sourceSegmentId} 验证「${kp.name}」"
-            else -> "围绕「${kp.name}」自出一道判断题并自答"
+            3 -> "回到$seg 的原文，验证「${kp.name}」"
+            else -> "围绕「${kp.name}」给自己出一道判断题"
         }
     }
 
     private fun reviewReasonFor(stepIdx: Int, kp: KnowledgePoint): String {
-        val tag = when {
-            kp.importance >= 4 -> "重要度高（${kp.importance}/5），需要优先巩固。"
-            kp.difficulty >= 4 -> "难度较高（${kp.difficulty}/5），适合多角度复习。"
-            stepIdx == 0 -> "本节排序最靠前的知识点。"
-            else -> "建议结合原文段落 ${kp.sourceSegmentId} 一并回顾。"
+        val seg = humanSegmentLabel(kp.sourceSegmentId)
+        return when {
+            kp.importance >= 4 -> "这是本节的高重要度知识点（${kp.importance}/5），建议优先巩固。"
+            kp.difficulty >= 4 -> "这条知识点偏难（${kp.difficulty}/5），多角度复述能加深理解。"
+            stepIdx == 0 -> "这是本节排序最靠前的知识点，先从它开始。"
+            else -> "建议结合 $seg 的原文一并回顾，避免遗漏细节。"
         }
-        return tag
     }
 
     companion object {
