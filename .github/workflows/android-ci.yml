@@ -1,0 +1,61 @@
+name: Android CI
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+
+jobs:
+  build-test-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Make Gradle executable
+        run: chmod +x ./gradlew
+
+      - name: Assemble debug APK
+        run: ./gradlew :app:assembleDebug
+
+      - name: Run core unit tests
+        run: ./gradlew :core:test
+
+      - name: Run app unit tests
+        run: ./gradlew :app:testDebugUnitTest
+
+      - name: Secrets scan
+        shell: bash
+        run: |
+          set -euo pipefail
+          git grep -nE 'sk-|Bearer|Authorization|AKIA|ghp_|AIza|-----BEGIN|body prefix|response\.body\.take' \
+            > /tmp/secret_hits_raw.txt || true
+
+          grep -vE '^README.md:.*禁止.*Authorization' /tmp/secret_hits_raw.txt \
+            | grep -vE '^README.md:.*严禁.*Authorization' \
+            | grep -vE '^README.md:.*secrets scan.*Authorization' \
+            | grep -vE '^README.md:.*body prefix.*response\.body\.take' \
+            | grep -vE '^proof/logs_redacted/README.md:.*Never.*Authorization headers' \
+            | grep -vE '^\.github/workflows/android-ci.yml:.*(git grep|grep -vE|sk-|Bearer|Authorization|AKIA|ghp_|AIza|-----BEGIN|body prefix|response\\\.body)' \
+            | grep -vE '^core/src/main/kotlin/com/classmate/core/network/HttpRequest.kt:.*Authorization / Content-Type' \
+            | grep -vE '^core/src/main/kotlin/com/classmate/core/adapter/ProviderConfig.kt:.*Authorization:' \
+            | grep -vE '^core/src/main/kotlin/com/classmate/core/adapter/ProviderConfig.kt:.*Bearer' \
+            | grep -vE '^core/src/main/kotlin/com/classmate/core/adapter/CompatibleProvider.kt:.*Authorization: Bearer \{api_key\}' \
+            | grep -vE '^core/src/main/kotlin/com/classmate/core/adapter/CompatibleProvider.kt:.*"Authorization" to "Bearer \$\{config\.apiKey\}"' \
+            > /tmp/secret_hits.txt || true
+
+          if [ -s /tmp/secret_hits.txt ]; then
+            echo "Potential secret or unsafe log pattern found:"
+            cat /tmp/secret_hits.txt
+            exit 1
+          fi
+
+          echo "No non-allowlisted secret patterns found."

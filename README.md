@@ -128,11 +128,43 @@ macOS / Linux：
 
 产物：`app/build/outputs/apk/debug/app-debug.apk`。
 
-### 5.2 安装到云真机 / 设备
+### 5.2 单元测试
+
+Windows：
+
+```powershell
+.\gradlew.bat :core:test
+.\gradlew.bat :app:testDebugUnitTest
+```
+
+macOS / Linux：
+
+```bash
+./gradlew :core:test
+./gradlew :app:testDebugUnitTest
+```
+
+当前测试覆盖本地证据引擎的引用闭合、ResultValidator / EvidenceValidator
+校验链、ProviderResolver 对 `demo` 的兼容归一，以及 SimpleHttpEngine 不自动跟随
+3xx 重定向。
+
+### 5.3 安装到云真机 / 设备
 
 ```bash
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
+
+### 5.4 CI 检查
+
+GitHub Actions workflow 位于 `.github/workflows/android-ci.yml`，执行：
+
+- `./gradlew :app:assembleDebug`
+- `./gradlew :core:test`
+- `./gradlew :app:testDebugUnitTest`
+- secrets scan：检查 `sk-`、`Bearer`、`Authorization`、`AKIA`、`ghp_`、
+  `AIza`、`-----BEGIN`、`body prefix`、`response.body.take` 等风险模式。
+
+CI 不上传 APK artifact。
 
 ---
 
