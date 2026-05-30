@@ -19,12 +19,12 @@ import java.net.URL
  *  - POST/GET with a string body;
  *  - bearer-style headers (passed by caller);
  *  - reads UTF-8;
- *  - no retry, no connection pooling tuning — the caller is responsible for
+ *  - no retry, no automatic redirect, no connection pooling tuning — the caller is responsible for
  *    backoff and fallback semantics.
  *
  * Errors that come from the transport (DNS, timeout, socket close, TLS) are
  * wrapped in [HttpError]. A non-2xx status is NOT an [HttpError] — it returns
- * a normal [HttpResponse] so providers can read the error body if useful.
+ * a normal [HttpResponse]. Providers must not echo response bodies into logs or UI.
  */
 class SimpleHttpEngine : HttpEngine {
 
@@ -37,7 +37,7 @@ class SimpleHttpEngine : HttpEngine {
                 doInput = true
                 doOutput = request.body != null
                 useCaches = false
-                instanceFollowRedirects = true
+                instanceFollowRedirects = false
                 request.headers.forEach { (k, v) -> setRequestProperty(k, v) }
             }
 
@@ -57,9 +57,9 @@ class SimpleHttpEngine : HttpEngine {
 
                 HttpResponse(statusCode = code, body = body, headers = headers)
             } catch (e: java.net.SocketTimeoutException) {
-                throw HttpError("HTTP timeout after ${request.readTimeoutMs}ms: ${request.url}", e)
+                throw HttpError("HTTP timeout after ${request.readTimeoutMs}ms", e)
             } catch (e: java.io.IOException) {
-                throw HttpError("HTTP I/O error: ${e.message ?: e::class.simpleName}", e)
+                throw HttpError("HTTP I/O error", e)
             } finally {
                 connection.disconnect()
             }

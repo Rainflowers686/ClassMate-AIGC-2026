@@ -86,11 +86,12 @@ private fun providerDisplayName(state: ClassMateUiState): String {
     // user-facing Chinese names; if a fallback fired, surface that fact.
     val baseName = when (state.activeProvider) {
         "local" -> "本地证据引擎"
+        "demo" -> "本地证据引擎"
         "compatible" -> "云端大模型（兼容协议）"
         "bluelm" -> "蓝心大模型"
-        else -> state.activeProvider
+        else -> "本地证据引擎"
     }
-    return if (state.fallbackUsed && state.activeProvider == "local") {
+    return if (state.fallbackUsed && (state.activeProvider == "local" || state.activeProvider == "demo")) {
         "$baseName（已自动降级）"
     } else {
         baseName

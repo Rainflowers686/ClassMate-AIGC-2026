@@ -45,20 +45,16 @@ class AnalyzeCourseUseCase(
             is Outcome.HardFailure -> primaryAttempt.errorType
             else -> "unknown"
         }
-        val message = when (primaryAttempt) {
-            is Outcome.HardFailure -> primaryAttempt.message
-            else -> "primary returned unexpected outcome"
-        }
         val fallbackResult = runAndValidate(fallback, input)
         return when (fallbackResult) {
             is Outcome.Success -> fallbackResult.copy(
                 requestedProvider = primaryName,
                 fallbackUsed = true,
-                fallbackReason = "$reason: $message"
+                fallbackReason = reason
             )
             is Outcome.HardFailure -> fallbackResult.copy(
                 requestedProvider = primaryName,
-                message = "local fallback also failed: ${fallbackResult.message}"
+                message = safeMessageFor(fallbackResult.errorType)
             )
         }
     }
@@ -74,14 +70,14 @@ class AnalyzeCourseUseCase(
                 requestedProvider = provider.name,
                 providerUsed = provider.name,
                 errorType = e.reason.name,
-                message = e.message ?: e::class.simpleName ?: "ModelCallException"
+                message = safeMessageFor(e.reason.name)
             )
         } catch (e: Throwable) {
             return Outcome.HardFailure(
                 requestedProvider = provider.name,
                 providerUsed = provider.name,
-                errorType = e::class.simpleName ?: "Throwable",
-                message = e.message ?: "unexpected error"
+                errorType = "UNEXPECTED_ERROR",
+                message = safeMessageFor("UNEXPECTED_ERROR")
             )
         }
 
@@ -107,10 +103,19 @@ class AnalyzeCourseUseCase(
                 requestedProvider = provider.name,
                 providerUsed = provider.name,
                 errorType = "VALIDATION_FAILED",
-                message = structural.issues.firstOrNull()?.let { it.kind.name + " " + it.detail }
-                    ?: "structure validation failed"
+                message = safeMessageFor("VALIDATION_FAILED")
             )
         }
+    }
+
+    private fun safeMessageFor(errorType: String): String = when (errorType) {
+        "HTTP_ERROR" -> "cloud analysis failed"
+        "CONFIG_MISSING" -> "provider config missing"
+        "PROVIDER_NOT_IMPLEMENTED" -> "provider not implemented"
+        "VALIDATION_FAILED" -> "validation failed"
+        "JSON_EXTRACTION_FAILED" -> "json extraction failed"
+        "DESERIALIZE_FAILED" -> "deserialize failed"
+        else -> "analysis failed"
     }
 
     sealed interface Outcome {

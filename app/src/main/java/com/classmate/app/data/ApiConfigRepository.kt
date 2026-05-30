@@ -54,16 +54,16 @@ object ApiConfigRepository {
             return ResolvedConfig(parsed.toProviderConfig(), loadedFromLocalFile = false)
         }.onFailure { Log.w(LOG_TAG, "failed to parse $EXAMPLE_ASSET asset; using hardcoded defaults", it) }
 
-        // Hardcoded last resort — provider=demo so no network call ever happens.
+        // Hardcoded last resort — provider=local so no network call ever happens.
         return ResolvedConfig(
-            providerConfig = ProviderConfig(provider = "demo"),
+            providerConfig = ProviderConfig(provider = "local"),
             loadedFromLocalFile = false
         )
     }
 
     @Serializable
     private data class RawConfig(
-        val provider: String = "demo",
+        val provider: String = "local",
         val compatible: RawCompatible = RawCompatible(),
         val bluelm: RawBlueLm = RawBlueLm()
     ) {

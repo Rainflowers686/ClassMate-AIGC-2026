@@ -35,7 +35,7 @@ Each line is one model-analysis call. Field meanings (v0.4):
 | `strict_evidence_match_rate` | float \| null | fraction of evidence_span values that matched verbatim **in input text** |
 | `lenient_evidence_match_rate` | float \| null | fraction matched in input OR result.correctedText |
 | `fallback_used` | bool | true iff the run fell back to a lower-priority provider |
-| `error_type` | string \| null | ModelCallException.Reason or fallback reason; null on clean success |
+| `error_type` | string \| null | short enum-like label only; null on clean success |
 | `api_key_redacted` | bool | always true at construction — the marker reviewers grep for |
 
 ## How to collect a real log

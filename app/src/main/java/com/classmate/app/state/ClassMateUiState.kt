@@ -34,8 +34,8 @@ data class ClassMateUiState(
     val segments: List<InputSegment> = emptyList(),
 
     // Analysis pipeline ------------------------------------------------------
-    val requestedProvider: String = "demo",
-    val activeProvider: String = "demo",
+    val requestedProvider: String = "local",
+    val activeProvider: String = "local",
     val analysisResult: CourseAnalysisResult? = null,
     val evidenceValidation: EvidenceValidationResult? = null,
     val validationIssues: List<ValidationIssue> = emptyList(),

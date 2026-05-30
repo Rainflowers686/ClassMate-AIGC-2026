@@ -67,15 +67,13 @@ class CompatibleProvider(
                 )
             )
         } catch (e: HttpError) {
-            throw ModelCallException(ModelCallException.Reason.HTTP_ERROR, e.message ?: "HTTP error", e)
+            throw ModelCallException(ModelCallException.Reason.HTTP_ERROR, "HTTP transport error", e)
         }
 
         if (!response.isSuccess) {
-            // Only echo a short prefix of the response body so debugging is
-            // possible without dumping vendor-side error messages wholesale.
             throw ModelCallException(
                 ModelCallException.Reason.HTTP_ERROR,
-                "HTTP ${response.statusCode}; body prefix=${response.body.take(200)}"
+                "HTTP ${response.statusCode}"
             )
         }
 

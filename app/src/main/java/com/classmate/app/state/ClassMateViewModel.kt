@@ -62,8 +62,8 @@ class ClassMateViewModel(application: Application) : AndroidViewModel(applicatio
             it.copy(
                 requestedProvider = resolver.requestedName,
                 activeProvider = resolver.requestedName,
-                configHint = "provider=${resolver.requestedName} (config.local.json " +
-                    "${if (cfg.loadedFromLocalFile) "found" else "missing — using example defaults"})"
+                configHint = resolver.requestedDisplayName + " · " +
+                    if (cfg.loadedFromLocalFile) "已读取本机配置" else "使用示例配置"
             )
         }
     }
@@ -132,7 +132,7 @@ class ClassMateViewModel(application: Application) : AndroidViewModel(applicatio
                 }
             }.onFailure { t ->
                 Log.w(UI_LOG_TAG, "loadDemoInput failed", t)
-                _state.update { it.copy(errorMessage = "Failed to load demo input: ${t.message}") }
+                _state.update { it.copy(errorMessage = "示例课程加载失败，请重试") }
             }
         }
     }
@@ -262,8 +262,8 @@ class ClassMateViewModel(application: Application) : AndroidViewModel(applicatio
                         it.copy(
                             isLoading = false,
                             fallbackUsed = true,
-                            lastProviderError = outcome.message,
-                            errorMessage = outcome.message
+                            lastProviderError = outcome.errorType,
+                            errorMessage = uiErrorMessage(outcome.errorType)
                         )
                     }
                 }
@@ -331,5 +331,13 @@ class ClassMateViewModel(application: Application) : AndroidViewModel(applicatio
         val fmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US)
         fmt.timeZone = TimeZone.getTimeZone("Asia/Shanghai")
         return fmt.format(Date())
+    }
+
+    private fun uiErrorMessage(errorType: String): String = when (errorType) {
+        "HTTP_ERROR" -> "云端分析失败，已切换到本地证据引擎"
+        "CONFIG_MISSING" -> "云端配置不可用，已切换到本地证据引擎"
+        "PROVIDER_NOT_IMPLEMENTED" -> "云端能力暂未启用，已切换到本地证据引擎"
+        "VALIDATION_FAILED" -> "分析结果校验未通过，请重试"
+        else -> "分析失败，请检查课程文本后重试"
     }
 }

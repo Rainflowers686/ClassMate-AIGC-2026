@@ -109,6 +109,11 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.labelSmall,
                     color = colors.fgMuted
                 )
+                Text(
+                    "v0.4 默认锁定亮色，以保证云真机和答辩视觉稳定；系统暗色跟随留到后续版本。",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.fgMuted
+                )
                 Spacer(Modifier.height(spacing.xs))
                 Text(
                     "版本 v0.4",
@@ -188,7 +193,8 @@ private fun Swatch(color: Color) {
 
 private fun providerDisplayName(state: ClassMateUiState): String = when (state.activeProvider) {
     "local" -> "本地证据引擎" + if (state.fallbackUsed) "（已自动降级）" else ""
+    "demo" -> "本地证据引擎" + if (state.fallbackUsed) "（已自动降级）" else ""
     "compatible" -> "云端大模型（兼容协议）"
     "bluelm" -> "蓝心大模型"
-    else -> state.activeProvider
+    else -> "本地证据引擎"
 }

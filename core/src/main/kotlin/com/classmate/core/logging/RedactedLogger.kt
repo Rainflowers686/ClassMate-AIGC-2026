@@ -32,13 +32,19 @@ class RedactedLogger(
             put("strict_evidence_match_rate", log.strictEvidenceMatchRate?.let(::JsonPrimitive) ?: JsonNull)
             put("lenient_evidence_match_rate", log.lenientEvidenceMatchRate?.let(::JsonPrimitive) ?: JsonNull)
             put("fallback_used", JsonPrimitive(log.fallbackUsed))
-            put("error_type", log.errorType?.let(::JsonPrimitive) ?: JsonNull)
+            put("error_type", log.errorType?.let(::sanitizeErrorType)?.let(::JsonPrimitive) ?: JsonNull)
             put("api_key_redacted", JsonPrimitive(log.apiKeyRedacted))
         }
         sink(JSON.encodeToString(JsonObject(record)))
     }
 
     companion object {
+        private fun sanitizeErrorType(errorType: String): String {
+            val head = errorType.substringBefore(':').substringBefore('[').trim()
+            val cleaned = head.filter { it.isLetterOrDigit() || it == '_' || it == '-' }
+            return cleaned.take(64).ifBlank { "UNKNOWN" }
+        }
+
         private val JSON = Json {
             encodeDefaults = true
             prettyPrint = false

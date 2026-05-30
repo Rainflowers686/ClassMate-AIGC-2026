@@ -240,9 +240,10 @@ private fun buildMetrics(state: ClassMateUiState): List<HeroMetric> {
 
 private fun providerDisplayLine(state: ClassMateUiState): String = when (state.activeProvider) {
     "local" -> "本地证据引擎"
+    "demo" -> "本地证据引擎"
     "compatible" -> "云端大模型"
     "bluelm" -> "蓝心大模型"
-    else -> state.activeProvider
+    else -> "本地证据引擎"
 }
 
 private fun matchRateTone(rate: Double?): StatusTone = when {

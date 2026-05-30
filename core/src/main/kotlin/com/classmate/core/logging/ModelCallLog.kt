@@ -31,5 +31,6 @@ data class ModelCallLog(
     val fallbackUsed: Boolean,
     /** Always true at construction — the field exists so reviewers can grep one log line and confirm. */
     val apiKeyRedacted: Boolean = true,
+    /** Short enum-like label only; never response bodies, prompts, or user text. */
     val errorType: String?
 )

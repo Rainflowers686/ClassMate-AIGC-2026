@@ -1,6 +1,6 @@
 {
   "_note": "Copy to /data/data/com.classmate.app/files/config.local.json on device. Placeholders only — never commit real keys.",
-  "provider": "demo",
+  "provider": "local",
   "compatible": {
     "api_base_url": "https://your-compatible-endpoint/v1/chat/completions",
     "api_key": "YOUR_API_KEY",

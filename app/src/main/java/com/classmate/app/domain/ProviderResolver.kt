@@ -25,7 +25,15 @@ class ProviderResolver(
     private val httpEngine: HttpEngine,
     private val localRuleProvider: ModelProvider = LocalRuleProvider()
 ) {
-    val requestedName: String = providerConfig.provider.ifBlank { "demo" }
+    private val rawRequestedName: String = providerConfig.provider.trim()
+    val requestedName: String = normalizeProviderName(rawRequestedName)
+
+    val requestedDisplayName: String = when (requestedName) {
+        "local" -> "本地证据引擎（默认）"
+        "compatible" -> "云端大模型（兼容协议）"
+        "bluelm" -> "蓝心大模型"
+        else -> "本地证据引擎（默认）"
+    }
 
     fun resolvePrimary(): ModelProvider = when (requestedName.lowercase()) {
         "compatible" -> CompatibleProvider(providerConfig.compatible, httpEngine)
@@ -35,4 +43,11 @@ class ProviderResolver(
     }
 
     fun localFallback(): ModelProvider = localRuleProvider
+
+    private fun normalizeProviderName(name: String): String = when (name.lowercase()) {
+        "", "demo", "local" -> "local"
+        "compatible" -> "compatible"
+        "bluelm" -> "bluelm"
+        else -> "local"
+    }
 }

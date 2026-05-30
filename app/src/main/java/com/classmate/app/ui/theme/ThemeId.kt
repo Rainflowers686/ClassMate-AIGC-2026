@@ -7,8 +7,7 @@ package com.classmate.app.ui.theme
  *    competition panel and for long-form study.
  *  - [VividStudy]: energetic but not noisy. Warm orange + indigo accents.
  *  - [LowPower]: flat solid colors only. Disables glass, gradient, shadow,
- *    and motion. Selected automatically on low-end devices or when the
- *    system is in battery-saver mode.
+ *    and motion. In v0.4 it is selected manually from Settings.
  */
 enum class ThemeId {
     FocusGlass,

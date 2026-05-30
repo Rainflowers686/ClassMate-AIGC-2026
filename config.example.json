@@ -1,6 +1,6 @@
 {
-  "_note": "Copy this file to config.local.json and fill in real values. config.local.json is gitignored. provider may be 'demo' | 'compatible' | 'bluelm'. Only placeholders allowed here — never commit real keys.",
-  "provider": "demo",
+  "_note": "Copy this file to config.local.json and fill in real values. config.local.json is gitignored. provider may be 'local' | 'compatible' | 'bluelm'. 'demo' is kept as a legacy alias for local. Only placeholders allowed here — never commit real keys.",
+  "provider": "local",
   "compatible": {
     "api_base_url": "https://your-compatible-endpoint/v1/chat/completions",
     "api_key": "YOUR_API_KEY",
