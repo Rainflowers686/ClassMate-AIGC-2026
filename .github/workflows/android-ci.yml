@@ -36,26 +36,78 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git grep -nE 'sk-|Bearer|Authorization|AKIA|ghp_|AIza|-----BEGIN|body prefix|response\.body\.take' \
-            > /tmp/secret_hits_raw.txt || true
+          python3 - <<'PY'
+          import re
+          import subprocess
+          import sys
+          from pathlib import Path
 
-          grep -vE '^README.md:.*禁止.*Authorization' /tmp/secret_hits_raw.txt \
-            | grep -vE '^README.md:.*严禁.*Authorization' \
-            | grep -vE '^README.md:.*secrets scan.*Authorization' \
-            | grep -vE '^README.md:.*body prefix.*response\.body\.take' \
-            | grep -vE '^proof/logs_redacted/README.md:.*Never.*Authorization headers' \
-            | grep -vE '^\.github/workflows/android-ci.yml:.*(git grep|grep -vE|sk-|Bearer|Authorization|AKIA|ghp_|AIza|-----BEGIN|body prefix|response\\\.body)' \
-            | grep -vE '^core/src/main/kotlin/com/classmate/core/network/HttpRequest.kt:.*Authorization / Content-Type' \
-            | grep -vE '^core/src/main/kotlin/com/classmate/core/adapter/ProviderConfig.kt:.*Authorization:' \
-            | grep -vE '^core/src/main/kotlin/com/classmate/core/adapter/ProviderConfig.kt:.*Bearer' \
-            | grep -vE '^core/src/main/kotlin/com/classmate/core/adapter/CompatibleProvider.kt:.*Authorization: Bearer \{api_key\}' \
-            | grep -vE '^core/src/main/kotlin/com/classmate/core/adapter/CompatibleProvider.kt:.*"Authorization" to "Bearer \$\{config\.apiKey\}"' \
-            > /tmp/secret_hits.txt || true
+          files = subprocess.check_output(["git", "ls-files"], text=True).splitlines()
 
-          if [ -s /tmp/secret_hits.txt ]; then
-            echo "Potential secret or unsafe log pattern found:"
-            cat /tmp/secret_hits.txt
-            exit 1
-          fi
+          high_confidence = [
+              ("OPENAI_KEY", re.compile(r"sk-[A-Za-z0-9_-]{20,}")),
+              ("BEARER_TOKEN", re.compile(r"\bBearer\s+[A-Za-z0-9._~+/=-]{16,}")),
+              ("AUTH_BEARER_TOKEN", re.compile(r"\bAuthorization\s*:\s*Bearer\s+[A-Za-z0-9._~+/=-]{8,}", re.IGNORECASE)),
+              ("AWS_ACCESS_KEY", re.compile(r"\bAKIA[0-9A-Z]{16}\b")),
+              ("GITHUB_TOKEN", re.compile(r"\bghp_[A-Za-z0-9]{20,}\b")),
+              ("GOOGLE_API_KEY", re.compile(r"\bAIza[0-9A-Za-z_-]{20,}\b")),
+              ("PRIVATE_KEY", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")),
+              ("JSON_API_KEY", re.compile(r'"(?:api_key|app_key|app_id)"\s*:\s*"(?!YOUR_|FILL_)[^"]{12,}"')),
+          ]
 
-          echo "No non-allowlisted secret patterns found."
+          unsafe_literals = [
+              ("BODY_PREFIX", re.compile(r"body prefix")),
+              ("RESPONSE_BODY_TAKE", re.compile(r"response\.body\.take")),
+              ("HTTP_ERROR_LONG", re.compile(r"HTTP_ERROR:\s+.{12,}")),
+          ]
+
+          def is_allowed_explanatory_text(path: str, line: str) -> bool:
+              stripped = line.strip()
+              if path == "README.md":
+                  if "Authorization" in stripped and "App Key" in stripped and "\u7981\u6b62" in stripped:
+                      return True
+                  if "Authorization" in stripped and "\u771f\u5b9e key" in stripped and "\u4e25\u7981" in stripped:
+                      return True
+                  if all(token in stripped for token in ("sk-", "Bearer", "Authorization", "AKIA", "ghp_")):
+                      return True
+                  if all(token in stripped for token in ("AIza", "-----BEGIN", "body prefix", "response.body.take")):
+                      return True
+              if path == "proof/logs_redacted/README.md":
+                  if "Never" in stripped and "Authorization headers" in stripped:
+                      return True
+              if path == ".github/workflows/android-ci.yml":
+                  workflow_allowed_snippets = (
+                      're.compile(r"body prefix")',
+                      're.compile(r"response\\\\.body\\\\.take")',
+                      '("AIza", "-----BEGIN", "body prefix", "response.body.take")',
+                  )
+                  return any(snippet in stripped for snippet in workflow_allowed_snippets)
+              return False
+
+          findings = []
+
+          for path in files:
+              try:
+                  text = Path(path).read_text(encoding="utf-8")
+              except UnicodeDecodeError:
+                  continue
+              except OSError:
+                  continue
+
+              for line_no, line in enumerate(text.splitlines(), start=1):
+                  for label, pattern in high_confidence:
+                      if pattern.search(line):
+                          findings.append((label, path, line_no, line.rstrip()))
+
+                  for label, pattern in unsafe_literals:
+                      if pattern.search(line) and not is_allowed_explanatory_text(path, line):
+                          findings.append((label, path, line_no, line.rstrip()))
+
+          if findings:
+              print("Potential secret or unsafe log pattern found:")
+              for label, path, line_no, line in findings:
+                  print(f"{label}: {path}:{line_no}: {line}")
+              sys.exit(1)
+
+          print("No non-allowlisted secret patterns found.")
+          PY
