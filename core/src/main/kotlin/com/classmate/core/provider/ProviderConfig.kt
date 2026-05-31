@@ -13,7 +13,7 @@ sealed interface Credential {
         override fun toString(): String = "None"
     }
 
-    /** vivo BlueLM uses an appId + appKey pair (HMAC signing happens in the signer seam). */
+    /** vivo BlueLM uses appId as the app_id header and appKey as the bearer token. */
     data class BlueLm(val appId: String, val appKey: String) : Credential {
         override fun toString(): String = "BlueLm(appId=***, appKey=***)"
     }
@@ -44,7 +44,8 @@ data class ProviderConfig(
     fun hasRealCredential(): Boolean = when (val c = credential) {
         is Credential.None -> kind == ProviderKind.LOCAL_FALLBACK
         is Credential.BlueLm ->
-            ProviderConfigSafetyCheck.isRealSecret(c.appKey)
+            ProviderConfigSafetyCheck.isRealSecret(c.appId) &&
+                ProviderConfigSafetyCheck.isRealSecret(c.appKey)
         is Credential.ApiKey -> ProviderConfigSafetyCheck.isRealSecret(c.apiKey)
     }
 }

@@ -12,6 +12,7 @@ import java.util.UUID
  * Official MVP protocol used here:
  * - POST https://api-ai.vivo.com.cn/v1/chat/completions
  * - Authorization: Bearer <AppKey>
+ * - app_id: <AppID>
  * - query request_id by default, with one requestId retry for the documented 1001 fallback case
  * - OpenAI-compatible chat-completions body and choices[0].message.content response.
  *
@@ -54,10 +55,11 @@ class BlueLMProvider(
                     maxTokens = config.maxTokens,
                 ),
             )
-            val appKey = (config.credential as? Credential.BlueLm)?.appKey
+            val credential = config.credential as? Credential.BlueLm
                 ?: return ProviderResult.Failure(kind, clock() - start, ProviderError(ProviderErrorType.CONFIG_MISSING, kind))
             val headers = mapOf(
-                "Authorization" to "Bearer $appKey",
+                "Authorization" to "Bearer ${credential.appKey}",
+                "app_id" to credential.appId,
                 "Content-Type" to "application/json; charset=utf-8",
             )
             val requestId = requestIdFactory()

@@ -18,8 +18,8 @@ class BlueLMProviderTest {
             transport = HttpTransport { url, headers, body, _ ->
                 assertTrue(url.contains("/v1/chat/completions?request_id=req-123"))
                 assertEquals("Bearer fake-app-key-for-tests", headers["Authorization"])
+                assertEquals("fake-app-id", headers["app_id"])
                 assertEquals("application/json; charset=utf-8", headers["Content-Type"])
-                assertFalse(headers.keys.any { it.equals("app_id", ignoreCase = true) })
                 assertTrue(body.isNotBlank())
                 TransportResponse(200, """{"choices":[{"message":{"content":"{\"knowledgePoints\":[],\"quizQuestions\":[]}"}}]}""")
             },
@@ -95,10 +95,40 @@ class BlueLMProviderTest {
     }
 
     @Test
+    fun missingAppIdHeaderResponseMapsToSafeAuthError() {
+        val provider = BlueLMProvider(
+            config = fakeBlueLmConfig(),
+            promptBuilder = PromptBuilder(),
+            transport = HttpTransport { _, _, _, _ ->
+                TransportResponse(401, """{"message":"app_id is required"}""")
+            },
+            requestIdFactory = { "req-auth" },
+        )
+
+        val result = provider.generate(AnalysisRequest(SampleCourses.seriesSession()))
+
+        assertTrue(result is ProviderResult.Failure)
+        result as ProviderResult.Failure
+        assertEquals(ProviderErrorType.APP_ID_HEADER_MISSING, result.error.type)
+        assertFalse(result.toString().contains("app_id is required"))
+    }
+
+    @Test
     fun unconfiguredProviderIsNotAvailable() {
         val provider = BlueLMProvider(
             config = ProviderConfigBundle.defaults().configOf(ProviderKind.BLUELM)!!,
             promptBuilder = PromptBuilder(),
+        )
+
+        assertFalse(provider.isAvailable())
+    }
+
+    @Test
+    fun missingAppIdProviderIsNotAvailable() {
+        val provider = BlueLMProvider(
+            config = fakeBlueLmConfig().copy(credential = Credential.BlueLm("", "fake-app-key-for-tests")),
+            promptBuilder = PromptBuilder(),
+            transport = HttpTransport { _, _, _, _ -> TransportResponse(200, "{}") },
         )
 
         assertFalse(provider.isAvailable())

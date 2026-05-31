@@ -90,6 +90,10 @@ class VivoOpenAIChatProtocolTest {
             ProviderError.fromStatus(ProviderKind.BLUELM, 429, """{"code":2003,"message":"today usage limit"}""").type,
         )
         assertEquals(
+            ProviderErrorType.APP_ID_HEADER_MISSING,
+            ProviderError.fromStatus(ProviderKind.BLUELM, 401, """{"message":"app_id is required"}""").type,
+        )
+        assertEquals(
             ProviderErrorType.RATE_LIMITED,
             ProviderError.fromStatus(ProviderKind.BLUELM, 429, """{"message":"rate limited"}""").type,
         )

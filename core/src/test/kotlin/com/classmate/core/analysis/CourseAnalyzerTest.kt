@@ -60,7 +60,11 @@ class CourseAnalyzerTest {
             }
         }.toString()
 
-        val transport = HttpTransport { _, _, _, _ -> TransportResponse(200, envelope) }
+        val transport = HttpTransport { _, headers, _, _ ->
+            assertEquals("appid123456", headers["app_id"])
+            assertEquals("Bearer appkey1234567", headers["Authorization"])
+            TransportResponse(200, envelope)
+        }
         val signer = BlueLmSigner { _, _, _, _ -> mapOf("X-Test-Auth" to "ok") }
         val resolver = ProviderResolver(wiredBundle(), promptBuilder, transport, signer)
 
@@ -70,6 +74,7 @@ class CourseAnalyzerTest {
         assertEquals(ProviderKind.BLUELM, outcome.result.provenance.provider)
         assertFalse(outcome.result.provenance.fallbackUsed)
         assertTrue(outcome.result.knowledgePoints.isNotEmpty())
+        assertFalse(outcome.logs.any { it.provider == "LOCAL_FALLBACK" })
     }
 
     @Test

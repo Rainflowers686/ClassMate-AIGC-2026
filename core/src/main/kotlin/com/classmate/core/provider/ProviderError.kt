@@ -17,6 +17,7 @@ enum class ProviderErrorType {
     TIMEOUT,            // request exceeded timeoutMs
     HTTP_NON_2XX,       // server returned a non-2xx status (numeric status kept, body dropped)
     UNAUTHORIZED,       // 401 / 403
+    APP_ID_HEADER_MISSING, // vivo auth failed because app_id header is absent/empty
     RATE_LIMITED,       // 429 or vendor rate-limit code
     PARAM_ERROR,        // vendor parameter error, e.g. missing request_id/requestId
     CONTENT_BLOCKED,    // vendor content moderation rejected the request/response
@@ -52,6 +53,9 @@ data class ProviderError(
     companion object {
         /** Maps HTTP + vendor status to the most specific safe error type. */
         fun fromStatus(provider: ProviderKind, status: Int, body: String? = null): ProviderError {
+            if (status == 401 && bodyLooksLikeMissingAppId(body)) {
+                return ProviderError(ProviderErrorType.APP_ID_HEADER_MISSING, provider, status)
+            }
             parseVendorError(body)?.let { vendor ->
                 mapVendorError(provider, status, vendor)?.let { return it }
             }
@@ -72,6 +76,11 @@ data class ProviderError(
 
         private fun mapVendorError(provider: ProviderKind, status: Int, vendor: VendorError): ProviderError? =
             when (vendor.code) {
+                "401" -> if (vendor.message.looksLikeMissingAppId()) {
+                    ProviderError(ProviderErrorType.APP_ID_HEADER_MISSING, provider, status, vendor.code)
+                } else {
+                    null
+                }
                 "1001" -> ProviderError(ProviderErrorType.PARAM_ERROR, provider, status, vendor.code)
                 "1007" -> ProviderError(ProviderErrorType.CONTENT_BLOCKED, provider, status, vendor.code)
                 "2003" -> ProviderError(ProviderErrorType.USAGE_LIMIT, provider, status, vendor.code)
@@ -108,6 +117,9 @@ data class ProviderError(
             return VendorError(code, message)
         }
 
+        private fun bodyLooksLikeMissingAppId(body: String?): Boolean =
+            body?.looksLikeMissingAppId() == true
+
         private val json = Json { ignoreUnknownKeys = true; isLenient = true }
     }
 }
@@ -116,3 +128,19 @@ private data class VendorError(val code: String, val message: String)
 
 private fun JsonObject?.errorStr(key: String): String? =
     (this?.get(key) as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
+
+private fun String.looksLikeMissingAppId(): Boolean {
+    val normalized = lowercase()
+    val mentionsAppId = normalized.contains("app_id") ||
+        normalized.contains("appid") ||
+        normalized.contains("app id")
+    val saysMissing = normalized.contains("missing") ||
+        normalized.contains("empty") ||
+        normalized.contains("required") ||
+        normalized.contains("blank") ||
+        normalized.contains("null") ||
+        normalized.contains("缺少") ||
+        normalized.contains("为空") ||
+        normalized.contains("不能为空")
+    return mentionsAppId && saysMissing
+}
