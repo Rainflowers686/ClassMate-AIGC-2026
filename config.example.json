@@ -6,11 +6,15 @@
     "bluelm": {
       "displayName": "vivo BlueLM (蓝心大模型)",
       "enabled": true,
-      "baseUrl": "https://api-ai.vivo.com.cn",
-      "model": "vivo-BlueLM-TB-Pro",
+      "baseUrl": "https://api-ai.vivo.com.cn/v1",
+      "model": "Doubao-Seed-2.0-pro",
       "appId": "YOUR_BLUELM_APP_ID",
       "appKey": "YOUR_BLUELM_APP_KEY",
-      "timeoutMs": 30000
+      "timeoutMs": 30000,
+      "temperature": 0.3,
+      "maxTokens": 4096,
+      "stream": false,
+      "requestIdQueryName": "request_id"
     },
     "compatible": {
       "displayName": "OpenAI-compatible fallback endpoint",

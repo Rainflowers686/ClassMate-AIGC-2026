@@ -24,7 +24,10 @@ class ConfigRepositoryTest {
                   "model": "fake-blue-model",
                   "appId": "fake-app-id",
                   "appKey": "fake-app-key-for-tests",
-                  "timeoutMs": 12345
+                  "timeoutMs": 12345,
+                  "temperature": 0.2,
+                  "maxTokens": 2048,
+                  "requestIdQueryName": "requestId"
                 },
                 "localFallback": { "enabled": true }
               },
@@ -39,6 +42,9 @@ class ConfigRepositoryTest {
         assertEquals(null, result.error)
         assertEquals("https://fake-blue-lm.test", bluelm?.baseUrl)
         assertEquals("fake-blue-model", bluelm?.model)
+        assertEquals(0.2, bluelm?.temperature ?: 0.0, 0.0001)
+        assertEquals(2048, bluelm?.maxTokens)
+        assertEquals("requestId", bluelm?.requestIdQueryName)
         assertTrue(bluelm?.credential is Credential.BlueLm)
         assertTrue(result.summary.blueLmConfigured)
         assertFalse(result.toString().contains("fake-app-key-for-tests"))

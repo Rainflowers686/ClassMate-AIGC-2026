@@ -54,10 +54,9 @@ object DebugConfigImporter {
         val providers = (root as? JsonObject)?.get("providers") as? JsonObject
         val names = providers?.keys?.toList() ?: emptyList()
         val bluelm = providers?.get("bluelm") as? JsonObject
-        val appId = (bluelm?.get("appId") as? JsonPrimitive)?.takeIf { it.isString }?.content ?: ""
         val appKey = (bluelm?.get("appKey") as? JsonPrimitive)?.takeIf { it.isString }?.content ?: ""
 
-        val bluelmConfigured = ProviderConfigSafetyCheck.isRealSecret(appId) && ProviderConfigSafetyCheck.isRealSecret(appKey)
+        val bluelmConfigured = ProviderConfigSafetyCheck.isRealSecret(appKey)
         val safety = ProviderConfigSafetyCheck.inspectExampleConfig(jsonText)
         val containsReal = !safety.isExampleSafe
 

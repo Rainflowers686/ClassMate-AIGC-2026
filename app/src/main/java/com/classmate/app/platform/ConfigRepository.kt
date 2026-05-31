@@ -11,6 +11,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.longOrNull
 
 data class ProviderConfigSummary(
@@ -163,6 +164,10 @@ class ConfigRepository(
             model = json.str("model") ?: default?.model.orEmpty(),
             timeoutMs = json.long("timeoutMs", default?.timeoutMs ?: 30_000),
             credential = credential,
+            temperature = json.double("temperature", default?.temperature ?: 0.3),
+            maxTokens = json.int("maxTokens", default?.maxTokens ?: 4096),
+            stream = json.bool("stream", default?.stream ?: false),
+            requestIdQueryName = json.str("requestIdQueryName") ?: default?.requestIdQueryName ?: "request_id",
         )
     }
 
@@ -175,6 +180,9 @@ class ConfigRepository(
             model = json.str("model") ?: default?.model.orEmpty(),
             timeoutMs = json.long("timeoutMs", default?.timeoutMs ?: 30_000),
             credential = if (apiKey.isBlank()) Credential.None else Credential.ApiKey(apiKey),
+            temperature = json.double("temperature", default?.temperature ?: 0.3),
+            maxTokens = json.int("maxTokens", default?.maxTokens ?: 4096),
+            stream = json.bool("stream", default?.stream ?: false),
         )
     }
 
@@ -220,6 +228,12 @@ private fun JsonObject?.bool(key: String, default: Boolean): Boolean =
 
 private fun JsonObject?.long(key: String, default: Long): Long =
     (this?.get(key) as? JsonPrimitive)?.longOrNull ?: default
+
+private fun JsonObject?.int(key: String, default: Int): Int =
+    (this?.get(key) as? JsonPrimitive)?.longOrNull?.toInt() ?: default
+
+private fun JsonObject?.double(key: String, default: Double): Double =
+    (this?.get(key) as? JsonPrimitive)?.doubleOrNull ?: default
 
 private fun JsonObject.obj(key: String): JsonObject? = get(key) as? JsonObject
 

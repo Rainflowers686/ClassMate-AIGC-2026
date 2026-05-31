@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.classmate.app.data.BlueLMHttpTransport
 import com.classmate.app.platform.ConfigImportPreview
 import com.classmate.app.platform.ConfigRepository
 import com.classmate.app.platform.DebugConfigImporter
@@ -28,7 +29,6 @@ import com.classmate.core.prompt.PromptBuilder
 import com.classmate.core.provider.AnalysisRequest
 import com.classmate.core.provider.BlueLmSigner
 import com.classmate.core.provider.HttpTransport
-import com.classmate.core.provider.NoNetworkTransport
 import com.classmate.core.provider.ProviderConfigBundle
 import com.classmate.core.provider.ProviderResolver
 import com.classmate.core.provider.UnconfiguredBlueLmSigner
@@ -48,7 +48,7 @@ import kotlinx.coroutines.withContext
  */
 class AppViewModel(
     private val configRepository: ConfigRepository = ConfigRepository(),
-    private val transport: HttpTransport = NoNetworkTransport,
+    private val transport: HttpTransport = BlueLMHttpTransport(),
     private val blueLmSigner: BlueLmSigner = UnconfiguredBlueLmSigner,
 ) : ViewModel() {
 

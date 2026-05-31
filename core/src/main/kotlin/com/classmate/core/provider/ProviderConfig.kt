@@ -32,6 +32,10 @@ data class ProviderConfig(
     val model: String = "",
     val timeoutMs: Long = 30_000,
     val credential: Credential = Credential.None,
+    val temperature: Double = 0.3,
+    val maxTokens: Int = 4096,
+    val stream: Boolean = false,
+    val requestIdQueryName: String = "request_id",
 ) {
     /**
      * Whether this config carries usable, *non-placeholder* credentials. The local fallback
@@ -40,7 +44,7 @@ data class ProviderConfig(
     fun hasRealCredential(): Boolean = when (val c = credential) {
         is Credential.None -> kind == ProviderKind.LOCAL_FALLBACK
         is Credential.BlueLm ->
-            ProviderConfigSafetyCheck.isRealSecret(c.appId) && ProviderConfigSafetyCheck.isRealSecret(c.appKey)
+            ProviderConfigSafetyCheck.isRealSecret(c.appKey)
         is Credential.ApiKey -> ProviderConfigSafetyCheck.isRealSecret(c.apiKey)
     }
 }
@@ -78,8 +82,8 @@ data class ProviderConfigBundle(
                 ProviderKind.BLUELM to ProviderConfig(
                     kind = ProviderKind.BLUELM,
                     enabled = true,
-                    baseUrl = "https://api-ai.vivo.com.cn",
-                    model = "vivo-BlueLM-TB-Pro",
+                    baseUrl = "https://api-ai.vivo.com.cn/v1",
+                    model = "Doubao-Seed-2.0-pro",
                     credential = Credential.None, // injected at runtime; never in repo
                 ),
                 ProviderKind.COMPATIBLE to ProviderConfig(

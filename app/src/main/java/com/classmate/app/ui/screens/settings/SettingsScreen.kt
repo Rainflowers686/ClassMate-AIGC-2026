@@ -194,11 +194,6 @@ private fun DebugImportCard(viewModel: AppViewModel) {
             Spacer(Modifier.height(Dimens.m))
             val color = if (p.containsRealSecret) ClassMateTheme.extended.warning else ClassMateTheme.extended.success
             Text(p.message, style = MaterialTheme.typography.bodyMedium, color = color, fontWeight = FontWeight.Medium)
-            if (p.providersFound.isNotEmpty()) {
-                Spacer(Modifier.height(Dimens.xxs))
-                Text("识别到的 provider：${p.providersFound.joinToString()}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Text("BlueLM 已配置：${if (p.bluelmConfigured) "是" else "否"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             p.providerSummaries.forEach { summary ->
                 ProviderPreviewRow(summary)
             }

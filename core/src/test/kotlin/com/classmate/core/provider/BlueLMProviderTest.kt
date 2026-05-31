@@ -3,6 +3,7 @@ package com.classmate.core.provider
 import com.classmate.core.model.ProviderKind
 import com.classmate.core.prompt.PromptBuilder
 import com.classmate.core.sample.SampleCourses
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -10,17 +11,19 @@ import org.junit.Test
 class BlueLMProviderTest {
 
     @Test
-    fun fakeTransportAndSignerCanReturnAssistantText() {
+    fun fakeTransportAndFakeKeyCanReturnAssistantText() {
         val provider = BlueLMProvider(
             config = fakeBlueLmConfig(),
             promptBuilder = PromptBuilder(),
             transport = HttpTransport { url, headers, body, _ ->
-                assertTrue(url.contains("__official_bluelm_path_pending__"))
-                assertTrue(headers.containsKey("X-Test-Auth"))
+                assertTrue(url.contains("/v1/chat/completions?request_id=req-123"))
+                assertEquals("Bearer fake-app-key-for-tests", headers["Authorization"])
+                assertEquals("application/json; charset=utf-8", headers["Content-Type"])
+                assertFalse(headers.keys.any { it.equals("app_id", ignoreCase = true) })
                 assertTrue(body.isNotBlank())
-                TransportResponse(200, """{"data":{"content":"{\"knowledgePoints\":[],\"quizQuestions\":[]}"}}""")
+                TransportResponse(200, """{"choices":[{"message":{"content":"{\"knowledgePoints\":[],\"quizQuestions\":[]}"}}]}""")
             },
-            signer = BlueLmSigner { _, _, _, _ -> mapOf("X-Test-Auth" to "ok") },
+            requestIdFactory = { "req-123" },
         )
 
         val result = provider.generate(AnalysisRequest(SampleCourses.seriesSession()))
@@ -31,13 +34,57 @@ class BlueLMProviderTest {
     }
 
     @Test
+    fun defaultsToRequestIdUnderscoreAndRetriesCamelCaseOnDocumented1001() {
+        val urls = mutableListOf<String>()
+        val provider = BlueLMProvider(
+            config = fakeBlueLmConfig(),
+            promptBuilder = PromptBuilder(),
+            transport = HttpTransport { url, _, _, _ ->
+                urls += url
+                if (url.contains("request_id=")) {
+                    TransportResponse(400, """{"code":1001,"message":"param requestId can't be empty"}""")
+                } else {
+                    TransportResponse(200, """{"choices":[{"message":{"content":"{\"knowledgePoints\":[],\"quizQuestions\":[]}"}}]}""")
+                }
+            },
+            requestIdFactory = { "retry-req" },
+        )
+
+        val result = provider.generate(AnalysisRequest(SampleCourses.seriesSession()))
+
+        assertTrue(result is ProviderResult.Success)
+        assertTrue(urls[0].contains("request_id=retry-req"))
+        assertTrue(urls[1].contains("requestId=retry-req"))
+    }
+
+    @Test
+    fun configurableRequestIdQueryNameSkipsFallback() {
+        val urls = mutableListOf<String>()
+        val provider = BlueLMProvider(
+            config = fakeBlueLmConfig(requestIdQueryName = "requestId"),
+            promptBuilder = PromptBuilder(),
+            transport = HttpTransport { url, _, _, _ ->
+                urls += url
+                TransportResponse(200, """{"choices":[{"message":{"content":"{\"knowledgePoints\":[],\"quizQuestions\":[]}"}}]}""")
+            },
+            requestIdFactory = { "camel-req" },
+        )
+
+        val result = provider.generate(AnalysisRequest(SampleCourses.seriesSession()))
+
+        assertTrue(result is ProviderResult.Success)
+        assertEquals(1, urls.size)
+        assertTrue(urls.single().contains("requestId=camel-req"))
+    }
+
+    @Test
     fun non2xxDropsVendorBodyFromFailure() {
         val sensitiveVendorBody = "vendor-body-with-prompt-course-and-fake-app-key-for-tests"
         val provider = BlueLMProvider(
             config = fakeBlueLmConfig(),
             promptBuilder = PromptBuilder(),
             transport = HttpTransport { _, _, _, _ -> TransportResponse(503, sensitiveVendorBody) },
-            signer = BlueLmSigner { _, _, _, _ -> mapOf("X-Test-Auth" to "ok") },
+            requestIdFactory = { "req-503" },
         )
 
         val result = provider.generate(AnalysisRequest(SampleCourses.seriesSession()))
@@ -57,11 +104,12 @@ class BlueLMProviderTest {
         assertFalse(provider.isAvailable())
     }
 
-    private fun fakeBlueLmConfig() = ProviderConfig(
+    private fun fakeBlueLmConfig(requestIdQueryName: String = "request_id") = ProviderConfig(
         kind = ProviderKind.BLUELM,
         enabled = true,
-        baseUrl = "https://fake-blue-lm.test",
-        model = "fake-blue-model",
+        baseUrl = "https://api-ai.vivo.com.cn/v1",
+        model = "Doubao-Seed-2.0-pro",
         credential = Credential.BlueLm("fake-app-id", "fake-app-key-for-tests"),
+        requestIdQueryName = requestIdQueryName,
     )
 }

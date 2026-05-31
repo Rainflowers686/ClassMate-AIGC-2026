@@ -15,9 +15,11 @@ import com.classmate.core.provider.TransportResponse
 import com.classmate.core.sample.SampleCourses
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
+import kotlinx.serialization.json.putJsonArray
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -47,10 +49,16 @@ class CourseAnalyzerTest {
     @Test
     fun usesBlueLmAsPrimaryWhenWired() {
         val session = SampleCourses.seriesSession()
-        // A guaranteed-valid wire payload, wrapped in a BlueLM-style envelope.
+        // A guaranteed-valid wire payload, wrapped in the official OpenAI-compatible envelope.
         val wire = LocalHeuristicExtractor().extract(session, 8, 1)
         val wireJson = Json { encodeDefaults = true }.encodeToString(wire)
-        val envelope = buildJsonObject { putJsonObject("data") { put("content", wireJson) } }.toString()
+        val envelope = buildJsonObject {
+            putJsonArray("choices") {
+                addJsonObject {
+                    putJsonObject("message") { put("content", wireJson) }
+                }
+            }
+        }.toString()
 
         val transport = HttpTransport { _, _, _, _ -> TransportResponse(200, envelope) }
         val signer = BlueLmSigner { _, _, _, _ -> mapOf("X-Test-Auth" to "ok") }

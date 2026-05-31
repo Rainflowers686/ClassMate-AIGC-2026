@@ -19,7 +19,7 @@ class AppViewModelProviderConfigTest {
     }
 
     @Test
-    fun debugImportUpdatesConfigButPrimaryRemainsInertWithoutProtocolWiring() {
+    fun debugImportUpdatesConfigAndMarksPrimaryReadyWhenTransportExists() {
         val missing = Files.createTempDirectory("classmate-vm-debug").resolve("config.local.json").toFile()
         val viewModel = AppViewModel(configRepository = ConfigRepository(missing))
         val preview = viewModel.importDebugProviderConfig(
@@ -41,7 +41,7 @@ class AppViewModelProviderConfigTest {
 
         assertTrue(preview.valid)
         assertTrue(viewModel.ui.providerConfigSummary.blueLmConfigured)
-        assertFalse(viewModel.ui.providerConfigSummary.primaryReady)
+        assertTrue(viewModel.ui.providerConfigSummary.primaryReady)
         assertTrue(viewModel.ui.providerConfigSummary.localFallbackEnabled)
     }
 }
