@@ -1,0 +1,54 @@
+package com.classmate.app.platform
+
+import com.classmate.core.validation.ProviderConfigSafetyCheck
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+
+/** A non-sensitive summary of a pasted config, shown in the debug import preview. */
+data class ConfigImportPreview(
+    val valid: Boolean,
+    val providersFound: List<String>,
+    val bluelmConfigured: Boolean,
+    val containsRealSecret: Boolean,
+    val message: String,
+)
+
+/**
+ * The PLANNED debug-only entry point for injecting real BlueLM credentials on a developer's
+ * device. In round 1 it only *inspects* a pasted config and reports a safe summary — it does
+ * not persist anything, and it never echoes a secret value (only field names / booleans).
+ *
+ * Wiring this to actually build a [com.classmate.core.provider.ProviderConfigBundle] and hand
+ * it to the analyzer is a later step, gated behind BuildConfig.DEBUG. Real values still come
+ * from config.local.json or this on-device paste — never from the repository.
+ */
+object DebugConfigImporter {
+
+    fun inspect(jsonText: String): ConfigImportPreview {
+        if (jsonText.isBlank()) {
+            return ConfigImportPreview(false, emptyList(), false, false, "请输入配置 JSON")
+        }
+        val root = try {
+            Json.parseToJsonElement(jsonText)
+        } catch (e: Exception) {
+            return ConfigImportPreview(false, emptyList(), false, false, "无法解析 JSON")
+        }
+        val providers = (root as? JsonObject)?.get("providers") as? JsonObject
+        val names = providers?.keys?.toList() ?: emptyList()
+        val bluelm = providers?.get("bluelm") as? JsonObject
+        val appId = (bluelm?.get("appId") as? JsonPrimitive)?.takeIf { it.isString }?.content ?: ""
+        val appKey = (bluelm?.get("appKey") as? JsonPrimitive)?.takeIf { it.isString }?.content ?: ""
+
+        val bluelmConfigured = ProviderConfigSafetyCheck.isRealSecret(appId) && ProviderConfigSafetyCheck.isRealSecret(appKey)
+        val safety = ProviderConfigSafetyCheck.inspectExampleConfig(jsonText)
+        val containsReal = !safety.isExampleSafe
+
+        val message = when {
+            bluelmConfigured -> "已识别 BlueLM 凭据（仅保存在本地内存，不写入仓库）。"
+            containsReal -> "检测到疑似真实密钥字段：${safety.findings.joinToString()}。请确认这是本地配置。"
+            else -> "仅检测到占位符，未发现真实密钥。"
+        }
+        return ConfigImportPreview(true, names, bluelmConfigured, containsReal, message)
+    }
+}

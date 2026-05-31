@@ -1,0 +1,44 @@
+# ===========================================================================
+# ClassMate .gitignore
+# Security-critical: never commit real BlueLM credentials or local SDK paths.
+# ===========================================================================
+
+# --- Secrets & local config (NEVER commit) ---------------------------------
+local.properties
+config.local.json
+secrets.properties
+*.env
+.env
+.env.*
+# Keystores / signing material
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+
+# --- Build outputs ----------------------------------------------------------
+build/
+**/build/
+.gradle/
+out/
+# Packaged apps must never be committed (also enforced in CI: no APK artifact)
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# --- IDE / tooling ----------------------------------------------------------
+.idea/
+*.iml
+.kotlin/
+captures/
+.cxx/
+.externalNativeBuild/
+
+# --- OS noise ---------------------------------------------------------------
+.DS_Store
+Thumbs.db
+
+# --- Logs (raw logs may contain sensitive data; only redacted logs allowed) -
+*.log
+proof/logs_redacted/*.tmp

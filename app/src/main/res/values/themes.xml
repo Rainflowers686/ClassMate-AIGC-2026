@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Minimal platform theme for the Activity window. All real theming (Focus / Vitality /
+      Flow) is done in Compose via ClassMateTheme; this only sets a no-action-bar window and a
+      neutral background to avoid a flash before the first frame.
+    -->
+    <style name="Theme.ClassMate" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+        <item name="android:statusBarColor">@color/window_background</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>
