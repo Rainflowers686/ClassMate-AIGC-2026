@@ -51,6 +51,38 @@ class ConfigRepositoryTest {
     }
 
     @Test
+    fun parsesTopLevelBlueLmConfigIntoProviderBundle() {
+        val result = ConfigRepository().parseOrDefault(
+            """
+            {
+              "provider": "bluelm",
+              "baseUrl": "https://api-ai.vivo.com.cn/v1",
+              "model": "Doubao-Seed-2.0-mini",
+              "appId": "FAKE_APP_ID_2026374747",
+              "appKey": "sk-xuanji-FAKE-ONLY-DO-NOT-USE",
+              "temperature": 0.2,
+              "maxTokens": 1200,
+              "stream": false,
+              "requestIdQueryName": "request_id"
+            }
+            """.trimIndent(),
+            source = "debug import",
+        )
+        val bluelm = result.bundle.configOf(ProviderKind.BLUELM)
+
+        assertEquals(null, result.error)
+        assertEquals(ProviderKind.BLUELM, result.bundle.primary)
+        assertEquals("https://api-ai.vivo.com.cn/v1", bluelm?.baseUrl)
+        assertEquals("Doubao-Seed-2.0-mini", bluelm?.model)
+        assertEquals(0.2, bluelm?.temperature ?: 0.0, 0.0001)
+        assertEquals(1200, bluelm?.maxTokens)
+        assertTrue(bluelm?.credential is Credential.BlueLm)
+        assertTrue(result.summary.blueLmConfigured)
+        assertTrue(result.summary.providers.any { it.provider == "BLUELM" && it.credentialPresent })
+        assertFalse(result.toString().contains("sk-xuanji-FAKE-ONLY-DO-NOT-USE"))
+    }
+
+    @Test
     fun missingLocalConfigFallsBackSafely() {
         val missing = Files.createTempDirectory("classmate-missing").resolve("config.local.json").toFile()
         val result = ConfigRepository(missing).loadLocalOrDefault()

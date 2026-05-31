@@ -27,6 +27,7 @@ class RedactedLoggerTest {
         assertFalse(line.contains("appKey"))
         assertFalse(line.contains("Authorization"))
         assertFalse(line.contains("fake-app-key-for-tests"))
+        assertFalse(line.contains("sk-xuanji-FAKE-ONLY-DO-NOT-USE"))
         assertFalse(line.contains("vendor-body"))
         assertFalse(line.contains("级数文本"))
     }

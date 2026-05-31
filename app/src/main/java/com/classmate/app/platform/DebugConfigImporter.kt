@@ -1,6 +1,7 @@
 package com.classmate.app.platform
 
 import com.classmate.app.BuildConfig
+import com.classmate.core.model.ProviderKind
 import com.classmate.core.provider.ProviderConfigBundle
 import com.classmate.core.validation.ProviderConfigSafetyCheck
 import kotlinx.serialization.json.Json
@@ -51,9 +52,13 @@ object DebugConfigImporter {
         } catch (e: Exception) {
             return ConfigImportPreview(false, emptyList(), false, false, emptyList(), null, "无法解析 JSON")
         }
-        val providers = (root as? JsonObject)?.get("providers") as? JsonObject
-        val names = providers?.keys?.toList() ?: emptyList()
+        val rootObject = root as? JsonObject
+        val providers = rootObject?.get("providers") as? JsonObject
+        val topLevelProvider = rootObject.str("provider")?.toProviderKind()
+        val names = providers?.keys?.toList()
+            ?: listOfNotNull(topLevelProvider?.name?.lowercase())
         val bluelm = providers?.get("bluelm") as? JsonObject
+            ?: rootObject.takeIf { topLevelProvider == ProviderKind.BLUELM }
         val appKey = (bluelm?.get("appKey") as? JsonPrimitive)?.takeIf { it.isString }?.content ?: ""
 
         val bluelmConfigured = ProviderConfigSafetyCheck.isRealSecret(appKey)
@@ -78,3 +83,14 @@ object DebugConfigImporter {
         )
     }
 }
+
+private fun JsonObject?.str(key: String): String? =
+    (this?.get(key) as? JsonPrimitive)?.takeIf { it.isString }?.content?.takeIf { it.isNotBlank() }
+
+private fun String.toProviderKind(): ProviderKind? =
+    when (trim().lowercase()) {
+        "bluelm", "blue_lm", "blue-lm" -> ProviderKind.BLUELM
+        "compatible", "openai", "openai-compatible" -> ProviderKind.COMPATIBLE
+        "localfallback", "local_fallback", "local-fallback", "local" -> ProviderKind.LOCAL_FALLBACK
+        else -> null
+    }

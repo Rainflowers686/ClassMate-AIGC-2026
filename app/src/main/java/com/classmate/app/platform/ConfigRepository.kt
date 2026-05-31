@@ -110,7 +110,8 @@ class ConfigRepository(
 
         val defaults = ProviderConfigBundle.defaults()
         val providers = root.obj("providers")
-        val bluelm = providers?.obj("bluelm")
+        val topLevelProvider = root.str("provider")?.toProviderKind()
+        val bluelm = providers?.obj("bluelm") ?: root.takeIf { topLevelProvider == ProviderKind.BLUELM }
         val compatible = providers?.obj("compatible")
         val localFallback = providers?.obj("localFallback")
 
@@ -127,7 +128,7 @@ class ConfigRepository(
             ?.takeIf { it.isNotEmpty() }
             ?: defaults.order
 
-        val primary = root.str("activeProvider")?.toProviderKind() ?: defaults.primary
+        val primary = root.str("activeProvider")?.toProviderKind() ?: topLevelProvider ?: defaults.primary
         val resolver = root.obj("resolver")
         val bundle = ProviderConfigBundle(
             primary = primary,
