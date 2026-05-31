@@ -6,6 +6,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.classmate.app.platform.ConfigImportPreview
+import com.classmate.app.platform.ConfigRepository
+import com.classmate.app.platform.DebugConfigImporter
+import com.classmate.app.platform.ProviderConfigSummary
 import com.classmate.app.ui.theme.ThemeOption
 import com.classmate.core.analysis.AnalysisOutcome
 import com.classmate.core.analysis.CourseAnalyzer
@@ -22,8 +26,12 @@ import com.classmate.core.model.QuizQuestion
 import com.classmate.core.model.SourceKind
 import com.classmate.core.prompt.PromptBuilder
 import com.classmate.core.provider.AnalysisRequest
+import com.classmate.core.provider.BlueLmSigner
+import com.classmate.core.provider.HttpTransport
+import com.classmate.core.provider.NoNetworkTransport
 import com.classmate.core.provider.ProviderConfigBundle
 import com.classmate.core.provider.ProviderResolver
+import com.classmate.core.provider.UnconfiguredBlueLmSigner
 import com.classmate.core.review.ReviewPlanner
 import com.classmate.core.sample.SampleCourses
 import kotlinx.coroutines.Dispatchers
@@ -38,17 +46,24 @@ import kotlinx.coroutines.withContext
  * Round 1 keeps everything in memory (great for a demo; no persistence yet). Real BlueLM
  * credentials would be injected here by rebuilding [configBundle] from the debug import entry.
  */
-class AppViewModel : ViewModel() {
+class AppViewModel(
+    private val configRepository: ConfigRepository = ConfigRepository(),
+    private val transport: HttpTransport = NoNetworkTransport,
+    private val blueLmSigner: BlueLmSigner = UnconfiguredBlueLmSigner,
+) : ViewModel() {
 
     private val promptBuilder = PromptBuilder()
 
-    // Default (unconfigured) provider stack: BlueLM -> Compatible -> LocalFallback.
-    private var configBundle: ProviderConfigBundle = ProviderConfigBundle.defaults()
+    // Default remains inert/fallback-safe; config.local.json may replace credentials locally.
+    private val initialConfig = configRepository.loadLocalOrDefault()
+    private var configBundle: ProviderConfigBundle = initialConfig.bundle
 
     private fun analyzer(): CourseAnalyzer =
-        CourseAnalyzer(ProviderResolver(configBundle, promptBuilder))
+        CourseAnalyzer(ProviderResolver(configBundle, promptBuilder, transport, blueLmSigner))
 
-    var ui by mutableStateOf(ClassMateUiState())
+    var ui by mutableStateOf(
+        ClassMateUiState(providerConfigSummary = providerSummary(initialConfig.summary.source)),
+    )
         private set
 
     // --- navigation (compose-observable back stack) ---
@@ -81,6 +96,42 @@ class AppViewModel : ViewModel() {
     // --- appearance ---
     fun setTheme(option: ThemeOption) { ui = ui.copy(theme = option) }
     fun setDarkMode(dark: Boolean?) { ui = ui.copy(darkMode = dark) }
+
+    // --- provider config ---
+    fun importDebugProviderConfig(jsonText: String, debugEnabled: Boolean = com.classmate.app.BuildConfig.DEBUG): ConfigImportPreview {
+        val preview = DebugConfigImporter.inspect(jsonText, debugEnabled)
+        val imported = preview.runtimeConfig
+        if (preview.valid && imported != null) {
+            configBundle = imported
+            ui = ui.copy(
+                providerConfigSummary = providerSummary("debug import"),
+                toast = if (providerSummary("debug import").blueLmConfigured) {
+                    "已导入 BlueLM 配置；真实协议/签名实现前仍会安全兜底"
+                } else {
+                    "已导入配置；BlueLM 仍未配置真实凭据"
+                },
+            )
+        } else {
+            ui = ui.copy(toast = preview.message)
+        }
+        return preview
+    }
+
+    fun reloadLocalProviderConfig() {
+        val result = configRepository.loadLocalOrDefault()
+        configBundle = result.bundle
+        ui = ui.copy(
+            providerConfigSummary = providerSummary(result.summary.source),
+            toast = result.error?.message ?: "已读取本地 provider 配置",
+        )
+    }
+
+    private fun providerSummary(source: String): ProviderConfigSummary =
+        ProviderConfigSummary.fromBundle(
+            source = source,
+            bundle = configBundle,
+            primaryReady = ProviderResolver(configBundle, promptBuilder, transport, blueLmSigner).isPrimaryReady(),
+        )
 
     // --- import ---
     fun updateCourseTitle(value: String) { ui = ui.copy(courseTitle = value) }

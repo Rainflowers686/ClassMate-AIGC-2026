@@ -21,13 +21,15 @@ class BlueLMProvider(
     private val promptBuilder: PromptBuilder,
     private val transport: HttpTransport = NoNetworkTransport,
     private val signer: BlueLmSigner = UnconfiguredBlueLmSigner,
+    private val requestFactory: BlueLMRequestFactory = PlaceholderBlueLMRequestFactory,
+    private val responseReader: BlueLMResponseReader = PlaceholderBlueLMResponseReader,
     private val clock: () -> Long = System::currentTimeMillis,
 ) : ModelProvider {
 
     override val kind: ProviderKind = ProviderKind.BLUELM
 
-    // TODO(bluelm): confirm the exact vivo path & query parameters when wiring the real endpoint.
-    private val path = "/vivogpt/completions"
+    // TODO(bluelm-official): replace only after confirming the exact vivo endpoint path.
+    private val path = "/__official_bluelm_path_pending__"
 
     override fun isAvailable(): Boolean =
         config.enabled &&
@@ -42,7 +44,7 @@ class BlueLMProvider(
         }
         return try {
             val prompt = promptBuilder.build(request)
-            val body = ChatRequestFactory.build(config.model, prompt)
+            val body = requestFactory.build(config.model, prompt)
             val headers = buildMap {
                 putAll(signer.authHeaders("POST", path, "", body))
                 put("Content-Type", "application/json")
@@ -54,7 +56,7 @@ class BlueLMProvider(
             if (response.status !in 200..299) {
                 return ProviderResult.Failure(kind, latency, ProviderError.fromStatus(kind, response.status))
             }
-            val text = VendorResponseReader.extractAssistantText(response.body)
+            val text = responseReader.extractAssistantText(response.body)
             if (text.isNullOrBlank()) {
                 ProviderResult.Failure(kind, latency, ProviderError(ProviderErrorType.EMPTY_RESPONSE, kind, response.status))
             } else {

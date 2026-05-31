@@ -1,5 +1,6 @@
 package com.classmate.app.state
 
+import com.classmate.app.platform.ProviderConfigSummary
 import com.classmate.app.ui.theme.ThemeOption
 import com.classmate.core.logging.RedactedLogEntry
 import com.classmate.core.model.CourseAnalysisResult
@@ -22,6 +23,7 @@ data class ClassMateUiState(
     val session: CourseSession? = null,
     val analysisStatus: AnalysisStatus = AnalysisStatus.IDLE,
     val analysisStageIndex: Int = 0,
+    val providerConfigSummary: ProviderConfigSummary = ProviderConfigSummary.defaults(),
     val result: CourseAnalysisResult? = null,
     val logs: List<RedactedLogEntry> = emptyList(),
     val analysisError: String? = null,

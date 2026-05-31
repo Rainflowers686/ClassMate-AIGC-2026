@@ -34,7 +34,7 @@ class ProviderResolver(
         return when (kind) {
             ProviderKind.BLUELM ->
                 if (!config.enabled) null
-                else BlueLMProvider(config, promptBuilder, transport, blueLmSigner, clock)
+                else BlueLMProvider(config, promptBuilder, transport, blueLmSigner, clock = clock)
 
             ProviderKind.COMPATIBLE ->
                 if (!config.enabled) null

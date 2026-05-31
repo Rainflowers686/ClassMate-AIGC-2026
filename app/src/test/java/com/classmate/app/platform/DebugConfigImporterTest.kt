@@ -23,13 +23,28 @@ class DebugConfigImporterTest {
     @Test
     fun realCredentialsAreDetected() {
         val json = """
-            {"providers":{"bluelm":{"appId":"abc123id","appKey":"abcdef1234567"}}}
+            {"providers":{"bluelm":{"baseUrl":"https://fake-blue-lm.test","model":"fake-blue-model","appId":"fake-app-id","appKey":"fake-app-key-for-tests"}}}
         """.trimIndent()
         val preview = DebugConfigImporter.inspect(json)
 
         assertTrue(preview.valid)
         assertTrue(preview.bluelmConfigured)
         assertTrue(preview.containsRealSecret)
+        assertTrue(preview.providerSummaries.any { it.provider == "BLUELM" && it.credentialPresent })
+        assertFalse(preview.toString().contains("fake-app-key-for-tests"))
+        assertFalse(preview.toString().contains("fake-app-id"))
+    }
+
+    @Test
+    fun releaseGuardRejectsImport() {
+        val preview = DebugConfigImporter.inspect(
+            """{"providers":{"bluelm":{"appId":"fake-app-id","appKey":"fake-app-key-for-tests"}}}""",
+            debugEnabled = false,
+        )
+
+        assertFalse(preview.valid)
+        assertFalse(preview.bluelmConfigured)
+        assertEquals(null, preview.runtimeConfig)
     }
 
     @Test

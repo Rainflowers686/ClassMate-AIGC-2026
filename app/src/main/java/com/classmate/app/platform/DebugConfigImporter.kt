@@ -1,5 +1,7 @@
 package com.classmate.app.platform
 
+import com.classmate.app.BuildConfig
+import com.classmate.core.provider.ProviderConfigBundle
 import com.classmate.core.validation.ProviderConfigSafetyCheck
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -11,6 +13,8 @@ data class ConfigImportPreview(
     val providersFound: List<String>,
     val bluelmConfigured: Boolean,
     val containsRealSecret: Boolean,
+    val providerSummaries: List<ProviderSummary>,
+    val runtimeConfig: ProviderConfigBundle?,
     val message: String,
 )
 
@@ -25,14 +29,27 @@ data class ConfigImportPreview(
  */
 object DebugConfigImporter {
 
-    fun inspect(jsonText: String): ConfigImportPreview {
+    private val repository = ConfigRepository()
+
+    fun inspect(jsonText: String, debugEnabled: Boolean = BuildConfig.DEBUG): ConfigImportPreview {
+        if (!debugEnabled) {
+            return ConfigImportPreview(
+                valid = false,
+                providersFound = emptyList(),
+                bluelmConfigured = false,
+                containsRealSecret = false,
+                providerSummaries = emptyList(),
+                runtimeConfig = null,
+                message = "Release build does not expose debug config import.",
+            )
+        }
         if (jsonText.isBlank()) {
-            return ConfigImportPreview(false, emptyList(), false, false, "请输入配置 JSON")
+            return ConfigImportPreview(false, emptyList(), false, false, emptyList(), null, "请输入配置 JSON")
         }
         val root = try {
             Json.parseToJsonElement(jsonText)
         } catch (e: Exception) {
-            return ConfigImportPreview(false, emptyList(), false, false, "无法解析 JSON")
+            return ConfigImportPreview(false, emptyList(), false, false, emptyList(), null, "无法解析 JSON")
         }
         val providers = (root as? JsonObject)?.get("providers") as? JsonObject
         val names = providers?.keys?.toList() ?: emptyList()
@@ -44,11 +61,21 @@ object DebugConfigImporter {
         val safety = ProviderConfigSafetyCheck.inspectExampleConfig(jsonText)
         val containsReal = !safety.isExampleSafe
 
+        val parsed = repository.parseOrDefault(jsonText, source = "debug import")
+        val runtimeConfig = if (parsed.error == null) parsed.bundle else null
         val message = when {
             bluelmConfigured -> "已识别 BlueLM 凭据（仅保存在本地内存，不写入仓库）。"
             containsReal -> "检测到疑似真实密钥字段：${safety.findings.joinToString()}。请确认这是本地配置。"
             else -> "仅检测到占位符，未发现真实密钥。"
         }
-        return ConfigImportPreview(true, names, bluelmConfigured, containsReal, message)
+        return ConfigImportPreview(
+            valid = true,
+            providersFound = names,
+            bluelmConfigured = bluelmConfigured,
+            containsRealSecret = containsReal,
+            providerSummaries = parsed.summary.providers,
+            runtimeConfig = runtimeConfig,
+            message = message,
+        )
     }
 }

@@ -26,6 +26,9 @@ class RedactedLoggerTest {
         // There is structurally nowhere for a key/prompt/body to appear.
         assertFalse(line.contains("appKey"))
         assertFalse(line.contains("Authorization"))
+        assertFalse(line.contains("fake-app-key-for-tests"))
+        assertFalse(line.contains("vendor-body"))
+        assertFalse(line.contains("级数文本"))
     }
 
     @Test

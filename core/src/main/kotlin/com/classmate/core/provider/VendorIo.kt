@@ -12,6 +12,32 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 
+fun interface BlueLMRequestFactory {
+    fun build(model: String, prompt: Prompt): String
+}
+
+fun interface BlueLMResponseReader {
+    fun extractAssistantText(body: String): String?
+}
+
+/**
+ * Placeholder only. Do not treat this as vivo's official BlueLM schema.
+ *
+ * TODO(bluelm-official): replace after receiving the official endpoint, request schema,
+ * signature rules, and response contract.
+ */
+object PlaceholderBlueLMRequestFactory : BlueLMRequestFactory {
+    override fun build(model: String, prompt: Prompt): String = ChatRequestFactory.build(model, prompt)
+}
+
+/**
+ * Placeholder only. It deliberately drops error bodies and only extracts assistant text from
+ * successful envelopes. Do not use it as proof of the official BlueLM response shape.
+ */
+object PlaceholderBlueLMResponseReader : BlueLMResponseReader {
+    override fun extractAssistantText(body: String): String? = VendorResponseReader.extractAssistantText(body)
+}
+
 /**
  * Builds a chat-style request body (system + user messages). This is a reasonable, vendor
  * agnostic shape; the exact vivo BlueLM field names are confirmed when the real endpoint is

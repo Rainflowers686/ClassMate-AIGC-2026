@@ -29,7 +29,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.classmate.app.BuildConfig
 import com.classmate.app.platform.ConfigImportPreview
-import com.classmate.app.platform.DebugConfigImporter
+import com.classmate.app.platform.ProviderConfigSummary
+import com.classmate.app.platform.ProviderSummary
 import com.classmate.app.state.AppViewModel
 import com.classmate.app.ui.components.ClassMateCard
 import com.classmate.app.ui.components.ClassMateScaffold
@@ -83,23 +84,24 @@ fun SettingsScreen(viewModel: AppViewModel) {
 
             // --- Model config ---
             ClassMateCard {
+                val providerSummary = ui.providerConfigSummary
                 Text("模型配置", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(Dimens.s))
                 Text(
                     "主路径是 vivo 蓝心大模型（BlueLM）。调用顺序：BlueLM → 兼容备用 → 本地兜底。" +
-                        "当前未配置真实密钥，因此演示走本地兜底；示例课程展示的是人工编写的演示数据。",
+                        "真实协议/签名完成前，即使导入凭据也会安全兜底；示例课程展示的是人工编写的演示数据。",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(Dimens.m))
-                ProviderStatusRow("蓝心大模型 BlueLM", "主路径 · 未配置密钥")
+                ProviderStatusRow("蓝心大模型 BlueLM", providerSummary.blueLmStatus())
                 ProviderStatusRow("兼容备用 Compatible", "备用 · 未启用")
-                ProviderStatusRow("本地兜底 Local", "始终可用 · 仅兜底")
+                ProviderStatusRow("本地兜底 Local", if (providerSummary.localFallbackEnabled) "始终可用 · 仅兜底" else "已关闭")
             }
 
             // --- Debug-only config import ---
             if (BuildConfig.DEBUG) {
-                DebugImportCard()
+                DebugImportCard(viewModel)
             }
 
             // --- Privacy & security ---
@@ -160,7 +162,7 @@ private fun ProviderStatusRow(name: String, status: String) {
 }
 
 @Composable
-private fun DebugImportCard() {
+private fun DebugImportCard(viewModel: AppViewModel) {
     var input by remember { mutableStateOf("") }
     var preview by remember { mutableStateOf<ConfigImportPreview?>(null) }
 
@@ -185,7 +187,7 @@ private fun DebugImportCard() {
         Spacer(Modifier.height(Dimens.s))
         PrimaryButton(
             text = "安全检查",
-            onClick = { preview = DebugConfigImporter.inspect(input) },
+            onClick = { preview = viewModel.importDebugProviderConfig(input) },
             modifier = Modifier.fillMaxWidth(),
         )
         preview?.let { p ->
@@ -197,6 +199,31 @@ private fun DebugImportCard() {
                 Text("识别到的 provider：${p.providersFound.joinToString()}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Text("BlueLM 已配置：${if (p.bluelmConfigured) "是" else "否"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            p.providerSummaries.forEach { summary ->
+                ProviderPreviewRow(summary)
+            }
         }
     }
 }
+
+@Composable
+private fun ProviderPreviewRow(summary: ProviderSummary) {
+    Spacer(Modifier.height(Dimens.xxs))
+    Text(
+        "${summary.provider}: baseUrl=${summary.baseUrl.ifBlank { "未设置" }}, model=${summary.model.ifBlank { "未设置" }}",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Text(
+        "credential_present=${summary.credentialPresent}, appId=${summary.maskedAppId}, appKey=${summary.maskedAppKey}",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+private fun ProviderConfigSummary.blueLmStatus(): String =
+    when {
+        primaryReady -> "主路径 · 可用"
+        blueLmConfigured -> "凭据已导入 · 协议/签名待实现 · 当前安全兜底"
+        else -> "主路径 · 未配置密钥 · 当前本地兜底"
+    }
