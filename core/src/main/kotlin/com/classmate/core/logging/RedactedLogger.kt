@@ -18,6 +18,19 @@ data class RedactedLogEntry(
     val validationErrorType: String? = null, // JSON_PARSE_FAILED | SCHEMA_MISSING_FIELD | EVIDENCE_MISMATCH | REFERENCE_BROKEN
     val responseContentLength: Int? = null,
     val jsonExtracted: Boolean? = null,
+    val requestProfile: String? = null, // DIAGNOSTIC | ANALYSIS | DEFAULT
+    val timeoutMs: Long? = null,
+    val networkSubtype: String? = null, // DNS | CONNECT | TLS | WRITE | READ | SOCKET_TIMEOUT | UNKNOWN
+    val model: String? = null,
+    val maxTokens: Int? = null,
+    val parseStrategy: String? = null,
+    val draftKpCount: Int? = null,
+    val draftQuizCount: Int? = null,
+    val keptKpCount: Int? = null,
+    val keptQuizCount: Int? = null,
+    val droppedEvidenceCount: Int? = null,
+    val repairAttempted: Boolean? = null,
+    val repairResult: String? = null,
 ) {
     /** A single, copy-pasteable line for proof/logs_redacted. */
     fun format(): String = buildString {
@@ -30,6 +43,19 @@ data class RedactedLogEntry(
         if (validationErrorType != null) append(" validation_error_type=").append(validationErrorType)
         if (responseContentLength != null) append(" response_content_length=").append(responseContentLength)
         if (jsonExtracted != null) append(" json_extracted=").append(jsonExtracted)
+        if (requestProfile != null) append(" request_profile=").append(requestProfile)
+        if (timeoutMs != null) append(" timeout_ms=").append(timeoutMs)
+        if (networkSubtype != null) append(" network_subtype=").append(networkSubtype)
+        if (model != null) append(" model=").append(model)
+        if (maxTokens != null) append(" max_tokens=").append(maxTokens)
+        if (parseStrategy != null) append(" parse_strategy=").append(parseStrategy)
+        if (draftKpCount != null) append(" draft_kp_count=").append(draftKpCount)
+        if (draftQuizCount != null) append(" draft_quiz_count=").append(draftQuizCount)
+        if (keptKpCount != null) append(" kept_kp_count=").append(keptKpCount)
+        if (keptQuizCount != null) append(" kept_quiz_count=").append(keptQuizCount)
+        if (droppedEvidenceCount != null) append(" dropped_evidence_count=").append(droppedEvidenceCount)
+        if (repairAttempted != null) append(" repair_attempted=").append(repairAttempted)
+        if (repairResult != null) append(" repair_result=").append(repairResult)
     }
 }
 

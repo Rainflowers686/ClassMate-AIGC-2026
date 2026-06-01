@@ -3,6 +3,8 @@ package com.classmate.app.data
 import com.classmate.core.provider.BlueLMDiagnosticStage
 import com.classmate.core.provider.BlueLMDiagnosticSubtype
 import com.classmate.core.provider.HttpTransport
+import com.classmate.core.provider.HttpRequestProfile
+import com.classmate.core.provider.HttpTimeouts
 import com.classmate.core.provider.TransportDiagnosticException
 import com.classmate.core.provider.TransportResponse
 import java.io.IOException
@@ -20,12 +22,21 @@ class BlueLMHttpTransport : HttpTransport {
         headers: Map<String, String>,
         body: String,
         timeoutMs: Long,
+    ): TransportResponse = postJson(url, headers, body, HttpRequestProfile.DEFAULT, HttpTimeouts.single(timeoutMs))
+
+    override fun postJson(
+        url: String,
+        headers: Map<String, String>,
+        body: String,
+        @Suppress("UNUSED_PARAMETER")
+        profile: HttpRequestProfile,
+        timeouts: HttpTimeouts,
     ): TransportResponse {
         val connection = (URL(url).openConnection(Proxy.NO_PROXY) as HttpURLConnection).apply {
             requestMethod = "POST"
             doOutput = true
-            connectTimeout = timeoutMs.toInt()
-            readTimeout = timeoutMs.toInt()
+            connectTimeout = timeouts.connectTimeoutMs.toInt()
+            readTimeout = timeouts.readTimeoutMs.toInt()
             headers.forEach { (name, value) -> setRequestProperty(name, value) }
         }
 

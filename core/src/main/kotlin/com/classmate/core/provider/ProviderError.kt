@@ -14,6 +14,7 @@ import kotlinx.serialization.json.contentOrNull
 enum class ProviderErrorType {
     CONFIG_MISSING,     // no usable config / placeholder credentials / no transport
     NETWORK,            // connection refused, DNS, TLS, etc.
+    SOCKET_TIMEOUT,     // transport timed out while connecting/writing/reading
     TIMEOUT,            // request exceeded timeoutMs
     HTTP_NON_2XX,       // server returned a non-2xx status (numeric status kept, body dropped)
     UNAUTHORIZED,       // 401 / 403
@@ -39,6 +40,11 @@ data class ProviderError(
     val provider: ProviderKind,
     val httpStatus: Int? = null,
     val vendorCode: String? = null,
+    val requestProfile: String? = null,
+    val timeoutMs: Long? = null,
+    val networkSubtype: String? = null,
+    val model: String? = null,
+    val maxTokens: Int? = null,
 ) {
     /** Compact, log-safe code e.g. `BLUELM:PARAM_ERROR:400:1001`. */
     val shortCode: String

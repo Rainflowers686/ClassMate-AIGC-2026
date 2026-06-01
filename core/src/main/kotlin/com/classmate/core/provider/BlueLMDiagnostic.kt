@@ -57,6 +57,8 @@ data class BlueLMDiagnosticReport(
     val latencyMs: Long,
     val httpStatus: Int? = null,
     val vendorCode: String? = null,
+    val requestProfile: String = HttpRequestProfile.DIAGNOSTIC.name,
+    val timeoutMs: Long = HttpTimeouts.BLUE_LM_DIAGNOSTIC.readTimeoutMs,
     val requestIdNameUsed: String,
     val contentPreview: String? = null,
     val contentLength: Int? = null,
@@ -70,6 +72,8 @@ data class BlueLMDiagnosticReport(
         if (stage != null) add("stage=$stage")
         if (subtype != null) add("subtype=$subtype")
         add("latency_ms=$latencyMs")
+        add("request_profile=$requestProfile")
+        add("timeout_ms=$timeoutMs")
         add("request_id_name_used=$requestIdNameUsed")
         if (vendorCode != null) add("vendor_code=$vendorCode")
         if (contentPreview != null) add("content_preview=$contentPreview")
@@ -92,6 +96,9 @@ class BlueLMDiagnosticRunner(
     private val requestIdFactory: () -> String = { "cm_diag_" + UUID.randomUUID().toString() },
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
+    private val diagnosticProfile = HttpRequestProfile.DIAGNOSTIC
+    private val diagnosticTimeouts = HttpTimeouts.BLUE_LM_DIAGNOSTIC
+
     fun run(config: ProviderConfig?): BlueLMDiagnosticReport {
         val start = clock()
         val requestIdName = "request_id"
@@ -110,7 +117,8 @@ class BlueLMDiagnosticRunner(
                     "Content-Type" to "application/json; charset=utf-8",
                 ),
                 body = diagnosticBody(config.model),
-                timeoutMs = config.timeoutMs,
+                profile = diagnosticProfile,
+                timeouts = diagnosticTimeouts,
             )
             val latency = clock() - start
             if (response.status !in 200..299) {
@@ -125,6 +133,8 @@ class BlueLMDiagnosticRunner(
                     subtype = BlueLMDiagnosticSubtype.PARSE_ERROR,
                     latencyMs = latency,
                     httpStatus = response.status,
+                    requestProfile = diagnosticProfile.name,
+                    timeoutMs = diagnosticTimeouts.readTimeoutMs,
                     requestIdNameUsed = requestIdName,
                     reasoningPresent = read.reasoningContentPresent,
                     reasoningLength = read.reasoningContentLength,
@@ -134,6 +144,8 @@ class BlueLMDiagnosticRunner(
                 status = BlueLMDiagnosticStatus.OK,
                 latencyMs = latency,
                 httpStatus = response.status,
+                requestProfile = diagnosticProfile.name,
+                timeoutMs = diagnosticTimeouts.readTimeoutMs,
                 requestIdNameUsed = requestIdName,
                 contentPreview = content.safeOkPreview(),
                 contentLength = content.length,
@@ -171,6 +183,8 @@ class BlueLMDiagnosticRunner(
             latencyMs = latency,
             httpStatus = status,
             vendorCode = error.vendorCode,
+            requestProfile = diagnosticProfile.name,
+            timeoutMs = diagnosticTimeouts.readTimeoutMs,
             requestIdNameUsed = requestIdName,
         )
     }
@@ -185,6 +199,8 @@ class BlueLMDiagnosticRunner(
         stage = stage,
         subtype = subtype,
         latencyMs = clock() - start,
+        requestProfile = diagnosticProfile.name,
+        timeoutMs = diagnosticTimeouts.readTimeoutMs,
         requestIdNameUsed = requestIdName,
     )
 
@@ -197,6 +213,9 @@ class BlueLMDiagnosticRunner(
     private fun diagnosticBody(model: String): String =
         buildJsonObject {
             put("model", model)
+            if (shouldDisableQwenThinking(model)) {
+                put("enable_thinking", false)
+            }
             putJsonArray("messages") {
                 addJsonObject {
                     put("role", "user")

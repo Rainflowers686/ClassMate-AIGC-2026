@@ -46,6 +46,9 @@ object VivoOpenAIChatRequestFactory : BlueLMRequestFactory {
     override fun build(model: String, prompt: Prompt, options: BlueLMRequestOptions): String =
         buildJsonObject {
             put("model", model)
+            if (shouldDisableQwenThinking(model)) {
+                put("enable_thinking", false)
+            }
             put("stream", options.stream)
             put("temperature", options.temperature)
             put("max_tokens", options.maxTokens)
@@ -190,5 +193,8 @@ internal fun JsonObject?.int(key: String): Int? =
 
 internal fun JsonObject?.double(key: String): Double? =
     (this?.get(key) as? JsonPrimitive)?.doubleOrNull
+
+internal fun shouldDisableQwenThinking(model: String): Boolean =
+    model.trim().equals("qwen3.5-plus", ignoreCase = true)
 
 private val json = Json { ignoreUnknownKeys = true; isLenient = true }

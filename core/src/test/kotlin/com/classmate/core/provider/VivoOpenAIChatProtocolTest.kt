@@ -32,6 +32,23 @@ class VivoOpenAIChatProtocolTest {
     }
 
     @Test
+    fun qwen35PlusRequestBodyDisablesThinking() {
+        val obj = requestObject("qwen3.5-plus")
+
+        assertEquals("qwen3.5-plus", obj.str("model"))
+        assertEquals(false, (obj["enable_thinking"] as JsonPrimitive).content.toBoolean())
+    }
+
+    @Test
+    fun nonQwenModelsDoNotSendEnableThinking() {
+        val doubao = requestObject("Doubao-Seed-2.0-pro")
+        val deepSeek = requestObject("Volc-DeepSeek-V3.2")
+
+        assertFalse(doubao.containsKey("enable_thinking"))
+        assertFalse(deepSeek.containsKey("enable_thinking"))
+    }
+
+    @Test
     fun syncResponseReadsMessageContentAndOnlyReasoningMetadata() {
         val body = """
             {
@@ -97,5 +114,14 @@ class VivoOpenAIChatProtocolTest {
             ProviderErrorType.RATE_LIMITED,
             ProviderError.fromStatus(ProviderKind.BLUELM, 429, """{"message":"rate limited"}""").type,
         )
+    }
+
+    private fun requestObject(model: String): JsonObject {
+        val body = VivoOpenAIChatRequestFactory.build(
+            model = model,
+            prompt = Prompt(system = "system rules", user = "course prompt"),
+            options = BlueLMRequestOptions(stream = false, temperature = 0.1, maxTokens = 2200),
+        )
+        return Json.parseToJsonElement(body) as JsonObject
     }
 }

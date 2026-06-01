@@ -13,6 +13,7 @@ import com.classmate.core.provider.ProviderConfigBundle
 import com.classmate.core.provider.ProviderResolver
 import com.classmate.core.provider.TransportResponse
 import com.classmate.core.sample.SampleCourses
+import java.net.SocketTimeoutException
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.addJsonObject
@@ -89,6 +90,42 @@ class CourseAnalyzerTest {
         outcome as AnalysisOutcome.Success
         assertEquals(ProviderKind.LOCAL_FALLBACK, outcome.result.provenance.provider)
         assertTrue(outcome.logs.any { it.provider == "BLUELM" && it.errorType == "HTTP_NON_2XX" })
+    }
+
+    @Test
+    fun socketTimeoutLogsAnalysisProfileNetworkSubtypeAndFallsBack() {
+        val session = SampleCourses.seriesSession()
+        val transport = HttpTransport { _, _, _, _ -> throw SocketTimeoutException("RESPONSE_BODY_SHOULD_NOT_APPEAR") }
+        val resolver = ProviderResolver(wiredBundle(), promptBuilder, transport)
+
+        val outcome = CourseAnalyzer(resolver).analyze(AnalysisRequest(session))
+        assertTrue(outcome is AnalysisOutcome.Success)
+        outcome as AnalysisOutcome.Success
+        assertEquals(ProviderKind.LOCAL_FALLBACK, outcome.result.provenance.provider)
+
+        val blueLmLog = outcome.logs.first { it.provider == "BLUELM" && it.status == "FAIL" }
+        assertEquals("SKIPPED", blueLmLog.validation)
+        assertFalse(blueLmLog.fallbackUsed)
+        assertEquals("SOCKET_TIMEOUT", blueLmLog.errorType)
+        assertEquals("ANALYSIS", blueLmLog.requestProfile)
+        assertEquals(120_000L, blueLmLog.timeoutMs)
+        assertEquals("SOCKET_TIMEOUT", blueLmLog.networkSubtype)
+        assertEquals("vivo-BlueLM-TB-Pro", blueLmLog.model)
+        assertEquals(4096, blueLmLog.maxTokens)
+
+        val rendered = outcome.logs.joinToString("\n") { it.format() }
+        assertTrue(rendered.contains("request_profile=ANALYSIS"))
+        assertTrue(rendered.contains("timeout_ms=120000"))
+        assertTrue(rendered.contains("network_subtype=SOCKET_TIMEOUT"))
+        assertTrue(rendered.contains("model=vivo-BlueLM-TB-Pro"))
+        assertTrue(rendered.contains("max_tokens=4096"))
+        assertFalse(rendered.contains("appkey1234567"))
+        assertFalse(rendered.contains("Authorization"))
+        assertFalse(rendered.contains("Bearer"))
+        assertFalse(rendered.contains("app_id"))
+        assertFalse(rendered.contains("appid123456"))
+        assertFalse(rendered.contains("RESPONSE_BODY_SHOULD_NOT_APPEAR"))
+        assertFalse(rendered.contains("reasoning_content"))
     }
 
     @Test

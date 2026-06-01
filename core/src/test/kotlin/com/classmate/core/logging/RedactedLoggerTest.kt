@@ -16,6 +16,11 @@ class RedactedLoggerTest {
             validation = "SKIPPED",
             fallbackUsed = true,
             errorType = "HTTP_NON_2XX",
+            requestProfile = "ANALYSIS",
+            timeoutMs = 120_000,
+            networkSubtype = "SOCKET_TIMEOUT",
+            model = "Doubao-Seed-2.0-mini",
+            maxTokens = 1200,
         ).format()
 
         assertTrue(line.contains("provider=BLUELM"))
@@ -23,6 +28,11 @@ class RedactedLoggerTest {
         assertTrue(line.contains("latency_ms=42"))
         assertTrue(line.contains("fallback_used=true"))
         assertTrue(line.contains("error_type=HTTP_NON_2XX"))
+        assertTrue(line.contains("request_profile=ANALYSIS"))
+        assertTrue(line.contains("timeout_ms=120000"))
+        assertTrue(line.contains("network_subtype=SOCKET_TIMEOUT"))
+        assertTrue(line.contains("model=Doubao-Seed-2.0-mini"))
+        assertTrue(line.contains("max_tokens=1200"))
         // There is structurally nowhere for a key/prompt/body to appear.
         assertFalse(line.contains("appKey"))
         assertFalse(line.contains("Authorization"))

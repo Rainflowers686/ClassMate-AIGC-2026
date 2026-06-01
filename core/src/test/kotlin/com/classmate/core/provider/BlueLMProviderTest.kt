@@ -3,6 +3,9 @@ package com.classmate.core.provider
 import com.classmate.core.model.ProviderKind
 import com.classmate.core.prompt.PromptBuilder
 import com.classmate.core.sample.SampleCourses
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -31,6 +34,90 @@ class BlueLMProviderTest {
         assertTrue(result is ProviderResult.Success)
         result as ProviderResult.Success
         assertTrue(result.rawModelText.contains("knowledgePoints"))
+    }
+
+    @Test
+    fun analysisPathUsesAnalysisProfileAndLongReadTimeout() {
+        var capturedProfile: HttpRequestProfile? = null
+        var capturedTimeouts: HttpTimeouts? = null
+        val transport = object : HttpTransport {
+            override fun postJson(
+                url: String,
+                headers: Map<String, String>,
+                body: String,
+                timeoutMs: Long,
+            ): TransportResponse = error("BlueLMProvider must use the profiled transport call")
+
+            override fun postJson(
+                url: String,
+                headers: Map<String, String>,
+                body: String,
+                profile: HttpRequestProfile,
+                timeouts: HttpTimeouts,
+            ): TransportResponse {
+                capturedProfile = profile
+                capturedTimeouts = timeouts
+                assertEquals("Bearer fake-app-key-for-tests", headers["Authorization"])
+                assertEquals("fake-app-id", headers["app_id"])
+                return TransportResponse(200, """{"choices":[{"message":{"content":"{\"knowledgePoints\":[],\"quizQuestions\":[]}"}}]}""")
+            }
+        }
+        val provider = BlueLMProvider(
+            config = fakeBlueLmConfig(),
+            promptBuilder = PromptBuilder(),
+            transport = transport,
+            requestIdFactory = { "req-profile" },
+        )
+
+        val result = provider.generate(AnalysisRequest(SampleCourses.seriesSession()))
+
+        assertTrue(result is ProviderResult.Success)
+        assertEquals(HttpRequestProfile.ANALYSIS, capturedProfile)
+        assertEquals(15_000L, capturedTimeouts?.connectTimeoutMs)
+        assertEquals(120_000L, capturedTimeouts?.readTimeoutMs)
+    }
+
+    @Test
+    fun qwenAnalysisRequestDisablesThinkingWithImportedModelAndMaxTokens() {
+        var capturedProfile: HttpRequestProfile? = null
+        val transport = object : HttpTransport {
+            override fun postJson(
+                url: String,
+                headers: Map<String, String>,
+                body: String,
+                timeoutMs: Long,
+            ): TransportResponse = error("BlueLMProvider must use the profiled transport call")
+
+            override fun postJson(
+                url: String,
+                headers: Map<String, String>,
+                body: String,
+                profile: HttpRequestProfile,
+                timeouts: HttpTimeouts,
+            ): TransportResponse {
+                capturedProfile = profile
+                assertTrue(url.contains("/v1/chat/completions?request_id=qwen-req"))
+                assertEquals("Bearer fake-app-key-for-tests", headers["Authorization"])
+                assertEquals("fake-app-id", headers["app_id"])
+                val root = Json.parseToJsonElement(body) as JsonObject
+                assertEquals("qwen3.5-plus", (root["model"] as JsonPrimitive).content)
+                assertEquals(false, (root["enable_thinking"] as JsonPrimitive).content.toBoolean())
+                assertEquals(2200, (root["max_tokens"] as JsonPrimitive).content.toInt())
+                assertEquals(false, (root["stream"] as JsonPrimitive).content.toBoolean())
+                return TransportResponse(200, """{"choices":[{"message":{"content":"{\"knowledgePoints\":[],\"quizQuestions\":[]}"}}]}""")
+            }
+        }
+        val provider = BlueLMProvider(
+            config = fakeBlueLmConfig().copy(model = "qwen3.5-plus", maxTokens = 2200, temperature = 0.1),
+            promptBuilder = PromptBuilder(),
+            transport = transport,
+            requestIdFactory = { "qwen-req" },
+        )
+
+        val result = provider.generate(AnalysisRequest(SampleCourses.seriesSession()))
+
+        assertTrue(result is ProviderResult.Success)
+        assertEquals(HttpRequestProfile.ANALYSIS, capturedProfile)
     }
 
     @Test

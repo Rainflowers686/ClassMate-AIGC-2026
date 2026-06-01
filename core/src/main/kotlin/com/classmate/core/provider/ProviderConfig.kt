@@ -85,6 +85,8 @@ data class ProviderConfigBundle(
                     enabled = true,
                     baseUrl = "https://api-ai.vivo.com.cn/v1",
                     model = "Doubao-Seed-2.0-pro",
+                    temperature = 0.1,
+                    maxTokens = 2200,
                     credential = Credential.None, // injected at runtime; never in repo
                 ),
                 ProviderKind.COMPATIBLE to ProviderConfig(

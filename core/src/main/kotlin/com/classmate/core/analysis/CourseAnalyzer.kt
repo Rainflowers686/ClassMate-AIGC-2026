@@ -8,6 +8,9 @@ import com.classmate.core.model.CourseAnalysisResult
 import com.classmate.core.model.ProviderKind
 import com.classmate.core.parser.AnalysisJsonParser
 import com.classmate.core.parser.JsonExtractor
+import com.classmate.core.parser.JsonParseStrategy
+import com.classmate.core.parser.LlmDraftAssembler
+import com.classmate.core.parser.LlmDraftAssemblyStats
 import com.classmate.core.provider.AnalysisRequest
 import com.classmate.core.provider.ProviderError
 import com.classmate.core.provider.ProviderErrorType
@@ -34,16 +37,15 @@ sealed interface AnalysisOutcome {
 }
 
 /**
- * The single public entry point for turning a course into an analysis — and the only thing the
- * app talks to. It walks the resolver's ordered providers (BlueLM first); for each success it runs
- * extract -> parse -> validate. On a networked provider whose output parses/validates badly, it
- * performs ONE safe repair retry (a short corrective hint, never the bad response/course text),
- * then falls back. Every step emits a redacted log line with safe diagnostics
- * (validation_error_type / response_content_length / json_extracted) — never the body.
+ * The single public entry point for turning a course into an analysis. BlueLM is now treated
+ * as a compact draft generator: the model emits ClassMateLlmDraftV1, while deterministic local
+ * code assembles ids, evidence spans, references, and UI-ready domain objects. The legacy
+ * WireAnalysis parser remains as a compatibility fallback for existing tests/providers.
  */
 class CourseAnalyzer(
     private val resolver: ProviderResolver,
     private val parser: AnalysisJsonParser = AnalysisJsonParser(),
+    private val draftAssembler: LlmDraftAssembler = LlmDraftAssembler(),
     private val validator: ResultValidator = ResultValidator(),
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
@@ -57,58 +59,109 @@ class CourseAnalyzer(
         for (provider in resolver.providersInOrder()) {
             val fallbackUsed = provider.kind != resolver.primary
 
+            fun provenance() = AnalysisProvenance(
+                provider = provider.kind,
+                fallbackUsed = fallbackUsed,
+                modelLabel = provider.kind.displayName,
+                createdAtEpochMs = clock(),
+            )
+
             fun process(rawText: String): Processed {
                 val contentLength = rawText.length
-                val jsonText = JsonExtractor.extract(rawText)
-                    ?: return Processed.Fail("JSON_PARSE_FAILED", null, contentLength, jsonExtracted = false, repairHint = "上一次输出不是合法 JSON")
-                val provenance = AnalysisProvenance(
-                    provider = provider.kind,
-                    fallbackUsed = fallbackUsed,
-                    modelLabel = provider.kind.displayName,
-                    createdAtEpochMs = clock(),
-                )
-                val parsed = parser.parse(jsonText, request.session, provenance)
-                    ?: return Processed.Fail("JSON_PARSE_FAILED", null, contentLength, jsonExtracted = true, repairHint = "上一次输出不是合法 JSON")
+                val extracted = JsonExtractor.extractWithStrategy(rawText)
+                    ?: return Processed.Fail(
+                        validationErrorType = "JSON_PARSE_FAILED",
+                        report = null,
+                        contentLength = contentLength,
+                        jsonExtracted = false,
+                        parseStrategy = JsonParseStrategy.FAILED.name,
+                        draftStats = null,
+                        repairHint = "previous output was not a JSON object; return compact ClassMateLlmDraftV1 JSON only",
+                    )
+
+                draftAssembler.assemble(extracted.jsonText, request.session, provenance())?.let { assembled ->
+                    val report = validator.validate(assembled.result, request.session)
+                    if (report.ok) {
+                        return Processed.Ok(
+                            result = assembled.result,
+                            report = report,
+                            contentLength = contentLength,
+                            parseStrategy = extracted.strategy.name,
+                            draftStats = assembled.stats,
+                        )
+                    }
+                    val vet = report.validationErrorType ?: "VALIDATION_ERROR"
+                    return Processed.Fail(
+                        validationErrorType = vet,
+                        report = report,
+                        contentLength = contentLength,
+                        jsonExtracted = true,
+                        parseStrategy = extracted.strategy.name,
+                        draftStats = assembled.stats,
+                        repairHint = repairHintFor(vet),
+                    )
+                }
+
+                val parsed = parser.parse(extracted.jsonText, request.session, provenance())
+                    ?: return Processed.Fail(
+                        validationErrorType = "JSON_PARSE_FAILED",
+                        report = null,
+                        contentLength = contentLength,
+                        jsonExtracted = true,
+                        parseStrategy = extracted.strategy.name,
+                        draftStats = null,
+                        repairHint = "previous output was not compact ClassMateLlmDraftV1 JSON",
+                    )
                 val report = validator.validate(parsed, request.session)
-                if (report.ok) return Processed.Ok(parsed, report, contentLength)
+                if (report.ok) {
+                    return Processed.Ok(parsed, report, contentLength, extracted.strategy.name, null)
+                }
                 val vet = report.validationErrorType ?: "VALIDATION_ERROR"
-                return Processed.Fail(vet, report, contentLength, jsonExtracted = true, repairHint = repairHintFor(vet))
+                return Processed.Fail(
+                    validationErrorType = vet,
+                    report = report,
+                    contentLength = contentLength,
+                    jsonExtracted = true,
+                    parseStrategy = extracted.strategy.name,
+                    draftStats = null,
+                    repairHint = repairHintFor(vet),
+                )
             }
 
             when (val raw = provider.generate(request)) {
                 is ProviderResult.Failure -> {
-                    logger.log(transportFail(provider.kind.name, raw.latencyMs, fallbackUsed, raw.error.type.name))
+                    logger.log(transportFail(provider.kind.name, raw.latencyMs, fallbackUsed, raw.error))
                     lastError = raw.error
                 }
 
                 is ProviderResult.Success -> {
                     when (val first = process(raw.rawModelText)) {
                         is Processed.Ok -> {
-                            logger.log(okEntry(provider.kind.name, raw.latencyMs, fallbackUsed, first.contentLength))
+                            logger.log(okEntry(provider.kind.name, raw.latencyMs, fallbackUsed, first, false, null))
                             return AnalysisOutcome.Success(first.result, first.report, logger.entries())
                         }
 
                         is Processed.Fail -> {
-                            logger.log(validationFail(provider.kind.name, raw.latencyMs, fallbackUsed, first))
+                            logger.log(validationFail(provider.kind.name, raw.latencyMs, fallbackUsed, first, false, null))
                             lastError = ProviderError(errorTypeFor(first), provider.kind)
                             lastReport = first.report
 
-                            // One-shot repair retry for networked providers only.
                             if (provider.kind != ProviderKind.LOCAL_FALLBACK) {
-                                when (val raw2 = provider.generate(request.copy(repairHint = first.repairHint))) {
+                                val repairRequest = request.copy(repairHint = first.repairHint)
+                                when (val raw2 = provider.generate(repairRequest)) {
                                     is ProviderResult.Success -> when (val second = process(raw2.rawModelText)) {
                                         is Processed.Ok -> {
-                                            logger.log(okEntry(provider.kind.name, raw2.latencyMs, fallbackUsed, second.contentLength))
+                                            logger.log(okEntry(provider.kind.name, raw2.latencyMs, fallbackUsed, second, true, "SUCCESS"))
                                             return AnalysisOutcome.Success(second.result, second.report, logger.entries())
                                         }
                                         is Processed.Fail -> {
-                                            logger.log(validationFail(provider.kind.name, raw2.latencyMs, fallbackUsed, second))
+                                            logger.log(validationFail(provider.kind.name, raw2.latencyMs, fallbackUsed, second, true, second.validationErrorType))
                                             lastError = ProviderError(errorTypeFor(second), provider.kind)
                                             lastReport = second.report
                                         }
                                     }
                                     is ProviderResult.Failure -> {
-                                        logger.log(transportFail(provider.kind.name, raw2.latencyMs, fallbackUsed, raw2.error.type.name))
+                                        logger.log(transportFail(provider.kind.name, raw2.latencyMs, fallbackUsed, raw2.error, true, raw2.error.type.name))
                                         lastError = raw2.error
                                     }
                                 }
@@ -125,55 +178,105 @@ class CourseAnalyzer(
         if (fail.validationErrorType == "JSON_PARSE_FAILED") ProviderErrorType.PARSE_ERROR else ProviderErrorType.VALIDATION_ERROR
 
     private fun repairHintFor(validationErrorType: String): String = when (validationErrorType) {
-        "EVIDENCE_MISMATCH" -> "证据片段无法在原文中逐字定位"
-        "REFERENCE_BROKEN" -> "题目引用了不存在的知识点 title"
-        "SCHEMA_MISSING_FIELD" -> "缺少必要字段或选项"
-        else -> "上一次输出未通过校验"
+        "EVIDENCE_MISMATCH" -> "some evidenceQuote values were not copied exactly from source; copy shorter verbatim quotes"
+        "REFERENCE_BROKEN" -> "quiz knowledgePointTitle must exactly equal one knowledgePoints title"
+        "SCHEMA_MISSING_FIELD" -> "required fields were missing; return all ClassMateLlmDraftV1 fields"
+        else -> "previous output failed validation; return shorter compact ClassMateLlmDraftV1 JSON only"
     }
 
-    private fun okEntry(provider: String, latencyMs: Long, fallbackUsed: Boolean, contentLength: Int) =
-        RedactedLogEntry(
-            provider = provider,
-            status = "OK",
-            latencyMs = latencyMs,
-            validation = "PASS",
-            fallbackUsed = fallbackUsed,
-            errorType = null,
-            validationErrorType = null,
-            responseContentLength = contentLength,
-            jsonExtracted = true,
-        )
+    private fun okEntry(
+        provider: String,
+        latencyMs: Long,
+        fallbackUsed: Boolean,
+        ok: Processed.Ok,
+        repairAttempted: Boolean,
+        repairResult: String?,
+    ) = RedactedLogEntry(
+        provider = provider,
+        status = "OK",
+        latencyMs = latencyMs,
+        validation = "PASS",
+        fallbackUsed = fallbackUsed,
+        errorType = null,
+        validationErrorType = null,
+        responseContentLength = ok.contentLength,
+        jsonExtracted = true,
+        parseStrategy = ok.parseStrategy,
+        draftKpCount = ok.draftStats?.draftKpCount,
+        draftQuizCount = ok.draftStats?.draftQuizCount,
+        keptKpCount = ok.draftStats?.keptKpCount,
+        keptQuizCount = ok.draftStats?.keptQuizCount,
+        droppedEvidenceCount = ok.draftStats?.droppedEvidenceCount,
+        repairAttempted = repairAttempted,
+        repairResult = repairResult,
+    )
 
-    private fun validationFail(provider: String, latencyMs: Long, fallbackUsed: Boolean, fail: Processed.Fail) =
-        RedactedLogEntry(
-            provider = provider,
-            status = "OK",
-            latencyMs = latencyMs,
-            validation = "FAIL",
-            fallbackUsed = fallbackUsed,
-            errorType = errorTypeFor(fail).name,
-            validationErrorType = fail.validationErrorType,
-            responseContentLength = fail.contentLength,
-            jsonExtracted = fail.jsonExtracted,
-        )
+    private fun validationFail(
+        provider: String,
+        latencyMs: Long,
+        fallbackUsed: Boolean,
+        fail: Processed.Fail,
+        repairAttempted: Boolean,
+        repairResult: String?,
+    ) = RedactedLogEntry(
+        provider = provider,
+        status = "OK",
+        latencyMs = latencyMs,
+        validation = "FAIL",
+        fallbackUsed = fallbackUsed,
+        errorType = errorTypeFor(fail).name,
+        validationErrorType = fail.validationErrorType,
+        responseContentLength = fail.contentLength,
+        jsonExtracted = fail.jsonExtracted,
+        parseStrategy = fail.parseStrategy,
+        draftKpCount = fail.draftStats?.draftKpCount,
+        draftQuizCount = fail.draftStats?.draftQuizCount,
+        keptKpCount = fail.draftStats?.keptKpCount,
+        keptQuizCount = fail.draftStats?.keptQuizCount,
+        droppedEvidenceCount = fail.draftStats?.droppedEvidenceCount,
+        repairAttempted = repairAttempted,
+        repairResult = repairResult,
+    )
 
-    private fun transportFail(provider: String, latencyMs: Long, fallbackUsed: Boolean, errorType: String) =
-        RedactedLogEntry(
-            provider = provider,
-            status = "FAIL",
-            latencyMs = latencyMs,
-            validation = "SKIPPED",
-            fallbackUsed = fallbackUsed,
-            errorType = errorType,
-        )
+    private fun transportFail(
+        provider: String,
+        latencyMs: Long,
+        fallbackUsed: Boolean,
+        error: ProviderError,
+        repairAttempted: Boolean = false,
+        repairResult: String? = null,
+    ) = RedactedLogEntry(
+        provider = provider,
+        status = "FAIL",
+        latencyMs = latencyMs,
+        validation = "SKIPPED",
+        fallbackUsed = fallbackUsed,
+        errorType = error.type.name,
+        requestProfile = error.requestProfile,
+        timeoutMs = error.timeoutMs,
+        networkSubtype = error.networkSubtype,
+        model = error.model,
+        maxTokens = error.maxTokens,
+        repairAttempted = repairAttempted,
+        repairResult = repairResult,
+    )
 
     private sealed interface Processed {
-        data class Ok(val result: CourseAnalysisResult, val report: ValidationReport, val contentLength: Int) : Processed
+        data class Ok(
+            val result: CourseAnalysisResult,
+            val report: ValidationReport,
+            val contentLength: Int,
+            val parseStrategy: String,
+            val draftStats: LlmDraftAssemblyStats?,
+        ) : Processed
+
         data class Fail(
             val validationErrorType: String,
             val report: ValidationReport?,
             val contentLength: Int,
             val jsonExtracted: Boolean,
+            val parseStrategy: String,
+            val draftStats: LlmDraftAssemblyStats?,
             val repairHint: String,
         ) : Processed
     }
