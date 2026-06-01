@@ -8,6 +8,12 @@ data class AnalysisRequest(
     val session: CourseSession,
     val maxKnowledgePoints: Int = 12,
     val questionsPerKnowledgePoint: Int = 1,
+    /**
+     * When non-null, the prompt appends a short, NON-sensitive corrective instruction (e.g.
+     * "evidence could not be located verbatim"). Set by the analyzer's one-shot repair retry —
+     * never contains the previous bad response, course text, or any secret.
+     */
+    val repairHint: String? = null,
 )
 
 /**

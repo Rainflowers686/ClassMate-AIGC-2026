@@ -13,6 +13,11 @@ data class RedactedLogEntry(
     val validation: String,      // "PASS" | "FAIL" | "SKIPPED"
     val fallbackUsed: Boolean,
     val errorType: String? = null, // short enum name only, e.g. "HTTP_NON_2XX"
+    // Safe diagnostics for the parse/validation stage. All non-sensitive: a short classification,
+    // a length (a number, never the body), and a boolean. No prompt / body / secret can appear.
+    val validationErrorType: String? = null, // JSON_PARSE_FAILED | SCHEMA_MISSING_FIELD | EVIDENCE_MISMATCH | REFERENCE_BROKEN
+    val responseContentLength: Int? = null,
+    val jsonExtracted: Boolean? = null,
 ) {
     /** A single, copy-pasteable line for proof/logs_redacted. */
     fun format(): String = buildString {
@@ -22,6 +27,9 @@ data class RedactedLogEntry(
         append(" validation=").append(validation)
         append(" fallback_used=").append(fallbackUsed)
         if (errorType != null) append(" error_type=").append(errorType)
+        if (validationErrorType != null) append(" validation_error_type=").append(validationErrorType)
+        if (responseContentLength != null) append(" response_content_length=").append(responseContentLength)
+        if (jsonExtracted != null) append(" json_extracted=").append(jsonExtracted)
     }
 }
 

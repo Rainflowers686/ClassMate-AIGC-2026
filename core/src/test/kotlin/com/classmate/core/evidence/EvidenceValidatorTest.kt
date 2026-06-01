@@ -51,4 +51,20 @@ class EvidenceValidatorTest {
     fun unresolvableQuoteReturnsNull() {
         assertNull(resolver.resolve(session.segment("seg_1")!!, "这句话根本不在原文里"))
     }
+
+    @Test
+    fun punctuationInsensitiveResolutionMapsToRealSubstring() {
+        // The model inserted a punctuation mark not present in the source; we still locate the
+        // real text and store the REAL substring, so validation stays exact.
+        val span = resolver.resolve(session.segment("seg_1")!!, "级数收敛、与发散")
+        assertNotNull(span)
+        assertEquals("级数收敛与发散", span!!.quote)
+        assertNull(validator.validate(session, span))
+    }
+
+    @Test
+    fun paraphraseDoesNotResolveSoNoEvidenceIsFabricated() {
+        // Different content characters must NOT match — the resolver never invents evidence.
+        assertNull(resolver.resolve(session.segment("seg_1")!!, "级数一定收敛"))
+    }
 }
