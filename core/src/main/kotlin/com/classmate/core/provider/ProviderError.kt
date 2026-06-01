@@ -58,12 +58,9 @@ data class ProviderError(
             }
             parseVendorError(body)?.let { vendor ->
                 mapVendorError(provider, status, vendor)?.let { return it }
+                return ProviderError(httpErrorType(status), provider, status, vendor.code)
             }
-            return when (status) {
-                401, 403 -> ProviderError(ProviderErrorType.UNAUTHORIZED, provider, status)
-                429 -> ProviderError(ProviderErrorType.RATE_LIMITED, provider, status)
-                else -> ProviderError(ProviderErrorType.HTTP_NON_2XX, provider, status)
-            }
+            return ProviderError(httpErrorType(status), provider, status)
         }
 
         fun shouldRetryWithRequestId(status: Int, body: String?): Boolean {
@@ -119,6 +116,13 @@ data class ProviderError(
 
         private fun bodyLooksLikeMissingAppId(body: String?): Boolean =
             body?.looksLikeMissingAppId() == true
+
+        private fun httpErrorType(status: Int): ProviderErrorType =
+            when (status) {
+                401, 403 -> ProviderErrorType.UNAUTHORIZED
+                429 -> ProviderErrorType.RATE_LIMITED
+                else -> ProviderErrorType.HTTP_NON_2XX
+            }
 
         private val json = Json { ignoreUnknownKeys = true; isLenient = true }
     }

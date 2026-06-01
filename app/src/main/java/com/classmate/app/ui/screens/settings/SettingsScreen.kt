@@ -165,12 +165,14 @@ private fun ProviderStatusRow(name: String, status: String) {
 private fun DebugImportCard(viewModel: AppViewModel) {
     var input by remember { mutableStateOf("") }
     var preview by remember { mutableStateOf<ConfigImportPreview?>(null) }
+    val diagnostic = viewModel.ui.blueLmDiagnostic
+    val diagnosticRunning = viewModel.ui.blueLmDiagnosticRunning
 
     ClassMateCard {
         Text("Debug 配置导入（仅调试版）", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.s))
         Text(
-            "这是注入真实 BlueLM 凭据的本地入口规划。当前仅做安全检查，不持久化、不上传、不回显密钥值。",
+            "在本机注入真实 BlueLM 凭据的入口。点击「检查并导入」会把配置导入到本次会话（仅内存，不持久化、不上传、不回显密钥值）；蓝心主路径与连接测试都会使用这份配置。",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -186,8 +188,15 @@ private fun DebugImportCard(viewModel: AppViewModel) {
         )
         Spacer(Modifier.height(Dimens.s))
         PrimaryButton(
-            text = "安全检查",
+            text = "检查并导入（本次会话）",
             onClick = { preview = viewModel.importDebugProviderConfig(input) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(Dimens.s))
+        PrimaryButton(
+            text = if (diagnosticRunning) "正在测试 BlueLM 连接" else "测试 BlueLM 连接",
+            onClick = { viewModel.testBlueLmConnection() },
+            enabled = !diagnosticRunning,
             modifier = Modifier.fillMaxWidth(),
         )
         preview?.let { p ->
@@ -196,6 +205,22 @@ private fun DebugImportCard(viewModel: AppViewModel) {
             Text(p.message, style = MaterialTheme.typography.bodyMedium, color = color, fontWeight = FontWeight.Medium)
             p.providerSummaries.forEach { summary ->
                 ProviderPreviewRow(summary)
+            }
+        }
+        diagnostic?.let { report ->
+            Spacer(Modifier.height(Dimens.m))
+            Text(
+                "BlueLM network diagnostic",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold,
+            )
+            report.safeLines().forEach { line ->
+                Text(
+                    line,
+                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }

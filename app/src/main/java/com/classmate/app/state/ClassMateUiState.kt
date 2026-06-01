@@ -8,6 +8,7 @@ import com.classmate.core.model.CourseSession
 import com.classmate.core.model.FeedbackEvent
 import com.classmate.core.model.LearningState
 import com.classmate.core.model.ReviewPlan
+import com.classmate.core.provider.BlueLMDiagnosticReport
 
 /** All UI state in one immutable snapshot, updated via copy() from [AppViewModel]. */
 data class ClassMateUiState(
@@ -24,6 +25,8 @@ data class ClassMateUiState(
     val analysisStatus: AnalysisStatus = AnalysisStatus.IDLE,
     val analysisStageIndex: Int = 0,
     val providerConfigSummary: ProviderConfigSummary = ProviderConfigSummary.defaults(),
+    val blueLmDiagnosticRunning: Boolean = false,
+    val blueLmDiagnostic: BlueLMDiagnosticReport? = null,
     val result: CourseAnalysisResult? = null,
     val logs: List<RedactedLogEntry> = emptyList(),
     val analysisError: String? = null,

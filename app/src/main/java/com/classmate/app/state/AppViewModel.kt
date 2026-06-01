@@ -27,11 +27,14 @@ import com.classmate.core.model.QuizQuestion
 import com.classmate.core.model.SourceKind
 import com.classmate.core.prompt.PromptBuilder
 import com.classmate.core.provider.AnalysisRequest
+import com.classmate.core.provider.BlueLMDiagnosticReport
+import com.classmate.core.provider.BlueLMDiagnosticRunner
 import com.classmate.core.provider.BlueLmSigner
 import com.classmate.core.provider.HttpTransport
 import com.classmate.core.provider.ProviderConfigBundle
 import com.classmate.core.provider.ProviderResolver
 import com.classmate.core.provider.UnconfiguredBlueLmSigner
+import com.classmate.core.model.ProviderKind
 import com.classmate.core.review.ReviewPlanner
 import com.classmate.core.sample.SampleCourses
 import kotlinx.coroutines.Dispatchers
@@ -54,9 +57,15 @@ class AppViewModel(
 
     private val promptBuilder = PromptBuilder()
 
+    // THE single active provider config — one source of truth. The Settings model-config
+    // summary, CourseAnalyzer (analyzer()) and the BlueLM diagnostic ALL read this exact field,
+    // so they can never diverge. It changes ONLY through applyActiveConfig().
     // Default remains inert/fallback-safe; config.local.json may replace credentials locally.
     private val initialConfig = configRepository.loadLocalOrDefault()
     private var configBundle: ProviderConfigBundle = initialConfig.bundle
+
+    /** The active bundle that both the analyzer and the diagnostic run against (also for tests). */
+    internal fun activeConfigBundle(): ProviderConfigBundle = configBundle
 
     private fun analyzer(): CourseAnalyzer =
         CourseAnalyzer(ProviderResolver(configBundle, promptBuilder, transport, blueLmSigner))
@@ -97,16 +106,28 @@ class AppViewModel(
     fun setTheme(option: ThemeOption) { ui = ui.copy(theme = option) }
     fun setDarkMode(dark: Boolean?) { ui = ui.copy(darkMode = dark) }
 
-    // --- provider config ---
+    // --- provider config (single source of truth: configBundle) ---
+
+    /**
+     * The ONLY place [configBundle] changes, so the displayed summary always matches the bundle
+     * the analyzer and diagnostic will use. The credential lives in memory only — it is never
+     * written to config.local.json or the repository.
+     */
+    private fun applyActiveConfig(bundle: ProviderConfigBundle, source: String, toast: String?) {
+        configBundle = bundle
+        ui = ui.copy(providerConfigSummary = providerSummary(source), toast = toast)
+    }
+
     fun importDebugProviderConfig(jsonText: String, debugEnabled: Boolean = com.classmate.app.BuildConfig.DEBUG): ConfigImportPreview {
         val preview = DebugConfigImporter.inspect(jsonText, debugEnabled)
         val imported = preview.runtimeConfig
         if (preview.valid && imported != null) {
-            configBundle = imported
-            ui = ui.copy(
-                providerConfigSummary = providerSummary("debug import"),
-                toast = if (providerSummary("debug import").blueLmConfigured) {
-                    "已导入 BlueLM 配置；真实协议/签名实现前仍会安全兜底"
+            val blueLmReady = imported.configOf(ProviderKind.BLUELM)?.hasRealCredential() == true
+            applyActiveConfig(
+                bundle = imported,
+                source = "debug import",
+                toast = if (blueLmReady) {
+                    "已导入 BlueLM 配置到本次会话（仅内存，不写入仓库）"
                 } else {
                     "已导入配置；BlueLM 仍未配置真实凭据"
                 },
@@ -119,12 +140,27 @@ class AppViewModel(
 
     fun reloadLocalProviderConfig() {
         val result = configRepository.loadLocalOrDefault()
-        configBundle = result.bundle
-        ui = ui.copy(
-            providerConfigSummary = providerSummary(result.summary.source),
+        applyActiveConfig(
+            bundle = result.bundle,
+            source = result.summary.source,
             toast = result.error?.message ?: "已读取本地 provider 配置",
         )
     }
+
+    fun testBlueLmConnection(debugEnabled: Boolean = com.classmate.app.BuildConfig.DEBUG) {
+        if (!debugEnabled) return
+        ui = ui.copy(blueLmDiagnosticRunning = true, blueLmDiagnostic = null)
+        viewModelScope.launch {
+            val report = withContext(Dispatchers.IO) { runBlueLmConnectionDiagnostic() }
+            ui = ui.copy(
+                blueLmDiagnosticRunning = false,
+                blueLmDiagnostic = report,
+            )
+        }
+    }
+
+    internal fun runBlueLmConnectionDiagnostic(): BlueLMDiagnosticReport =
+        BlueLMDiagnosticRunner(transport).run(configBundle.configOf(ProviderKind.BLUELM))
 
     private fun providerSummary(source: String): ProviderConfigSummary =
         ProviderConfigSummary.fromBundle(
