@@ -1,26 +1,112 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- The optional on-device BlueLM SDK (llm-sdk-release.aar) declares minSdk 28. We keep the app's
+         minSdk 24 and override the library's floor: on devices below 28 (or without the native libs)
+         the reflection bridge fails init gracefully and falls back to LocalRule — never a crash. This
+         adds NO permission and no behaviour change when the AAR is absent. -->
+    <uses-sdk tools:overrideLibrary="com.vivo.llmsdk" />
+
+    <!-- ============ Cloud model / network ============ -->
+    <!-- Official BlueLM cloud API, model-config connection diagnostics, external practice-search links. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- ============ Official on-device BlueLM model access ============ -->
+    <!-- The official on-device BlueLM 3B model is preset by the cloud real machine under /sdcard/1225.
+         All-files access lets the vendor SDK read that model directory; without it the SDK is
+         discovered but model init fails (e.g. INIT_-2105 tokenizer load failure). -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+    <!-- MediaTek/APU/NPU on-device inference access for the official SDK. -->
+    <uses-permission android:name="mediatek.permission.ACCESS_APU_SYS" />
+
+    <!-- ============ Legacy file import/export compatibility (Android <= 12) ============ -->
+    <!-- Modern Android uses the system file picker + MediaStore; these only cover legacy devices and
+         the official SDK demo's file expectations. Capped at API 32 (scoped storage takes over after). -->
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
+    <!-- ============ Android 13+ media import ============ -->
+    <!-- Learning-material import: lecture-slide screenshots, blackboard photos, problem images;
+         course videos / subtitle sources; classroom recordings / audio transcription sources. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+
+    <!-- ============ Camera (capture study material) ============ -->
+    <!-- Capture lecture slides, blackboard, problems and paper handouts on the spot for the on-device
+         multimodal / OCR / material-tray learning flow. The camera is optional hardware so devices
+         without it can still install. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+
+    <!-- ============ Bluetooth audio + audio routing ============ -->
+    <!-- Android 12+ interaction with already-paired Bluetooth headsets / mics: Bluetooth-mic classroom
+         recording input and Bluetooth-headset knowledge-point playback device-state diagnostics. We do
+         NOT scan for nearby devices (nearby-device scanning is intentionally not requested). -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
+    <!-- Adapt audio input/output, Bluetooth mic/speaker routing diagnostics, and TTS/ASR audio UX. -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+    <!-- ============ Live ASR ============ -->
+    <!-- Experimental live transcription via the system SpeechRecognizer. Requested only when the user
+         taps "开始实时转写"; no raw audio is saved or uploaded, and there is no background recording. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- ============ Review notifications ============ -->
+    <!-- Android 13+ runtime permission for review reminders / study-task reminders. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
-        android:allowBackup="false"
-        android:dataExtractionRules="@xml/data_extraction_rules"
-        android:fullBackupContent="false"
+        android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.ClassMate">
 
+        <!-- ============ Official native / APU libraries (optional) ============ -->
+        <!-- Declared optional (required=false) so devices without them still install and the
+             on-device bridge degrades to LocalRule instead of failing to load. -->
+        <uses-native-library
+            android:name="libdmabufheap.so"
+            android:required="false" />
+        <uses-native-library
+            android:name="libvcap_npu_network_v1.so"
+            android:required="false" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/classmate_file_paths" />
+        </provider>
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:label="@string/app_name"
             android:theme="@style/Theme.ClassMate">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
     </application>
 
 </manifest>

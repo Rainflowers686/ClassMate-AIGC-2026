@@ -1,0 +1,21 @@
+# Normalise line endings so the project builds identically on Windows, macOS, Linux and CI.
+* text=auto eol=lf
+
+# Windows batch files must stay CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Unix shell scripts and the Gradle wrapper launcher must stay LF (run on CI).
+*.sh text eol=lf
+gradlew text eol=lf
+
+# Binaries — never apply EOL conversion (protects the wrapper jar).
+*.jar binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.keystore binary
+*.jks binary
+*.apk binary
+*.aab binary

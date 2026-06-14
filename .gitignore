@@ -1,39 +1,55 @@
-# Local config — must never be committed
+# ===========================================================================
+# ClassMate .gitignore
+# Security-critical: never commit real BlueLM credentials or local SDK paths.
+# ===========================================================================
+
+# --- Secrets & local config (NEVER commit) ---------------------------------
+local.properties
 config.local.json
+secrets.properties
+# Persisted on-device official-model API config (written to app-private storage at runtime;
+# may hold real BlueLM credentials — never commit).
+classmate_model_config.json
+*.env
 .env
 .env.*
-*.local.json
+# Keystores / signing material
+*.jks
+*.keystore
+keystore.properties
+signing.properties
 
-# Gradle
-.gradle/
+# --- On-device BlueLM 3B SDK (vendor binaries — provide locally, never commit) --------------
+# Drop llm-sdk-release.aar + native libraries under app/libs/ to enable real on-device inference.
+app/libs/*.aar
+app/libs/**/*.so
+
+# --- Build outputs ----------------------------------------------------------
 build/
 **/build/
-local.properties
-
-# IDE
-.idea/
-*.iml
-*.iws
-*.ipr
-.vscode/
-
-# Android
+.gradle/
+out/
+# Packaged apps must never be committed (also enforced in CI: no APK artifact)
 *.apk
 *.aab
 *.ap_
 *.dex
-captures/
-.externalNativeBuild/
-.cxx/
 
-# OS
+# --- IDE / tooling ----------------------------------------------------------
+.idea/
+*.iml
+.kotlin/
+captures/
+.cxx/
+.externalNativeBuild/
+
+# --- OS noise ---------------------------------------------------------------
 .DS_Store
 Thumbs.db
 
-# Logs (real logs may contain secrets; only redacted samples go in proof/)
-logs/
+# --- Logs (raw logs may contain sensitive data; only redacted logs allowed) -
 *.log
+proof/logs_redacted/*.tmp
 
-# Keystores
-*.jks
-*.keystore
+# Generated IDE/Gradle output
+core/bin/

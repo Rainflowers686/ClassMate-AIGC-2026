@@ -1,8 +1,32 @@
+import java.text.SimpleDateFormat
+import java.util.Date
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.serialization)
 }
+
+// BuildInfo values, computed at configuration time. Git is best-effort and NEVER fails the build
+// (CI-safe): if git is missing or errors, the commit is "unknown".
+val builtAtValue: String = SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Date())
+val gitCommitValue: String = try {
+    val process = ProcessBuilder("git", "rev-parse", "--short", "HEAD")
+        .directory(rootDir)
+        .redirectErrorStream(true)
+        .start()
+    val output = process.inputStream.bufferedReader().use { it.readText() }.trim()
+    if (process.waitFor() == 0 && output.isNotBlank()) output else "unknown"
+} catch (e: Exception) {
+    "unknown"
+}
+
+// Optional on-device SDK: app/libs/llm-sdk-release.aar is a LOCAL binary that stays gitignored and
+// is never committed. When present, it is linked in and only its arm64-v8a native libraries ship.
+// When absent (CI / fresh machines), the build still succeeds and the app falls back to the honest
+// missing-SDK seam — never a build failure.
+val onDeviceSdkAar = file("libs/llm-sdk-release.aar")
+val hasOnDeviceSdk = onDeviceSdkAar.exists()
 
 android {
     namespace = "com.classmate.app"
@@ -10,37 +34,44 @@ android {
 
     defaultConfig {
         applicationId = "com.classmate.app"
-        minSdk = 26
+        minSdk = 24
         targetSdk = 34
         versionCode = 1
-        versionName = "0.2.5"
-
+        versionName = "0.1.0"
         vectorDrawables { useSupportLibrary = true }
+        buildConfigField("String", "BUILT_AT", "\"$builtAtValue\"")
+        buildConfigField("String", "GIT_COMMIT", "\"$gitCommitValue\"")
+        // The on-device SDK ships ONLY arm64-v8a native libraries; restrict packaged ABIs to match
+        // (avoids shipping a half-supported ABI). Applied only when the AAR is actually present.
+        if (hasOnDeviceSdk) {
+            ndk { abiFilters += "arm64-v8a" }
+        }
     }
 
     buildTypes {
+        debug {
+            // Debug-only config import entry (see SettingsScreen / DebugConfigImporter) is
+            // gated on BuildConfig.DEBUG.
+            isMinifyEnabled = false
+        }
         release {
             isMinifyEnabled = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
-
     composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.8"
+        kotlinCompilerExtensionVersion = libs.versions.composeCompiler.get()
     }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-
     kotlinOptions {
         jvmTarget = "17"
     }
@@ -55,20 +86,27 @@ android {
 dependencies {
     implementation(project(":core"))
 
+    // Local-only on-device BlueLM SDK (gitignored). Linked when present; the bridge uses reflection
+    // so app/core compile even without it. Native libs come from the AAR — no manual .so copying.
+    if (hasOnDeviceSdk) {
+        implementation(files("libs/llm-sdk-release.aar"))
+    }
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.activity.compose)
 
-    implementation(platform(libs.compose.bom))
-    implementation(libs.compose.ui)
-    implementation(libs.compose.ui.tooling.preview)
-    implementation(libs.compose.material3)
-    implementation(libs.google.android.material)
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.ui.graphics)
+    implementation(libs.androidx.compose.ui.tooling.preview)
+    implementation(libs.androidx.compose.material3)
+    debugImplementation(libs.androidx.compose.ui.tooling)
 
+    // Runtime JSON parsing for the debug-only config import preview (no codegen needed).
     implementation(libs.kotlinx.serialization.json)
-    implementation(libs.kotlinx.coroutines.core)
-
-    debugImplementation(libs.compose.ui.tooling)
 
     testImplementation(libs.junit)
 }

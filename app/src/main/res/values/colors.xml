@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#0F62FE</color>
+    <!-- Window background shown before Compose draws (Focus theme paper tone). -->
+    <color name="window_background">#F6F5F1</color>
+    <!-- Adaptive launcher icon background (Focus knowledge indigo). -->
+    <color name="ic_launcher_background">#3B4CC0</color>
 </resources>

@@ -21,5 +21,6 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "ClassMate"
+
 include(":app")
 include(":core")

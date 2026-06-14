@@ -1,7 +1,0 @@
-{
-  "provider": "demo",
-  "api_base_url": "https://example.api.endpoint",
-  "app_id": "YOUR_APP_ID",
-  "app_key": "YOUR_APP_KEY",
-  "_note": "Copy this file to config.local.json and fill in real values. config.local.json is gitignored. provider may be 'demo' | 'bluelm' | 'compatible'. v0.2.5 probe only exercises 'demo'."
-}
