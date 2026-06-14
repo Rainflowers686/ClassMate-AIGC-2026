@@ -1,4 +1,6 @@
-// Top-level build file. Module-specific config lives in app/build.gradle.kts and core/build.gradle.kts.
+// Root build file. Plugins are declared here with `apply false` so that
+// version alignment lives in a single place (the version catalog), and each
+// module opts in to the plugins it needs.
 plugins {
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.android.library) apply false

@@ -1,7 +1,39 @@
 {
-  "provider": "demo",
-  "api_base_url": "https://example.api.endpoint",
-  "app_id": "YOUR_APP_ID",
-  "app_key": "YOUR_APP_KEY",
-  "_note": "Copy this file to config.local.json and fill in real values. config.local.json is gitignored. provider may be 'demo' | 'bluelm' | 'compatible'. v0.2.5 probe only exercises 'demo'."
+  "_comment": "ClassMate model provider configuration TEMPLATE. Copy to config.local.json (git-ignored) and fill in real values locally. NEVER commit real credentials. See SECURITY.md.",
+  "schemaVersion": 1,
+  "activeProvider": "bluelm",
+  "providers": {
+    "bluelm": {
+      "displayName": "vivo BlueLM (蓝心大模型)",
+      "enabled": true,
+      "baseUrl": "https://api-ai.vivo.com.cn/v1",
+      "model": "Doubao-Seed-2.0-pro",
+      "appId": "YOUR_BLUELM_APP_ID",
+      "appKey": "YOUR_BLUELM_APP_KEY",
+      "timeoutMs": 30000,
+      "temperature": 0.3,
+      "maxTokens": 4096,
+      "stream": false,
+      "requestIdQueryName": "request_id"
+    },
+    "compatible": {
+      "displayName": "OpenAI-compatible fallback endpoint",
+      "enabled": false,
+      "baseUrl": "https://YOUR_COMPATIBLE_ENDPOINT/v1",
+      "model": "YOUR_MODEL_NAME",
+      "apiKey": "YOUR_COMPATIBLE_API_KEY",
+      "timeoutMs": 30000
+    },
+    "localFallback": {
+      "displayName": "On-device deterministic fallback (no network)",
+      "enabled": true,
+      "note": "Bounded heuristic extractor. Safety net only — never the primary intelligence."
+    }
+  },
+  "resolver": {
+    "order": ["bluelm", "compatible", "localFallback"],
+    "fallbackOnNon2xx": true,
+    "fallbackOnParseError": true,
+    "fallbackOnValidationError": true
+  }
 }

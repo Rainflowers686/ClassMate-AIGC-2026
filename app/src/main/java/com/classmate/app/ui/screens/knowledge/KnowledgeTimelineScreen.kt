@@ -1,0 +1,236 @@
+package com.classmate.app.ui.screens.knowledge
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import com.classmate.app.state.AppViewModel
+import com.classmate.app.state.Screen
+import com.classmate.app.ui.components.ChipTone
+import com.classmate.app.ui.components.ClassMateScaffold
+import com.classmate.app.ui.product.QuietCard
+import com.classmate.app.ui.components.DifficultyBadge
+import com.classmate.app.ui.components.StatusChip
+import com.classmate.app.ui.components.EvidenceBlock
+import com.classmate.app.ui.components.ExportCenterCard
+import com.classmate.app.ui.components.ImportanceBadge
+import com.classmate.app.ui.components.PrimaryButton
+import com.classmate.app.ui.components.ProvenanceChip
+import com.classmate.app.ui.components.SecondaryButton
+import com.classmate.app.ui.design.Dimens
+import com.classmate.core.model.KnowledgePoint
+
+@Composable
+fun KnowledgeTimelineScreen(viewModel: AppViewModel) {
+    val ui = viewModel.ui
+    val result = ui.result
+    val session = ui.session
+
+    ClassMateScaffold(
+        title = "Knowledge Timeline",
+        onBack = { viewModel.goBack() },
+        bottomBar = {
+            if (result != null) {
+                Surface(color = MaterialTheme.colorScheme.background) {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = Dimens.screen, vertical = Dimens.m)) {
+                        PrimaryButton(
+                            text = "Start quiz (${result.quizQuestions.size})",
+                            onClick = { viewModel.navigateTo(Screen.QUIZ) },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = result.quizQuestions.isNotEmpty(),
+                        )
+                        Spacer(Modifier.height(Dimens.s))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Dimens.m)) {
+                            SecondaryButton(
+                                text = "Review plan",
+                                onClick = { viewModel.ensureReviewPlan(); viewModel.navigateTo(Screen.REVIEW) },
+                                modifier = Modifier.weight(1f),
+                            )
+                            SecondaryButton(
+                                text = "Feedback",
+                                onClick = { viewModel.navigateTo(Screen.FEEDBACK) },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
+                }
+            }
+        },
+    ) { padding ->
+        if (result == null || session == null) {
+            Box(Modifier.padding(padding).fillMaxWidth().padding(Dimens.screen)) {
+                Text("No analysis result yet.", style = MaterialTheme.typography.bodyMedium)
+            }
+            return@ClassMateScaffold
+        }
+
+        Column(
+            Modifier
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = Dimens.screen)
+                .padding(bottom = Dimens.xxl),
+            verticalArrangement = Arrangement.spacedBy(Dimens.cardGap),
+        ) {
+            QuietCard {
+                Text(session.title.ifBlank { "Untitled Course" }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(Dimens.s))
+                ProvenanceChip(result.provenance)
+                Spacer(Modifier.height(Dimens.m))
+                Row(horizontalArrangement = Arrangement.spacedBy(Dimens.xl)) {
+                    Stat("${result.knowledgePoints.size}", "KP")
+                    Stat("${result.quizQuestions.size}", "Quiz")
+                    Stat("${session.segments.size}", "Segments")
+                }
+            }
+
+            ExportCenterCard(
+                viewModel = viewModel,
+                title = "导出当前课程报告",
+                description = "把当前 Timeline、证据链、微测、复习计划、Ask 记录和资料来源摘要导出为可保存或可分享文件。",
+                buildArtifact = viewModel::buildCurrentReportArtifact,
+            )
+
+            AskThisLessonCard(viewModel, session)
+
+            result.knowledgePoints.forEachIndexed { index, kp ->
+                KnowledgePointCard(
+                    number = index + 1,
+                    kp = kp,
+                    segmentLabel = segmentLabel(session.segments.firstOrNull { it.id == kp.sourceSegmentId }?.index),
+                    onOpenEvidence = { viewModel.openEvidence(kp.id) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AskThisLessonCard(viewModel: AppViewModel, session: com.classmate.core.model.CourseSession) {
+    val ui = viewModel.ui
+    val cs = MaterialTheme.colorScheme
+    QuietCard {
+        Text("问这节课", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(Dimens.s))
+        Text(
+            "回答只依据本节课的知识点与原文证据；没有依据时会标注「未找到依据」，不会编造。",
+            style = MaterialTheme.typography.bodySmall,
+            color = cs.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(Dimens.s))
+        OutlinedTextField(
+            value = ui.askLessonQuestion,
+            onValueChange = viewModel::updateAskLessonQuestion,
+            label = { Text("输入你的问题") },
+            minLines = 2,
+            maxLines = 4,
+            enabled = !ui.askLessonPending,
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.medium,
+        )
+        Spacer(Modifier.height(Dimens.s))
+        PrimaryButton(
+            text = if (ui.askLessonPending) "正在查找本节课证据…" else "提问",
+            onClick = { viewModel.askThisLesson() },
+            enabled = ui.askLessonQuestion.isNotBlank() && !ui.askLessonPending,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        ui.askLessonAnswers.takeLast(3).reversed().forEach { answer ->
+            Spacer(Modifier.height(Dimens.m))
+            Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+                val (label, tone) = when (answer.groundedness) {
+                    "grounded" -> "有证据" to ChipTone.SUCCESS
+                    "partial" -> "部分依据" to ChipTone.WARNING
+                    "not_found" -> "未找到依据" to ChipTone.NEUTRAL
+                    else -> "出错" to ChipTone.WARNING
+                }
+                StatusChip(label, tone = tone)
+                // Honest answer source: 云端蓝心 / 端侧蓝心 / 安全占位 (never raw provider id, never LocalRule).
+                StatusChip(
+                    com.classmate.core.ondevice.ProviderPathNode.sourceLabelZh(answer.providerName),
+                    tone = if (answer.fallbackUsed) ChipTone.NEUTRAL else ChipTone.INFO,
+                )
+            }
+            Spacer(Modifier.height(Dimens.xs))
+            Text(answer.answer, style = MaterialTheme.typography.bodyMedium, color = cs.onSurface)
+            if (answer.relatedKnowledgePointTitles.isNotEmpty()) {
+                Spacer(Modifier.height(Dimens.xxs))
+                Text("相关知识点：${answer.relatedKnowledgePointTitles.joinToString("、")}", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+            }
+            answer.evidenceRefs.take(3).forEach { ref ->
+                Spacer(Modifier.height(Dimens.xxs))
+                val sourceLabel = sourceLabelForSegment(ref.segmentId?.let { session.segment(it) }?.text)
+                Text(
+                    "证据${sourceLabel?.let { " · $it" }.orEmpty()}：「${ref.quote}」${ref.knowledgePointTitle?.let { " — $it" } ?: ""}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = cs.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun Stat(value: String, label: String) {
+    Column {
+        Text(value, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun KnowledgePointCard(number: Int, kp: KnowledgePoint, segmentLabel: String, onOpenEvidence: () -> Unit) {
+    QuietCard(onClick = onOpenEvidence) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
+                Box(Modifier.size(28.dp), contentAlignment = Alignment.Center) {
+                    Text("$number", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.Bold)
+                }
+            }
+            Spacer(Modifier.width(Dimens.m))
+            Text(kp.title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(Dimens.s))
+        Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+            ImportanceBadge(kp.importance)
+            DifficultyBadge(kp.difficulty)
+        }
+        Spacer(Modifier.height(Dimens.m))
+        Text(kp.summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        kp.evidence.firstOrNull()?.let { span ->
+            Spacer(Modifier.height(Dimens.m))
+            EvidenceBlock(quote = span.quote, segmentLabel = segmentLabel)
+        }
+        Spacer(Modifier.height(Dimens.s))
+        Text("Open evidence", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+    }
+}
+
+private fun segmentLabel(index: Int?): String = if (index != null) "Segment $index" else "Original text"
+
+private fun sourceLabelForSegment(text: String?): String? = when {
+    text == null -> null
+    text.contains("[课件 OCR") -> "课件 OCR"
+    text.contains("[板书 OCR") -> "板书 OCR"
+    text.contains("[讲义 OCR") -> "讲义 OCR"
+    text.contains("[PDF OCR") -> "PDF OCR"
+    else -> null
+}
