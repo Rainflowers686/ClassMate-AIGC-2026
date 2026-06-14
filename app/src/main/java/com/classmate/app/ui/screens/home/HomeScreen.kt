@@ -126,6 +126,13 @@ fun HomeScreen(viewModel: AppViewModel) {
                             trailing = "$dueCount",
                             onClick = { viewModel.selectTab(Tab.REVIEW) },
                         ),
+                        // Restrained entry into the immersive Flow companion (not a global theme).
+                        ProductRow(
+                            "心流学习 · 白噪音陪伴",
+                            "声音场景 + 专注计时，沉浸式复习",
+                            Icons.Filled.PlayArrow,
+                            onClick = { viewModel.navigateTo(Screen.LIVE) },
+                        ),
                     ),
                 )
 

@@ -134,6 +134,8 @@ fun CourseDetailScreen(viewModel: AppViewModel) {
                     SecondaryButton("专项练习", onClick = { viewModel.startPractice(PracticeMode.QUICK_REVIEW) }, modifier = Modifier.weight(1f))
                     SecondaryButton("错题重练", onClick = { viewModel.startPractice(PracticeMode.WRONG_ANSWER_RETRY) }, modifier = Modifier.weight(1f))
                 }
+                // Restrained entry into the immersive Flow companion (sound scenes + focus timer).
+                SecondaryButton("心流复习 · 沉浸专注", onClick = { viewModel.navigateTo(Screen.LIVE) }, modifier = Modifier.fillMaxWidth())
 
                 // On-device study advice — kept, restyled.
                 if (result != null) {

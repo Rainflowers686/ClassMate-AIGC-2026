@@ -53,3 +53,6 @@ proof/logs_redacted/*.tmp
 
 # Generated IDE/Gradle output
 core/bin/
+
+# --- Local design-reference renders / scratch (never commit) ----------------
+.codex_work/
