@@ -75,6 +75,7 @@ import com.classmate.core.ondevice.OnDevicePromptTemplate
 import com.classmate.core.provider.Credential
 import com.classmate.core.provider.ProviderAskChatClient
 import com.classmate.core.analysis.AnalysisOutcome
+import com.classmate.core.ai.CourseAnalysisRouting
 import com.classmate.core.analysis.CourseAnalyzer
 import com.classmate.core.analysis.CourseSegmenter
 import com.classmate.core.feedback.LearningStateUpdater
@@ -1173,11 +1174,20 @@ class AppViewModel(
             val outcome = fallback?.first ?: cloudOutcome
             val onDeviceReason = fallback?.second
             val onDeviceDiag = fallback?.third
-            val sourceReport = AnalysisSourceReport.of(
+            // P0: the unified AiCapabilityRouter is the single authority for the CourseAnalysis route
+            // decision (CLOUD → ON_DEVICE → SAFE_PLACEHOLDER). It drives the user-visible source label;
+            // the validated outcome above is produced exactly as before (validators never relaxed).
+            val analysisRoute = CourseAnalysisRouting.decide(
+                cloudSucceeded = cloudOutcome is AnalysisOutcome.Success,
+                cloudStatusCode = cloudStatus,
+                onDeviceAttempted = onDeviceAttempted,
+                onDeviceAccepted = onDeviceReason == "ACCEPTED",
+            )
+            val sourceReport = AnalysisSourceReport(
                 cloudStatus = cloudStatus,
                 onDeviceAttempted = onDeviceAttempted,
                 onDeviceReason = onDeviceReason,
-                analysisSucceeded = outcome is AnalysisOutcome.Success,
+                finalSource = CourseAnalysisRouting.finalSourceZh(analysisRoute.source),
             )
 
             // Staged reveal for product feel — these are the real conceptual phases.
@@ -1736,9 +1746,10 @@ class AppViewModel(
             // Only safe, enum/count telemetry is ever surfaced — never the prompt, body, or answer text.
             // Honest source: cloud 云端蓝心 / on-device 端侧蓝心 / 安全占位 (no real model answered).
             val answer = outcome.answer
-            val servedByModel = answer.providerName.equals("BLUELM", ignoreCase = true) ||
-                answer.providerName.equals("ONDEVICE_BLUELM", ignoreCase = true)
-            val sourceZh = com.classmate.core.ondevice.ProviderPathNode.sourceLabelZh(answer.providerName)
+            // P0: route the Ask answer's source through the unified AiExecutionSource vocabulary (CLOUD /
+            // ON_DEVICE / SAFE_PLACEHOLDER). GroundedAskLessonEngine still enforces evidence/citation rules.
+            val servedByModel = com.classmate.core.ai.AskRouting.servedByModel(answer.providerName)
+            val sourceZh = com.classmate.core.ai.AskRouting.sourceOf(answer.providerName).displayZh
             ui = ui.copy(
                 askLessonAnswers = ui.askLessonAnswers + answer,
                 askLessonPending = false,

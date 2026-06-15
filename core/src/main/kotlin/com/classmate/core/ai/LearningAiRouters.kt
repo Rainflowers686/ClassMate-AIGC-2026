@@ -36,6 +36,24 @@ class RoutedCourseAnalysisUseCase<T>(
  * manual message ("暂无法生成回答，可查看下方证据片段") — never a fabricated answer. The answer text is
  * read-only (no confirmation gate), but its source is always tagged so the UI shows 云端 / 端侧 / 手动.
  */
+/**
+ * Maps an existing grounded-Ask answer's provider tag to the unified [AiExecutionSource], so the app's Ask
+ * flow (which already runs cloud → on-device → local-evidence and validates citations) reports its source in
+ * the same vocabulary as the router. Anything that is not the cloud or on-device model is a safe placeholder
+ * (local evidence summary), never presented as an intelligent answer.
+ */
+object AskRouting {
+    fun sourceOf(providerName: String?): AiExecutionSource = when (providerName?.trim()?.uppercase()) {
+        "BLUELM", "OFFICIALBLUELM", "OFFICIAL_BLUELM" -> AiExecutionSource.CLOUD
+        "ONDEVICE_BLUELM", "ONDEVICEBLUELM", "ON_DEVICE_BLUELM" -> AiExecutionSource.ON_DEVICE
+        else -> AiExecutionSource.SAFE_PLACEHOLDER
+    }
+
+    /** True when a real model (cloud or on-device) produced the answer (vs a safe local-evidence placeholder). */
+    fun servedByModel(providerName: String?): Boolean =
+        sourceOf(providerName).let { it == AiExecutionSource.CLOUD || it == AiExecutionSource.ON_DEVICE }
+}
+
 class RoutedAskUseCase(
     private val router: AiCapabilityRouter = AiCapabilityRouter(),
 ) {
