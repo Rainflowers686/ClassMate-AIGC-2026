@@ -23,8 +23,11 @@ import com.classmate.app.data.InMemoryHistoryStore
 import com.classmate.app.exporting.ExportArtifact
 import com.classmate.app.exporting.ExportCenter
 import com.classmate.app.exporting.ExportFileFormat
+import com.classmate.core.audio.ConfigMissingTtsProvider
+import com.classmate.core.audio.CourseEssenceAudioExporter
 import com.classmate.core.exporting.StudyReport
 import com.classmate.core.exporting.StudyReportBuilder
+import com.classmate.core.exporting.StudyReportRenderer
 import com.classmate.app.glossary.CourseGlossary
 import com.classmate.app.importing.OcrImportAssembler
 import com.classmate.app.importing.OcrImportDraft
@@ -42,11 +45,16 @@ import com.classmate.core.learning.LearningSnapshot
 import com.classmate.core.learning.LearningStore
 import com.classmate.core.learning.PracticeHistoryRecord
 import com.classmate.core.practice.PracticeAttempt
+import com.classmate.core.practice.PracticeFeedbackEngine
+import com.classmate.core.practice.PracticeGenerationRequest
 import com.classmate.core.practice.PracticeMode
 import com.classmate.core.practice.PracticeOutcome
 import com.classmate.core.practice.PracticeResult
 import com.classmate.core.practice.PracticeSession
 import com.classmate.core.practice.PracticeSessionEngine
+import com.classmate.core.practice.RoutedPracticeGenerationUseCase
+import com.classmate.core.safety.TextSafetyGate
+import com.classmate.core.safety.BasicTextSafetyProvider
 import com.classmate.core.learning.ReviewEventType
 import com.classmate.core.learning.ReviewPriorityLevel
 import com.classmate.core.learning.ReviewTask
@@ -168,6 +176,7 @@ class AppViewModel(
     private val promptBuilder = PromptBuilder()
     private val contentExporter = ContentExporter()
     private val captureGateway: CaptureGatewayPort by lazy(captureGatewayProvider)
+    private val practiceGeneration = RoutedPracticeGenerationUseCase()
 
     // THE single active provider config — one source of truth. The Settings model-config
     // summary, CourseAnalyzer (analyzer()) and the BlueLM diagnostic ALL read this exact field,
@@ -1750,7 +1759,14 @@ class AppViewModel(
             )
             return ExportCenter.artifactFromMarkdown(session.title, contentExporter.markdownMindMap(mindMap), format)
         }
-        return ExportCenter.artifactFromStudyReport(buildStudyReport(session, result), format)
+        val baseReport = buildStudyReport(session, result)
+        val safety = TextSafetyGate.checkForExport(
+            StudyReportRenderer.renderPlainText(baseReport),
+            BasicTextSafetyProvider,
+        )
+        ui = ui.copy(textSafetyResult = safety)
+        val report = buildStudyReport(session, result)
+        return ExportCenter.artifactFromStudyReport(report, format)
     }
 
     /** Builds the single printable StudyReport that all non-mindmap export formats render from. */
@@ -1771,6 +1787,41 @@ class AppViewModel(
             lastPractice = ui.practiceResult?.takeIf { it.courseSessionId == result.sessionId },
             // Phase C: embed the on-device local-intelligence study advice (or placeholder) when present.
             localSuggestion = ui.onDeviceReportSuggestion,
+            translationNotes = ui.translationNotes,
+            safetyResult = ui.textSafetyResult,
+            courseEssenceScript = ui.courseEssenceScript,
+        )
+    }
+
+    fun generateCourseEssenceAudioScript() {
+        val session = ui.session ?: run {
+            ui = ui.copy(toast = "请先打开一节已分析课程。")
+            return
+        }
+        val result = ui.result ?: run {
+            ui = ui.copy(toast = "请先完成课程分析。")
+            return
+        }
+        ui = ui.copy(
+            aiProcessing = AiProcessingUiState(
+                visible = true,
+                title = "正在生成音频脚本",
+                steps = listOf("提炼课程概览", "整理核心知识点", "整理易错点", "生成可朗读稿"),
+                activeStep = 2,
+                source = "手动",
+                fallbackMessage = "TTS 未配置时，可先导出课程精华音频脚本文本。",
+                canCancel = true,
+                canRetry = true,
+                canContinueManual = true,
+            ),
+        )
+        val report = buildStudyReport(session, result)
+        val audio = CourseEssenceAudioExporter.generate(report, ConfigMissingTtsProvider())
+        ui = ui.copy(
+            courseEssenceScript = audio.script,
+            courseEssenceAudioResult = audio,
+            aiProcessing = AiProcessingUiState.hidden(),
+            toast = "已生成课程精华音频脚本，可在导出中心选择脚本格式。",
         )
     }
 
@@ -1884,7 +1935,16 @@ class AppViewModel(
             return
         }
         val now = System.currentTimeMillis()
-        val practice = PracticeSessionEngine.build(r, ui.learningSnapshot, mode, now, courseTitle = s.title)
+        val generated = practiceGeneration.generate(
+            PracticeGenerationRequest(
+                result = r,
+                snapshot = ui.learningSnapshot,
+                mode = mode,
+                now = now,
+                courseTitle = s.title,
+            ),
+        )
+        val practice = generated.value?.session ?: PracticeSessionEngine.build(r, ui.learningSnapshot, mode, now, courseTitle = s.title)
         if (practice.items.isEmpty()) {
             ui = ui.copy(toast = "暂时没有可练习的内容。")
             return
@@ -1924,7 +1984,14 @@ class AppViewModel(
     fun answerPractice(outcome: PracticeOutcome) {
         val session = ui.practiceSession ?: return
         val item = session.items.getOrNull(ui.practiceIndex) ?: return
-        val attempts = ui.practiceAttempts + PracticeAttempt(item.id, item.knowledgePointId, item.taskId, outcome)
+        val feedback = PracticeFeedbackEngine.evaluateSelfReported(item, outcome)
+        val attempts = ui.practiceAttempts + PracticeAttempt(
+            itemId = item.id,
+            knowledgePointId = item.knowledgePointId,
+            taskId = item.taskId,
+            outcome = outcome,
+            feedback = feedback,
+        )
         val nextIndex = ui.practiceIndex + 1
         ui = ui.copy(practiceAttempts = attempts, practiceIndex = nextIndex, practiceRevealed = false)
         if (nextIndex >= session.items.size) finishPractice()

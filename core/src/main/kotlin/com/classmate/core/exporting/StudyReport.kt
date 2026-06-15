@@ -1,5 +1,7 @@
 package com.classmate.core.exporting
 
+import com.classmate.core.audio.CourseEssenceScript
+
 /**
  * The single, render-agnostic data source for ALL export formats (Markdown / HTML / TXT / PDF /
  * Slides). It is a "study handout", NOT a UI dump: it contains only learning content — never UI state,
@@ -23,6 +25,10 @@ data class StudyReport(
     val review: StudyReviewBuckets,
     val askItems: List<StudyAskItem>,
     val practice: StudyPracticeSummary? = null,
+    val weaknesses: List<StudyWeaknessSummary> = emptyList(),
+    val translationNotes: List<StudyTranslationNoteSummary> = emptyList(),
+    val safetySummary: StudySafetySummary? = null,
+    val courseEssenceScript: CourseEssenceScript? = null,
     /**
      * Optional on-device "local intelligence" study advice (Phase C). Either genuine on-device
      * BlueLM output (prefixed "由端侧 BlueLM 生成：") or the fixed safety placeholder. Never the
@@ -92,4 +98,26 @@ data class StudyAskItem(
     val statusZh: String,
     val answerSummary: String,
     val evidenceQuotes: List<String>,
+)
+
+data class StudyWeaknessSummary(
+    val title: String,
+    val courseTitle: String,
+    val wrongCount: Int,
+    val correctCount: Int,
+    val reason: String,
+    val recommendedAction: String,
+)
+
+data class StudyTranslationNoteSummary(
+    val targetTitle: String,
+    val sourceLanguage: String,
+    val targetLanguage: String,
+    val translatedText: String,
+)
+
+data class StudySafetySummary(
+    val status: String,
+    val source: String,
+    val note: String,
 )

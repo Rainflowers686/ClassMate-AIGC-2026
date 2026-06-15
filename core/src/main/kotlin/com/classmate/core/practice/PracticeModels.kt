@@ -1,5 +1,7 @@
 package com.classmate.core.practice
 
+import com.classmate.core.ai.AiExecutionSource
+
 /**
  * In-app adaptive practice ("专项练习 / 错题本") models. This closes the "需要多练" loop WITHOUT calling
  * any model or network: every item is built by reusing existing quizzes / knowledge points / evidence.
@@ -11,6 +13,18 @@ enum class PracticeItemType { QUIZ_RETRY, FLASHCARD, EVIDENCE_CHECK, SHORT_EXPLA
 
 /** The learner's self-reported result for one item (also drives the LearningStore write-back). */
 enum class PracticeOutcome { CORRECT, WRONG, MASTERED, NEED_MORE_PRACTICE }
+
+/** Local/AI feedback for one submitted practice item. This stores only learning data. */
+data class PracticeFeedback(
+    val correctness: PracticeFeedbackCorrectness,
+    val explanation: String,
+    val knowledgePointId: String,
+    val evidenceQuote: String?,
+    val nextAction: String,
+    val source: AiExecutionSource = AiExecutionSource.SAFE_PLACEHOLDER,
+)
+
+enum class PracticeFeedbackCorrectness { CORRECT, INCORRECT, NEEDS_REVIEW }
 
 data class PracticeOption(val id: String, val text: String, val correct: Boolean)
 
@@ -28,6 +42,7 @@ data class PracticeItem(
     val options: List<PracticeOption> = emptyList(),
     val needsRecheck: Boolean = false, // evidence flagged wrong -> review, do not "drill"
     val recommendedSearchQuery: String? = null,
+    val source: AiExecutionSource = AiExecutionSource.SAFE_PLACEHOLDER,
 ) {
     val correctOptionIds: List<String> get() = options.filter { it.correct }.map { it.id }
 }
@@ -38,6 +53,8 @@ data class PracticeAttempt(
     val knowledgePointId: String,
     val taskId: String?,
     val outcome: PracticeOutcome,
+    val submittedAnswer: String = "",
+    val feedback: PracticeFeedback? = null,
 )
 
 data class PracticeSession(
@@ -47,9 +64,18 @@ data class PracticeSession(
     val mode: PracticeMode,
     val items: List<PracticeItem>,
     val createdAt: Long,
+    val source: AiExecutionSource = AiExecutionSource.SAFE_PLACEHOLDER,
+    val routeReason: String = "built from current course evidence",
 ) {
     val itemCount: Int get() = items.size
 }
+
+fun PracticeSession.withSource(source: AiExecutionSource, reason: String): PracticeSession =
+    copy(
+        source = source,
+        routeReason = reason,
+        items = items.map { it.copy(source = source) },
+    )
 
 /** A "need more practice" follow-up: a knowledge point title plus a ready external search query. */
 data class PracticeNeedItem(val title: String, val recommendedSearchQuery: String)

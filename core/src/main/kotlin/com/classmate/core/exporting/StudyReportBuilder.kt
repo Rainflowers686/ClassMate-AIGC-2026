@@ -14,6 +14,10 @@ import com.classmate.core.practice.PracticeMode
 import com.classmate.core.practice.PracticeResult
 import com.classmate.core.practice.PracticeSearchEngine
 import com.classmate.core.practice.displayZh
+import com.classmate.core.audio.CourseEssenceScript
+import com.classmate.core.safety.TextSafetyResult
+import com.classmate.core.translation.TranslationNote
+import com.classmate.core.weakness.WeaknessHub
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -39,6 +43,9 @@ object StudyReportBuilder {
         practiceHistory: List<PracticeHistoryRecord> = emptyList(),
         lastPractice: PracticeResult? = null,
         localSuggestion: String? = null,
+        translationNotes: List<TranslationNote> = emptyList(),
+        safetyResult: TextSafetyResult? = null,
+        courseEssenceScript: CourseEssenceScript? = null,
         now: Long = generatedAtEpochMs,
     ): StudyReport {
         val segmentText = session.segments.associate { it.id to it.text }
@@ -69,6 +76,19 @@ object StudyReportBuilder {
             review = reviewBuckets(snapshot, now),
             askItems = askAnswers.map { askItem(it) },
             practice = practiceSummary(result.sessionId, courseTitle, practiceHistory, lastPractice),
+            weaknesses = weaknessSummaries(snapshot),
+            translationNotes = translationNotes.map {
+                StudyTranslationNoteSummary(
+                    targetTitle = it.targetId,
+                    sourceLanguage = it.sourceLanguage,
+                    targetLanguage = it.targetLanguage,
+                    translatedText = it.translatedText,
+                )
+            },
+            safetySummary = safetyResult?.let {
+                StudySafetySummary(it.status.name, it.source.name, it.reason)
+            },
+            courseEssenceScript = courseEssenceScript,
             localSuggestion = localSuggestion?.takeIf { it.isNotBlank() },
         )
     }
@@ -90,7 +110,20 @@ object StudyReportBuilder {
             review = reviewBuckets(snapshot, now),
             askItems = emptyList(),
             practice = practiceSummary("", "复习队列", snapshot.practiceHistory, null),
+            weaknesses = weaknessSummaries(snapshot),
         )
+
+    private fun weaknessSummaries(snapshot: LearningSnapshot): List<StudyWeaknessSummary> =
+        WeaknessHub.fromSnapshot(snapshot).take(12).map {
+            StudyWeaknessSummary(
+                title = it.title,
+                courseTitle = it.courseTitle,
+                wrongCount = it.wrongAnswerCount,
+                correctCount = it.correctAnswerCount,
+                reason = it.reason,
+                recommendedAction = it.recommendedAction,
+            )
+        }
 
     private fun studyKnowledgePoint(index: Int, kp: KnowledgePoint, segmentText: Map<String, String>): StudyKnowledgePoint =
         StudyKnowledgePoint(

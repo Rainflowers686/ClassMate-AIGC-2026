@@ -15,12 +15,16 @@ import com.classmate.app.platform.ProviderConfigSummary
 import com.classmate.app.ui.i18n.AppLanguage
 import com.classmate.app.ui.theme.ThemeOption
 import com.classmate.core.ask.LessonAnswer
+import com.classmate.core.audio.CourseEssenceAudioResult
+import com.classmate.core.audio.CourseEssenceScript
 import com.classmate.core.logging.RedactedLogEntry
 import com.classmate.core.live.TranscriptSession
 import com.classmate.core.material.SpeakerLabel
 import com.classmate.core.practice.PracticeAttempt
 import com.classmate.core.practice.PracticeResult
 import com.classmate.core.practice.PracticeSession
+import com.classmate.core.safety.TextSafetyResult
+import com.classmate.core.translation.TranslationNote
 import com.classmate.core.transcript.TranscriptDraft
 import com.classmate.core.transcript.TranscriptSourceType
 import com.classmate.core.model.CourseAnalysisResult
@@ -72,6 +76,10 @@ data class ClassMateUiState(
     val practiceResult: PracticeResult? = null,
     val practiceStartedAt: Long = 0L,
     val practiceRevealed: Boolean = false,
+    val courseEssenceScript: CourseEssenceScript? = null,
+    val courseEssenceAudioResult: CourseEssenceAudioResult? = null,
+    val translationNotes: List<TranslationNote> = emptyList(),
+    val textSafetyResult: TextSafetyResult? = null,
 
     // analysis
     val session: CourseSession? = null,

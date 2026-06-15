@@ -3,6 +3,7 @@ package com.classmate.app.exporting
 import com.classmate.core.exporting.SafeExportText
 import com.classmate.core.exporting.StudyReport
 import com.classmate.core.exporting.StudyReportRenderer
+import com.classmate.core.audio.CourseEssenceAudioExporter
 
 object ExportCenter {
 
@@ -24,6 +25,7 @@ object ExportCenter {
             ExportFileFormat.WORD_COMPAT_HTML ->
                 StudyReportRenderer.renderHtml(report, note = "Word 兼容 HTML，可用 Word/WPS 打开，不是真 .docx")
             ExportFileFormat.SLIDES_HTML -> StudyReportRenderer.renderSlidesHtml(report)
+            ExportFileFormat.COURSE_ESSENCE_SCRIPT_TEXT -> CourseEssenceAudioExporter.buildScript(report).toPlainText()
         }
         val safeBody = SafeExportText.redact(body)
         val bytes = if (format == ExportFileFormat.PDF) {
@@ -60,6 +62,7 @@ object ExportCenter {
             ExportFileFormat.MINDMAP_HTML -> mindMapHtml(safeTitle, safeMarkdown)
             ExportFileFormat.WORD_COMPAT_HTML -> htmlPage(safeTitle, safeMarkdown, "Word 兼容 HTML，可用 Word/WPS 打开，不是真 .docx")
             ExportFileFormat.SLIDES_HTML -> slidesHtml(safeTitle, safeMarkdown)
+            ExportFileFormat.COURSE_ESSENCE_SCRIPT_TEXT -> markdownToPlain(safeMarkdown)
         }
         val bytes = if (format == ExportFileFormat.PDF) {
             PdfExportRenderer.render(safeTitle, body)
@@ -87,6 +90,7 @@ object ExportCenter {
         ExportFileFormat.MINDMAP_HTML -> "思维导图"
         ExportFileFormat.WORD_COMPAT_HTML -> "Word兼容报告"
         ExportFileFormat.SLIDES_HTML -> "演示幻灯片"
+        ExportFileFormat.COURSE_ESSENCE_SCRIPT_TEXT -> "课程精华音频脚本"
     }
 
     private fun htmlPage(title: String, markdown: String, note: String): String =
@@ -144,4 +148,3 @@ object ExportCenter {
             .replace(">", "&gt;")
             .replace("\"", "&quot;")
 }
-

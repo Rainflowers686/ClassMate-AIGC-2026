@@ -14,5 +14,5 @@ enum class ExportFileFormat(
     MINDMAP_HTML("思维导图 HTML", "html", "text/html; charset=utf-8", "浏览器可打开的思维导图"),
     WORD_COMPAT_HTML("Word 兼容 HTML", "html", "text/html; charset=utf-8", "可用 Word/WPS 打开，不是真 .docx"),
     SLIDES_HTML("演示幻灯片 HTML", "html", "text/html; charset=utf-8", "演示幻灯片 HTML，不是真 .pptx"),
+    COURSE_ESSENCE_SCRIPT_TEXT("课程精华音频脚本", "txt", "text/plain; charset=utf-8", "TTS 未配置时可导出的可朗读复习稿"),
 }
-

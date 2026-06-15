@@ -4,6 +4,7 @@ import com.classmate.core.learning.LearningSnapshot
 import com.classmate.core.learning.ReviewEngine
 import com.classmate.core.learning.ReviewEventType
 import com.classmate.core.learning.ReviewTask
+import com.classmate.core.ai.AiExecutionSource
 import com.classmate.core.model.CourseAnalysisResult
 import com.classmate.core.model.KnowledgePoint
 
@@ -70,6 +71,8 @@ object PracticeSessionEngine {
             mode = mode,
             items = items,
             createdAt = now,
+            source = AiExecutionSource.SAFE_PLACEHOLDER,
+            routeReason = "built from validated course evidence",
         )
     }
 

@@ -5,6 +5,7 @@ import com.classmate.app.data.InMemoryExportStore
 import com.classmate.app.data.InMemoryHistoryStore
 import com.classmate.app.platform.ConfigRepository
 import com.classmate.core.learning.InMemoryLearningStore
+import com.classmate.core.audio.CourseEssenceAudioStatus
 import com.classmate.core.practice.PracticeMode
 import com.classmate.core.practice.PracticeOutcome
 import com.classmate.core.sample.SampleCourses
@@ -77,6 +78,19 @@ class PracticeFlowTest {
         assertEquals(itemCount, viewModel.ui.practiceResult!!.correctCount)
         assertEquals(1, viewModel.ui.learningSnapshot.practiceHistory.size)
         assertTrue(viewModel.isPracticeComplete())
+        assertTrue(viewModel.ui.practiceAttempts.all { it.feedback != null })
+    }
+
+    @Test
+    fun courseEssenceAudioScriptFallsBackToScriptOnlyWhenTtsIsNotConfigured() {
+        val viewModel = vm()
+        viewModel.openHistory(viewModel.ui.history.first())
+
+        viewModel.generateCourseEssenceAudioScript()
+
+        assertNotNull(viewModel.ui.courseEssenceScript)
+        assertEquals(CourseEssenceAudioStatus.SCRIPT_ONLY_CONFIG_MISSING, viewModel.ui.courseEssenceAudioResult!!.status)
+        assertTrue(viewModel.ui.courseEssenceScript!!.toPlainText().contains("ClassMate course essence review"))
     }
 
     @Test

@@ -84,6 +84,17 @@ object StudyReportRenderer {
             appendLine()
         }
 
+        appendLine("## 五点五、薄弱点与练习反馈")
+        appendLine()
+        if (report.weaknesses.isEmpty()) {
+            appendLine("暂无薄弱点。")
+        } else {
+            report.weaknesses.forEach { item ->
+                appendLine("- ${item.title}（${item.courseTitle}）：错 ${item.wrongCount} / 对 ${item.correctCount}；原因 ${item.reason}；建议 ${item.recommendedAction}")
+            }
+        }
+        appendLine()
+
         appendLine("## 六、复习计划")
         appendLine()
         appendLine("- 预计用时：${report.review.estimatedMinutes} 分钟")
@@ -110,11 +121,30 @@ object StudyReportRenderer {
         report.transcriptSummaryLine?.let { appendLine(it) }
         appendLine()
 
+        if (report.translationNotes.isNotEmpty()) {
+            appendLine("## 八点五、双语学习注记")
+            appendLine()
+            report.translationNotes.forEach { note ->
+                appendLine("- ${note.targetTitle}：${note.sourceLanguage} → ${note.targetLanguage}，${note.translatedText}")
+            }
+            appendLine()
+        }
+
+        report.courseEssenceScript?.let { script ->
+            appendLine("## 八点六、课程精华音频脚本")
+            appendLine()
+            appendLine(script.toPlainText())
+            appendLine()
+        }
+
         appendLine("## 九、隐私与说明")
         appendLine()
         appendLine("- $PRIVACY_LINE_1")
         appendLine("- $PRIVACY_LINE_2")
         appendLine("- $PRIVACY_LINE_3")
+        report.safetySummary?.let {
+            appendLine("- 文本安全检查：${it.status} / ${it.source} / ${it.note}")
+        }
 
         report.practice?.let { p ->
             appendLine()
@@ -209,6 +239,12 @@ object StudyReportRenderer {
                 append("</ul>")
             }
         }
+        body.section("五点五、薄弱点与练习反馈") {
+            if (report.weaknesses.isEmpty()) append("<p>暂无薄弱点。</p>")
+            report.weaknesses.forEach { item ->
+                append("<p><strong>${esc(item.title)}</strong>（${esc(item.courseTitle)}）：错 ${item.wrongCount} / 对 ${item.correctCount}；原因 ${esc(item.reason)}；建议 ${esc(item.recommendedAction)}</p>")
+            }
+        }
         body.section("六、复习计划") {
             append("<p>预计用时：${report.review.estimatedMinutes} 分钟</p>")
             bucket("今日待复习", report.review.dueToday)
@@ -230,8 +266,23 @@ object StudyReportRenderer {
             append("<p>${esc(report.sourceSummaryLine ?: "资料来源：课堂文本")}</p>")
             report.transcriptSummaryLine?.let { append("<p>${esc(it)}</p>") }
         }
+        if (report.translationNotes.isNotEmpty()) {
+            body.section("八点五、双语学习注记") {
+                report.translationNotes.forEach { note ->
+                    append("<p>${esc(note.targetTitle)}：${esc(note.sourceLanguage)} → ${esc(note.targetLanguage)}，${esc(note.translatedText)}</p>")
+                }
+            }
+        }
+        report.courseEssenceScript?.let { script ->
+            body.section("八点六、课程精华音频脚本") {
+                append("<pre>${esc(script.toPlainText())}</pre>")
+            }
+        }
         body.section("九、隐私与说明") {
             append("<ul><li>${esc(PRIVACY_LINE_1)}</li><li>${esc(PRIVACY_LINE_2)}</li><li>${esc(PRIVACY_LINE_3)}</li></ul>")
+            report.safetySummary?.let {
+                append("<p>文本安全检查：${esc(it.status)} / ${esc(it.source)} / ${esc(it.note)}</p>")
+            }
         }
         report.practice?.let { p ->
             body.section("十、专项练习与错题本") {

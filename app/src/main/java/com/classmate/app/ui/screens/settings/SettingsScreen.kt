@@ -173,7 +173,7 @@ fun SettingsScreen(viewModel: AppViewModel) {
             }
 
             if (section == SettingsSection.LEARNING_EXPORT) {
-                LearningExportSettingsCard()
+                LearningExportSettingsCard(viewModel)
                 PrivacyCard()
                 SpeakerCapabilityCard()
                 CapabilityRoadmapCard()
@@ -283,6 +283,10 @@ private fun ModelAccessNotesCard() {
         Spacer(Modifier.height(Dimens.xs))
         Text("云端优先，端侧兜底，用户确认后再写入学习资料。官方 OCR / ASR 未配置时，仍可继续编辑草稿或粘贴转写文本。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(Dimens.xs))
+        ProviderStatusRow("TTS / 音频生成", "未配置时导出课程精华脚本文本")
+        ProviderStatusRow("翻译辅助学习", "保留 derived note，不修改原始证据")
+        ProviderStatusRow("端侧文本安全审核", "不可用时提示，不阻断核心学习")
+        Spacer(Modifier.height(Dimens.xs))
         Text("这里仅显示配置是否可用，不显示任何密钥内容。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
@@ -297,11 +301,26 @@ private fun BackgroundAudioPolicyCard() {
 }
 
 @Composable
-private fun LearningExportSettingsCard() {
+private fun LearningExportSettingsCard(viewModel: AppViewModel) {
+    val audio = viewModel.ui.courseEssenceAudioResult
+    val safety = viewModel.ui.textSafetyResult
     ClassMateCard {
         Text("学习与导出", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.xs))
-        Text("默认保留用户确认、证据校验和脱敏导出。默认导出格式与 AI 精炼偏好保留为后续设置项。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("默认保留用户确认、证据校验和脱敏导出。练习、复习、报告和课程精华脚本都来自本节课证据。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(Dimens.s))
+        ProviderStatusRow("默认练习题数量", "8 题，可按课堂资料不足自动减少")
+        ProviderStatusRow("默认复习优先级", "错题、薄弱标记、久未复习、证据复核优先")
+        ProviderStatusRow("默认导出格式", "Markdown/Text、HTML、PDF、音频脚本")
+        ProviderStatusRow("文本安全检查", safety?.status?.name ?: "未运行")
+        ProviderStatusRow("课程精华音频", audio?.status?.name ?: "可生成脚本文本")
+        ProviderStatusRow("翻译辅助学习", "面向 evidence / knowledge point 的双语注记")
+        Spacer(Modifier.height(Dimens.s))
+        SecondaryButton(
+            text = "生成课程精华音频脚本",
+            onClick = { viewModel.generateCourseEssenceAudioScript() },
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 

@@ -36,6 +36,24 @@ class SettingsRoadmapTextTest {
         }
     }
 
+    @Test
+    fun learningAndExportSettingsExposeP1Capabilities() {
+        val source = readSettingsSource()
+        listOf(
+            "默认练习题数量",
+            "默认复习优先级",
+            "默认导出格式",
+            "课程精华音频脚本",
+            "文本安全检查",
+            "翻译辅助学习",
+            "TTS / 音频生成",
+            "端侧文本安全审核",
+        ).forEach { assertTrue("missing P1 setting text: $it", source.contains(it)) }
+
+        assertFalse(source.contains("老师" + "声音"))
+        assertFalse(source.contains("声音" + "复刻"))
+    }
+
     private fun readSettingsSource(): String =
         listOf(
             File("src/main/java/com/classmate/app/ui/screens/settings/SettingsScreen.kt"),
