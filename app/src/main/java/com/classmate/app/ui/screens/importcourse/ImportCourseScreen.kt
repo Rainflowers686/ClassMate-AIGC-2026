@@ -71,6 +71,7 @@ import com.classmate.app.ui.product.ProductScaffold
 import com.classmate.app.ui.product.ProductSectionTitle
 import com.classmate.app.ui.product.ProductSpace
 import com.classmate.app.ui.product.QuietCard
+import com.classmate.app.platform.CaptureConfigLoader
 import com.classmate.app.ui.design.Dimens
 import com.classmate.app.ui.i18n.appStrings
 import com.classmate.core.importing.FileImportText
@@ -136,6 +137,13 @@ fun ImportCourseScreen(viewModel: AppViewModel) {
                     overline = "输入工作台",
                     title = "把课堂内容放进来",
                     subtitle = "图片、拍照、文本先生成可编辑的端侧多模态理解草稿，用户确认后进入学习资料。",
+                )
+                // Capture config status — value-free; honest safe-degrade when official OCR/ASR is unconfigured.
+                val captureStatus = remember { CaptureConfigLoader().status() }
+                Text(
+                    "官方 OCR / ASR：${captureStatus.labelZh()}。未配置时可手动粘贴转写文本，或保留端侧蓝心草稿继续编辑，用户确认后生成知识地图。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
 
                 // CORE WORKSPACE — active draft floats to the very top as a document; else the primary inputs.
