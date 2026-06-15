@@ -9,8 +9,9 @@ import com.classmate.core.capture.CaptureTransport
 import com.classmate.core.capture.ClassroomCaptureResult
 import com.classmate.core.capture.ConfirmImageStudyDraftUseCase
 import com.classmate.core.capture.ConfirmTranscriptDraftUseCase
-import com.classmate.core.capture.CreateImageStudyDraftUseCase
+import com.classmate.core.ai.AiCapabilityResult
 import com.classmate.core.capture.CreateTranscriptDraftUseCase
+import com.classmate.core.capture.RoutedImageStudyDraftUseCase
 import com.classmate.core.capture.EvidenceCandidate
 import com.classmate.core.capture.ImageStudyDraft
 import com.classmate.core.capture.LocalEvidenceRetriever
@@ -54,11 +55,17 @@ class CaptureGateway(
     fun recognizeImage(imageBytes: ByteArray): CaptureResult<OcrResult> = ocrProvider().recognize(imageBytes)
 
     /**
-     * Dual-track image draft: official OCR text + the on-device multimodal draft, side by side. OCR failure
-     * (incl. ConfigMissing) leaves the on-device draft editable. Result is a DRAFT — not persisted until confirmed.
+     * Routed dual-track image draft (Cloud OCR → on-device multimodal draft → manual): the result carries the
+     * headline [AiExecutionSource] (云端/端侧/手动) while both tracks coexist (no "multimodal replaces OCR").
+     * The draft is never persisted until confirmed (decision.userConfirmationRequired is true).
      */
+    fun createImageStudyDraftRouted(imageBytes: ByteArray, origin: String, onDeviceDraftText: String): AiCapabilityResult<ImageStudyDraft> =
+        RoutedImageStudyDraftUseCase(ocrProvider()).create(imageBytes, origin, onDeviceDraftText)
+
+    /** Convenience: just the dual-track draft (OCR failure/ConfigMissing leaves the on-device draft editable). */
     fun createImageStudyDraft(imageBytes: ByteArray, origin: String, onDeviceDraftText: String): ImageStudyDraft =
-        CreateImageStudyDraftUseCase(ocrProvider()).create(imageBytes, origin, onDeviceDraftText)
+        createImageStudyDraftRouted(imageBytes, origin, onDeviceDraftText).value
+            ?: ImageStudyDraft(id = java.util.UUID.randomUUID().toString(), origin = origin, onDeviceDraftText = onDeviceDraftText)
 
     fun confirmImageDraft(draft: ImageStudyDraft, editedText: String, courseTitle: String): ClassroomCaptureResult? =
         ConfirmImageStudyDraftUseCase().confirm(draft, editedText, courseTitle)
