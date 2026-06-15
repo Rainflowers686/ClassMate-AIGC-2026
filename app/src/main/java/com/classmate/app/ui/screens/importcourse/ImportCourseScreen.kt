@@ -168,6 +168,9 @@ fun ImportCourseScreen(viewModel: AppViewModel) {
                             ProductRow("课堂转写 / 音视频字幕", "SRT / VTT 或转写稿；不解析音视频本体、不录音、不爬取平台", Icons.Filled.List, onClick = {
                                 viewModel.navigateTo(Screen.TRANSCRIPT_IMPORT)
                             }),
+                            ProductRow("音频转写（官方 ASR）", "课堂录音转文字草稿；当前未配置时可手动粘贴转写文本", Icons.Filled.PlayArrow, onClick = {
+                                viewModel.navigateTo(Screen.TRANSCRIPT_IMPORT)
+                            }),
                             ProductRow(".txt / .md 文件", "从系统文件选择器读取文本", Icons.Filled.Add, onClick = {
                                 pendingFileSource.value = ImportSourceType.TXT_FILE
                                 fileLauncher.launch(arrayOf("text/plain", "text/markdown", "text/*"))
