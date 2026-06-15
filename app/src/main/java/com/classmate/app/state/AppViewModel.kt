@@ -10,6 +10,8 @@ import com.classmate.app.asr.AsrSession
 import com.classmate.app.asr.AsrSessionController
 import com.classmate.app.asr.AsrState
 import com.classmate.app.asr.AsrTranscriptMapper
+import com.classmate.app.capture.CaptureGateway
+import com.classmate.app.capture.CaptureGatewayPort
 import com.classmate.app.data.BlueLMHttpTransport
 import com.classmate.app.data.ExportActionStatus
 import com.classmate.app.data.ExportReceipt
@@ -62,7 +64,15 @@ import com.classmate.app.ui.i18n.AppLanguage
 import com.classmate.app.ui.theme.ThemeOption
 import com.classmate.core.ask.GroundedAskLessonEngine
 import com.classmate.core.ask.LocalAskLessonEngine
+import com.classmate.core.ai.AiCapability
+import com.classmate.core.ai.AiCapabilityResult
+import com.classmate.core.ai.AiExecutionStatus
+import com.classmate.core.ai.AiExecutionSource
+import com.classmate.core.ai.AiRouteDecision
 import com.classmate.core.learning.OnDeviceLocalSuggestion
+import com.classmate.core.capture.CaptureError
+import com.classmate.core.capture.CaptureResult
+import com.classmate.core.capture.ImageStudyDraft
 import com.classmate.core.ondevice.CompositeAskChatSeam
 import com.classmate.core.ondevice.OnDeviceAnalysisDiagnostic
 import com.classmate.core.ondevice.OnDeviceCourseAnalysis
@@ -123,6 +133,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Locale
 
 /**
  * The single source of truth for the UI. Holds the in-memory back stack and the learning-loop
@@ -143,6 +154,9 @@ class AppViewModel(
     private val modelConfigRepository: ModelConfigRepository = ModelConfigRepository.disabled(),
     // On-device BlueLM 3B owner. Defaults to the honest missing-SDK bridge until the AAR is bundled.
     private val onDeviceController: OnDeviceLlmController = OnDeviceLlmController(),
+    // Lazy so constructing the VM never reads capture credentials; OCR/ASR config is loaded only when
+    // the user actually invokes those capture paths. Tests inject a fake gateway.
+    private val captureGatewayProvider: () -> CaptureGatewayPort = { CaptureGateway() },
     // Stage 8D-2: optional override of the all-files-access signal (tests inject false/true). Used
     // ONLY to CLASSIFY an on-device availability failure (PERMISSION_MISSING vs files/init) — it
     // never blocks the crash-safe generate attempt. Production (null) combines the live permission
@@ -153,6 +167,7 @@ class AppViewModel(
 
     private val promptBuilder = PromptBuilder()
     private val contentExporter = ContentExporter()
+    private val captureGateway: CaptureGatewayPort by lazy(captureGatewayProvider)
 
     // THE single active provider config — one source of truth. The Settings model-config
     // summary, CourseAnalyzer (analyzer()) and the BlueLM diagnostic ALL read this exact field,
@@ -631,7 +646,13 @@ class AppViewModel(
      * auto-writes to the knowledge base. Stage 8E: duplicate submissions while running are ignored, and
      * a new image overwrites the previous VIT encoding (the SDK caches exactly one image).
      */
-    fun runImageDraft(image: RgbImage, allFilesGranted: Boolean, originalWidth: Int = 0, originalHeight: Int = 0) {
+    fun runImageDraft(
+        image: RgbImage,
+        allFilesGranted: Boolean,
+        originalWidth: Int = 0,
+        originalHeight: Int = 0,
+        encodedImageBytes: ByteArray = image.bytes,
+    ) {
         if (ui.imageDraftRunning) return // single in-flight multimodal task; repeat taps are no-ops
         val meta = buildString {
             if (originalWidth > 0 && originalHeight > 0) append("原图 ${originalWidth}x$originalHeight → ")
@@ -639,10 +660,38 @@ class AppViewModel(
         }
         ui = ui.copy(
             imageDraftActive = true, imageDraftRunning = true, imageDraftManualMode = false,
-            imageDraftMessage = null, imageDraftMeta = meta,
+            imageDraftMessage = null, imageDraftMeta = meta, imageStudyDraft = null,
+            imageDraftSource = null, imageDraftOcrError = null,
+            aiProcessing = AiProcessingUiState(
+                visible = true,
+                title = "正在识别图片文字",
+                steps = listOf("准备资料", "云端处理中", "端侧兜底", "等待确认"),
+                activeStep = 1,
+                source = "云端",
+                canCancel = true,
+                canRetry = true,
+                canContinueManual = true,
+            ),
         )
         viewModelScope.launch {
-            applyImageDraftResult(onDeviceController.describeImageToDraft(image, allFilesGranted))
+            val onDevice = onDeviceController.describeImageToDraft(image, allFilesGranted)
+            val onDeviceText = (onDevice as? OnDeviceImageDraftResult.Draft)?.text.orEmpty()
+            val routed = withContext(Dispatchers.IO) {
+                runCatching {
+                    captureGateway.createImageStudyDraftRouted(
+                        imageBytes = encodedImageBytes,
+                        origin = ui.imageDraftOrigin ?: "图片学习输入",
+                        onDeviceDraftText = onDeviceText,
+                    )
+                }.getOrElse {
+                    imageFallbackResult(
+                        origin = ui.imageDraftOrigin ?: "图片学习输入",
+                        onDeviceText = onDeviceText,
+                        status = AiExecutionStatus.FAILED,
+                    )
+                }
+            }
+            applyImageStudyDraftResult(routed, onDevice)
         }
     }
 
@@ -654,15 +703,90 @@ class AppViewModel(
                 imageDraftRunning = false,
                 imageDraftText = result.text.trim(),
                 imageDraftManualMode = false,
+                imageDraftSource = AiExecutionSource.ON_DEVICE,
+                aiProcessing = AiProcessingUiState.hidden(),
                 imageDraftMessage = "已由端侧蓝心生成图片学习文本草稿，请检查并编辑后确认。",
             )
             is OnDeviceImageDraftResult.Unavailable -> ui.copy(
                 imageDraftActive = true,
                 imageDraftRunning = false,
                 imageDraftManualMode = true,
+                imageDraftSource = AiExecutionSource.MANUAL,
+                aiProcessing = AiProcessingUiState.hidden(),
                 imageDraftMessage = "端侧图像理解暂不可用，可手动输入图片内容。",
             )
         }
+    }
+
+    /** Apply a routed OCR/on-device image study draft. The draft still needs user confirmation. */
+    internal fun applyImageStudyDraftResult(
+        result: AiCapabilityResult<ImageStudyDraft>,
+        onDeviceResult: OnDeviceImageDraftResult? = null,
+    ) {
+        val draft = result.value
+        if (draft == null) {
+            applyImageDraftResult(onDeviceResult ?: OnDeviceImageDraftResult.Unavailable("ROUTED_IMAGE_DRAFT_EMPTY"))
+            return
+        }
+        val text = draft.initialEditableText().trim()
+        val needsManualText = text.isBlank()
+        ui = ui.copy(
+            imageDraftActive = true,
+            imageDraftRunning = false,
+            imageDraftText = text,
+            imageDraftManualMode = needsManualText,
+            imageDraftMessage = imageDraftStatusMessage(result.source, draft.ocrError),
+            imageStudyDraft = draft,
+            imageDraftSource = result.source,
+            imageDraftOcrError = draft.ocrError,
+            aiProcessing = if (needsManualText) {
+                AiProcessingUiState(
+                    visible = true,
+                    title = "等待手动编辑",
+                    steps = listOf("准备资料", "云端处理中", "端侧兜底", "等待确认"),
+                    activeStep = 3,
+                    source = result.source.displayZh,
+                    fallbackMessage = "官方 OCR 未配置时，可继续使用端侧蓝心草稿或手动补充。",
+                    canCancel = true,
+                    canRetry = true,
+                    canContinueManual = true,
+                )
+            } else {
+                AiProcessingUiState.hidden()
+            },
+        )
+    }
+
+    private fun imageFallbackResult(origin: String, onDeviceText: String, status: AiExecutionStatus): AiCapabilityResult<ImageStudyDraft> {
+        val source = if (onDeviceText.isNotBlank()) AiExecutionSource.ON_DEVICE else AiExecutionSource.MANUAL
+        val draft = ImageStudyDraft(
+            id = "image_${System.currentTimeMillis()}",
+            origin = origin,
+            onDeviceDraftText = onDeviceText,
+            ocrError = CaptureError.ConfigMissing,
+            createdAt = System.currentTimeMillis(),
+        )
+        return AiCapabilityResult(
+            value = draft,
+            source = source,
+            status = if (onDeviceText.isNotBlank()) AiExecutionStatus.SUCCESS else status,
+            decision = AiRouteDecision(
+                capability = AiCapability.OCR_TEXT_EXTRACTION,
+                preferred = AiExecutionSource.CLOUD,
+                attempted = listOf(AiExecutionSource.CLOUD, source).distinct(),
+                selected = source,
+                reason = "capture fallback",
+                userConfirmationRequired = true,
+            ),
+        )
+    }
+
+    private fun imageDraftStatusMessage(source: AiExecutionSource, ocrError: CaptureError?): String = when {
+        source == AiExecutionSource.CLOUD -> "官方 OCR 已生成可编辑文字；请确认后再生成知识地图。"
+        source == AiExecutionSource.ON_DEVICE && ocrError == CaptureError.ConfigMissing ->
+            "官方 OCR 未配置时，可继续使用端侧蓝心草稿；请确认后再生成知识地图。"
+        source == AiExecutionSource.ON_DEVICE -> "官方 OCR 未成功，已保留端侧蓝心草稿；请确认后再生成知识地图。"
+        else -> "请手动补充图片中的学习内容；确认后再生成知识地图。"
     }
 
     fun updateImageDraftText(text: String) { ui = ui.copy(imageDraftText = text) }
@@ -678,8 +802,10 @@ class AppViewModel(
             return
         }
         val origin = ui.imageDraftOrigin ?: "图片学习输入"
+        val confirmed = ui.imageStudyDraft?.let { captureGateway.confirmImageDraft(it, text, ui.courseTitle.ifBlank { origin }) }
         ui = ui.copy(
-            courseText = text,
+            courseTitle = confirmed?.courseTitle?.takeIf { it.isNotBlank() } ?: ui.courseTitle,
+            courseText = confirmed?.courseText ?: text,
             importSourceType = ImportSourceType.PASTE_TEXT,
             imageDraftActive = false,
             imageDraftRunning = false,
@@ -688,6 +814,10 @@ class AppViewModel(
             imageDraftMessage = null,
             imageDraftOrigin = null,
             imageDraftMeta = null,
+            imageStudyDraft = null,
+            imageDraftSource = null,
+            imageDraftOcrError = null,
+            aiProcessing = AiProcessingUiState.hidden(),
             toast = "已确认（$origin · 端侧多模态理解草稿），用户确认后进入学习资料，可生成知识时间线。",
         )
     }
@@ -698,6 +828,8 @@ class AppViewModel(
             imageDraftActive = false, imageDraftRunning = false, imageDraftText = "",
             imageDraftManualMode = false, imageDraftMessage = null,
             imageDraftOrigin = null, imageDraftMeta = null,
+            imageStudyDraft = null, imageDraftSource = null, imageDraftOcrError = null,
+            aiProcessing = AiProcessingUiState.hidden(),
         )
     }
 
@@ -968,6 +1100,123 @@ class AppViewModel(
     // --- transcript / subtitle intake (Stage 5B) ---
     // Parses user-supplied subtitle/transcript TEXT into an editable draft. Never decodes audio/video
     // bytes and never hits the network; the media itself is only ever recorded as safe metadata.
+
+    fun transcribeAudioFile(audioBytes: ByteArray, fileName: String, mimeType: String? = null) {
+        if (audioBytes.isEmpty()) {
+            ui = ui.copy(audioCaptureMessage = "音频文件为空，请重新选择或粘贴转写文本。", toast = "音频文件为空。")
+            return
+        }
+        val title = ui.courseTitle.ifBlank { fileName.substringBeforeLast('.').ifBlank { "音频转写草稿" } }
+        ui = ui.copy(
+            transcriptSourceType = TranscriptSourceType.AUDIO_TRANSCRIPT,
+            audioCaptureRunning = true,
+            audioCaptureProgress = 0,
+            audioCaptureMessage = "正在转写课堂音频",
+            aiProcessing = AiProcessingUiState(
+                visible = true,
+                title = "正在转写课堂音频",
+                steps = listOf("准备资料", "上传音频", "任务处理中", "生成转写草稿"),
+                activeStep = 1,
+                source = "云端",
+                canCancel = true,
+                canRetry = true,
+                canContinueManual = true,
+            ),
+        )
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                captureGateway.transcribeAudio(
+                    audioBytes = audioBytes,
+                    fileName = fileName,
+                    audioFormat = audioFormatFor(fileName, mimeType),
+                    title = title,
+                    onProgress = { progress ->
+                        viewModelScope.launch {
+                            ui = ui.copy(audioCaptureProgress = progress.coerceIn(0, 100))
+                        }
+                    },
+                )
+            }
+            applyAudioTranscriptResult(result, fileName)
+        }
+    }
+
+    internal fun applyAudioTranscriptResult(result: CaptureResult<TranscriptDraft>, fileName: String? = null): Boolean {
+        return when (result) {
+            is CaptureResult.Success -> {
+                ui = ui.copy(
+                    transcriptDraft = result.value,
+                    transcriptSourceType = TranscriptSourceType.AUDIO_TRANSCRIPT,
+                    audioCaptureRunning = false,
+                    audioCaptureProgress = 100,
+                    audioCaptureMessage = "已生成可编辑转写草稿，请确认后加入资料篮。",
+                    aiProcessing = AiProcessingUiState.hidden(),
+                    toast = "已生成转写草稿，可进入编辑器确认。",
+                )
+                true
+            }
+            is CaptureResult.Failure -> {
+                val message = if (result.failure.error == CaptureError.ConfigMissing) {
+                    "官方 ASR 未配置，可粘贴转写文本继续。"
+                } else {
+                    "官方 ASR 未成功，可粘贴转写文本继续。"
+                }
+                ui = ui.copy(
+                    audioCaptureRunning = false,
+                    audioCaptureMessage = message,
+                    transcriptFileMetadata = ui.transcriptFileMetadata,
+                    aiProcessing = AiProcessingUiState(
+                        visible = true,
+                        title = "等待粘贴转写文本",
+                        steps = listOf("准备资料", "上传音频", "任务处理中", "手动编辑"),
+                        activeStep = 3,
+                        source = "手动",
+                        fallbackMessage = message,
+                        canCancel = true,
+                        canRetry = true,
+                        canContinueManual = true,
+                    ),
+                    toast = message,
+                )
+                false
+            }
+        }
+    }
+
+    fun createManualTranscriptDraftFromPaste(now: Long = System.currentTimeMillis()): Boolean {
+        val raw = ui.transcriptPasteDraft
+        if (raw.isBlank()) {
+            ui = ui.copy(toast = "请先粘贴转写文本。")
+            return false
+        }
+        val draft = captureGateway.draftFromPastedText(raw, ui.courseTitle.ifBlank { "手动转写草稿" })
+            .copy(createdAt = now, updatedAt = now)
+        ui = ui.copy(
+            transcriptDraft = draft,
+            transcriptSourceType = TranscriptSourceType.PASTED_TRANSCRIPT,
+            transcriptParseWarnings = emptyList(),
+            audioCaptureRunning = false,
+            audioCaptureMessage = "已生成手动转写草稿，请确认后加入资料篮。",
+            aiProcessing = AiProcessingUiState.hidden(),
+            toast = "已生成手动转写草稿。",
+        )
+        return draft.segments.isNotEmpty()
+    }
+
+    fun hideAiProcessing() {
+        ui = ui.copy(aiProcessing = AiProcessingUiState.hidden(), audioCaptureRunning = false, imageDraftRunning = false)
+    }
+
+    fun retryCurrentCapture() {
+        ui = ui.copy(toast = "请重新选择文件或继续手动编辑。", aiProcessing = AiProcessingUiState.hidden())
+    }
+
+    private fun audioFormatFor(fileName: String, mimeType: String?): String {
+        val hint = listOfNotNull(mimeType, fileName.substringAfterLast('.', missingDelimiterValue = ""))
+            .joinToString(" ")
+            .lowercase(Locale.US)
+        return if (hint.contains("pcm")) "pcm" else "auto"
+    }
 
     fun updateTranscriptPaste(value: String) { ui = ui.copy(transcriptPasteDraft = value) }
 

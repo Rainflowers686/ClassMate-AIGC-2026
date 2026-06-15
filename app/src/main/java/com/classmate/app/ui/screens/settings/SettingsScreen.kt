@@ -71,12 +71,21 @@ import com.classmate.app.ui.theme.ThemeOption
 import com.classmate.app.ui.i18n.AppLanguage
 import com.classmate.app.ui.i18n.appStrings
 
+private enum class SettingsSection(val title: String, val subtitle: String) {
+    HOME("设置首页", "常用入口与状态概览"),
+    THEME("主题设置", "Focus / Flow / Vitality 与授权背景音说明"),
+    MODEL("模型接入", "云端、端侧、OCR、ASR 与路由状态"),
+    LEARNING_EXPORT("学习与导出", "学习资料处理偏好与导出默认项"),
+    DEVELOPER("开发者选项", "诊断、smoke 与脱敏日志"),
+}
+
 @Composable
 fun SettingsScreen(viewModel: AppViewModel) {
     val ui = viewModel.ui
     val s = appStrings(ui.language)
     var showDebug by remember { mutableStateOf(false) }
     var showLogs by remember { mutableStateOf(false) }
+    var section by remember { mutableStateOf(SettingsSection.HOME) }
 
     ProductCanvas {
       ProductScaffold(contextLabel = s.settingsTitle) { padding ->
@@ -96,13 +105,27 @@ fun SettingsScreen(viewModel: AppViewModel) {
             )
             CapabilityOverviewRow(viewModel)
             Spacer(Modifier.height(Dimens.xxs))
+            SettingsSectionNav(section = section, onSelect = { section = it })
 
+            if (section == SettingsSection.HOME) {
+                SettingsLandingCard(
+                    onTheme = { section = SettingsSection.THEME },
+                    onModel = { section = SettingsSection.MODEL },
+                    onLearning = { section = SettingsSection.LEARNING_EXPORT },
+                    onDeveloper = { section = SettingsSection.DEVELOPER },
+                )
+            }
+
+            if (section == SettingsSection.MODEL) {
             ModelApiManagementCard(viewModel)
             PermissionCenterCard(viewModel)
             OnDeviceDiagnosticCard(viewModel)
             OnDeviceMultimodalDiagnosticCard(viewModel)
             OnDeviceCapabilityCard(viewModel)
+            ModelAccessNotesCard()
+            }
 
+            if (section == SettingsSection.THEME) {
             ClassMateCard {
                 Text(s.settingsLanguage, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(Dimens.xxs))
@@ -146,7 +169,17 @@ fun SettingsScreen(viewModel: AppViewModel) {
                     SelectableChip("深色", ui.darkMode == true) { viewModel.setDarkMode(true) }
                 }
             }
+            BackgroundAudioPolicyCard()
+            }
 
+            if (section == SettingsSection.LEARNING_EXPORT) {
+                LearningExportSettingsCard()
+                PrivacyCard()
+                SpeakerCapabilityCard()
+                CapabilityRoadmapCard()
+            }
+
+            if (section == SettingsSection.DEVELOPER) {
             if (BuildConfig.DEBUG) {
                 ClassMateCard {
                     Text("调试区", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -175,6 +208,7 @@ fun SettingsScreen(viewModel: AppViewModel) {
             }
             if (showLogs) LogsCard(viewModel)
             BuildInfoCard()
+            }
         }
       }
     }
@@ -186,6 +220,91 @@ fun SettingsScreen(viewModel: AppViewModel) {
  * fallbacks — no third-party or external-model enhancement. The neutral custom-API affordance stays
  * in the debug-only, collapsed section below.
  */
+@Composable
+private fun SettingsSectionNav(section: SettingsSection, onSelect: (SettingsSection) -> Unit) {
+    ClassMateCard {
+        Text("设置分组", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(Dimens.s))
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.xs)) {
+            SettingsSection.entries.forEach { item ->
+                Surface(
+                    modifier = Modifier.fillMaxWidth().clickable { onSelect(item) },
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (item == section) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                ) {
+                    Column(Modifier.padding(Dimens.s)) {
+                        Text(item.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                        Text(item.subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsLandingCard(
+    onTheme: () -> Unit,
+    onModel: () -> Unit,
+    onLearning: () -> Unit,
+    onDeveloper: () -> Unit,
+) {
+    ClassMateCard {
+        Text("四个设置入口", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(Dimens.s))
+        SettingsLandingRow("主题设置", "主题、明暗模式、授权循环背景音说明", onTheme)
+        SettingsLandingRow("模型接入", "云端优先、端侧兜底、OCR/ASR 状态", onModel)
+        SettingsLandingRow("学习与导出", "学习资料处理偏好和默认导出结构", onLearning)
+        SettingsLandingRow("开发者选项", "诊断、smoke、脱敏日志，默认折叠", onDeveloper)
+    }
+}
+
+@Composable
+private fun SettingsLandingRow(title: String, subtitle: String, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = Dimens.xxs)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Column(Modifier.padding(Dimens.s)) {
+            Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun ModelAccessNotesCard() {
+    ClassMateCard {
+        Text("AI 路由说明", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(Dimens.xs))
+        Text("云端优先，端侧兜底，用户确认后再写入学习资料。官方 OCR / ASR 未配置时，仍可继续编辑草稿或粘贴转写文本。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(Dimens.xs))
+        Text("这里仅显示配置是否可用，不显示任何密钥内容。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun BackgroundAudioPolicyCard() {
+    ClassMateCard {
+        Text("沉浸背景音", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(Dimens.xs))
+        Text("后续使用授权明确的循环音频素材，不使用实时音频生成，也不模拟老师或同学声音。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun LearningExportSettingsCard() {
+    ClassMateCard {
+        Text("学习与导出", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(Dimens.xs))
+        Text("默认保留用户确认、证据校验和脱敏导出。默认导出格式与 AI 精炼偏好保留为后续设置项。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
 @Composable
 private fun ModelApiManagementCard(viewModel: AppViewModel) {
     val ui = viewModel.ui

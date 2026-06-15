@@ -52,6 +52,7 @@ import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
 import com.classmate.app.ui.components.ActionTile
+import com.classmate.app.ui.components.AiProcessingDialog
 import com.classmate.app.ui.components.ClassMateCard
 import com.classmate.app.ui.components.ClassMateScaffold
 import com.classmate.app.ui.components.CompactSectionHeader
@@ -77,6 +78,7 @@ import com.classmate.app.ui.i18n.appStrings
 import com.classmate.core.importing.FileImportText
 import com.classmate.core.importing.ImportSourceType
 import com.classmate.core.transcript.TranscriptLabels
+import java.io.ByteArrayOutputStream
 
 @Composable
 fun ImportCourseScreen(viewModel: AppViewModel) {
@@ -116,11 +118,19 @@ fun ImportCourseScreen(viewModel: AppViewModel) {
                 perms.allFilesAccessGranted(),
                 originalWidth = bitmap.width,
                 originalHeight = bitmap.height,
+                encodedImageBytes = encodeJpegBytes(bitmap),
             )
         } else {
             viewModel.toast("未拍摄到图片。")
         }
     }
+
+    AiProcessingDialog(
+        state = ui.aiProcessing,
+        onCancel = viewModel::hideAiProcessing,
+        onRetry = viewModel::retryCurrentCapture,
+        onContinueManual = viewModel::hideAiProcessing,
+    )
 
     ProductCanvas {
         ProductScaffold(contextLabel = "资料", onBack = { viewModel.goBack() }) { padding ->
@@ -214,7 +224,11 @@ private fun ImageDraftCard(viewModel: AppViewModel) {
                 Text(ui.imageDraftOrigin ?: "图片学习输入", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 Text("端侧多模态理解草稿 · 用户未确认", style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant)
             }
-            SourceBadge(if (ui.imageDraftManualMode) "手动输入" else "端侧蓝心")
+            SourceBadge(ui.imageDraftSource?.displayZh ?: if (ui.imageDraftManualMode) "手动输入" else "端侧蓝心")
+        }
+        ui.imageDraftMessage?.takeIf { it.isNotBlank() }?.let {
+            Spacer(Modifier.height(Dimens.xs))
+            Text(it, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
         }
         ui.imageDraftMeta?.let { meta ->
             Spacer(Modifier.height(Dimens.s))
@@ -267,6 +281,9 @@ private fun ImageDraftCard(viewModel: AppViewModel) {
 
 /** Decode a picked image Uri to a bitmap (bounded) and run the on-device draft. Never crashes. */
 private fun handlePickedImage(context: Context, uri: Uri, perms: OnDevicePermissions, viewModel: AppViewModel) {
+    val imageBytes = runCatching {
+        context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+    }.getOrNull() ?: ByteArray(0)
     val bitmap = runCatching {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri)) { decoder, _, _ ->
@@ -288,6 +305,7 @@ private fun handlePickedImage(context: Context, uri: Uri, perms: OnDevicePermiss
         perms.allFilesAccessGranted(),
         originalWidth = bitmap.width,
         originalHeight = bitmap.height,
+        encodedImageBytes = imageBytes,
     )
 }
 
@@ -538,6 +556,12 @@ private fun readDisplayName(context: Context, uri: Uri): String {
     }
     return name
 }
+
+private fun encodeJpegBytes(bitmap: Bitmap): ByteArray =
+    ByteArrayOutputStream().use { out ->
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 92, out)
+        out.toByteArray()
+    }
 
 private fun readMetadata(context: Context, uri: Uri, entryTitle: String): SelectedLocalFileMetadata {
     var name = uri.lastPathSegment?.substringAfterLast('/').orEmpty()

@@ -24,6 +24,27 @@ import com.classmate.core.capture.VivoTextSimilarityProvider
 import com.classmate.core.model.CourseSession
 import com.classmate.core.transcript.TranscriptDraft
 
+interface CaptureGatewayPort {
+    fun refresh()
+    fun status(): CaptureConfigStatus
+    val isOcrConfigured: Boolean
+    val isAsrConfigured: Boolean
+    fun recognizeImage(imageBytes: ByteArray): CaptureResult<OcrResult>
+    fun createImageStudyDraftRouted(imageBytes: ByteArray, origin: String, onDeviceDraftText: String): AiCapabilityResult<ImageStudyDraft>
+    fun createImageStudyDraft(imageBytes: ByteArray, origin: String, onDeviceDraftText: String): ImageStudyDraft
+    fun confirmImageDraft(draft: ImageStudyDraft, editedText: String, courseTitle: String): ClassroomCaptureResult?
+    fun transcribeAudio(
+        audioBytes: ByteArray,
+        fileName: String,
+        audioFormat: String,
+        title: String,
+        onProgress: (Int) -> Unit = {},
+    ): CaptureResult<TranscriptDraft>
+    fun draftFromPastedText(text: String, title: String): TranscriptDraft
+    fun confirmTranscriptDraft(draft: TranscriptDraft, courseTitle: String): ClassroomCaptureResult?
+    fun retrieveEvidence(question: String, session: CourseSession, topN: Int = 3): List<EvidenceCandidate>
+}
+
 /**
  * The single app-side seam that turns the Capture core foundation into a LIVE pipeline: it loads the
  * local credentials, wires the real [AppCaptureTransport] into the Vivo providers, and exposes a small
@@ -35,39 +56,39 @@ class CaptureGateway(
     private val configLoader: CaptureConfigLoader = CaptureConfigLoader(),
     private val transport: CaptureTransport = AppCaptureTransport(),
     private val userId: String = java.util.UUID.randomUUID().toString().replace("-", ""),
-) {
+) : CaptureGatewayPort {
     @Volatile private var config: CaptureProviderConfig = configLoader.load()
 
     /** Re-read credentials (e.g. after the user updates config). */
-    fun refresh() { config = configLoader.load() }
+    override fun refresh() { config = configLoader.load() }
 
     /** Value-free status for UI ("已配置 / 未配置 / 缺少 appKey"). Never exposes credential values. */
-    fun status(): CaptureConfigStatus = configLoader.status()
+    override fun status(): CaptureConfigStatus = configLoader.status()
 
-    val isOcrConfigured: Boolean get() = config.isConfigured
-    val isAsrConfigured: Boolean get() = config.isConfigured
+    override val isOcrConfigured: Boolean get() = config.isConfigured
+    override val isAsrConfigured: Boolean get() = config.isConfigured
 
     private fun ocrProvider() = VivoOcrProvider(config = config, transport = transport)
     private fun asrProvider() = VivoAsrProvider(config = config, transport = transport, userId = userId)
 
     // ── OCR ──────────────────────────────────────────────────────────────────────────────────────
     /** Run official OCR on raw image bytes. ConfigMissing/failure returned, never thrown. */
-    fun recognizeImage(imageBytes: ByteArray): CaptureResult<OcrResult> = ocrProvider().recognize(imageBytes)
+    override fun recognizeImage(imageBytes: ByteArray): CaptureResult<OcrResult> = ocrProvider().recognize(imageBytes)
 
     /**
      * Routed dual-track image draft (Cloud OCR → on-device multimodal draft → manual): the result carries the
      * headline [AiExecutionSource] (云端/端侧/手动) while both tracks coexist (no "multimodal replaces OCR").
      * The draft is never persisted until confirmed (decision.userConfirmationRequired is true).
      */
-    fun createImageStudyDraftRouted(imageBytes: ByteArray, origin: String, onDeviceDraftText: String): AiCapabilityResult<ImageStudyDraft> =
+    override fun createImageStudyDraftRouted(imageBytes: ByteArray, origin: String, onDeviceDraftText: String): AiCapabilityResult<ImageStudyDraft> =
         RoutedImageStudyDraftUseCase(ocrProvider()).create(imageBytes, origin, onDeviceDraftText)
 
     /** Convenience: just the dual-track draft (OCR failure/ConfigMissing leaves the on-device draft editable). */
-    fun createImageStudyDraft(imageBytes: ByteArray, origin: String, onDeviceDraftText: String): ImageStudyDraft =
+    override fun createImageStudyDraft(imageBytes: ByteArray, origin: String, onDeviceDraftText: String): ImageStudyDraft =
         createImageStudyDraftRouted(imageBytes, origin, onDeviceDraftText).value
             ?: ImageStudyDraft(id = java.util.UUID.randomUUID().toString(), origin = origin, onDeviceDraftText = onDeviceDraftText)
 
-    fun confirmImageDraft(draft: ImageStudyDraft, editedText: String, courseTitle: String): ClassroomCaptureResult? =
+    override fun confirmImageDraft(draft: ImageStudyDraft, editedText: String, courseTitle: String): ClassroomCaptureResult? =
         ConfirmImageStudyDraftUseCase().confirm(draft, editedText, courseTitle)
 
     // ── ASR (1739 long-audio) ──────────────────────────────────────────────────────────────────────
@@ -75,24 +96,24 @@ class CaptureGateway(
      * Run the official long-audio transcription flow on raw audio bytes into an editable draft. ConfigMissing
      * /failure returned, never thrown. [audioFormat] = "pcm" for pcm, otherwise "auto" (doc).
      */
-    fun transcribeAudio(
+    override fun transcribeAudio(
         audioBytes: ByteArray,
         fileName: String,
         audioFormat: String,
         title: String,
-        onProgress: (Int) -> Unit = {},
+        onProgress: (Int) -> Unit,
     ): CaptureResult<TranscriptDraft> =
         CreateTranscriptDraftUseCase(asrProvider()).fromAudio(audioBytes, fileName, audioFormat, title, onProgress)
 
     /** Manual paste path — always available, no provider/credentials needed. */
-    fun draftFromPastedText(text: String, title: String): TranscriptDraft =
+    override fun draftFromPastedText(text: String, title: String): TranscriptDraft =
         CreateTranscriptDraftUseCase(asrProvider()).fromPastedText(text, title)
 
-    fun confirmTranscriptDraft(draft: TranscriptDraft, courseTitle: String): ClassroomCaptureResult? =
+    override fun confirmTranscriptDraft(draft: TranscriptDraft, courseTitle: String): ClassroomCaptureResult? =
         ConfirmTranscriptDraftUseCase().confirm(draft, courseTitle)
 
     // ── Evidence retrieval (local-first; optional remote rerank when configured) ─────────────────────
-    fun retrieveEvidence(question: String, session: CourseSession, topN: Int = 3): List<EvidenceCandidate> {
+    override fun retrieveEvidence(question: String, session: CourseSession, topN: Int): List<EvidenceCandidate> {
         val useCase = RetrieveCourseEvidenceUseCase(
             localRetriever = LocalEvidenceRetriever(),
             similarityProvider = VivoTextSimilarityProvider(config = config, transport = transport),

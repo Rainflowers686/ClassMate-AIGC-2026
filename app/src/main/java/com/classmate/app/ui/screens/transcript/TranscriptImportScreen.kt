@@ -26,6 +26,7 @@ import com.classmate.app.glossary.CourseGlossary
 import com.classmate.app.importing.SelectedLocalFileMetadata
 import com.classmate.app.state.AppViewModel
 import com.classmate.app.state.Screen
+import com.classmate.app.ui.components.AiProcessingDialog
 import com.classmate.app.ui.components.ChipTone
 import com.classmate.app.ui.components.ClassMateCard
 import com.classmate.app.ui.components.ClassMateScaffold
@@ -53,6 +54,23 @@ fun TranscriptImportScreen(viewModel: AppViewModel) {
         }
     }
     val mediaLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri != null) {
+            val metadata = readMetadata(context, uri, "本地媒体文件")
+            viewModel.recordTranscriptFileMetadata(metadata)
+            if (metadata.mimeType.startsWith("audio/")) {
+                val bytes = runCatching {
+                    context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                }.getOrNull()
+                if (bytes == null) {
+                    viewModel.toast("无法读取音频文件，可粘贴转写文本继续。")
+                } else {
+                    viewModel.transcribeAudioFile(bytes, metadata.fileName, metadata.mimeType)
+                }
+            } else {
+                viewModel.toast("视频文件当前只记录元数据，请导入字幕或粘贴转写文本。")
+            }
+            return@rememberLauncherForActivityResult
+        }
         if (uri != null) viewModel.recordTranscriptFileMetadata(readMetadata(context, uri, "本地媒体文件"))
     }
 
@@ -65,6 +83,12 @@ fun TranscriptImportScreen(viewModel: AppViewModel) {
                 .padding(bottom = Dimens.xxl),
             verticalArrangement = Arrangement.spacedBy(Dimens.cardGap),
         ) {
+            AiProcessingDialog(
+                state = ui.aiProcessing,
+                onCancel = viewModel::hideAiProcessing,
+                onRetry = viewModel::retryCurrentCapture,
+                onContinueManual = viewModel::hideAiProcessing,
+            )
             ClassMateCard {
                 Text("导入字幕 / 转写稿", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(Dimens.xs))
@@ -150,6 +174,18 @@ fun TranscriptImportScreen(viewModel: AppViewModel) {
                 enabled = ui.transcriptPasteDraft.isNotBlank(),
                 modifier = Modifier.fillMaxWidth(),
             )
+
+            SecondaryButton(
+                text = "生成手动转写草稿",
+                onClick = { viewModel.createManualTranscriptDraftFromPaste() },
+                enabled = ui.transcriptPasteDraft.isNotBlank(),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            ui.audioCaptureMessage?.takeIf { it.isNotBlank() }?.let {
+                ClassMateCard {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
 
             if (ui.transcriptParseWarnings.isNotEmpty()) {
                 ClassMateCard {

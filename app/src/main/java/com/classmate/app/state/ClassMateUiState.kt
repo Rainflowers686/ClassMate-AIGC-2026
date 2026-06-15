@@ -29,6 +29,9 @@ import com.classmate.core.model.FeedbackEvent
 import com.classmate.core.model.LearningState
 import com.classmate.core.model.ReviewPlan
 import com.classmate.app.ondevice.OnDevicePermissionSnapshot
+import com.classmate.core.ai.AiExecutionSource
+import com.classmate.core.capture.CaptureError
+import com.classmate.core.capture.ImageStudyDraft
 import com.classmate.core.ondevice.ModelPathDetection
 import com.classmate.core.ondevice.OnDeviceAnalysisDiagnostic
 import com.classmate.core.ondevice.OnDeviceLlmConfig
@@ -113,6 +116,13 @@ data class ClassMateUiState(
     // Stage 8E: honest input-origin label (图片学习输入 / 拍照学习输入) + bounded size diagnostics.
     val imageDraftOrigin: String? = null,
     val imageDraftMeta: String? = null,
+    val imageStudyDraft: ImageStudyDraft? = null,
+    val imageDraftSource: AiExecutionSource? = null,
+    val imageDraftOcrError: CaptureError? = null,
+    val audioCaptureRunning: Boolean = false,
+    val audioCaptureProgress: Int = 0,
+    val audioCaptureMessage: String? = null,
+    val aiProcessing: AiProcessingUiState = AiProcessingUiState.hidden(),
     // Stage 8E Phase 1/6: bounded model-path candidate detection + real-image diagnostic meta.
     val modelPathDetection: ModelPathDetection? = null,
     val onDeviceRealImageMeta: String? = null,
