@@ -74,9 +74,12 @@ import com.classmate.core.ask.GroundedAskLessonEngine
 import com.classmate.core.ask.LocalAskLessonEngine
 import com.classmate.core.ai.AiCapability
 import com.classmate.core.ai.AiCapabilityResult
+import com.classmate.core.ai.AiCapabilityRouter
 import com.classmate.core.ai.AiExecutionStatus
 import com.classmate.core.ai.AiExecutionSource
 import com.classmate.core.ai.AiRouteDecision
+import com.classmate.core.ai.AiStage
+import com.classmate.core.ai.StageOutcome
 import com.classmate.core.learning.OnDeviceLocalSuggestion
 import com.classmate.core.capture.CaptureError
 import com.classmate.core.capture.CaptureResult
@@ -1678,6 +1681,35 @@ class AppViewModel(
         }
     }
 
+    fun prepareRefinedExportDraft(): Boolean {
+        val hasCourseReport = ui.session != null && ui.result != null
+        val hasHistoryReport = ui.history.isNotEmpty()
+        val hasReviewReport = ui.learningSnapshot.tasks.isNotEmpty() || ui.learningSnapshot.practiceHistory.isNotEmpty()
+        if (!hasCourseReport && !hasHistoryReport && !hasReviewReport) {
+            ui = ui.copy(toast = "暂无可生成的学习报告草稿。")
+            return false
+        }
+        val source = refinedExportSourceLabel()
+        ui = ui.copy(
+            exportDraftReady = true,
+            exportDraftSource = source,
+            exportDraftMessage = "已生成学习报告草稿，可选择 PDF、DOCX、HTML、Markdown、Text 或课程精华音频脚本。",
+            aiProcessing = AiProcessingUiState(
+                visible = true,
+                title = "正在提炼课堂精华",
+                steps = listOf("整理课程资料", "整理知识地图", "汇总练习与薄弱点", "生成学习报告草稿", "等待选择导出格式"),
+                activeStep = 3,
+                source = source,
+                fallbackMessage = "云端或端侧不可用时，使用本地模板整理；DOCX/PDF 失败时可改导出 HTML 或 Text。",
+                canCancel = true,
+                canRetry = true,
+                canContinueManual = true,
+            ),
+            toast = "学习报告草稿已准备好，请选择导出格式。",
+        )
+        return true
+    }
+
     fun buildLearningReportArtifact(format: ExportFileFormat): ExportArtifact? {
         val record = ui.history.firstOrNull()
         val session = ui.session ?: record?.session
@@ -1716,6 +1748,16 @@ class AppViewModel(
                 generatedAtEpochMs = System.currentTimeMillis(),
             )
             ExportCenter.artifactFromStudyReport(report, format)
+        }
+    }
+
+    private fun refinedExportSourceLabel(): String {
+        val result = ui.result ?: ui.history.firstOrNull()?.result
+        return when {
+            result == null -> "本地模板整理"
+            OnDeviceCourseAnalysis.isOnDevice(result.provenance) -> "端侧蓝心"
+            result.provenance.provider == ProviderKind.BLUELM -> "云端蓝心"
+            else -> "本地模板整理"
         }
     }
 
@@ -1766,7 +1808,17 @@ class AppViewModel(
         )
         ui = ui.copy(textSafetyResult = safety)
         val report = buildStudyReport(session, result)
-        return ExportCenter.artifactFromStudyReport(report, format)
+        val routedReport = routeStudyReport(report, result)
+        ui = ui.copy(
+            exportDraftSource = routedReport.sourceLabelZh,
+            exportDraftMessage = when (routedReport.source) {
+                AiExecutionSource.CLOUD -> "学习报告草稿由云端蓝心分析结果整理，可继续选择格式导出。"
+                AiExecutionSource.ON_DEVICE -> "学习报告草稿由端侧蓝心结果整理，可继续选择格式导出。"
+                AiExecutionSource.MANUAL -> "学习报告草稿由手动确认资料整理，可继续选择格式导出。"
+                AiExecutionSource.SAFE_PLACEHOLDER -> "学习报告草稿由本地模板整理，可继续选择格式导出。"
+            },
+        )
+        return ExportCenter.artifactFromStudyReport(routedReport.value ?: report, format)
     }
 
     /** Builds the single printable StudyReport that all non-mindmap export formats render from. */
@@ -1792,6 +1844,37 @@ class AppViewModel(
             courseEssenceScript = ui.courseEssenceScript,
         )
     }
+
+    private fun routeStudyReport(report: StudyReport, result: CourseAnalysisResult): AiCapabilityResult<StudyReport> =
+        AiCapabilityRouter().route(
+            capability = AiCapability.EXPORT_REPORT,
+            stages = listOf(
+                AiStage(AiExecutionSource.CLOUD) {
+                    if (result.provenance.provider == ProviderKind.BLUELM && !OnDeviceCourseAnalysis.isOnDevice(result.provenance)) {
+                        StageOutcome.Produced(report.copy(providerLabel = "云端蓝心 / ${report.providerLabel}"))
+                    } else {
+                        StageOutcome.Unavailable(AiExecutionStatus.CONFIG_MISSING)
+                    }
+                },
+                AiStage(AiExecutionSource.ON_DEVICE) {
+                    if (OnDeviceCourseAnalysis.isOnDevice(result.provenance) || ui.onDeviceReportSuggestion != null) {
+                        StageOutcome.Produced(report.copy(providerLabel = "端侧蓝心 / ${report.providerLabel}"))
+                    } else {
+                        StageOutcome.Unavailable(AiExecutionStatus.CONFIG_MISSING)
+                    }
+                },
+                AiStage(AiExecutionSource.MANUAL) {
+                    if (report.overview.isNotEmpty() || report.knowledgePoints.isNotEmpty()) {
+                        StageOutcome.Produced(report.copy(providerLabel = "手动确认资料 / ${report.providerLabel}"), confidence = 0.8)
+                    } else {
+                        StageOutcome.Unavailable(AiExecutionStatus.LOW_CONFIDENCE)
+                    }
+                },
+            ),
+            terminal = AiStage(AiExecutionSource.SAFE_PLACEHOLDER) {
+                StageOutcome.Produced(report.copy(providerLabel = "本地模板整理 / ${report.providerLabel}"))
+            },
+        )
 
     fun generateCourseEssenceAudioScript() {
         val session = ui.session ?: run {

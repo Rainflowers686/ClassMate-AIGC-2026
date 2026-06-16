@@ -6,6 +6,8 @@ import com.classmate.core.learning.LearningSnapshot
 import com.classmate.core.learning.ReviewTask
 import com.classmate.core.learning.ReviewTaskStatus
 import com.classmate.core.sample.SampleCourses
+import java.io.ByteArrayInputStream
+import java.util.zip.ZipInputStream
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -48,6 +50,23 @@ class StudyReportExportTest {
     }
 
     @Test
+    fun docxIsRealOpenXmlPackage() {
+        val artifact = ExportCenter.artifactFromStudyReport(report(), ExportFileFormat.DOCX, createdAt = 1L)
+        val entries = unzip(artifact.bytes)
+        val document = entries.getValue("word/document.xml")
+
+        assertTrue(artifact.fileName.endsWith(".docx"))
+        assertTrue(artifact.mimeType == "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        assertTrue(entries.containsKey("[Content_Types].xml"))
+        assertTrue(entries.containsKey("word/document.xml"))
+        assertTrue(document.contains("AI 来源说明"))
+        assertTrue(document.contains("Evidence"))
+        assertFalse(document.contains("Authorization"))
+        assertFalse(document.contains("Bearer"))
+        assertFalse(document.contains("reasoning_content"))
+    }
+
+    @Test
     fun markdownHasStructuredSectionsAndNeedMorePractice() {
         val md = ExportCenter.artifactFromStudyReport(report(), ExportFileFormat.MARKDOWN, createdAt = 1L).bytes.decodeToString()
         listOf("核心知识点", "微测题", "需要多练清单", "复习计划", "资料来源摘要").forEach { assertTrue(md.contains(it)) }
@@ -83,5 +102,16 @@ class StudyReportExportTest {
                 assertFalse("$format contains $it", text.contains(it, ignoreCase = true))
             }
         }
+    }
+
+    private fun unzip(bytes: ByteArray): Map<String, String> {
+        val entries = linkedMapOf<String, String>()
+        ZipInputStream(ByteArrayInputStream(bytes)).use { zip ->
+            while (true) {
+                val entry = zip.nextEntry ?: break
+                entries[entry.name] = zip.readBytes().toString(Charsets.UTF_8)
+            }
+        }
+        return entries
     }
 }

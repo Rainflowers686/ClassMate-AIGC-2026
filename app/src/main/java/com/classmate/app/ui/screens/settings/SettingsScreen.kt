@@ -174,6 +174,7 @@ fun SettingsScreen(viewModel: AppViewModel) {
 
             if (section == SettingsSection.LEARNING_EXPORT) {
                 LearningExportSettingsCard(viewModel)
+                LearningExportDocxPolicyCard(viewModel)
                 PrivacyCard()
                 SpeakerCapabilityCard()
                 CapabilityRoadmapCard()
@@ -296,7 +297,7 @@ private fun BackgroundAudioPolicyCard() {
     ClassMateCard {
         Text("沉浸背景音", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.xs))
-        Text("后续使用授权明确的循环音频素材，不使用实时音频生成，也不模拟老师或同学声音。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("后续使用授权明确的循环音频素材，不使用实时音频生成，也不模拟具体人物声音。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -319,6 +320,35 @@ private fun LearningExportSettingsCard(viewModel: AppViewModel) {
         SecondaryButton(
             text = "生成课程精华音频脚本",
             onClick = { viewModel.generateCourseEssenceAudioScript() },
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+@Composable
+private fun LearningExportDocxPolicyCard(viewModel: AppViewModel) {
+    val audio = viewModel.ui.courseEssenceAudioResult
+    val safety = viewModel.ui.textSafetyResult
+    ClassMateCard {
+        Text("导出格式与报告内容", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(Dimens.xs))
+        Text(
+            "导出流程为：AI 提炼学习报告草稿 → 选择格式 → 保存或分享。云端或端侧不可用时，仍可使用本地模板整理版本。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(Dimens.s))
+        ProviderStatusRow("默认格式", "PDF、Word / DOCX、HTML、Markdown、Text、课程精华音频脚本")
+        ProviderStatusRow("Word / DOCX", "真实 OpenXML 文档，适合继续编辑和分享")
+        ProviderStatusRow("默认包含", "evidence、practice result、weakness、review plan、source metadata、audio script")
+        ProviderStatusRow("课程精华音频", audio?.status?.name ?: "TTS 未配置时导出 script-only")
+        ProviderStatusRow("文本安全检查", safety?.status?.name ?: "未运行")
+        ProviderStatusRow("翻译辅助学习", "作为 derived note 附加，不修改原始 evidence")
+        ProviderStatusRow("边界", "不会模拟具体人物声音；背景音后续使用授权循环音频素材")
+        Spacer(Modifier.height(Dimens.s))
+        SecondaryButton(
+            text = "生成学习报告草稿",
+            onClick = { viewModel.prepareRefinedExportDraft() },
             modifier = Modifier.fillMaxWidth(),
         )
     }

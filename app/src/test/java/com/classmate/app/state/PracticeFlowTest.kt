@@ -3,6 +3,7 @@ package com.classmate.app.state
 import com.classmate.app.data.HistoryRecord
 import com.classmate.app.data.InMemoryExportStore
 import com.classmate.app.data.InMemoryHistoryStore
+import com.classmate.app.exporting.ExportFileFormat
 import com.classmate.app.platform.ConfigRepository
 import com.classmate.core.learning.InMemoryLearningStore
 import com.classmate.core.audio.CourseEssenceAudioStatus
@@ -91,6 +92,26 @@ class PracticeFlowTest {
         assertNotNull(viewModel.ui.courseEssenceScript)
         assertEquals(CourseEssenceAudioStatus.SCRIPT_ONLY_CONFIG_MISSING, viewModel.ui.courseEssenceAudioResult!!.status)
         assertTrue(viewModel.ui.courseEssenceScript!!.toPlainText().contains("ClassMate course essence review"))
+    }
+
+    @Test
+    fun refinedExportDraftShowsAiProcessingBeforeFormatGeneration() {
+        val viewModel = vm()
+        viewModel.openHistory(viewModel.ui.history.first())
+
+        assertTrue(viewModel.prepareRefinedExportDraft())
+        val artifact = viewModel.buildCurrentReportArtifact(ExportFileFormat.DOCX)
+
+        assertTrue(viewModel.ui.exportDraftReady)
+        assertNotNull(artifact)
+        assertEquals(ExportFileFormat.DOCX, artifact!!.format)
+        assertNotNull(viewModel.ui.exportDraftMessage)
+        assertTrue(viewModel.ui.exportDraftSource!!.isNotBlank())
+        assertTrue(viewModel.ui.aiProcessing.visible)
+        assertTrue(viewModel.ui.aiProcessing.title.contains("提炼课堂精华"))
+        assertTrue(viewModel.ui.aiProcessing.steps.contains("生成学习报告草稿"))
+        assertTrue(viewModel.ui.aiProcessing.steps.contains("等待选择导出格式"))
+        assertTrue(viewModel.ui.aiProcessing.fallbackMessage!!.contains("HTML"))
     }
 
     @Test

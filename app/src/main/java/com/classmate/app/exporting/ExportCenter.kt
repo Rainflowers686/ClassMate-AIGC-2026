@@ -2,6 +2,7 @@ package com.classmate.app.exporting
 
 import com.classmate.core.exporting.SafeExportText
 import com.classmate.core.exporting.StudyReport
+import com.classmate.core.exporting.StudyReportDocxRenderer
 import com.classmate.core.exporting.StudyReportRenderer
 import com.classmate.core.audio.CourseEssenceAudioExporter
 
@@ -22,16 +23,17 @@ object ExportCenter {
             ExportFileFormat.MARKDOWN, ExportFileFormat.MINDMAP_MARKDOWN -> StudyReportRenderer.renderMarkdown(report)
             ExportFileFormat.TEXT, ExportFileFormat.PDF -> StudyReportRenderer.renderPlainText(report)
             ExportFileFormat.HTML, ExportFileFormat.MINDMAP_HTML -> StudyReportRenderer.renderHtml(report)
+            ExportFileFormat.DOCX -> StudyReportRenderer.renderPlainText(report)
             ExportFileFormat.WORD_COMPAT_HTML ->
                 StudyReportRenderer.renderHtml(report, note = "Word 兼容 HTML，可用 Word/WPS 打开，不是真 .docx")
             ExportFileFormat.SLIDES_HTML -> StudyReportRenderer.renderSlidesHtml(report)
             ExportFileFormat.COURSE_ESSENCE_SCRIPT_TEXT -> CourseEssenceAudioExporter.buildScript(report).toPlainText()
         }
         val safeBody = SafeExportText.redact(body)
-        val bytes = if (format == ExportFileFormat.PDF) {
-            PdfExportRenderer.render(safeTitle, safeBody)
-        } else {
-            safeBody.toByteArray(Charsets.UTF_8)
+        val bytes = when (format) {
+            ExportFileFormat.PDF -> PdfExportRenderer.render(safeTitle, safeBody)
+            ExportFileFormat.DOCX -> StudyReportDocxRenderer.render(report)
+            else -> safeBody.toByteArray(Charsets.UTF_8)
         }
         val fileName = ExportFileNameSanitizer.safe("ClassMate-$safeTitle-${format.fileLabel()}", format.extension)
         return ExportArtifact(
@@ -58,16 +60,33 @@ object ExportCenter {
             ExportFileFormat.HTML -> htmlPage(safeTitle, safeMarkdown, "ClassMate 学习报告")
             ExportFileFormat.TEXT -> markdownToPlain(safeMarkdown)
             ExportFileFormat.PDF -> markdownToPlain(safeMarkdown)
+            ExportFileFormat.DOCX -> markdownToPlain(safeMarkdown)
             ExportFileFormat.MINDMAP_MARKDOWN -> safeMarkdown
             ExportFileFormat.MINDMAP_HTML -> mindMapHtml(safeTitle, safeMarkdown)
             ExportFileFormat.WORD_COMPAT_HTML -> htmlPage(safeTitle, safeMarkdown, "Word 兼容 HTML，可用 Word/WPS 打开，不是真 .docx")
             ExportFileFormat.SLIDES_HTML -> slidesHtml(safeTitle, safeMarkdown)
             ExportFileFormat.COURSE_ESSENCE_SCRIPT_TEXT -> markdownToPlain(safeMarkdown)
         }
-        val bytes = if (format == ExportFileFormat.PDF) {
-            PdfExportRenderer.render(safeTitle, body)
-        } else {
-            body.toByteArray(Charsets.UTF_8)
+        val bytes = when (format) {
+            ExportFileFormat.PDF -> PdfExportRenderer.render(safeTitle, body)
+            ExportFileFormat.DOCX -> StudyReportDocxRenderer.render(
+                StudyReport(
+                    courseTitle = safeTitle,
+                    generatedAtLabel = "",
+                    providerLabel = "本地模板整理",
+                    sourceSummaryLine = null,
+                    transcriptSummaryLine = null,
+                    sourceTypeLabels = emptyList(),
+                    overview = listOf(body),
+                    reviewTopics = emptyList(),
+                    knowledgePoints = emptyList(),
+                    quizzes = emptyList(),
+                    needPractice = emptyList(),
+                    review = com.classmate.core.exporting.StudyReviewBuckets(emptyList(), emptyList(), emptyList(), emptyList(), 0),
+                    askItems = emptyList(),
+                ),
+            )
+            else -> body.toByteArray(Charsets.UTF_8)
         }
         val fileName = ExportFileNameSanitizer.safe("ClassMate-$safeTitle-${format.fileLabel()}", format.extension)
         return ExportArtifact(
@@ -86,6 +105,7 @@ object ExportCenter {
         ExportFileFormat.HTML -> "学习报告"
         ExportFileFormat.TEXT -> "学习报告"
         ExportFileFormat.PDF -> "学习报告"
+        ExportFileFormat.DOCX -> "学习报告"
         ExportFileFormat.MINDMAP_MARKDOWN -> "思维导图"
         ExportFileFormat.MINDMAP_HTML -> "思维导图"
         ExportFileFormat.WORD_COMPAT_HTML -> "Word兼容报告"

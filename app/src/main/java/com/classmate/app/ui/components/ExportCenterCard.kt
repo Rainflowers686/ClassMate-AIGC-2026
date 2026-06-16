@@ -36,12 +36,13 @@ import com.classmate.app.ui.design.Dimens
 fun ExportCenterCard(
     viewModel: AppViewModel,
     title: String = "导出中心",
-    description: String = "保存到你选择的位置，或通过系统分享面板发送到微信、QQ、邮箱、网盘、文件管理器等。",
+    description: String = "先生成学习报告草稿，再选择 PDF、Word、HTML、Markdown、Text 或课程精华音频脚本。",
     buildArtifact: (ExportFileFormat) -> ExportArtifact?,
 ) {
     val context = LocalContext.current
-    var selectedFormat by remember { mutableStateOf(ExportFileFormat.MARKDOWN) }
+    var selectedFormat by remember { mutableStateOf(ExportFileFormat.PDF) }
     var pendingSave by remember { mutableStateOf<ExportArtifact?>(null) }
+    var draftReady by remember { mutableStateOf(viewModel.ui.exportDraftReady) }
     val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val artifact = pendingSave
         pendingSave = null
@@ -58,8 +59,21 @@ fun ExportCenterCard(
             viewModel.recordExportAction(
                 artifact,
                 ExportActionStatus.FAILED,
-                "系统文件管理器未能保存。你可以改用系统分享，或保存到下载目录。",
+                "保存失败。可重试、换成 HTML/Text，或使用系统分享。",
             )
+        }
+    }
+
+    fun artifactOrNotify(): ExportArtifact? {
+        if (!draftReady) {
+            viewModel.toast("请先生成学习报告草稿，再选择导出格式。")
+            return null
+        }
+        return try {
+            buildArtifact(selectedFormat)
+        } catch (_: Exception) {
+            viewModel.toast("${selectedFormat.displayName} 生成失败，可换成 HTML 或 Text 兜底。")
+            null
         }
     }
 
@@ -69,11 +83,28 @@ fun ExportCenterCard(
         Text(description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(Dimens.s))
         Text(
-            "Word 兼容 HTML 不是原生 docx；演示幻灯片 HTML 不是原生 pptx。PDF 为基础版报告。",
+            "DOCX 是真实 Word 文档，适合继续编辑；PDF 适合打印；HTML 适合浏览器学习；课程精华音频脚本可在 TTS 未配置时先导出文本。",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(Dimens.s))
+        PrimaryButton(
+            text = if (draftReady) "重新生成学习报告草稿" else "生成学习报告草稿",
+            onClick = { draftReady = viewModel.prepareRefinedExportDraft() || draftReady },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        viewModel.ui.exportDraftMessage?.let {
+            Spacer(Modifier.height(Dimens.xs))
+            Text(
+                "${viewModel.ui.exportDraftSource ?: "本地模板整理"} · $it",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        Spacer(Modifier.height(Dimens.s))
+        Text("选择导出格式", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(Dimens.xs))
         Row(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(Dimens.s),
@@ -82,23 +113,23 @@ fun ExportCenterCard(
                 FormatChip(
                     text = format.displayName,
                     selected = selectedFormat == format,
+                    enabled = draftReady,
                     onClick = { selectedFormat = format },
                 )
             }
         }
-        Spacer(Modifier.height(Dimens.s))
+        Spacer(Modifier.height(Dimens.xs))
         Text(
-            "若系统文件管理器提示“无法保存文档”，可改用“保存到下载目录”或“分享…”。内部备份仅作兜底。",
+            selectedFormat.description,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(Dimens.s))
-        // Two horizontal rows (never a vertical button stack): primary delivery on top, fallbacks below.
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
             PrimaryButton(
                 text = "保存到文件…",
                 onClick = {
-                    val artifact = buildArtifact(selectedFormat) ?: return@PrimaryButton
+                    val artifact = artifactOrNotify() ?: return@PrimaryButton
                     pendingSave = artifact
                     saveLauncher.launch(ExportIntentFactory.createSaveAsIntent(artifact))
                 },
@@ -107,7 +138,7 @@ fun ExportCenterCard(
             SecondaryButton(
                 text = "保存到下载目录",
                 onClick = {
-                    val artifact = buildArtifact(selectedFormat) ?: return@SecondaryButton
+                    val artifact = artifactOrNotify() ?: return@SecondaryButton
                     when (val result = DownloadsExporter.saveToDownloads(context, artifact)) {
                         is DownloadsExporter.Result.Saved ->
                             viewModel.recordExportAction(artifact, ExportActionStatus.SAVED_DOWNLOADS, "已保存到下载目录 / Downloads。")
@@ -125,14 +156,14 @@ fun ExportCenterCard(
             SecondaryButton(
                 text = "分享…",
                 onClick = {
-                    val artifact = buildArtifact(selectedFormat) ?: return@SecondaryButton
+                    val artifact = artifactOrNotify() ?: return@SecondaryButton
                     try {
                         context.startActivity(ExportIntentFactory.createShareChooser(context, artifact))
                         viewModel.recordExportAction(artifact, ExportActionStatus.SHARED, "已打开系统分享面板。")
                     } catch (_: ActivityNotFoundException) {
                         viewModel.recordExportAction(artifact, ExportActionStatus.FAILED, "没有可用的分享应用。")
                     } catch (_: Exception) {
-                        viewModel.recordExportAction(artifact, ExportActionStatus.FAILED, "分享失败，请重试。")
+                        viewModel.recordExportAction(artifact, ExportActionStatus.FAILED, "分享失败，请重试或改用保存。")
                     }
                 },
                 modifier = Modifier.weight(1f),
@@ -140,12 +171,12 @@ fun ExportCenterCard(
             SecondaryButton(
                 text = "内部备份",
                 onClick = {
-                    val artifact = buildArtifact(selectedFormat) ?: return@SecondaryButton
+                    val artifact = artifactOrNotify() ?: return@SecondaryButton
                     try {
                         ExportIntentFactory.writeInternalBackup(context, artifact)
-                        viewModel.recordExportAction(artifact, ExportActionStatus.INTERNAL_ONLY, "已写入应用内部备份（legacy 兜底，建议改用保存或分享）。")
+                        viewModel.recordExportAction(artifact, ExportActionStatus.INTERNAL_ONLY, "已写入应用内部备份；建议优先使用保存或分享。")
                     } catch (_: Exception) {
-                        viewModel.recordExportAction(artifact, ExportActionStatus.FAILED, "内部备份失败。")
+                        viewModel.recordExportAction(artifact, ExportActionStatus.FAILED, "内部备份失败，可改导出 HTML/Text。")
                     }
                 },
                 modifier = Modifier.weight(1f),
@@ -160,16 +191,27 @@ fun ExportCenterCard(
             )
         }
     }
+
+    AiProcessingDialog(
+        state = viewModel.ui.aiProcessing,
+        onCancel = viewModel::hideAiProcessing,
+        onRetry = { draftReady = viewModel.prepareRefinedExportDraft() || draftReady },
+        onContinueManual = viewModel::hideAiProcessing,
+    )
 }
 
 @Composable
-private fun FormatChip(text: String, selected: Boolean, onClick: () -> Unit) {
+private fun FormatChip(text: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     Surface(
         shape = MaterialTheme.shapes.medium,
-        color = if (selected) cs.primaryContainer else cs.surfaceVariant,
+        color = when {
+            selected -> cs.primaryContainer
+            enabled -> cs.surfaceVariant
+            else -> cs.surfaceVariant.copy(alpha = 0.45f)
+        },
         contentColor = if (selected) cs.onPrimaryContainer else cs.onSurfaceVariant,
-        modifier = Modifier.clickable(onClick = onClick),
+        modifier = if (enabled) Modifier.clickable(onClick = onClick) else Modifier,
     ) {
         Text(
             text,
