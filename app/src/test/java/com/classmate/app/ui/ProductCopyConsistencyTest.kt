@@ -112,6 +112,9 @@ class ProductCopyConsistencyTest {
         listOf("PDF", "DOCX", "HTML", "Markdown", "Text", "课程精华音频脚本").forEach {
             assertTrue("missing export format text: $it", export.contains(it) || settings.contains(it))
         }
+        listOf("TTS", "Function", "smoke", "docId", "Product-facing").forEach {
+            assertTrue("missing official provider readiness copy: $it", settings.contains(it))
+        }
         listOf("主题设置", "模型接入", "学习与导出", "开发者选项").forEach {
             assertTrue("missing settings entrance: $it", settings.contains(it))
         }

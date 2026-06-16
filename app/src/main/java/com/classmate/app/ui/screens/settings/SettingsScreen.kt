@@ -52,6 +52,7 @@ import com.classmate.app.state.AppViewModel
 import com.classmate.app.state.ClassMateUiState
 import com.classmate.core.ondevice.OnDeviceErrorExplain
 import com.classmate.core.ondevice.OnDeviceLlmConfig
+import com.classmate.core.official.VivoOfficialProviderRegistry
 import com.classmate.core.provider.BlueLMDiagnosticStatus
 import com.classmate.app.ui.components.CapabilityStatusPill
 import com.classmate.app.ui.components.ClassMateCard
@@ -124,6 +125,7 @@ fun SettingsScreen(viewModel: AppViewModel) {
             OnDeviceMultimodalDiagnosticCard(viewModel)
             OnDeviceCapabilityCard(viewModel)
             ModelAccessNotesCard()
+            OfficialProviderReadinessCard(includeDevLab = false)
             }
 
             if (section == SettingsSection.THEME) {
@@ -209,6 +211,7 @@ fun SettingsScreen(viewModel: AppViewModel) {
                 )
             }
             if (showLogs) LogsCard(viewModel)
+            OfficialProviderReadinessCard(includeDevLab = true)
             BuildInfoCard()
             }
         }
@@ -289,6 +292,38 @@ private fun ModelAccessNotesCard() {
         ProviderStatusRow("检索增强", "查询改写 / 文本相似度 / 文本向量未配置时，本地证据检索继续可用")
         Spacer(Modifier.height(Dimens.xs))
         Text("这里仅显示配置是否可用，不显示任何密钥内容。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun OfficialProviderReadinessCard(includeDevLab: Boolean) {
+    val product = VivoOfficialProviderRegistry.productFacing
+    val smoke = VivoOfficialProviderRegistry.smokeOnly
+    ClassMateCard {
+        Text(
+            if (includeDevLab) "Official provider smoke" else "Official provider readiness",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(Modifier.height(Dimens.xs))
+        Text(
+            "Product-facing ${product.size}; cloud first, on-device fallback, manual or safe fallback. Status is value-only and no keys are shown.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(Dimens.s))
+        product.forEach { capability ->
+            ProviderStatusRow(capability.userVisibleLabel, "${capability.status.name} · docId ${capability.docId}")
+        }
+        if (includeDevLab) {
+            Spacer(Modifier.height(Dimens.s))
+            Text("Dev-lab smoke-only ${smoke.size}; not part of the default learning path.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            smoke.forEach { capability ->
+                ProviderStatusRow(capability.displayName, "smoke-only · docId ${capability.docId}")
+            }
+            Spacer(Modifier.height(Dimens.xs))
+            Text("Dry-run: scripts/qa/official_provider_smoke.ps1 -DryRun. Network smoke requires explicit authorization and is not run by default.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 
