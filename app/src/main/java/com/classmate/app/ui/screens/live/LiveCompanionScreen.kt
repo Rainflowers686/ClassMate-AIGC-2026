@@ -18,6 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
@@ -37,6 +38,7 @@ import com.classmate.app.asr.AsrEventListener
 import com.classmate.app.asr.AsrState
 import com.classmate.app.state.AppViewModel
 import com.classmate.app.state.Screen
+import com.classmate.app.ui.flow.AmbientSoundPlayer
 import com.classmate.app.ui.flow.FlowBreathingTimer
 import com.classmate.app.ui.flow.FlowCompColors
 import com.classmate.app.ui.flow.FlowCompPanel
@@ -61,12 +63,13 @@ import kotlinx.coroutines.delay
 private const val FOCUS_TARGET_MIN = 75
 
 /**
- * FlowCompanion — the immersive focus / white-noise study companion (the ONLY Flow-themed surface;
+ * FlowCompanion — the immersive focus / ambient study companion (the ONLY Flow-themed surface;
  * reached via an explicit "心流学习 / 沉浸复习" entry, never as a global theme). Built to match
  * docs/design_refs/classmate_flow.html: a warm dark light-field backdrop, a breathing timer ring as the
  * hero, a control cluster, a sound-scene card + 2-col scene picker, a cached-knowledge surface and a
- * session footer. Honest: no audio is bundled or played; 陪学/总结 are 模拟演示. Session lifecycle, manual
- * segment capture, the experimental system ASR, and timeline generation are all preserved.
+ * session footer. Local ambient loops are bundled as licensed raw resources; nothing is recorded,
+ * uploaded, or generated at runtime. Session lifecycle, manual segment capture, the experimental
+ * system ASR, and timeline generation are all preserved.
  */
 @Composable
 fun LiveCompanionScreen(viewModel: AppViewModel) {
@@ -79,15 +82,24 @@ fun LiveCompanionScreen(viewModel: AppViewModel) {
     LaunchedEffect(running) {
         while (running) { nowTick = System.currentTimeMillis(); delay(1000) }
     }
-    var selectedScene by remember { mutableStateOf(flowCompSceneOf("night_desk").id) }
+    var selectedScene by remember { mutableStateOf(flowCompSceneOf("rain").id) }
     var scenePickerOpen by remember { mutableStateOf(false) }
     var jotOpen by remember { mutableStateOf(false) }
     var asrOpen by remember { mutableStateOf(false) }
     val scene = flowCompSceneOf(selectedScene)
     val accent = scene.accent
+    var ambientPlaying by remember { mutableStateOf(false) }
+    var ambientVolume by remember { mutableStateOf(0.45f) }
+
+    val context = LocalContext.current
+    val ambientPlayer = remember { AmbientSoundPlayer(context) }
+    DisposableEffect(ambientPlayer) { onDispose { ambientPlayer.release() } }
+    LaunchedEffect(selectedScene, ambientPlaying, ambientVolume) {
+        if (ambientPlaying) ambientPlayer.play(scene.sound, ambientVolume) else ambientPlayer.pause()
+        ambientPlayer.setVolume(ambientVolume)
+    }
 
     // --- experimental system ASR wiring (no raw audio saved, no upload, no background recording) ---
-    val context = LocalContext.current
     val asr = ui.asrSession
     val engine = remember { AndroidSpeechRecognizerClient(context) }
     val listener = remember {
@@ -152,10 +164,25 @@ fun LiveCompanionScreen(viewModel: AppViewModel) {
                     if (scenePickerOpen) {
                         Spacer(Modifier.height(4.dp))
                         FlowCompSectionLabel("声音场景")
-                        Text("选择一个氛围，长时间陪你专注", style = MaterialTheme.typography.bodySmall, color = FlowCompColors.textSecondary)
+                        Text("选择一个内置背景音，循环播放；不联网、不录音。", style = MaterialTheme.typography.bodySmall, color = FlowCompColors.textSecondary)
                         FlowScenePicker(selectedId = selectedScene, modifier = Modifier.flowCompEnter()) { selectedScene = it }
                         Text(FlowCompanionCopy.AUDIO_DISCLAIMER, style = MaterialTheme.typography.labelSmall, color = FlowCompColors.textMuted)
-                        FlowMiniPlayer(sceneName = scene.name, minutes = minutes, accent = accent)
+                        FlowMiniPlayer(sceneName = scene.name, soundName = scene.sound.displayName, playing = ambientPlaying, volume = ambientVolume, minutes = minutes, accent = accent)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            FlowPillButton(
+                                if (ambientPlaying) "暂停背景音" else "播放背景音",
+                                filled = true,
+                                accent = accent,
+                                modifier = Modifier.weight(1f),
+                                onClick = { ambientPlaying = !ambientPlaying },
+                            )
+                            FlowPillButton("停止", filled = false, accent = accent, modifier = Modifier.weight(1f), onClick = {
+                                ambientPlaying = false
+                                ambientPlayer.stop()
+                            })
+                        }
+                        Text("背景音量", style = MaterialTheme.typography.labelSmall, color = FlowCompColors.textMuted)
+                        Slider(value = ambientVolume, onValueChange = { ambientVolume = it.coerceIn(0f, 1f) })
                         FlowPillButton("完成", filled = true, accent = accent, onClick = { scenePickerOpen = false })
                     } else {
                         Spacer(Modifier.height(8.dp))
@@ -217,7 +244,7 @@ fun LiveCompanionScreen(viewModel: AppViewModel) {
                         FlowCompSectionLabel("声音场景")
                         FlowSoundSceneCard(
                             scene = scene,
-                            playingLabel = "${scene.mood} · 声音场景预览",
+                            playingLabel = if (ambientPlaying) "循环播放 · ${scene.sound.displayName} · 音量 ${(ambientVolume * 100).toInt()}%" else "已选择 · ${scene.sound.displayName} · 点击播放/更换",
                             modifier = Modifier.flowCompEnter(40),
                             onOpenPicker = { scenePickerOpen = true },
                         )

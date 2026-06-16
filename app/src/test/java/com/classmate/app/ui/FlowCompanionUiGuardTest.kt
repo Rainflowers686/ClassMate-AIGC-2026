@@ -13,7 +13,7 @@ import org.junit.Test
  *   2. the companion layer (FlowCompanionUi.kt) is a real immersive layout — light-field backdrop +
  *      breathing ring (radialGradient + drawArc + rememberInfiniteTransition), not a dark ProductUi;
  *   3. the companion screen renders breathing timer + sound scene + knowledge cache + session footer
- *      with honest audio/ASR wording;
+ *      with honest local audio/ASR wording;
  *   4. Flow is NOT applied to Home / Import / Course / History / Settings (no companion backdrop, no
  *      global theme-default change) — only a restrained entry navigates to it;
  *   5. honesty holds: no forbidden over-claim copy, no WebView, no direct vivo SDK import, qwen guard.
@@ -78,11 +78,13 @@ class FlowCompanionUiGuardTest {
         assertTrue(s.contains("FlowKnowledgeCacheCard"))
         assertTrue(s.contains("FlowSessionFooter"))
         assertTrue(s.contains("FlowScenePicker"))
-        // Honest companion / audio / transcript wording.
+        // Honest companion / local audio / transcript wording.
         val honest = companionUi() + s
-        assertTrue(honest.contains("陪学预览"))
-        assertTrue(honest.contains("声音场景预览"))
+        assertTrue(honest.contains("沉浸陪学"))
+        assertTrue(honest.contains("内置授权循环素材"))
+        assertTrue(honest.contains("本地播放"))
         assertTrue(honest.contains("不录音"))
+        assertTrue(honest.contains("不上传"))
         assertTrue(honest.contains("转写能力按配置启用"))
     }
 
@@ -121,7 +123,7 @@ class FlowCompanionUiGuardTest {
             Regex("本地规则分析"), Regex("端侧结果 LOCAL_FALLBACK"), Regex("多模态替代 ?OCR"),
             Regex("自动 ?OCR 完成"), Regex("DeepSeek 复赛主路径"), Regex("Compatible 复赛主路径"),
             Regex("已完成实时 ?ASR"), Regex("自动听课"), Regex("替代听脑"),
-            Regex("已接入白噪音真实播放"), Regex("已接入真实混音"),
+            Regex("实时生成背景音"), Regex("AI 生成白噪音"),
         )
         val sources = mainSources()
         val offenders = sources.filter { f -> forbidden.any { it.containsMatchIn(f.readText()) } }

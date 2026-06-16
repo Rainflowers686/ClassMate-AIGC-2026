@@ -57,13 +57,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * Flow companion UI — an immersive focus / white-noise study space, reverse-engineered from
+ * Flow companion UI — an immersive focus / ambient study space, reverse-engineered from
  * docs/design_refs/classmate_flow.html (rendered to .codex_work/design_refs_rendered/flow/). These
  * composables serve ONLY the FlowCompanion screen — they are NOT a global theme and must not be
  * applied to Home / Import / Course / History / Settings. The look is a warm dark light-field backdrop
  * (radial gradient + drifting glow + vignette, not flat black), a breathing timer ring as the hero,
- * dark glass panels, sound-scene tiles, and a cached-knowledge surface. Honest: no audio is bundled or
- * played; "陪学预览 / 声音场景预览" labels stay.
+ * dark glass panels, sound-scene tiles, and a cached-knowledge surface. Audio is local-only: bundled
+ * licensed loops, no recording, no upload, no runtime synthesis.
  */
 
 // ── Scenes ─────────────────────────────────────────────────────────────────────────────────────────
@@ -72,6 +72,7 @@ data class FlowCompScene(
     val id: String,
     val name: String,
     val mood: String,
+    val sound: AmbientSound,
     val accent: Color,
     val backdrop: List<Color>,
     val anchorX: Float,
@@ -79,20 +80,20 @@ data class FlowCompScene(
 )
 
 val flowCompScenes: List<FlowCompScene> = listOf(
-    FlowCompScene("night_desk", "夜间书桌", "温暖灯光", Color(0xFFE0A86A), listOf(Color(0xFF2C2418), Color(0xFF1A1813), Color(0xFF111016)), 0.78f, 0.12f),
-    FlowCompScene("window_rain", "窗边下雨", "细雨 · 远雷", Color(0xFF8FB6DD), listOf(Color(0xFF1B2738), Color(0xFF131B29), Color(0xFF0E131D)), 0.30f, 0.08f),
-    FlowCompScene("rain_meadow", "雨后草地", "清新 · 湿润", Color(0xFF8FC6A0), listOf(Color(0xFF1A2A22), Color(0xFF15201B), Color(0xFF0F1714)), 0.70f, 0.10f),
-    FlowCompScene("white_noise", "纯白噪音", "抽象 · 无方向", Color(0xFF9FB0C4), listOf(Color(0xFF2A2D34), Color(0xFF202329), Color(0xFF16181D)), 0.50f, 0.12f),
-    FlowCompScene("fireplace", "壁炉余烬", "低频 · 暖意", Color(0xFFD88A5A), listOf(Color(0xFF34291B), Color(0xFF20180F), Color(0xFF16130F)), 0.40f, 0.80f),
-    FlowCompScene("morning_cafe", "清晨咖啡馆", "低语 · 杯响", Color(0xFFC9AD88), listOf(Color(0xFF2F2A24), Color(0xFF221E18), Color(0xFF16130F)), 0.60f, 0.18f),
+    FlowCompScene("rain", "窗边细雨", "轻雨 · 稳定", AmbientSoundCatalog.byId("rain")!!, Color(0xFF8FB6DD), listOf(Color(0xFF1B2738), Color(0xFF131B29), Color(0xFF0E131D)), 0.30f, 0.08f),
+    FlowCompScene("forest", "森林晨读", "鸟鸣 · 清醒", AmbientSoundCatalog.byId("forest")!!, Color(0xFF8FC6A0), listOf(Color(0xFF1A2A22), Color(0xFF15201B), Color(0xFF0F1714)), 0.70f, 0.10f),
+    FlowCompScene("ocean", "海边复盘", "海浪 · 宽阔", AmbientSoundCatalog.byId("ocean")!!, Color(0xFF75B8C8), listOf(Color(0xFF172B35), Color(0xFF10202A), Color(0xFF0C141B)), 0.40f, 0.16f),
+    FlowCompScene("stream", "溪边专注", "水流 · 轻快", AmbientSoundCatalog.byId("stream")!!, Color(0xFF8ECAB9), listOf(Color(0xFF173026), Color(0xFF12231D), Color(0xFF0E1714)), 0.62f, 0.18f),
+    FlowCompScene("cafe", "清晨咖啡馆", "低语 · 杯响", AmbientSoundCatalog.byId("cafe")!!, Color(0xFFC9AD88), listOf(Color(0xFF2F2A24), Color(0xFF221E18), Color(0xFF16130F)), 0.60f, 0.18f),
+    FlowCompScene("night_crickets", "夜间书桌", "虫鸣 · 夜读", AmbientSoundCatalog.byId("night_crickets")!!, Color(0xFFE0A86A), listOf(Color(0xFF2C2418), Color(0xFF1A1813), Color(0xFF111016)), 0.78f, 0.12f),
 )
 
 fun flowCompSceneOf(id: String): FlowCompScene = flowCompScenes.firstOrNull { it.id == id } ?: flowCompScenes.first()
 
 /** Honest, never-overclaim copy for the companion's audio/companion features. */
 object FlowCompanionCopy {
-    const val COMPANION_TAG = "陪学预览"
-    const val AUDIO_DISCLAIMER = "声音场景预览 · 当前不播放真实音频，不联网、不录音。"
+    const val COMPANION_TAG = "沉浸陪学"
+    const val AUDIO_DISCLAIMER = "背景音来自内置授权循环素材，仅本地播放；不录音、不上传、不使用实时生成。"
     const val TRANSCRIPT_NOTE = "转写能力按配置启用；阶段总结需用户确认后才并入复习计划。"
 }
 
@@ -384,7 +385,7 @@ fun FlowSoundSceneCard(scene: FlowCompScene, playingLabel: String, modifier: Mod
     }
 }
 
-/** A tiny animated equalizer (visual only — no audio). */
+/** A tiny animated equalizer used as a local loop playback indicator. */
 @Composable
 fun FlowEqualizer(accent: Color, modifier: Modifier = Modifier) {
     val t = rememberInfiniteTransition(label = "eq")
@@ -399,13 +400,13 @@ fun FlowEqualizer(accent: Color, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun FlowMiniPlayer(sceneName: String, minutes: Int, accent: Color, modifier: Modifier = Modifier) {
+fun FlowMiniPlayer(sceneName: String, soundName: String, playing: Boolean, volume: Float, minutes: Int, accent: Color, modifier: Modifier = Modifier) {
     Row(modifier.then(flowGlass(RoundedCornerShape(16.dp))).padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         FlowEqualizer(accent = accent)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text("正在播放（预览） · $sceneName", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = FlowCompColors.textPrimary)
-            Text("已陪伴 $minutes 分钟", style = androidx.compose.material3.MaterialTheme.typography.labelSmall, color = FlowCompColors.textMuted)
+            Text("${if (playing) "循环播放" else "已暂停"} · $soundName", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = FlowCompColors.textPrimary)
+            Text("$sceneName · 音量 ${(volume.coerceIn(0f, 1f) * 100).toInt()}% · 已陪伴 $minutes 分钟", style = androidx.compose.material3.MaterialTheme.typography.labelSmall, color = FlowCompColors.textMuted)
         }
     }
 }

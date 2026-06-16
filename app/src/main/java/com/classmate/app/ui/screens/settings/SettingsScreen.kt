@@ -66,6 +66,7 @@ import com.classmate.app.ui.components.PrimaryButton
 import com.classmate.app.ui.components.SecondaryButton
 import com.classmate.app.ui.components.ThemePreviewCard
 import com.classmate.app.ui.design.Dimens
+import com.classmate.app.ui.flow.AmbientSoundCatalog
 import com.classmate.app.ui.theme.ClassMateTheme
 import com.classmate.app.ui.theme.ThemeOption
 import com.classmate.app.ui.i18n.AppLanguage
@@ -296,7 +297,13 @@ private fun BackgroundAudioPolicyCard() {
     ClassMateCard {
         Text("沉浸背景音", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.xs))
-        Text("后续使用授权明确的循环音频素材，不使用实时音频生成，也不模拟具体人物声音。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Flow / 沉浸学习已内置 ${AmbientSoundCatalog.all.size} 种授权循环背景音，进入心流学习后可选择、暂停、循环播放并调节音量。背景音只在本地播放，不录音、不上传。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(Dimens.s))
+        AmbientSoundCatalog.all.forEach { sound ->
+            ProviderStatusRow(sound.displayName, "${sound.sceneName} · ${if (sound.attributionRequired) "需署名" else "免署名"} · ${sound.licenseName}")
+        }
+        Spacer(Modifier.height(Dimens.xs))
+        Text("授权记录见 docs/current/ambient_audio_assets.md。背景音不同于课程精华音频脚本，也不使用具体人物音色。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

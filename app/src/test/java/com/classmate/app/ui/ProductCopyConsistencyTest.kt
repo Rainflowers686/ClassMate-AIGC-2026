@@ -49,6 +49,8 @@ class ProductCopyConsistencyTest {
             Regex("同学" + "声音"),
             Regex("\\bLBS\\b"),
             Regex("\\bPOI\\b"),
+            Regex("AI 生成白噪音"),
+            Regex("实时生成背景音"),
         )
 
         val offenders = roots.flatMap(::ktFiles).mapNotNull { file ->
@@ -112,6 +114,9 @@ class ProductCopyConsistencyTest {
         }
         listOf("主题设置", "模型接入", "学习与导出", "开发者选项").forEach {
             assertTrue("missing settings entrance: $it", settings.contains(it))
+        }
+        listOf("沉浸背景音", "内置", "授权循环背景音").forEach {
+            assertTrue("missing ambient audio copy: $it", settings.contains(it) || read("src/main/java/com/classmate/app/ui/screens/home/HomeScreen.kt").contains(it))
         }
     }
 }

@@ -1,9 +1,9 @@
 package com.classmate.app.ui.flow
 
 /**
- * A Flow ambience scene. These are visual mood presets only: ClassMate ships no bundled audio and
- * does not record or play any sound. Selecting a scene changes the on-screen mood, nothing else.
- * Keeping this as pure data (no Android types) lets the honesty contract be unit-tested.
+ * A Flow ambience scene. These scenes now have bundled, licensed local loops.
+ * They never record audio, never stream from a third-party service, and never synthesize background
+ * sound at runtime.
  */
 data class FlowScene(
     val id: String,
@@ -12,24 +12,18 @@ data class FlowScene(
 )
 
 object FlowScenes {
-    /** Shown on the Flow / Live Companion ambience strip. Honest about doing no audio playback. */
-    val all: List<FlowScene> = listOf(
-        FlowScene("rain_meadow", "雨后草地", "Soft greens after the rain — calm, open, unhurried."),
-        FlowScene("window_rain", "窗边下雨", "Raindrops on the window while you study indoors."),
-        FlowScene("night_desk", "夜间书桌", "A quiet desk lamp at night for deep focus."),
-        FlowScene("white_noise", "纯白噪音", "A neutral, even backdrop with no distractions."),
-        FlowScene("morning_cafe", "清晨咖啡馆", "Gentle early-morning café light and warmth."),
-    )
+    val all: List<FlowScene> = AmbientSoundCatalog.all.map { sound ->
+        FlowScene(
+            id = sound.id,
+            name = sound.displayName,
+            description = sound.description,
+        )
+    }
 
-    /**
-     * The exact honesty line shown next to the ambience strip and mixer preview. It must
-     * make clear that no real audio is bundled or playing — this is a visual mood only.
-     */
     const val DISCLAIMER: String =
-        "场景与混音为视觉预览，当前不包含真实音频资源，不会录音，也不会播放任何声音。"
+        "背景音来自内置授权循环素材；仅本地播放，不录音、不上传、不使用实时生成。"
 
-    /** Names for the (placeholder) sound mixer sliders — UI only, wired to nothing. */
-    val mixerChannels: List<String> = listOf("雨声", "远雷", "风声", "白噪音")
+    val mixerChannels: List<String> = listOf("背景音", "专注计时", "音量")
 
     fun byId(id: String): FlowScene? = all.firstOrNull { it.id == id }
 }

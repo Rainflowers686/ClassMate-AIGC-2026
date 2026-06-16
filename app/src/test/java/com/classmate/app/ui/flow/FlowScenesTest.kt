@@ -7,35 +7,34 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The Flow ambience strip is a visual preview only. These tests pin the honesty contract so a
- * future change can't quietly start implying real audio is recorded or played.
+ * The Flow ambience strip uses bundled local loops. These tests pin the honesty contract so a
+ * future change can't quietly imply recording, upload, or runtime generation.
  */
 class FlowScenesTest {
 
     @Test
     fun catalogHasTheExpectedScenesWithUniqueIds() {
-        assertEquals(5, FlowScenes.all.size)
+        assertEquals(6, FlowScenes.all.size)
         val ids = FlowScenes.all.map { it.id }
         assertEquals(ids.size, ids.toSet().size)
-        listOf("rain_meadow", "window_rain", "night_desk", "white_noise", "morning_cafe").forEach {
+        listOf("rain", "forest", "ocean", "stream", "cafe", "night_crickets").forEach {
             assertNotNull("missing scene $it", FlowScenes.byId(it))
         }
     }
 
     @Test
-    fun disclaimerIsHonestAboutNoRealAudio() {
+    fun disclaimerIsHonestAboutLocalPlaybackOnly() {
         val text = FlowScenes.DISCLAIMER
-        // Must say it is a visual preview and that nothing is recorded/played.
-        assertTrue(text.contains("视觉预览"))
-        assertTrue(text.contains("当前不包含真实音频资源"))
-        assertTrue(text.contains("不会"))
-        // Must NOT claim audio is actually playing or being recorded for real.
-        assertFalse(text.contains("正在播放"))
-        assertFalse(text.contains("已接入"))
+        assertTrue(text.contains("内置授权循环素材"))
+        assertTrue(text.contains("本地播放"))
+        assertTrue(text.contains("不录音"))
+        assertTrue(text.contains("不上传"))
+        assertTrue(text.contains("不使用实时生成"))
     }
 
     @Test
-    fun mixerChannelsArePresentButLabelledAsPlaceholders() {
+    fun mixerChannelsReflectPlaybackControls() {
         assertTrue(FlowScenes.mixerChannels.isNotEmpty())
+        assertTrue(FlowScenes.mixerChannels.contains("音量"))
     }
 }

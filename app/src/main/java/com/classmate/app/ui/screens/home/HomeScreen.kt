@@ -128,8 +128,8 @@ fun HomeScreen(viewModel: AppViewModel) {
                         ),
                         // Restrained entry into the immersive Flow companion (not a global theme).
                         ProductRow(
-                            "心流学习 · 白噪音陪伴",
-                            "声音场景 + 专注计时，沉浸式复习",
+                            "心流学习 · 背景音陪伴",
+                            "内置授权背景音 + 专注计时，沉浸式复习",
                             Icons.Filled.PlayArrow,
                             onClick = { viewModel.navigateTo(Screen.LIVE) },
                         ),
