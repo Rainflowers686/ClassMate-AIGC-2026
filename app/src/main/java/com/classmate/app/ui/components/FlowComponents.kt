@@ -92,7 +92,7 @@ fun BreathingTimerRing(
     }
 }
 
-/** A selectable Flow ambience scene tile (visual mood only; see [com.classmate.app.ui.flow.FlowScenes]). */
+/** A selectable Flow ambience scene tile backed by local licensed loops; see [com.classmate.app.ui.flow.FlowScenes]. */
 @Composable
 fun FlowSceneCard(scene: FlowScene, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val cs = MaterialTheme.colorScheme
