@@ -17,6 +17,7 @@ data class StudyReport(
     val sourceSummaryLine: String?,
     val transcriptSummaryLine: String?,
     val sourceTypeLabels: List<String>,
+    val learningRoute: List<String> = emptyList(),
     val overview: List<String>,
     val reviewTopics: List<String>,
     val knowledgePoints: List<StudyKnowledgePoint>,

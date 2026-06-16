@@ -28,6 +28,11 @@ object StudyReportRenderer {
             appendLine()
             appendLine("适合复习的主题：${report.reviewTopics.joinToString("、")}")
         }
+        if (report.learningRoute.isNotEmpty()) {
+            appendLine()
+            appendLine("学习路线：")
+            report.learningRoute.forEach { appendLine("- $it") }
+        }
         appendLine()
 
         report.localSuggestion?.takeIf { it.isNotBlank() }?.let {
@@ -191,10 +196,16 @@ object StudyReportRenderer {
         body.append("<p class=\"meta\">课程：${esc(report.courseTitle)}　·　生成时间：${esc(report.generatedAtLabel)}　·　模型路径：${esc(report.providerLabel)}</p>")
         if (report.sourceTypeLabels.isNotEmpty()) body.append("<p class=\"meta\">资料来源：${esc(report.sourceTypeLabels.joinToString("、"))}</p>")
         body.append("<p class=\"note\">${esc(note)}</p></header>")
+        body.append("<nav class=\"toc\"><strong>目录</strong><a href=\"#overview\">课程概要</a><a href=\"#route\">学习路线</a><a href=\"#knowledge\">知识点</a><a href=\"#evidence\">证据链</a><a href=\"#practice\">练习</a><a href=\"#review\">复习</a><a href=\"#privacy\">说明</a></nav>")
 
         body.section("一、课程概要") {
             ul(report.overview)
             if (report.reviewTopics.isNotEmpty()) append("<p>适合复习的主题：${esc(report.reviewTopics.joinToString("、"))}</p>")
+        }
+        if (report.learningRoute.isNotEmpty()) {
+            body.append("<section id=\"route\"><h2>学习路线</h2><ol>")
+            report.learningRoute.forEach { body.append("<li>").append(esc(it)).append("</li>") }
+            body.append("</ol></section>")
         }
         report.localSuggestion?.takeIf { it.isNotBlank() }?.let {
             body.section("学习建议（端侧本地智能）") { append("<p>${esc(it)}</p>") }
@@ -316,6 +327,8 @@ object StudyReportRenderer {
             h1 { font-size:24px; margin:0 0 8px; } h2 { font-size:19px; margin:26px 0 10px; border-left:4px solid #2563eb; padding-left:10px; page-break-after:avoid; }
             h3 { font-size:16px; margin:16px 0 6px; } ul { margin:6px 0 12px 22px; } li { margin:3px 0; }
             .meta,.note { color:#52616b; font-size:13px; margin:2px 0; } .note { background:#f3f6f8; padding:8px 12px; border-radius:8px; }
+            .toc { display:flex; flex-wrap:wrap; gap:8px; margin:18px 0; padding:10px 12px; border:1px solid #dbe3ea; border-radius:8px; background:#f8fafc; font-size:13px; }
+            .toc a { color:#2563eb; text-decoration:none; }
             section { page-break-inside:avoid; }
             </style></head><body>$body</body></html>
         """.trimIndent()
@@ -345,9 +358,19 @@ object StudyReportRenderer {
     // ---- helpers -----------------------------------------------------------------------------
 
     private inline fun StringBuilder.section(title: String, block: StringBuilder.() -> Unit) {
-        append("<section><h2>").append(esc(title)).append("</h2>")
+        append("<section id=\"").append(sectionId(title)).append("\"><h2>").append(esc(title)).append("</h2>")
         block()
         append("</section>")
+    }
+
+    private fun sectionId(title: String): String = when {
+        title.contains("课程概要") -> "overview"
+        title.contains("核心知识点") -> "knowledge"
+        title.contains("证据链") -> "evidence"
+        title.contains("练习") || title.contains("微测") || title.contains("多练") || title.contains("薄弱") -> "practice"
+        title.contains("复习计划") -> "review"
+        title.contains("隐私") -> "privacy"
+        else -> "section-${title.hashCode().toString().replace("-", "n")}"
     }
 
     private fun StringBuilder.ul(items: List<String>) {

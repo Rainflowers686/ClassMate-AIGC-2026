@@ -29,6 +29,8 @@ class PracticeGenerationAndFeedbackTest {
         assertTrue(session.items.isNotEmpty())
         assertTrue(session.items.all { it.source == AiExecutionSource.SAFE_PLACEHOLDER })
         assertTrue(session.items.any { !it.evidenceQuote.isNullOrBlank() })
+        assertTrue(session.items.all { it.whyThisQuestionMatters.isNotBlank() })
+        assertTrue(session.items.all { it.difficulty in PracticeDifficulty.entries })
     }
 
     @Test
@@ -73,6 +75,8 @@ class PracticeGenerationAndFeedbackTest {
         assertEquals(PracticeFeedbackCorrectness.INCORRECT, wrong.correctness)
         assertEquals("add_to_review", wrong.nextAction)
         assertNotNull(wrong.evidenceQuote)
+        assertTrue(wrong.explanation.contains("Correct answer:"))
+        assertTrue(wrong.explanation.contains("Evidence:"))
         assertEquals(PracticeFeedbackCorrectness.CORRECT, correct.correctness)
         assertEquals(item.knowledgePointId, correct.knowledgePointId)
     }

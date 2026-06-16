@@ -76,9 +76,12 @@ class StudyReportP1Test {
         val md = StudyReportRenderer.renderMarkdown(report)
         val html = StudyReportRenderer.renderHtml(report)
 
-        listOf("薄弱点", "双语学习注记", "课程精华音频脚本", "文本安全检查").forEach {
+        listOf("薄弱点", "双语学习注记", "课程精华音频脚本", "文本安全检查", "学习路线").forEach {
             assertTrue("missing $it", md.contains(it))
             assertTrue("html missing $it", html.contains(it))
+        }
+        listOf("class=\"toc\"", "href=\"#overview\"", "id=\"knowledge\"", "id=\"evidence\"").forEach {
+            assertTrue("html missing navigation $it", html.contains(it))
         }
         listOf("Authorization", "Bearer", "appKey", "apiKey", "reasoning_content", "prompt", "messages").forEach {
             assertFalse(md.contains(it, ignoreCase = true))

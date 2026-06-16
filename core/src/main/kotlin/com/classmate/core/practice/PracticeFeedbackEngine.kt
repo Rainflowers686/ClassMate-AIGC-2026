@@ -53,12 +53,13 @@ object PracticeFeedbackEngine {
         val evidence = item.evidenceQuote?.takeIf { it.isNotBlank() }
         val explanation = when (correctness) {
             PracticeFeedbackCorrectness.CORRECT ->
-                "Answer matches this lesson point. Review the cited evidence once, then move on."
+                "Correct answer: ${item.answer}. Your answer matches this lesson point. Review the cited evidence once, then move on."
             PracticeFeedbackCorrectness.INCORRECT ->
-                "Answer does not match the expected course evidence. Revisit the linked knowledge point."
+                "Correct answer: ${item.answer}. The submitted answer does not match the expected course evidence. Revisit ${item.knowledgePointTitle} and retry one evidence-bound question."
             PracticeFeedbackCorrectness.NEEDS_REVIEW ->
-                "This needs a self-check against the evidence. Mark it for review if unsure."
-        } + evidence?.let { " Evidence: $it" }.orEmpty()
+                "Expected answer: ${item.answer}. This needs a self-check against the evidence. Mark it for review if unsure."
+        } + evidence?.let { " Evidence: $it" }.orEmpty() +
+            item.whyThisQuestionMatters.takeIf { it.isNotBlank() }?.let { " Why it matters: $it" }.orEmpty()
         val nextAction = when (correctness) {
             PracticeFeedbackCorrectness.CORRECT -> "review_later"
             PracticeFeedbackCorrectness.INCORRECT -> "add_to_review"

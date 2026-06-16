@@ -57,6 +57,7 @@ object StudyReportBuilder {
             sourceSummaryLine = sourceSummaryLine?.takeIf { it.isNotBlank() },
             transcriptSummaryLine = transcriptSummaryLine?.takeIf { it.isNotBlank() },
             sourceTypeLabels = sourceTypeLabels,
+            learningRoute = learningRoute(kps, snapshot),
             overview = overviewSentences(kps),
             reviewTopics = reviewTopics(kps),
             knowledgePoints = kps.mapIndexed { i, kp -> studyKnowledgePoint(i + 1, kp, segmentText) },
@@ -102,6 +103,7 @@ object StudyReportBuilder {
             sourceSummaryLine = null,
             transcriptSummaryLine = null,
             sourceTypeLabels = emptyList(),
+            learningRoute = listOf("Open due review tasks", "Review evidence", "Retry practice", "Export the updated study report"),
             overview = emptyList(),
             reviewTopics = emptyList(),
             knowledgePoints = emptyList(),
@@ -150,6 +152,16 @@ object StudyReportBuilder {
         return (if (key.isNotEmpty()) key else kps.sortedByDescending { it.intrinsicPriority }.take(3))
             .map { it.title.trim() }
             .distinct()
+    }
+
+    private fun learningRoute(kps: List<KnowledgePoint>, snapshot: LearningSnapshot): List<String> {
+        val core = kps.sortedByDescending { it.intrinsicPriority }.take(3).map { "Understand: ${it.title}" }
+        val weak = snapshot.tasks
+            .filter { it.counters.wrongAnswer > 0 || it.counters.needExample > 0 || it.counters.tooHard > 0 }
+            .sortedByDescending { it.priority }
+            .take(2)
+            .map { "Practice: ${it.title}" }
+        return (core + weak + listOf("Review due tasks", "Export and revisit this report")).distinct().take(8)
     }
 
     private fun needPractice(courseTitle: String, snapshot: LearningSnapshot): List<StudyPracticeItem> =

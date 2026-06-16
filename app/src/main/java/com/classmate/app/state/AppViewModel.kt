@@ -55,6 +55,9 @@ import com.classmate.core.practice.PracticeSessionEngine
 import com.classmate.core.practice.RoutedPracticeGenerationUseCase
 import com.classmate.core.safety.TextSafetyGate
 import com.classmate.core.safety.BasicTextSafetyProvider
+import com.classmate.core.tools.InternalFunctionRouter
+import com.classmate.core.tools.InternalToolCall
+import com.classmate.core.tools.InternalToolName
 import com.classmate.core.learning.ReviewEventType
 import com.classmate.core.learning.ReviewPriorityLevel
 import com.classmate.core.learning.ReviewTask
@@ -180,6 +183,7 @@ class AppViewModel(
     private val contentExporter = ContentExporter()
     private val captureGateway: CaptureGatewayPort by lazy(captureGatewayProvider)
     private val practiceGeneration = RoutedPracticeGenerationUseCase()
+    private val internalTools = InternalFunctionRouter(practiceGeneration)
 
     // THE single active provider config — one source of truth. The Settings model-config
     // summary, CourseAnalyzer (analyzer()) and the BlueLM diagnostic ALL read this exact field,
@@ -1809,6 +1813,12 @@ class AppViewModel(
         ui = ui.copy(textSafetyResult = safety)
         val report = buildStudyReport(session, result)
         val routedReport = routeStudyReport(report, result)
+        internalTools.execute(
+            InternalToolCall(name = InternalToolName.EXPORT_STUDY_REPORT),
+            result,
+            ui.learningSnapshot,
+            routedReport.value ?: report,
+        )
         ui = ui.copy(
             exportDraftSource = routedReport.sourceLabelZh,
             exportDraftMessage = when (routedReport.source) {
@@ -1899,6 +1909,12 @@ class AppViewModel(
             ),
         )
         val report = buildStudyReport(session, result)
+        internalTools.execute(
+            InternalToolCall(name = InternalToolName.CREATE_ESSENCE_AUDIO_SCRIPT),
+            result,
+            ui.learningSnapshot,
+            report,
+        )
         val audio = CourseEssenceAudioExporter.generate(report, ConfigMissingTtsProvider())
         ui = ui.copy(
             courseEssenceScript = audio.script,
@@ -2018,6 +2034,28 @@ class AppViewModel(
             return
         }
         val now = System.currentTimeMillis()
+        ui = ui.copy(
+            aiProcessing = AiProcessingUiState(
+                visible = true,
+                title = "正在基于课程证据出题",
+                steps = listOf("查找证据", "生成练习题", "整理题目", "等待作答"),
+                activeStep = 2,
+                source = "云端优先 / 端侧兜底",
+                fallbackMessage = "模型不可用时会使用本节课证据生成可编辑练习。",
+                canCancel = true,
+                canRetry = true,
+                canContinueManual = true,
+            ),
+        )
+        internalTools.execute(
+            InternalToolCall(
+                name = InternalToolName.CREATE_PRACTICE,
+                courseTitle = s.title,
+                now = now,
+            ),
+            r,
+            ui.learningSnapshot,
+        )
         val generated = practiceGeneration.generate(
             PracticeGenerationRequest(
                 result = r,
@@ -2029,7 +2067,7 @@ class AppViewModel(
         )
         val practice = generated.value?.session ?: PracticeSessionEngine.build(r, ui.learningSnapshot, mode, now, courseTitle = s.title)
         if (practice.items.isEmpty()) {
-            ui = ui.copy(toast = "暂时没有可练习的内容。")
+            ui = ui.copy(toast = "暂时没有可练习的内容。", aiProcessing = AiProcessingUiState.hidden())
             return
         }
         ui = ui.copy(
@@ -2039,6 +2077,7 @@ class AppViewModel(
             practiceResult = null,
             practiceStartedAt = now,
             practiceRevealed = false,
+            aiProcessing = AiProcessingUiState.hidden(),
         )
         navigateTo(Screen.PRACTICE)
     }
@@ -2132,7 +2171,21 @@ class AppViewModel(
         // and the engine answers from local evidence — never inventing course-external facts.
         val bundle = configBundle
         val tx = transport
-        ui = ui.copy(askLessonPending = true, askLessonQuestion = "")
+        ui = ui.copy(
+            askLessonPending = true,
+            askLessonQuestion = "",
+            aiProcessing = AiProcessingUiState(
+                visible = true,
+                title = "正在基于证据回答",
+                steps = listOf("检索本节课证据", "云端处理中", "端侧兜底", "整理答案与追问"),
+                activeStep = 1,
+                source = "云端优先 / 端侧兜底",
+                fallbackMessage = "没有证据时会温和提示，不编造课程外内容。",
+                canCancel = true,
+                canRetry = true,
+                canContinueManual = false,
+            ),
+        )
         viewModelScope.launch {
             val outcome = withContext(Dispatchers.IO) {
                 // Honest order: cloud BlueLM → on-device BlueLM 3B → (engine LocalRule evidence).
@@ -2152,6 +2205,7 @@ class AppViewModel(
             ui = ui.copy(
                 askLessonAnswers = ui.askLessonAnswers + answer,
                 askLessonPending = false,
+                aiProcessing = AiProcessingUiState.hidden(),
                 toast = when {
                     !servedByModel ->
                         "当前云端与端侧模型均不可用，已用安全占位并附本节课证据；请检查网络、模型目录授权或稍后重试。"
@@ -2161,6 +2215,44 @@ class AppViewModel(
                 },
             )
         }
+    }
+
+    fun addAskAnswerToReview(answerIndex: Int) {
+        val answer = ui.askLessonAnswers.getOrNull(answerIndex) ?: return
+        val result = ui.result ?: return
+        val session = ui.session ?: return
+        val kp = answer.relatedKnowledgePointTitles.firstNotNullOfOrNull { title ->
+            result.knowledgePoints.firstOrNull { it.title == title }
+        } ?: answer.evidenceRefs.firstNotNullOfOrNull { ref ->
+            ref.knowledgePointTitle?.let { title -> result.knowledgePoints.firstOrNull { it.title == title } }
+        } ?: result.knowledgePoints.firstOrNull()
+
+        if (kp == null) {
+            ui = ui.copy(toast = "这条问答没有可加入复习的知识点。")
+            return
+        }
+
+        internalTools.execute(
+            InternalToolCall(
+                name = InternalToolName.CREATE_REVIEW_TASK,
+                courseTitle = session.title,
+                knowledgePointId = kp.id,
+                now = System.currentTimeMillis(),
+            ),
+            result,
+            ui.learningSnapshot,
+        )
+        learningStore.addManualTask(
+            courseSessionId = result.sessionId,
+            courseTitle = session.title.ifBlank { "未命名课程" },
+            knowledgePointId = kp.id,
+            title = "问答复习：${kp.title}",
+            difficultyName = kp.difficulty.name,
+            sourceProvider = "ASK",
+            sourceProfile = ui.providerConfigSummary.profileLabel,
+            sourceModel = answer.modelName.orEmpty(),
+        )
+        syncLearning("已把这条问答加入复习：${kp.title}")
     }
 
     private fun HistoryRecord.toCourseRecordSnapshot(): CourseRecordSnapshot =

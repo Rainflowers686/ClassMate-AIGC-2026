@@ -26,7 +26,8 @@ class ReviewPriorityEngineTest {
         assertEquals("wrong", priorities.first().title)
         assertTrue(priorities.first().dueReason.contains("wrong answers"))
         assertEquals("retry_practice", priorities.first().recommendedAction)
-        assertTrue(priorities.any { it.title == "evidence" && it.recommendedAction == "check_evidence" })
+        assertTrue(priorities.first().estimatedMinutes >= 5)
+        assertTrue(priorities.any { it.title == "evidence" && it.recommendedAction == "check_evidence" && it.evidenceReference != null })
     }
 
     private fun task(

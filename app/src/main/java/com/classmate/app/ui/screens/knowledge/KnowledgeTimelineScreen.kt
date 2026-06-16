@@ -153,7 +153,9 @@ private fun AskThisLessonCard(viewModel: AppViewModel, session: com.classmate.co
             enabled = ui.askLessonQuestion.isNotBlank() && !ui.askLessonPending,
             modifier = Modifier.fillMaxWidth(),
         )
-        ui.askLessonAnswers.takeLast(3).reversed().forEach { answer ->
+        ui.askLessonAnswers.withIndex().toList().takeLast(3).reversed().forEach { indexedAnswer ->
+            val answerIndex = indexedAnswer.index
+            val answer = indexedAnswer.value
             Spacer(Modifier.height(Dimens.m))
             Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
                 val (label, tone) = when (answer.groundedness) {
@@ -184,6 +186,21 @@ private fun AskThisLessonCard(viewModel: AppViewModel, session: com.classmate.co
                     color = cs.onSurfaceVariant,
                 )
             }
+            if (answer.suggestedFollowUps.isNotEmpty()) {
+                Spacer(Modifier.height(Dimens.s))
+                Text("建议追问", style = MaterialTheme.typography.labelLarge, color = cs.onSurfaceVariant)
+                answer.suggestedFollowUps.take(4).forEach { followUp ->
+                    Spacer(Modifier.height(Dimens.xxs))
+                    Text("• $followUp", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+                }
+            }
+            Spacer(Modifier.height(Dimens.s))
+            SecondaryButton(
+                text = "加入复习",
+                onClick = { viewModel.addAskAnswerToReview(answerIndex) },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = answer.relatedKnowledgePointTitles.isNotEmpty() || answer.evidenceRefs.isNotEmpty(),
+            )
         }
     }
 }

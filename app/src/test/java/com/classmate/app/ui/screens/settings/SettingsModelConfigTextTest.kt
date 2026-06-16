@@ -70,4 +70,21 @@ class SettingsModelConfigTextTest {
         assertFalse(s.contains("自动 OCR 完成"))
         assertFalse(s.contains("多模态替代 OCR"))
     }
+
+    @Test
+    fun p2LearningAndRetrievalSettingsAreVisibleWithoutKeys() {
+        val s = source()
+        listOf(
+            "检索增强",
+            "查询改写",
+            "文本相似度",
+            "文本向量",
+            "默认题目难度",
+            "easy / medium / hard",
+            "Word / DOCX",
+            "bilingual notes",
+            "source metadata",
+        ).forEach { assertTrue("missing P2 settings copy: $it", s.contains(it)) }
+        assertFalse(s.contains("完整密钥"))
+    }
 }

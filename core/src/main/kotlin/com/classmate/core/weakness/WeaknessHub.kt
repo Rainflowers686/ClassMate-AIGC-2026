@@ -16,6 +16,9 @@ data class WeaknessItem(
     val lastPracticedAt: Long?,
     val reason: String,
     val evidenceReference: String?,
+    val lastWrongAnswer: String? = null,
+    val suggestedPractice: String = "",
+    val reviewPriority: Int = priority,
     val needsHumanReview: Boolean,
     val recommendedAction: String,
     val suggestedActions: List<String>,
@@ -62,9 +65,19 @@ object WeaknessHub {
             lastPracticedAt = lastPractice,
             reason = reasonParts.joinToString("; ").ifBlank { reason },
             evidenceReference = null,
+            lastWrongAnswer = if (counters.wrongAnswer > 0) "Recent practice answer did not match the lesson evidence." else null,
+            suggestedPractice = suggestedPractice(),
+            reviewPriority = priority + counters.wrongAnswer * 2 + counters.needExample,
             needsHumanReview = needsHumanReview,
             recommendedAction = actions.firstOrNull { it != "review" } ?: "review",
             suggestedActions = actions.distinct(),
         )
+    }
+
+    private fun ReviewTask.suggestedPractice(): String = when {
+        counters.evidenceWrong > 0 || needsHumanReview -> "Open the evidence and verify the original quote."
+        counters.wrongAnswer > 0 -> "Retry one evidence-bound question for this knowledge point."
+        counters.needExample > 0 || counters.tooHard > 0 -> "Find one worked example, then summarize the method."
+        else -> "Review the summary and cite one original sentence."
     }
 }

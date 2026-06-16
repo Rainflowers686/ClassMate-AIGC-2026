@@ -5,6 +5,7 @@ import com.classmate.core.learning.ReviewEngine
 import com.classmate.core.learning.ReviewEventType
 import com.classmate.core.learning.ReviewTask
 import com.classmate.core.ai.AiExecutionSource
+import com.classmate.core.model.Difficulty
 import com.classmate.core.model.CourseAnalysisResult
 import com.classmate.core.model.KnowledgePoint
 
@@ -142,6 +143,8 @@ object PracticeSessionEngine {
             quizId = quiz.id,
             options = quiz.options.map { PracticeOption(it.id, it.text, it.isCorrect) },
             recommendedSearchQuery = query(courseTitle, kp),
+            difficulty = kp.practiceDifficulty(),
+            whyThisQuestionMatters = whyMatters(kp, task),
         )
 
     private fun flashcard(kp: KnowledgePoint, task: ReviewTask?, courseTitle: String, index: Int) =
@@ -155,6 +158,8 @@ object PracticeSessionEngine {
             answer = kp.summary,
             evidenceQuote = kp.evidence.firstOrNull { it.quote.isNotBlank() }?.quote,
             recommendedSearchQuery = query(courseTitle, kp),
+            difficulty = kp.practiceDifficulty(),
+            whyThisQuestionMatters = whyMatters(kp, task),
         )
 
     private fun evidenceCheck(kp: KnowledgePoint, task: ReviewTask?, quote: String, courseTitle: String, index: Int) =
@@ -168,6 +173,8 @@ object PracticeSessionEngine {
             answer = kp.title,
             evidenceQuote = quote,
             recommendedSearchQuery = query(courseTitle, kp),
+            difficulty = kp.practiceDifficulty(),
+            whyThisQuestionMatters = whyMatters(kp, task),
         )
 
     private fun shortExplanation(kp: KnowledgePoint, task: ReviewTask?, courseTitle: String, index: Int) =
@@ -181,6 +188,8 @@ object PracticeSessionEngine {
             answer = kp.summary,
             evidenceQuote = kp.evidence.firstOrNull { it.quote.isNotBlank() }?.quote,
             recommendedSearchQuery = query(courseTitle, kp),
+            difficulty = kp.practiceDifficulty(),
+            whyThisQuestionMatters = whyMatters(kp, task),
         )
 
     private fun sourceTrace(kp: KnowledgePoint, task: ReviewTask?, courseTitle: String, index: Int, needsRecheck: Boolean) =
@@ -195,7 +204,23 @@ object PracticeSessionEngine {
             evidenceQuote = kp.evidence.firstOrNull { it.quote.isNotBlank() }?.quote,
             needsRecheck = needsRecheck,
             recommendedSearchQuery = query(courseTitle, kp),
+            difficulty = kp.practiceDifficulty(),
+            whyThisQuestionMatters = whyMatters(kp, task),
         )
+
+    private fun KnowledgePoint.practiceDifficulty(): PracticeDifficulty = when (difficulty) {
+        Difficulty.EASY -> PracticeDifficulty.EASY
+        Difficulty.MEDIUM -> PracticeDifficulty.MEDIUM
+        Difficulty.HARD -> PracticeDifficulty.HARD
+    }
+
+    private fun whyMatters(kp: KnowledgePoint, task: ReviewTask?): String = when {
+        (task?.counters?.wrongAnswer ?: 0) > 0 -> "Recent wrong answer makes this a priority review point."
+        (task?.counters?.needExample ?: 0) > 0 -> "You marked this point as needing more practice."
+        (task?.counters?.tooHard ?: 0) > 0 -> "This point was marked hard and needs step-by-step recall."
+        kp.evidence.any { it.quote.isNotBlank() } -> "This question is grounded in a lesson evidence quote."
+        else -> "This question checks a validated lesson knowledge point."
+    }
 
     // --- summarize ---
 
@@ -226,7 +251,15 @@ object PracticeSessionEngine {
             relatedKnowledgePointTitles = titles,
             needPracticeItems = needItems,
             nextSuggestion = suggestion(wrong, mastered, needMore),
+            weakPointsGenerated = wrong + needMore,
+            nextReviewSuggestion = reviewSuggestion(wrong, needMore),
         )
+    }
+
+    private fun reviewSuggestion(wrong: Int, needMore: Int): String = when {
+        wrong > 0 -> "Schedule the wrong-answer topics for today and retry one evidence-bound question."
+        needMore > 0 -> "Keep these topics due and find one extra worked example."
+        else -> "Review again after the normal interval."
     }
 
     private fun suggestion(wrong: Int, mastered: Int, needMore: Int): String = when {

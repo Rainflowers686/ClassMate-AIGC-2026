@@ -30,6 +30,7 @@ data class LessonAnswer(
     val providerName: String = "local",
     val modelName: String? = null,
     val confidence: Float? = null,
+    val suggestedFollowUps: List<String> = emptyList(),
 )
 
 object AskLessonPromptBuilder {

@@ -72,6 +72,7 @@ class StudyReportDocxRendererTest {
         assertTrue(document.contains("高等数学 &lt;A&amp;B&gt;"))
         assertTrue(document.contains("Evidence"))
         assertTrue(document.contains("AI 来源说明"))
+        assertTrue(document.contains("学习路线"))
         assertTrue(document.contains("薄弱点"))
         assertTrue(document.contains("复习计划"))
         assertTrue(document.contains("课程精华音频脚本"))

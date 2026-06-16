@@ -11,6 +11,8 @@ enum class PracticeMode { QUICK_REVIEW, WEAKNESS_DRILL, WRONG_ANSWER_RETRY, EVID
 
 enum class PracticeItemType { QUIZ_RETRY, FLASHCARD, EVIDENCE_CHECK, SHORT_EXPLANATION, SOURCE_TRACE }
 
+enum class PracticeDifficulty { EASY, MEDIUM, HARD }
+
 /** The learner's self-reported result for one item (also drives the LearningStore write-back). */
 enum class PracticeOutcome { CORRECT, WRONG, MASTERED, NEED_MORE_PRACTICE }
 
@@ -43,6 +45,8 @@ data class PracticeItem(
     val needsRecheck: Boolean = false, // evidence flagged wrong -> review, do not "drill"
     val recommendedSearchQuery: String? = null,
     val source: AiExecutionSource = AiExecutionSource.SAFE_PLACEHOLDER,
+    val difficulty: PracticeDifficulty = PracticeDifficulty.MEDIUM,
+    val whyThisQuestionMatters: String = "",
 ) {
     val correctOptionIds: List<String> get() = options.filter { it.correct }.map { it.id }
 }
@@ -94,6 +98,8 @@ data class PracticeResult(
     val relatedKnowledgePointTitles: List<String>,
     val needPracticeItems: List<PracticeNeedItem>,
     val nextSuggestion: String,
+    val weakPointsGenerated: Int = wrongCount + needMorePracticeCount,
+    val nextReviewSuggestion: String = nextSuggestion,
 )
 
 /** Human label for each mode, for UI and the printable report. */

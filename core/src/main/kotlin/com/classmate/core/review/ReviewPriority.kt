@@ -12,6 +12,8 @@ data class ReviewPriority(
     val priorityScore: Int,
     val dueReason: String,
     val recommendedAction: String,
+    val estimatedMinutes: Int = 5,
+    val evidenceReference: String? = null,
 )
 
 object ReviewPriorityEngine {
@@ -48,6 +50,16 @@ object ReviewPriorityEngine {
             counters.needExample > 0 || counters.tooHard > 0 -> "find_practice"
             else -> "review"
         }
-        return ReviewPriority(taskId, knowledgePointId, title, courseTitle, score, reason, action)
+        return ReviewPriority(
+            taskId = taskId,
+            knowledgePointId = knowledgePointId,
+            title = title,
+            courseTitle = courseTitle,
+            priorityScore = score,
+            dueReason = reason,
+            recommendedAction = action,
+            estimatedMinutes = estimatedMinutes,
+            evidenceReference = if (counters.evidenceWrong > 0 || needsHumanReview) "Evidence needs human review." else null,
+        )
     }
 }

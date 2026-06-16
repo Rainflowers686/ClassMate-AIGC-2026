@@ -70,6 +70,7 @@ class AskGroundedTest {
         val outcome = GroundedAskLessonEngine.answer("什么是收敛", session, result, seam(reply))
         assertEquals(AskStatus.GROUNDED, outcome.telemetry.askStatus)
         assertEquals(1, outcome.answer.evidenceRefs.size)
+        assertTrue(outcome.answer.suggestedFollowUps.isNotEmpty())
         assertFalse(outcome.answer.fallbackUsed)
         assertEquals("BLUELM", outcome.answer.providerName)
     }
@@ -97,6 +98,7 @@ class AskGroundedTest {
         assertTrue(outcome.answer.fallbackUsed)
         assertEquals("local", outcome.answer.providerName)
         assertTrue(outcome.answer.evidenceRefs.isNotEmpty()) // grounded in local candidates, not invented
+        assertTrue(outcome.answer.suggestedFollowUps.isNotEmpty())
     }
 
     @Test

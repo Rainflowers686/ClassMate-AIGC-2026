@@ -121,6 +121,10 @@ object StudyReportDocxRenderer {
             h1("一、课程概览")
             bullets(report.overview.ifEmpty { listOf("暂无课程概览。") })
             if (report.reviewTopics.isNotEmpty()) p("建议复习主题：${report.reviewTopics.joinToString("、")}")
+            if (report.learningRoute.isNotEmpty()) {
+                h1("一、学习路线")
+                bullets(report.learningRoute)
+            }
 
             report.localSuggestion?.takeIf { it.isNotBlank() }?.let {
                 h1("二、学习建议")

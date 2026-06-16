@@ -4,6 +4,7 @@ import com.classmate.core.model.CourseAnalysisResult
 import com.classmate.core.model.CourseSession
 import com.classmate.core.parser.JsonExtractor
 import com.classmate.core.prompt.Prompt
+import com.classmate.core.retrieval.RetrieveCourseEvidenceUseCase
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -205,10 +206,11 @@ object GroundedAskLessonEngine {
         result: CourseAnalysisResult,
         seam: AskChatSeam,
         maxCandidates: Int = 6,
+        retrieval: RetrieveCourseEvidenceUseCase = RetrieveCourseEvidenceUseCase(),
         clock: () -> Long = System::currentTimeMillis,
     ): AskOutcome {
         val start = clock()
-        val candidates = EvidenceRetriever.retrieve(question, result, maxCandidates)
+        val candidates = retrieval.retrieve(question, result, maxCandidates).candidates
 
         // No candidate evidence → NOT_FOUND, and we DO NOT call the provider.
         if (candidates.isEmpty()) {
@@ -223,7 +225,10 @@ object GroundedAskLessonEngine {
             ?: return localFallback(candidates, start, clock, provider = "local") // local_only / no network
 
         when (val parsed = GroundedAskParser.parse(first.text, candidates, first.providerName, first.modelName)) {
-            is GroundedAskParser.Result.Ok -> return AskOutcome(parsed.answer, telemetry(parsed.answer, first.providerName, clock() - start, candidates.size, parsed.citationCount, parseOk = true, validationOk = true, fallbackUsed = false))
+            is GroundedAskParser.Result.Ok -> {
+                val answer = withFollowUps(parsed.answer, candidates)
+                return AskOutcome(answer, telemetry(answer, first.providerName, clock() - start, candidates.size, parsed.citationCount, parseOk = true, validationOk = true, fallbackUsed = false))
+            }
             is GroundedAskParser.Result.Invalid -> Unit // fall through to a single repair retry
         }
 
@@ -231,7 +236,10 @@ object GroundedAskLessonEngine {
         val repaired = seam.chat(AskContextBuilder.buildPrompt(question, session.title, candidates, repairHint = "上一次输出不符合要求：citations.quote 必须原样来自候选证据，relatedKnowledgePoints 必须来自候选标题。"), "repair")
         if (repaired != null) {
             when (val parsed = GroundedAskParser.parse(repaired.text, candidates, repaired.providerName, repaired.modelName)) {
-                is GroundedAskParser.Result.Ok -> return AskOutcome(parsed.answer, telemetry(parsed.answer, repaired.providerName, clock() - start, candidates.size, parsed.citationCount, parseOk = true, validationOk = true, fallbackUsed = false))
+                is GroundedAskParser.Result.Ok -> {
+                    val answer = withFollowUps(parsed.answer, candidates)
+                    return AskOutcome(answer, telemetry(answer, repaired.providerName, clock() - start, candidates.size, parsed.citationCount, parseOk = true, validationOk = true, fallbackUsed = false))
+                }
                 is GroundedAskParser.Result.Invalid -> Unit
             }
         }
@@ -239,6 +247,9 @@ object GroundedAskLessonEngine {
         // Provider could not be validated → safe local fallback from candidates (no fabrication).
         return localFallback(candidates, start, clock, provider = "local", afterProviderFailure = true)
     }
+
+    private fun withFollowUps(answer: LessonAnswer, candidates: List<AskCandidate>): LessonAnswer =
+        answer.copy(suggestedFollowUps = AskFollowUpGenerator.generate(answer, candidates).questions)
 
     private fun localFallback(
         candidates: List<AskCandidate>,
@@ -262,9 +273,10 @@ object GroundedAskLessonEngine {
             )
         }
         val status = if (answer.groundedness == "not_found") AskStatus.NOT_FOUND else AskStatus.PARTIAL
+        val withFollowUps = withFollowUps(answer, candidates)
         return AskOutcome(
-            answer,
-            AskTelemetry(status, provider, clock() - start, candidates.size, answer.evidenceRefs.size, parseOk = !afterProviderFailure, validationOk = !afterProviderFailure, fallbackUsed = true),
+            withFollowUps,
+            AskTelemetry(status, provider, clock() - start, candidates.size, withFollowUps.evidenceRefs.size, parseOk = !afterProviderFailure, validationOk = !afterProviderFailure, fallbackUsed = true),
         )
     }
 
