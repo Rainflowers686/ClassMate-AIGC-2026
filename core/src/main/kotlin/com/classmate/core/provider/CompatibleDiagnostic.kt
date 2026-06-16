@@ -9,7 +9,7 @@ import kotlinx.serialization.json.putJsonArray
 enum class CompatibleDiagnosticStatus { OK, FAIL }
 
 /**
- * Safe diagnostic report for the explicitly-labelled "Compatible Demo" path. Carries only
+ * Safe diagnostic report for the debug-gated cloud-compatible path. Carries only
  * non-sensitive fields — never the apiKey, Authorization header, request/response body, or any
  * reasoning content.
  */

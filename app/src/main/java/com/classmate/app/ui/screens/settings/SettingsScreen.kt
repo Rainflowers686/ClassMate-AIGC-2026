@@ -216,10 +216,8 @@ fun SettingsScreen(viewModel: AppViewModel) {
 }
 
 /**
- * The competition main config page: official 蓝心大模型 first, then the on-device + local-rule
- * fallbacks. It intentionally surfaces ONLY the official cloud model and the on-device/local
- * fallbacks — no third-party or external-model enhancement. The neutral custom-API affordance stays
- * in the debug-only, collapsed section below.
+ * The main config page: official cloud BlueLM first, then on-device BlueLM and safety placeholder.
+ * It intentionally keeps custom-model diagnostics inside the debug-only, collapsed section below.
  */
 @Composable
 private fun SettingsSectionNav(section: SettingsSection, onSelect: (SettingsSection) -> Unit) {
@@ -368,23 +366,23 @@ private fun ModelApiManagementCard(viewModel: AppViewModel) {
     var appId by remember { mutableStateOf("") }
     var appKey by remember { mutableStateOf("") }
 
-    val activeModel = masked?.model
-        ?: summary.providers.firstOrNull { it.provider == "BLUELM" }?.model?.takeIf { it.isNotBlank() }
-        ?: "qwen3.5-plus"
+    val activeModel = displayCloudModelName(
+        masked?.model ?: summary.providers.firstOrNull { it.provider == "BLUELM" }?.model,
+    )
 
     ClassMateCard {
         Text("模型 API 管理", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.s))
-        Text("当前模型：蓝心大模型 · $activeModel", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+        Text("当前模型：云端蓝心 / $activeModel", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
         Spacer(Modifier.height(Dimens.xxs))
         Text(
-            "主路径：云端蓝心（官方蓝心大模型 API） → 端侧蓝心（端侧 BlueLM 3B 本地智能兜底） → 安全占位（模型不可用保护）。",
+            "主路径：云端蓝心（qwen3.5-plus） → 端侧蓝心（端侧 BlueLM 3B） → 安全占位（模型不可用保护）。",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(Dimens.m))
         ProviderStatusRow("云端蓝心", cloudBlueLmStatus(ui))
-        ProviderStatusRow("端侧蓝心（本地智能兜底）", onDeviceShortStatus(ui))
+        ProviderStatusRow("端侧蓝心（BlueLM 3B）", onDeviceShortStatus(ui))
         ProviderStatusRow("安全占位", if (summary.localFallbackEnabled) "就绪（仅模型全部不可用时）" else "已停用")
         Spacer(Modifier.height(Dimens.xs))
         Text(
@@ -628,12 +626,12 @@ private fun OnDeviceDiagnosticCard(viewModel: AppViewModel) {
         Text("端侧模型诊断", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.s))
         Text(
-            "端侧 BlueLM 3B 是真正的本地智能兜底；端侧也不可用时仅降级到安全占位（防止空结果或崩溃），不影响主流程。",
+            "端侧 BlueLM 3B 是云端不可用时的端侧模型路径；端侧也不可用时仅降级到安全占位（防止空结果或崩溃），不影响主流程。",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(Dimens.s))
-        ProviderStatusRow("SDK", if (diag?.sdkPresent == true) "已发现" else "未接入（等待 llm-sdk-release.aar）")
+        ProviderStatusRow("SDK", if (diag?.sdkPresent == true) "已发现" else "未检测到本地 SDK 文件")
         ProviderStatusRow("状态", diag?.status?.displayZh ?: "未知")
         PermissionStatusRow("模型目录访问", ui.onDevicePermissions.allFilesAccess)
         diag?.initState?.let { ProviderStatusRow("初始化", it.displayZh) }
@@ -858,7 +856,7 @@ private fun OnDeviceCapabilityCard(viewModel: AppViewModel) {
         Text("端侧本地智能层", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.s))
         Text(
-            "端侧 BlueLM 3B 已贯穿核心学习闭环：云端不可用时自动接管。路径：云端蓝心 → 端侧蓝心 → 安全占位。",
+            "端侧 BlueLM 3B 已接入核心学习闭环：云端不可用时可作为端侧模型路径接管。路径：云端蓝心 → 端侧蓝心 → 安全占位。",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -908,6 +906,15 @@ private fun cloudBlueLmStatus(ui: ClassMateUiState): String {
     }
 }
 
+private fun displayCloudModelName(raw: String?): String {
+    val trimmed = raw?.trim().orEmpty()
+    return when {
+        trimmed.isBlank() -> "qwen3.5-plus"
+        trimmed.contains("Seed-2.0", ignoreCase = true) -> "qwen3.5-plus"
+        else -> trimmed
+    }
+}
+
 private fun onDeviceShortStatus(ui: ClassMateUiState): String =
     ui.onDeviceDiagnostic?.status?.displayZh ?: "未知"
 
@@ -940,13 +947,13 @@ private fun SpeakerCapabilityCard() {
 @Composable
 private fun CapabilityRoadmapCard() {
     ClassMateCard {
-        Text("能力路线图", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text("能力状态", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.s))
         RoadmapGroup(
             "已支持",
             listOf(
                 "云端蓝心分析（官方 BlueLM）",
-                "端侧蓝心本地智能兜底（端侧 BlueLM 3B）",
+                "端侧蓝心（端侧 BlueLM 3B）",
                 "安全占位（模型全部不可用时保护）",
                 "证据链",
                 "微测",
@@ -968,7 +975,7 @@ private fun CapabilityRoadmapCard() {
         RoadmapGroup(
             "待接入",
             listOf(
-                "端侧 BlueLM 3B（等待 llm-sdk-release.aar）",
+                "端侧 BlueLM 3B 真机能力复核",
                 "端侧文本审核（CmsLocalFrame，规划中）",
                 "vivo ASR provider",
                 "vivo OCR provider",

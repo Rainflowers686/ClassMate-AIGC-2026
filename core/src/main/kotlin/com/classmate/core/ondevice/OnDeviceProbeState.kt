@@ -9,7 +9,7 @@ package com.classmate.core.ondevice
  * Every value is display-only metadata: it never carries a prompt, a model output, or a stack trace.
  */
 enum class OnDeviceProbeState(val displayZh: String) {
-    SDK_MISSING("端侧 SDK 未接入"),
+    SDK_MISSING("未检测到端侧 SDK"),
     SDK_PRESENT("端侧 SDK 已发现"),
     SDK_SIGNATURE_MISMATCH("端侧 SDK 签名不匹配"),
     MODEL_PATH_UNKNOWN("模型路径未配置"),

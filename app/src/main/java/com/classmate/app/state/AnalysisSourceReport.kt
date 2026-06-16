@@ -46,7 +46,7 @@ data class AnalysisSourceReport(
             "ACCEPTED" -> "已通过校验并落库"
             "INVALID_JSON" -> "端侧输出不是合法 JSON（INVALID_JSON）"
             "VALIDATION_FAILED" -> "端侧结果未通过校验（证据/引用不达标，VALIDATION_FAILED）"
-            "SDK_MISSING" -> "端侧 SDK 未接入（SDK_MISSING）"
+            "SDK_MISSING" -> "未检测到端侧 SDK（SDK_MISSING）"
             "PERMISSION_MISSING" -> "请授予模型目录访问权限（PERMISSION_MISSING）"
             "MODEL_FILES_MISSING" -> "请检查 /sdcard/1225/1.7.0.4_1225_mtk9500 模型文件是否完整可读（MODEL_FILES_MISSING）"
             "INIT_FAILED" -> "端侧模型初始化失败（INIT_FAILED，可在端侧诊断查看 SDK 错误码）"

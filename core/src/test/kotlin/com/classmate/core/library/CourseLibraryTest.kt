@@ -24,7 +24,7 @@ class CourseLibraryTest {
         assertEquals(2, calculus.lessonCount)
         assertEquals(5, calculus.knowledgePointTotal)
         assertEquals(1, calculus.dueReviewTaskCount)
-        assertEquals("BlueLM official", calculus.recentProvider)
+        assertEquals("云端蓝心", calculus.recentProvider)
     }
 
     @Test

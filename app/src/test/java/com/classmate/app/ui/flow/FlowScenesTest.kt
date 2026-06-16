@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The Flow ambience strip is a visual placeholder only. These tests pin the honesty contract so a
+ * The Flow ambience strip is a visual preview only. These tests pin the honesty contract so a
  * future change can't quietly start implying real audio is recorded or played.
  */
 class FlowScenesTest {
@@ -25,9 +25,9 @@ class FlowScenesTest {
     @Test
     fun disclaimerIsHonestAboutNoRealAudio() {
         val text = FlowScenes.DISCLAIMER
-        // Must say it is a placeholder and that nothing is recorded/played.
-        assertTrue(text.contains("占位"))
-        assertTrue(text.contains("未接入真实音频"))
+        // Must say it is a visual preview and that nothing is recorded/played.
+        assertTrue(text.contains("视觉预览"))
+        assertTrue(text.contains("当前不包含真实音频资源"))
         assertTrue(text.contains("不会"))
         // Must NOT claim audio is actually playing or being recorded for real.
         assertFalse(text.contains("正在播放"))

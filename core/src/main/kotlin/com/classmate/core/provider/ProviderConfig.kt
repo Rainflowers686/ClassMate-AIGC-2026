@@ -59,13 +59,13 @@ data class ResolverPolicy(
 
 /**
  * The learner-facing model mode. Drives the resolver order so the UI/logs can always say which
- * mode is active. DEMO_COMPATIBLE is an explicitly-labelled "showcase enhancement" path; it must
- * never be presented as the official BlueLM.
+ * mode is active. DEMO_COMPATIBLE is a debug-gated cloud-compatible path; it must never be
+ * presented as the official BlueLM.
  */
 enum class LearnerProfile(val wireName: String, val displayName: String) {
     OFFICIAL_BLUELM("official_bluelm", "官方 BlueLM"),
-    DEMO_COMPATIBLE("demo_compatible", "展示增强 · Compatible Demo"),
-    LOCAL_ONLY("local_only", "本地兜底");
+    DEMO_COMPATIBLE("demo_compatible", "云端兼容模型"),
+    LOCAL_ONLY("local_only", "安全占位");
 
     companion object {
         fun fromWire(value: String?): LearnerProfile? =
@@ -122,7 +122,7 @@ data class ProviderConfigBundle(
                     kind = ProviderKind.BLUELM,
                     enabled = true,
                     baseUrl = "https://api-ai.vivo.com.cn/v1",
-                    model = "Doubao-Seed-2.0-pro",
+                    model = "qwen3.5-plus",
                     temperature = 0.1,
                     maxTokens = 2200,
                     credential = Credential.None, // injected at runtime; never in repo

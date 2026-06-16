@@ -289,7 +289,9 @@ internal fun filterCourseLibrary(
                 CourseLibraryFilter.DUE -> summary.dueReviewTaskCount > 0
                 CourseLibraryFilter.WEAK -> hasWeakTask(summary, learningSnapshot)
                 CourseLibraryFilter.RECENT -> summary.latestLearningTime >= nowLatest - recentWindowMs
-                CourseLibraryFilter.OFFICIAL -> summary.recentProvider.contains("BlueLM", ignoreCase = true)
+                CourseLibraryFilter.OFFICIAL ->
+                    summary.recentProvider.contains("BlueLM", ignoreCase = true) ||
+                        summary.recentProvider.contains("云端蓝心")
                 CourseLibraryFilter.LOCAL -> summary.recentFallbackUsed || summary.recentProvider.contains("Local", ignoreCase = true)
             }
         }
@@ -323,8 +325,8 @@ private fun hasWeakTask(summary: CourseSummary, learningSnapshot: LearningSnapsh
 private fun providerSearchLabel(providerName: String, fallbackUsed: Boolean): String =
     when {
         fallbackUsed -> "安全占位 SafetyPlaceholder"
-        providerName.equals("BLUELM", ignoreCase = true) -> "BlueLM official 官方 BlueLM"
-        providerName.equals("COMPATIBLE", ignoreCase = true) -> "Compatible demo"
+        providerName.equals("BLUELM", ignoreCase = true) -> "云端蓝心 BlueLM qwen3.5-plus"
+        providerName.equals("COMPATIBLE", ignoreCase = true) -> "云端兼容模型"
         providerName.equals("LOCAL_FALLBACK", ignoreCase = true) -> "安全占位 SafetyPlaceholder"
         else -> providerName
     }

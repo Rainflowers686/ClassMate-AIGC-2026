@@ -56,8 +56,8 @@ fun StatusChip(text: String, tone: ChipTone = ChipTone.NEUTRAL, modifier: Modifi
 
 /**
  * The low-key model-mode badge surfaced on Home/Settings. Maps the human label
- * (Official BlueLM / Compatible Demo / Local Fallback) to an honest tone:
- * BlueLM = primary (official path), Compatible = warning (showcase enhancement), Local = neutral.
+ * (Official BlueLM / cloud-compatible model / LocalFallback) to an honest tone:
+ * BlueLM = primary (official path), cloud-compatible = warning (debug-gated), Local = neutral.
  */
 @Composable
 fun ModelStatusChip(mode: String, modifier: Modifier = Modifier) {

@@ -15,7 +15,7 @@ enum class OnDeviceLlmStatus(val displayZh: String, val available: Boolean) {
     AVAILABLE("端侧模型可用", true),
 
     /** llm-sdk-release.aar / native libraries are not bundled in the build. */
-    SDK_MISSING("端侧模型 SDK 未接入（等待放置 llm-sdk-release.aar）", false),
+    SDK_MISSING("未检测到端侧模型 SDK（等待放置 llm-sdk-release.aar）", false),
 
     /** SDK classes load, but the reflected fields/methods do not match the expected signature. */
     SDK_SIGNATURE_MISMATCH("端侧 SDK 签名不匹配", false),

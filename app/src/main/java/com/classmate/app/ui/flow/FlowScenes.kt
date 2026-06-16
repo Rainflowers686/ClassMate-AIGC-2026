@@ -1,7 +1,7 @@
 package com.classmate.app.ui.flow
 
 /**
- * A Flow ambience scene. These are VISUAL placeholders only: ClassMate ships no bundled audio and
+ * A Flow ambience scene. These are visual mood presets only: ClassMate ships no bundled audio and
  * does not record or play any sound. Selecting a scene changes the on-screen mood, nothing else.
  * Keeping this as pure data (no Android types) lets the honesty contract be unit-tested.
  */
@@ -22,11 +22,11 @@ object FlowScenes {
     )
 
     /**
-     * The exact honesty line shown next to the ambience strip and the mixer placeholder. It must
+     * The exact honesty line shown next to the ambience strip and mixer preview. It must
      * make clear that no real audio is bundled or playing — this is a visual mood only.
      */
     const val DISCLAIMER: String =
-        "场景与混音为视觉占位，未接入真实音频资源，当前不会录音、也不会播放任何声音。"
+        "场景与混音为视觉预览，当前不包含真实音频资源，不会录音，也不会播放任何声音。"
 
     /** Names for the (placeholder) sound mixer sliders — UI only, wired to nothing. */
     val mixerChannels: List<String> = listOf("雨声", "远雷", "风声", "白噪音")

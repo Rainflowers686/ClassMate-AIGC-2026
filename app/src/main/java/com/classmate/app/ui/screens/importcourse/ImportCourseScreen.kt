@@ -146,7 +146,7 @@ fun ImportCourseScreen(viewModel: AppViewModel) {
                 ProductHero(
                     overline = "输入工作台",
                     title = "把课堂内容放进来",
-                    subtitle = "图片、拍照、文本先生成可编辑的端侧多模态理解草稿，用户确认后进入学习资料。",
+                    subtitle = "图片、拍照、文本会先形成可编辑学习草稿，用户确认后进入知识地图。",
                 )
                 // AI 来源：云端优先 · 端侧兜底 — 未配置官方服务不等于没有 AI；端侧蓝心仍可生成学习草稿。
                 val captureStatus = remember { CaptureConfigLoader().status() }
@@ -164,11 +164,11 @@ fun ImportCourseScreen(viewModel: AppViewModel) {
                     ProductSectionTitle("学习输入")
                     GroupedList(
                         rows = listOf(
-                            ProductRow("图片学习输入", "课件截图 / 板书 / 题目 · 端侧多模态理解草稿", Icons.Filled.Add, MaterialTheme.colorScheme.primary, onClick = {
+                            ProductRow("图片学习输入", "课件截图 / 板书 / 题目 · 官方 OCR 按配置启用，端侧蓝心生成可编辑草稿", Icons.Filled.Add, MaterialTheme.colorScheme.primary, onClick = {
                                 viewModel.beginImageDraft("图片学习输入")
                                 imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                             }),
-                            ProductRow("拍照学习输入", "现场拍摄板书 / 纸质资料 / 习题 · 端侧多模态理解草稿", Icons.Filled.PlayArrow, MaterialTheme.colorScheme.secondary, onClick = {
+                            ProductRow("拍照学习输入", "现场拍摄板书 / 纸质资料 / 习题 · 用户确认后进入课程分析", Icons.Filled.PlayArrow, MaterialTheme.colorScheme.secondary, onClick = {
                                 viewModel.beginImageDraft("拍照学习输入")
                                 cameraLauncher.launch(null)
                             }),
@@ -193,7 +193,7 @@ fun ImportCourseScreen(viewModel: AppViewModel) {
                                 pendingFileSource.value = ImportSourceType.TXT_FILE
                                 fileLauncher.launch(arrayOf("text/plain", "text/markdown", "text/*"))
                             }),
-                            ProductRow("课件 / 板书 / PDF OCR", "手动 OCR：粘贴识别文字进入资料篮，不上传、不替代 OCR", Icons.Filled.Edit, onClick = {
+                            ProductRow("课件 / 板书 / PDF OCR", "官方 OCR 未配置时可粘贴识别文字；文件不上传、不爬取平台", Icons.Filled.Edit, onClick = {
                                 viewModel.navigateTo(Screen.IMPORT_TRAY)
                             }),
                             ProductRow("示例课堂", "加载内置长文本，适合真机完整链路演示", Icons.Filled.Star, onClick = {
@@ -483,7 +483,7 @@ private fun OcrTrayEditor(
     ClassMateCard {
         Text("加入 OCR 资料", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.xs))
-        Text("当前未接入真实 OCR。可粘贴识别结果；文件不上传，不解析，不爬取第三方平台。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("官方 OCR 按配置启用；未配置或不可用时，可粘贴识别文字进入资料篮。文件不会上传，不爬取第三方平台内容。", color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(Dimens.s))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
             OcrImportKind.entries.forEach { kind ->
@@ -525,9 +525,9 @@ private fun sourceLabel(source: ImportSourceType): String = when (source) {
     ImportSourceType.TXT_FILE -> ".txt"
     ImportSourceType.MARKDOWN_FILE -> ".md"
     ImportSourceType.IMAGE_OCR -> "OCR"
-    ImportSourceType.AUDIO_FILE -> "音频占位"
-    ImportSourceType.VIDEO_FILE -> "视频占位"
-    ImportSourceType.NETWORK_VIDEO_LINK -> "网络链接占位"
+    ImportSourceType.AUDIO_FILE -> "音频/转写"
+    ImportSourceType.VIDEO_FILE -> "视频字幕/元数据"
+    ImportSourceType.NETWORK_VIDEO_LINK -> "网络链接（不抓取）"
 }
 
 private fun shortKind(kind: OcrImportKind): String = when (kind) {

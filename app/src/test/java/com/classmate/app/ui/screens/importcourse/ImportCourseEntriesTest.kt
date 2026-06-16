@@ -6,8 +6,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Stage 8C Phase C/D: the import center exposes image + photo learning-input entries (with the editable
- * draft), uses honest copy, and never presents DeepSeek/Compatible as a competition main path.
+ * The import center exposes text, image, photo, OCR, and transcript entries with current product
+ * wording, and never presents external-provider diagnostics as the ordinary user path.
  */
 class ImportCourseEntriesTest {
 
@@ -21,11 +21,10 @@ class ImportCourseEntriesTest {
     fun importCenterExposesTextImageAndPhotoEntries() {
         val s = source()
         assertTrue(s.contains("文本粘贴"))
-        // Stage 8E wording: honest learning-input entries + user-confirmed multimodal draft.
         assertTrue(s.contains("图片学习输入"))
         assertTrue(s.contains("拍照学习输入"))
-        assertTrue(s.contains("端侧多模态理解草稿"))
-        assertTrue(s.contains("用户确认后进入学习资料"))
+        assertTrue(s.contains("官方 OCR 按配置启用"))
+        assertTrue(s.contains("用户确认后进入知识地图"))
         // Honest: image input is a draft, not OCR.
         assertTrue(s.contains("不替代 OCR"))
         assertFalse(s.contains("自动 OCR 完成"))

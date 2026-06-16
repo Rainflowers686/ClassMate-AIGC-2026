@@ -88,7 +88,7 @@ fun HomeScreen(viewModel: AppViewModel) {
                     FirstRunGuideCard(
                         onImport = { viewModel.navigateTo(Screen.IMPORT) },
                         onSample = { viewModel.loadSample(); viewModel.navigateTo(Screen.IMPORT_TRAY) },
-                        onDemo = { viewModel.toast("演示流程：导入资料 → 生成时间线 → 查看证据 → 微测与复习 → 导出报告。") },
+                        onDemo = { viewModel.toast("学习流程：导入资料 → 生成时间线 → 查看证据 → 微测与复习 → 导出报告。") },
                         onDismiss = { showFirstRunGuide = false },
                     )
                 }
@@ -169,7 +169,7 @@ private fun FirstRunGuideCard(
         }
         Spacer(Modifier.height(8.dpv()))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dpv())) {
-            SecondaryButton("查看演示流程", onClick = onDemo, modifier = Modifier.weight(1f))
+            SecondaryButton("查看学习流程", onClick = onDemo, modifier = Modifier.weight(1f))
             SecondaryButton("暂时关闭", onClick = onDismiss, modifier = Modifier.weight(1f))
         }
     }

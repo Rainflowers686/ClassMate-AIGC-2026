@@ -54,10 +54,10 @@ class Stage8bReframeGuardTest {
     }
 
     @Test
-    fun settingsTreatsOnDeviceAsLocalIntelligenceAndRuleAsSafetyPlaceholderOnly() {
+    fun settingsTreatsOnDeviceAsOnDeviceModelPathAndRuleAsSafetyPlaceholderOnly() {
         val s = settingsSource()
-        // On-device is the real local intelligence fallback.
-        assertTrue(s.contains("端侧 BlueLM 3B 是真正的本地智能兜底"))
+        // On-device is the explicit fallback model path.
+        assertTrue(s.contains("端侧 BlueLM 3B 是云端不可用时的端侧模型路径"))
         // The rule path is described only as a safety placeholder, never an intelligent capability.
         assertFalse(s.contains("本地规则兜底"))
         assertFalse(s.contains("可用（LocalRule）"))

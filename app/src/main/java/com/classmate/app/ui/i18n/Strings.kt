@@ -7,7 +7,7 @@ import java.util.Locale
  * resolves against the device locale at read time. Kept as plain Kotlin (no Android resources) so
  * the language switch is instant (no Activity recreation) and the string packs are unit-testable.
  *
- * Technical short codes (BlueLM, Compatible, LocalFallback, qwen3.5-plus, JSON, Debug) stay as-is in
+ * Technical short codes (BlueLM, LocalFallback, qwen3.5-plus, JSON, Debug) stay as-is in
  * both languages on purpose.
  */
 enum class AppLanguage(val displayName: String) {
@@ -120,7 +120,7 @@ private val ZH = Strings(
     homeModelSettings = "模型设置",
     homeModelCurrent = { m -> "当前：$m" },
     homeExport = "导出学习报告",
-    homeExportDesc = "Markdown / HTML / TXT",
+    homeExportDesc = "PDF / DOCX / HTML / Markdown / Text",
     historyTitle = "历史",
     historyEmpty = "还没有分析记录。导入或使用课堂伴学后，学习结果会保存在这里。",
     exportLatest = "导出最近一次报告",
@@ -140,12 +140,12 @@ private val ZH = Strings(
     validation = { v -> "校验 $v" },
     localFallback = "安全占位",
     providerBlueLM = "BlueLM 官方",
-    providerCompatible = "Compatible 演示",
+    providerCompatible = "云端兼容模型",
     modelLabel = { m -> "模型 $m" },
     deleteCd = "删除",
     importTitle = "导入中心",
     importIntroTitle = "多模态就绪导入",
-    importIntro = "粘贴文本、.txt、.md 现已可用。音频、视频、OCR、网络链接为诚实占位，不解析媒体、不抓取平台内容。",
+    importIntro = "粘贴文本、.txt、.md、图片/拍照草稿、字幕/转写现已可用。官方 OCR/ASR 按配置启用；未配置时可手动确认资料，不抓取平台内容。",
     importCourseTitle = "课程标题",
     importCourseTitleHint = "可选，例如：高等数学 - 数项级数",
     importClassroomText = "课堂文本",
@@ -184,7 +184,7 @@ private val EN = Strings(
     homeModelSettings = "Model settings",
     homeModelCurrent = { m -> "Current: $m" },
     homeExport = "Export report",
-    homeExportDesc = "Markdown / HTML / TXT",
+    homeExportDesc = "PDF / DOCX / HTML / Markdown / Text",
     historyTitle = "History",
     historyEmpty = "No analysis history yet. Import or live-capture a lesson, then the learning result is saved here.",
     exportLatest = "Export latest report",
@@ -204,12 +204,12 @@ private val EN = Strings(
     validation = { v -> "Validation $v" },
     localFallback = "Safety placeholder",
     providerBlueLM = "BlueLM official",
-    providerCompatible = "Compatible demo",
+    providerCompatible = "Cloud-compatible model",
     modelLabel = { m -> "Model $m" },
     deleteCd = "Delete",
     importTitle = "Import Hub",
     importIntroTitle = "Multimodal-ready import",
-    importIntro = "Text paste, .txt and .md import are available now. Audio, video, OCR and network links are honest placeholders and do not parse media or fetch platform content.",
+    importIntro = "Text paste, .txt/.md, image/photo drafts, subtitles, and transcripts are available. Official OCR/ASR are configuration-gated; manual confirmation remains available and no platform content is fetched.",
     importCourseTitle = "Course title",
     importCourseTitleHint = "Optional, for example: Calculus - series",
     importClassroomText = "Classroom text",

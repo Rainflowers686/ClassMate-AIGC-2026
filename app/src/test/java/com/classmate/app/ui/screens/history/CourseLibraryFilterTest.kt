@@ -20,7 +20,7 @@ class CourseLibraryFilterTest {
         val history = listOf(record("1", "高等数学：数项级数", "BLUELM", false), record("2", "C++: 指针", "LOCAL_FALLBACK", true))
 
         assertEquals("高等数学", filterCourseLibrary(summaries, history, LearningSnapshot(), "高等数学", CourseLibraryFilter.ALL, CourseLibrarySort.RECENT).single().courseName)
-        assertEquals("高等数学", filterCourseLibrary(summaries, history, LearningSnapshot(), "BlueLM", CourseLibraryFilter.ALL, CourseLibrarySort.RECENT).single().courseName)
+        assertEquals("高等数学", filterCourseLibrary(summaries, history, LearningSnapshot(), "云端蓝心", CourseLibraryFilter.ALL, CourseLibrarySort.RECENT).single().courseName)
         assertEquals("C++", filterCourseLibrary(summaries, history, LearningSnapshot(), "安全占位", CourseLibraryFilter.ALL, CourseLibrarySort.RECENT).single().courseName)
         assertTrue(filterCourseLibrary(summaries, history, LearningSnapshot(), "级数", CourseLibraryFilter.ALL, CourseLibrarySort.RECENT).isNotEmpty())
     }
@@ -66,7 +66,7 @@ class CourseLibraryFilterTest {
         knowledgePointTotal = 8,
         quizTotal = 6,
         dueReviewTaskCount = due,
-        recentProvider = "BlueLM official",
+        recentProvider = "云端蓝心",
         recentFallbackUsed = false,
     )
 

@@ -22,7 +22,7 @@ object CapabilityRoadmap {
         CapabilityCard("Text moderation", CapabilityStage.PLANNED, "Planned safety check before export or share."),
         CapabilityCard("On-device 3B model", CapabilityStage.PLANNED, "Planned offline fallback and privacy mode."),
         CapabilityCard("On-device text moderation", CapabilityStage.PLANNED, "Planned local safety filtering."),
-        CapabilityCard("Compatible demo mode", CapabilityStage.DEMO_ENHANCEMENT, "OpenAI-compatible demo enhancement only; not the official compliance path."),
+        CapabilityCard("Cloud-compatible debug mode", CapabilityStage.DEMO_ENHANCEMENT, "OpenAI-compatible debug path only; not the official compliance path."),
     )
 
     fun grouped(): Map<CapabilityStage, List<CapabilityCard>> = cards.groupBy { it.stage }

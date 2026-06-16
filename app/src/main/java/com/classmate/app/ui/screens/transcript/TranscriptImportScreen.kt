@@ -93,10 +93,10 @@ fun TranscriptImportScreen(viewModel: AppViewModel) {
                 Text("导入字幕 / 转写稿", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(Dimens.xs))
                 listOf(
-                    "当前不会解析音频/视频本体，也不录音、不上传媒体文件。",
-                    "你可以导入字幕（SRT/VTT）或粘贴转写稿；音视频文件仅记录文件名/类型/大小。",
+                    "官方 ASR 按配置启用；未配置或不可用时，可以粘贴转写文本继续学习。",
+                    "你可以导入字幕（SRT/VTT）或粘贴转写稿；视频文件仅记录文件名/类型/大小。",
                     "不会爬取第三方平台内容，请粘贴你有权使用的字幕或转写稿。",
-                    "后续可接入 ASR Provider 自动转写，当前为占位 seam。",
+                    "确认后的 TranscriptDraft 会进入课程分析；手动粘贴不会被标记为 ASR 结果。",
                 ).forEach {
                     Text("· $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(Dimens.xxs))

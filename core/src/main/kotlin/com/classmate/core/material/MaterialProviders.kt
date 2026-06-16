@@ -1,13 +1,12 @@
 package com.classmate.core.material
 
 /**
- * Provider abstractions for transcription and OCR. This foundation ships ONLY manual and no-op
- * implementations: there is no real ASR, no real OCR, no audio/video decoding, and no network or
- * platform crawling. Every provider here truthfully reports `producesReal* = false`, so the UI can
- * never present an unimplemented capability as done.
+ * Provider abstractions for transcription and OCR. Manual and no-op implementations remain available
+ * as safe fallbacks when the official services are not configured or unavailable; they never crawl
+ * platforms, decode media behind the user's back, or present manual input as provider output.
  */
 
-/** Turns audio/manual input into transcript segments. Real ASR is a future, injected implementation. */
+/** Turns audio/manual input into transcript segments. Official ASR implementations are injected. */
 interface TranscriptionProvider {
     val providerId: String
     val supportsRealtime: Boolean
@@ -20,7 +19,7 @@ interface TranscriptionProvider {
     fun transcribeManual(lines: List<String>, speaker: SpeakerLabel = SpeakerLabel.UNKNOWN, now: Long = 0L): List<TranscriptSegment>
 }
 
-/** Turns slide/board/PDF images into an OCR document. Real OCR is a future, injected implementation. */
+/** Turns slide/board/PDF images into an OCR document. Official OCR implementations are injected. */
 interface OcrProvider {
     val providerId: String
     /** True only for an actual OCR backend. Manual/no-op providers MUST return false. */
@@ -37,7 +36,7 @@ class ManualTranscriptProvider : TranscriptionProvider {
     override val providerId = "manual_transcript"
     override val supportsRealtime = false
     override val producesRealAsr = false
-    override val capabilityNote = "手动转写：用户输入的课堂片段，未接入真实 ASR，不录音、不联网取音频。"
+    override val capabilityNote = "手动转写：用户输入的课堂片段，不录音、不联网取音频，不标记为官方 ASR。"
 
     override fun transcribeManual(lines: List<String>, speaker: SpeakerLabel, now: Long): List<TranscriptSegment> =
         lines.map { it.trim() }
@@ -56,7 +55,7 @@ class ManualTranscriptProvider : TranscriptionProvider {
 class ManualOcrProvider : OcrProvider {
     override val providerId = "manual_ocr"
     override val producesRealOcr = false
-    override val capabilityNote = "手动 OCR 兜底：用户自行粘贴图片识别结果，未启用真实 OCR，不解析图片、不联网。"
+    override val capabilityNote = "手动 OCR 兜底：用户自行粘贴图片识别结果；未配置官方 OCR 时不解析图片、不联网。"
 
     override fun recognizeManual(id: String, title: String, sourceType: MaterialSourceType, pageTexts: List<String>, now: Long): OcrDocument {
         val pages = pageTexts.map { it.trim() }
@@ -77,7 +76,7 @@ class NoOpTranscriptionProvider : TranscriptionProvider {
     override val providerId = "noop_transcript"
     override val supportsRealtime = false
     override val producesRealAsr = false
-    override val capabilityNote = "ASR 暂未接入：当前不进行任何语音识别。"
+    override val capabilityNote = "官方 ASR 未配置或不可用：可粘贴转写文本继续。"
 
     override fun transcribeManual(lines: List<String>, speaker: SpeakerLabel, now: Long): List<TranscriptSegment> = emptyList()
 }
@@ -86,7 +85,7 @@ class NoOpTranscriptionProvider : TranscriptionProvider {
 class NoOpOcrProvider : OcrProvider {
     override val providerId = "noop_ocr"
     override val producesRealOcr = false
-    override val capabilityNote = "OCR 暂未接入：当前不进行任何图片文字识别。"
+    override val capabilityNote = "官方 OCR 未配置或不可用：可粘贴识别文字继续。"
 
     override fun recognizeManual(id: String, title: String, sourceType: MaterialSourceType, pageTexts: List<String>, now: Long): OcrDocument =
         OcrDocument(id = id, sourceType = sourceType, title = title, pages = emptyList(), provider = providerId, createdAt = now)

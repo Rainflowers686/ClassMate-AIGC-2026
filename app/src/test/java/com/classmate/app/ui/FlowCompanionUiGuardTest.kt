@@ -80,10 +80,10 @@ class FlowCompanionUiGuardTest {
         assertTrue(s.contains("FlowScenePicker"))
         // Honest companion / audio / transcript wording.
         val honest = companionUi() + s
-        assertTrue(honest.contains("陪学模拟演示"))
+        assertTrue(honest.contains("陪学预览"))
         assertTrue(honest.contains("声音场景预览"))
         assertTrue(honest.contains("不录音"))
-        assertTrue(honest.contains("转写能力预留"))
+        assertTrue(honest.contains("转写能力按配置启用"))
     }
 
     // ---- 4. Flow is NOT a global theme / not applied to the task pages -----------------------------

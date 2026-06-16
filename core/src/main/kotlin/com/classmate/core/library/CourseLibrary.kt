@@ -70,8 +70,8 @@ object CourseLibraryBuilder {
 
     private fun providerLabel(providerName: String, profileLabel: String): String =
         when {
-            providerName.equals("BLUELM", ignoreCase = true) -> "BlueLM official"
-            providerName.equals("COMPATIBLE", ignoreCase = true) -> "Compatible demo"
+            providerName.equals("BLUELM", ignoreCase = true) -> "云端蓝心"
+            providerName.equals("COMPATIBLE", ignoreCase = true) -> "云端兼容模型"
             providerName.equals("LOCAL_FALLBACK", ignoreCase = true) -> "安全占位"
             profileLabel.isNotBlank() -> profileLabel
             else -> providerName

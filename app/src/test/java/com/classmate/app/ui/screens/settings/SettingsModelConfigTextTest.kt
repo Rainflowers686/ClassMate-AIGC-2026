@@ -6,8 +6,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Guards the competition main config page (Settings) wording: official 蓝心大模型 first, on-device +
- * local-rule fallbacks shown honestly, and NO Compatible/DeepSeek/external-model enhancement as
+ * Guards the competition main config page (Settings) wording: 云端蓝心 first, on-device +
+ * safety placeholder fallback shown honestly, and NO Compatible/DeepSeek/external-model enhancement as
  * main UI copy. The neutral custom-API affordance stays debug-only.
  */
 class SettingsModelConfigTextTest {
@@ -23,7 +23,7 @@ class SettingsModelConfigTextTest {
         val s = source()
         listOf(
             "模型 API 管理",
-            "当前模型：蓝心大模型",
+            "当前模型：云端蓝心",
             "qwen3.5-plus",
             "云端蓝心",
             "端侧蓝心",

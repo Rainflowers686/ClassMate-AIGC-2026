@@ -352,7 +352,7 @@ class AppViewModel(
         }
     }
 
-    /** Compatible Demo connectivity probe (clearly the showcase-enhancement path, not official BlueLM). */
+    /** Debug-only custom-model connectivity probe; never presented as the official cloud path. */
     fun testCompatibleConnection(debugEnabled: Boolean = com.classmate.app.BuildConfig.DEBUG) {
         if (!debugEnabled) return
         ui = ui.copy(compatibleDiagnosticRunning = true, compatibleDiagnostic = null)
@@ -1929,13 +1929,22 @@ class AppViewModel(
         // On-device analysis keeps provider=BLUELM but is marked 端侧蓝心 via modelLabel (Stage 8C).
         if (OnDeviceCourseAnalysis.isOnDevice(result.provenance)) return "端侧蓝心 / BlueLM 3B"
         val base = when (result.provenance.provider) {
-            ProviderKind.BLUELM -> "Official BlueLM"
-            ProviderKind.COMPATIBLE -> "Compatible Demo"
+            ProviderKind.BLUELM -> "云端蓝心"
+            ProviderKind.COMPATIBLE -> "云端兼容模型"
             // LocalRule is no longer presented as an intelligent capability — only a safety placeholder.
             ProviderKind.LOCAL_FALLBACK -> "安全占位"
         }
-        val model = configBundle.configOf(result.provenance.provider)?.model.orEmpty()
+        val model = displayModelForReport(configBundle.configOf(result.provenance.provider)?.model.orEmpty())
         return if (model.isNotBlank()) "$base / $model" else base
+    }
+
+    private fun displayModelForReport(raw: String): String {
+        val model = raw.trim()
+        return when {
+            model.isBlank() -> ""
+            model.contains("Seed-2.0", ignoreCase = true) -> "qwen3.5-plus"
+            else -> model
+        }
     }
 
     private fun buildFullReport(

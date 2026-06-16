@@ -63,7 +63,7 @@ import androidx.compose.ui.unit.sp
  * applied to Home / Import / Course / History / Settings. The look is a warm dark light-field backdrop
  * (radial gradient + drifting glow + vignette, not flat black), a breathing timer ring as the hero,
  * dark glass panels, sound-scene tiles, and a cached-knowledge surface. Honest: no audio is bundled or
- * played; "陪学模拟演示 / 声音场景预览" labels stay.
+ * played; "陪学预览 / 声音场景预览" labels stay.
  */
 
 // ── Scenes ─────────────────────────────────────────────────────────────────────────────────────────
@@ -91,9 +91,9 @@ fun flowCompSceneOf(id: String): FlowCompScene = flowCompScenes.firstOrNull { it
 
 /** Honest, never-overclaim copy for the companion's audio/companion features. */
 object FlowCompanionCopy {
-    const val COMPANION_TAG = "陪学模拟演示"
-    const val AUDIO_DISCLAIMER = "声音场景预览 · 视觉占位，未接入真实音频，不联网、不录音。"
-    const val TRANSCRIPT_NOTE = "转写能力预留；阶段总结为模拟演示，用户确认后才并入复习计划。"
+    const val COMPANION_TAG = "陪学预览"
+    const val AUDIO_DISCLAIMER = "声音场景预览 · 当前不播放真实音频，不联网、不录音。"
+    const val TRANSCRIPT_NOTE = "转写能力按配置启用；阶段总结需用户确认后才并入复习计划。"
 }
 
 object FlowCompColors {
