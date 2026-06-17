@@ -48,7 +48,7 @@ class ProfileAndHistoryTest {
         assertEquals(ProviderKind.COMPATIBLE, bundle.primary)
         // Compatible is primary; BlueLM stays a secondary; local fallback is last.
         assertEquals(listOf(ProviderKind.COMPATIBLE, ProviderKind.BLUELM, ProviderKind.LOCAL_FALLBACK), bundle.order)
-        assertEquals("兼容演示", viewModel.ui.providerConfigSummary.modeLabel)
+        assertEquals("自有模型", viewModel.ui.providerConfigSummary.modeLabel)
         assertTrue(bundle.configOf(ProviderKind.COMPATIBLE)?.hasRealCredential() == true)
         assertTrue(viewModel.ui.providerConfigSummary.compatibleConfigured)
         assertTrue(preview.providerSummaries.any { it.provider == "COMPATIBLE" && it.credentialPresent && it.maskedAppKey != "absent" })

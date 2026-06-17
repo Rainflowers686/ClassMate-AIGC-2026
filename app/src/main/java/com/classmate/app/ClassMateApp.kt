@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -18,6 +19,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
@@ -106,6 +108,29 @@ fun ClassMateApp() {
                                 .align(Alignment.BottomCenter)
                                 .padding(16.dp),
                         ) { Text(toast) }
+                    }
+
+                    if (ui.aiConfigPrompt.visible) {
+                        AlertDialog(
+                            onDismissRequest = { viewModel.dismissAiConfigPrompt() },
+                            title = { Text("需要配置云端 AI") },
+                            text = {
+                                Text(
+                                    "配置蓝心大模型后，课堂分析、问答、练习和导出会获得更好的云端效果。" +
+                                        "未配置时，你仍可以继续使用端侧蓝心或手动编辑。",
+                                )
+                            },
+                            confirmButton = {
+                                TextButton(onClick = { viewModel.goToAiConfigFromPrompt() }) {
+                                    Text("去设置")
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { viewModel.dismissAiConfigPrompt() }) {
+                                    Text("稍后")
+                                }
+                            },
+                        )
                     }
                 }
             }

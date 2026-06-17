@@ -22,19 +22,53 @@ class SettingsModelConfigTextTest {
     fun mainConfigPageUsesOfficialFirstLabels() {
         val s = source()
         listOf(
-            "模型 API 管理",
-            "当前模型：云端蓝心",
+            "AI 模型配置",
+            "蓝心大模型",
+            "其他模型",
+            "AppID",
+            "AppKey",
+            "API Key",
+            "高级 JSON 配置",
+            "保存配置",
+            "删除配置",
+            "恢复默认 AppID",
+            "测试配置（readiness / dry-run）",
+            "配置仅保存在本机",
+            "2026374747",
             "qwen3.5-plus",
             "云端蓝心",
             "端侧蓝心",
             "端侧 BlueLM 3B",
             "安全占位",
-            "端侧模型诊断",
-            "保存配置",
-            "测试连接",
-            "删除配置",
-            "Provider path",
         ).forEach { assertTrue("missing main-config label: $it", s.contains(it)) }
+    }
+
+    @Test
+    fun settingsIaV2SeparatesGeneralAndDeveloperSettings() {
+        val s = source()
+        listOf(
+            "通用设置",
+            "开发者设置",
+            "外观与主题",
+            "AI 模型配置",
+            "隐私与权限",
+            "学习与导出",
+            "沉浸式背景音",
+            "普通用户填写 AI Key 的主入口在通用设置",
+        ).forEach { assertTrue("missing Settings IA v2 copy: $it", s.contains(it)) }
+    }
+
+    @Test
+    fun aiModelConfigurationPageContainsPersistentActions() {
+        val s = source()
+        listOf(
+            "saveOfficialModelConfig",
+            "deleteOfficialModelConfig",
+            "saveCustomModelConfig",
+            "deleteCustomModelConfig",
+            "selectAiModelProviderMode",
+            "JSON 格式不正确",
+        ).forEach { assertTrue("missing persistent config hook: $it", s.contains(it)) }
     }
 
     @Test

@@ -44,6 +44,20 @@ import com.classmate.core.ondevice.OnDeviceMultimodalDiagnostic
 import com.classmate.core.provider.BlueLMDiagnosticReport
 import com.classmate.core.provider.CompatibleDiagnosticReport
 
+enum class SettingsDeepLink {
+    NONE,
+    AI_MODEL_CONFIG_BLUELM,
+}
+
+data class AiConfigPromptUiState(
+    val visible: Boolean = false,
+    val feature: String = "",
+) {
+    companion object {
+        fun hidden(): AiConfigPromptUiState = AiConfigPromptUiState()
+    }
+}
+
 /** All UI state in one immutable snapshot, updated via copy() from [AppViewModel]. */
 data class ClassMateUiState(
     // appearance
@@ -131,6 +145,7 @@ data class ClassMateUiState(
     val audioCaptureProgress: Int = 0,
     val audioCaptureMessage: String? = null,
     val aiProcessing: AiProcessingUiState = AiProcessingUiState.hidden(),
+    val aiConfigPrompt: AiConfigPromptUiState = AiConfigPromptUiState.hidden(),
     // Stage 8E Phase 1/6: bounded model-path candidate detection + real-image diagnostic meta.
     val modelPathDetection: ModelPathDetection? = null,
     val onDeviceRealImageMeta: String? = null,
@@ -170,6 +185,7 @@ data class ClassMateUiState(
 
     // navigation context
     val selectedKnowledgePointId: String? = null,
+    val settingsDeepLink: SettingsDeepLink = SettingsDeepLink.NONE,
 
     // transient
     val toast: String? = null,

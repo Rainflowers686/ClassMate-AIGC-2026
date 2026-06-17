@@ -1,6 +1,8 @@
 package com.classmate.app.state
 
 import com.classmate.app.platform.ConfigRepository
+import com.classmate.app.platform.AiModelProviderMode
+import com.classmate.app.platform.ModelConfigRepository
 import com.classmate.core.model.ProviderKind
 import com.classmate.core.prompt.PromptBuilder
 import com.classmate.core.provider.BlueLMDiagnosticStatus
@@ -178,5 +180,67 @@ class AppViewModelProviderConfigTest {
         val report = viewModel.runBlueLmConnectionDiagnostic()
         assertEquals(1, transportCalls)
         assertEquals(BlueLMDiagnosticStatus.OK, report.status)
+    }
+
+    @Test
+    fun savedOfficialModelConfigActivatesBlueLmWithoutExposingSecret() {
+        val missing = Files.createTempDirectory("classmate-vm-official").resolve("config.local.json").toFile()
+        val modelFile = Files.createTempDirectory("classmate-vm-official-model").resolve("classmate_model_config.json").toFile()
+        val viewModel = AppViewModel(
+            configRepository = ConfigRepository(missing),
+            modelConfigRepository = ModelConfigRepository(modelFile),
+        )
+
+        viewModel.saveOfficialModelConfig(
+            baseUrl = "",
+            model = "",
+            appId = "official-app-id",
+            appKey = "official-unit-key",
+        )
+
+        assertTrue(viewModel.ui.modelConfigMasked?.officialConfigured == true)
+        assertEquals(AiModelProviderMode.OFFICIAL_BLUELM, viewModel.ui.modelConfigMasked?.mode)
+        assertTrue(viewModel.ui.providerConfigSummary.blueLmConfigured)
+        assertEquals(ProviderKind.BLUELM, viewModel.activeConfigBundle().primary)
+        assertFalse(viewModel.ui.toString().contains("official-unit-key"))
+    }
+
+    @Test
+    fun savedCustomModelConfigActivatesCompatibleProvider() {
+        val missing = Files.createTempDirectory("classmate-vm-custom").resolve("config.local.json").toFile()
+        val modelFile = Files.createTempDirectory("classmate-vm-custom-model").resolve("classmate_model_config.json").toFile()
+        val viewModel = AppViewModel(
+            configRepository = ConfigRepository(missing),
+            modelConfigRepository = ModelConfigRepository(modelFile),
+        )
+
+        viewModel.saveCustomModelConfig(
+            apiKey = "custom-unit-api-key",
+            advancedJson = """{"baseUrl":"https://custom.example/v1","model":"study-model"}""",
+        )
+
+        assertTrue(viewModel.ui.modelConfigMasked?.customConfigured == true)
+        assertEquals(AiModelProviderMode.CUSTOM, viewModel.ui.modelConfigMasked?.mode)
+        assertTrue(viewModel.ui.providerConfigSummary.compatibleConfigured)
+        assertEquals(ProviderKind.COMPATIBLE, viewModel.activeConfigBundle().primary)
+        assertFalse(viewModel.ui.toString().contains("custom-unit-api-key"))
+    }
+
+    @Test
+    fun missingCloudConfigPromptCanDismissOrJumpToAiSettings() {
+        val missing = Files.createTempDirectory("classmate-vm-prompt").resolve("config.local.json").toFile()
+        val viewModel = AppViewModel(configRepository = ConfigRepository(missing))
+
+        viewModel.promptCloudConfigIfMissing("Ask 云端回答")
+        assertTrue(viewModel.ui.aiConfigPrompt.visible)
+        viewModel.dismissAiConfigPrompt()
+        assertFalse(viewModel.ui.aiConfigPrompt.visible)
+
+        val another = AppViewModel(configRepository = ConfigRepository(missing))
+        another.promptCloudConfigIfMissing("Export AI 精炼报告")
+        another.goToAiConfigFromPrompt()
+        assertEquals(Tab.SETTINGS, another.currentTab)
+        assertEquals(Screen.SETTINGS, another.currentScreen)
+        assertEquals(SettingsDeepLink.AI_MODEL_CONFIG_BLUELM, another.ui.settingsDeepLink)
     }
 }

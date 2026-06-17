@@ -23,7 +23,7 @@ class ModelConfigRepositoryTest {
                     baseUrl = "https://api-ai.vivo.com.cn/v1",
                     model = "qwen3.5-plus",
                     appId = "fake-app-id-2026",
-                    appKey = "fake-app-key-for-tests",
+                    appKey = "unit-test-official-key",
                 ),
             ),
         )
@@ -45,16 +45,53 @@ class ModelConfigRepositoryTest {
     fun maskedViewNeverExposesRawSecret() {
         val file = tempFile()
         val repo = ModelConfigRepository(file)
-        repo.save(ModelApiProfile(appId = "abcd1234efgh", appKey = "sk-fake-secret-value-1234"))
+        repo.save(ModelApiProfile(appId = "abcd1234efgh", appKey = "unit-test-secret-value-1234"))
 
         val masked = repo.masked()!!
         assertTrue(masked.credentialPresent)
         assertFalse(masked.maskedAppId.contains("abcd1234efgh"))
-        assertFalse(masked.maskedAppKey.contains("sk-fake-secret-value-1234"))
+        assertFalse(masked.maskedAppKey.contains("unit-test-secret-value-1234"))
         // Masked tails keep only first/last 2 chars.
         assertEquals("ab***gh", masked.maskedAppId)
-        assertTrue(masked.maskedAppKey.startsWith("sk"))
+        assertTrue(masked.maskedAppKey.startsWith("un"))
         assertTrue(masked.maskedAppKey.endsWith("34"))
+    }
+
+    @Test
+    fun officialConfigUsesDefaultCompetitionAppId() {
+        assertEquals("2026374747", ModelApiProfile.DEFAULT_APP_ID)
+    }
+
+    @Test
+    fun customConfigPersistsSeparatelyAndCanBeDeleted() {
+        val file = tempFile()
+        val repo = ModelConfigRepository(file)
+
+        assertTrue(repo.saveOfficial("https://api-ai.vivo.com.cn/v1", "qwen3.5-plus", "official-app-id", "official-unit-key"))
+        assertTrue(repo.saveCustom("custom-unit-api-key", """{"baseUrl":"https://custom.example/v1","model":"study-model"}"""))
+
+        val reopened = ModelConfigRepository(file)
+        val profile = reopened.load()!!
+        assertEquals(AiModelProviderMode.CUSTOM, profile.mode)
+        assertTrue(profile.officialConfigured())
+        assertTrue(profile.customConfigured())
+        assertEquals("https://custom.example/v1", profile.customBaseUrl("fallback"))
+        assertEquals("study-model", profile.customModel("fallback"))
+
+        assertTrue(reopened.deleteCustom())
+        val afterDelete = ModelConfigRepository(file).load()!!
+        assertEquals(AiModelProviderMode.OFFICIAL_BLUELM, afterDelete.mode)
+        assertTrue(afterDelete.officialConfigured())
+        assertFalse(afterDelete.customConfigured())
+    }
+
+    @Test
+    fun invalidCustomJsonIsRejectedWithoutSavingSecret() {
+        val file = tempFile()
+        val repo = ModelConfigRepository(file)
+
+        assertFalse(repo.saveCustom("custom-unit-api-key", """{"baseUrl":"""))
+        assertNull(repo.load())
     }
 
     @Test

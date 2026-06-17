@@ -67,6 +67,7 @@ import com.classmate.core.ondevice.OnDeviceModelFileProbe
 import com.classmate.app.platform.ConfigImportPreview
 import com.classmate.app.platform.ConfigRepository
 import com.classmate.app.platform.DebugConfigImporter
+import com.classmate.app.platform.AiModelProviderMode
 import com.classmate.app.platform.MaskedModelProfile
 import com.classmate.app.platform.ModelApiProfile
 import com.classmate.app.platform.ModelConfigRepository
@@ -97,6 +98,7 @@ import com.classmate.core.ondevice.OnDeviceLlmDiagnostic
 import com.classmate.core.ondevice.OnDeviceLlmTaskProfile
 import com.classmate.core.ondevice.OnDevicePromptTemplate
 import com.classmate.core.provider.Credential
+import com.classmate.core.provider.LearnerProfile
 import com.classmate.core.provider.ProviderAskChatClient
 import com.classmate.core.analysis.AnalysisOutcome
 import com.classmate.core.ai.CourseAnalysisRouting
@@ -135,6 +137,7 @@ import com.classmate.core.provider.BlueLmSigner
 import com.classmate.core.provider.CompatibleDiagnosticReport
 import com.classmate.core.provider.CompatibleDiagnosticRunner
 import com.classmate.core.provider.HttpTransport
+import com.classmate.core.provider.ProviderConfig
 import com.classmate.core.provider.ProviderConfigBundle
 import com.classmate.core.provider.ProviderResolver
 import com.classmate.core.provider.UnconfiguredBlueLmSigner
@@ -184,6 +187,7 @@ class AppViewModel(
     private val captureGateway: CaptureGatewayPort by lazy(captureGatewayProvider)
     private val practiceGeneration = RoutedPracticeGenerationUseCase()
     private val internalTools = InternalFunctionRouter(practiceGeneration)
+    private val aiConfigPromptedFeatures = mutableSetOf<String>()
 
     // THE single active provider config — one source of truth. The Settings model-config
     // summary, CourseAnalyzer (analyzer()) and the BlueLM diagnostic ALL read this exact field,
@@ -375,21 +379,44 @@ class AppViewModel(
     // --- persistent official-model config (P5): 蓝心大模型 saved across restarts ---
 
     /**
-     * Overlay a persisted official-model profile (real credentials from app-private storage) onto
-     * [base]. Only the BlueLM credential/baseUrl/model are swapped; the profile, resolver order and
-     * every other provider stay untouched, so the cloud main path and qwen guard are unchanged.
+     * Overlay persisted model credentials from app-private storage onto [base]. Official BlueLM stays
+     * on [ProviderKind.BLUELM]; custom models reuse the existing compatible provider instead of
+     * introducing another network path. No value is logged or written back to config.local.json.
      */
     private fun applyPersistedModelProfile(base: ProviderConfigBundle): ProviderConfigBundle {
         val profile = modelConfigRepository.load() ?: return base
         if (!profile.hasRealCredential()) return base
-        val blueLm = base.configOf(ProviderKind.BLUELM) ?: return base
-        val updated = blueLm.copy(
-            enabled = true,
-            baseUrl = profile.baseUrl.ifBlank { blueLm.baseUrl },
-            model = profile.model.ifBlank { blueLm.model },
-            credential = Credential.BlueLm(profile.appId, profile.appKey),
-        )
-        return base.copy(configs = base.configs + (ProviderKind.BLUELM to updated))
+        return when (profile.mode) {
+            AiModelProviderMode.OFFICIAL_BLUELM -> {
+                val blueLm = base.configOf(ProviderKind.BLUELM) ?: return base
+                val updated = blueLm.copy(
+                    enabled = true,
+                    baseUrl = profile.baseUrl.ifBlank { blueLm.baseUrl },
+                    model = profile.model.ifBlank { blueLm.model },
+                    credential = Credential.BlueLm(profile.appId, profile.appKey),
+                )
+                ProviderConfigBundle.forProfile(
+                    profile = LearnerProfile.OFFICIAL_BLUELM,
+                    configs = base.configs + (ProviderKind.BLUELM to updated),
+                    policy = base.policy,
+                )
+            }
+            AiModelProviderMode.CUSTOM -> {
+                val compatible = base.configOf(ProviderKind.COMPATIBLE)
+                    ?: ProviderConfig(kind = ProviderKind.COMPATIBLE, enabled = true)
+                val updated = compatible.copy(
+                    enabled = true,
+                    baseUrl = profile.customBaseUrl(compatible.baseUrl.ifBlank { ModelApiProfile.DEFAULT_BASE_URL }),
+                    model = profile.customModel(compatible.model.ifBlank { ModelApiProfile.DEFAULT_MODEL }),
+                    credential = Credential.ApiKey(profile.customApiKey),
+                )
+                ProviderConfigBundle.forProfile(
+                    profile = LearnerProfile.DEMO_COMPATIBLE,
+                    configs = base.configs + (ProviderKind.COMPATIBLE to updated),
+                    policy = base.policy,
+                )
+            }
+        }
     }
 
     /** Masked view of the saved official-model config for Settings (never the raw secret). */
@@ -404,24 +431,58 @@ class AppViewModel(
             ui = ui.copy(toast = "当前环境不支持持久化模型配置。")
             return
         }
-        val profile = ModelApiProfile(
-            label = ModelApiProfile.DEFAULT_LABEL,
-            baseUrl = baseUrl.trim().ifBlank { ModelApiProfile.DEFAULT_BASE_URL },
-            model = model.trim().ifBlank { ModelApiProfile.DEFAULT_MODEL },
-            appId = appId.trim(),
-            appKey = appKey.trim(),
+        val saved = modelConfigRepository.saveOfficial(
+            baseUrl = baseUrl,
+            model = model,
+            appId = appId,
+            appKey = appKey,
         )
-        val saved = modelConfigRepository.save(profile)
-        configBundle = applyPersistedModelProfile(configBundle)
+        if (saved) {
+            configBundle = applyPersistedModelProfile(configRepository.loadLocalOrDefault().bundle)
+        }
+        val profile = modelConfigRepository.load()
         ui = ui.copy(
             providerConfigSummary = providerSummary("saved model config"),
             modelConfigMasked = modelConfigRepository.masked(),
             toast = when {
                 !saved -> "保存失败，请重试。"
-                profile.hasRealCredential() -> "已保存官方模型配置（仅本机，不写入仓库）。"
+                profile?.officialConfigured() == true -> "已保存蓝心大模型配置（仅本机，不写入仓库）。"
                 else -> "已保存配置；凭据仍为占位符。"
             },
         )
+    }
+
+    fun saveCustomModelConfig(apiKey: String, advancedJson: String) {
+        if (!modelConfigRepository.isEnabled) {
+            ui = ui.copy(toast = "当前环境不支持持久化模型配置。")
+            return
+        }
+        val saved = modelConfigRepository.saveCustom(apiKey = apiKey, advancedJson = advancedJson)
+        if (saved) {
+            configBundle = applyPersistedModelProfile(configRepository.loadLocalOrDefault().bundle)
+        }
+        val profile = modelConfigRepository.load()
+        ui = ui.copy(
+            providerConfigSummary = providerSummary("saved custom model config"),
+            modelConfigMasked = modelConfigRepository.masked(),
+            toast = when {
+                !saved -> "高级 JSON 配置格式不正确，请检查后再保存。"
+                profile?.customConfigured() == true -> "已保存自有模型配置（仅本机，不写入仓库）。"
+                else -> "已保存自有模型设置；API Key 仍未配置。"
+            },
+        )
+    }
+
+    fun selectAiModelProviderMode(mode: AiModelProviderMode) {
+        if (!modelConfigRepository.isEnabled) return
+        if (modelConfigRepository.setMode(mode)) {
+            configBundle = applyPersistedModelProfile(configRepository.loadLocalOrDefault().bundle)
+            ui = ui.copy(
+                providerConfigSummary = providerSummary("saved model mode"),
+                modelConfigMasked = modelConfigRepository.masked(),
+                toast = if (mode == AiModelProviderMode.CUSTOM) "已切换为自有模型。未配置时仍会端侧兜底。" else "已切换为蓝心大模型。",
+            )
+        }
     }
 
     /** Delete the saved official-model config; the official path becomes unconfigured again. */
@@ -430,14 +491,70 @@ class AppViewModel(
             ui = ui.copy(toast = "当前环境没有可删除的本机模型配置。")
             return
         }
-        modelConfigRepository.delete()
+        modelConfigRepository.deleteOfficial()
         configBundle = applyPersistedModelProfile(configRepository.loadLocalOrDefault().bundle)
         ui = ui.copy(
             providerConfigSummary = providerSummary("model config deleted"),
             modelConfigMasked = modelConfigRepository.masked(),
-            toast = "已删除本机模型配置。",
+            toast = "已删除本机蓝心大模型配置。",
         )
     }
+
+    fun deleteCustomModelConfig() {
+        if (!modelConfigRepository.isEnabled) {
+            ui = ui.copy(toast = "当前环境没有可删除的本机模型配置。")
+            return
+        }
+        modelConfigRepository.deleteCustom()
+        configBundle = applyPersistedModelProfile(configRepository.loadLocalOrDefault().bundle)
+        ui = ui.copy(
+            providerConfigSummary = providerSummary("custom model config deleted"),
+            modelConfigMasked = modelConfigRepository.masked(),
+            toast = "已删除本机自有模型配置。",
+        )
+    }
+
+    fun testAiConfigReadiness() {
+        val masked = modelConfigRepository.masked()
+        ui = ui.copy(
+            modelConfigMasked = masked,
+            toast = when {
+                masked?.credentialPresent == true -> "配置已保存：当前仅做 readiness 检查，未发送网络请求。"
+                else -> "尚未配置云端凭据。未配置时仍可继续端侧处理或手动编辑。"
+            },
+        )
+    }
+
+    fun promptCloudConfigIfMissing(feature: String) {
+        maybePromptMissingCloudConfig(feature)
+    }
+
+    fun dismissAiConfigPrompt() {
+        ui = ui.copy(aiConfigPrompt = AiConfigPromptUiState.hidden())
+    }
+
+    fun goToAiConfigFromPrompt() {
+        ui = ui.copy(
+            aiConfigPrompt = AiConfigPromptUiState.hidden(),
+            settingsDeepLink = SettingsDeepLink.AI_MODEL_CONFIG_BLUELM,
+        )
+        selectTab(Tab.SETTINGS)
+    }
+
+    fun consumeSettingsDeepLink() {
+        if (ui.settingsDeepLink != SettingsDeepLink.NONE) {
+            ui = ui.copy(settingsDeepLink = SettingsDeepLink.NONE)
+        }
+    }
+
+    private fun maybePromptMissingCloudConfig(feature: String) {
+        if (hasConfiguredCloudModel() || !aiConfigPromptedFeatures.add(feature)) return
+        ui = ui.copy(aiConfigPrompt = AiConfigPromptUiState(visible = true, feature = feature))
+    }
+
+    private fun hasConfiguredCloudModel(): Boolean =
+        configBundle.configOf(ProviderKind.BLUELM)?.hasRealCredential() == true ||
+            configBundle.configOf(ProviderKind.COMPATIBLE)?.hasRealCredential() == true
 
     // --- on-device BlueLM 3B diagnostic (P6/P3) ---
 
@@ -670,6 +787,7 @@ class AppViewModel(
         encodedImageBytes: ByteArray = image.bytes,
     ) {
         if (ui.imageDraftRunning) return // single in-flight multimodal task; repeat taps are no-ops
+        maybePromptMissingCloudConfig("官方 OCR")
         val meta = buildString {
             if (originalWidth > 0 && originalHeight > 0) append("原图 ${originalWidth}x$originalHeight → ")
             append("处理 ${image.width}x${image.height} · RGB ${image.bytes.size} 字节")
@@ -1122,6 +1240,7 @@ class AppViewModel(
             ui = ui.copy(audioCaptureMessage = "音频文件为空，请重新选择或粘贴转写文本。", toast = "音频文件为空。")
             return
         }
+        maybePromptMissingCloudConfig("官方 ASR")
         val title = ui.courseTitle.ifBlank { fileName.substringBeforeLast('.').ifBlank { "音频转写草稿" } }
         ui = ui.copy(
             transcriptSourceType = TranscriptSourceType.AUDIO_TRANSCRIPT,
@@ -1361,6 +1480,7 @@ class AppViewModel(
             ui = ui.copy(toast = "请先粘贴课堂文本，或加入 OCR / 转写稿资料。")
             return
         }
+        maybePromptMissingCloudConfig("CourseAnalysis 云端增强")
         val now = System.currentTimeMillis()
         val isSample = text.trim() == SampleCourses.SERIES_TEXT.trim() && ui.ocrImports.isEmpty() && ui.transcripts.isEmpty()
         val title = ui.courseTitle.ifBlank { "未命名课程" }
@@ -1693,6 +1813,7 @@ class AppViewModel(
             ui = ui.copy(toast = "暂无可生成的学习报告草稿。")
             return false
         }
+        maybePromptMissingCloudConfig("Export AI 精炼报告")
         val source = refinedExportSourceLabel()
         ui = ui.copy(
             exportDraftReady = true,
@@ -1895,6 +2016,7 @@ class AppViewModel(
             ui = ui.copy(toast = "请先完成课程分析。")
             return
         }
+        maybePromptMissingCloudConfig("课程精华音频脚本")
         ui = ui.copy(
             aiProcessing = AiProcessingUiState(
                 visible = true,
@@ -2042,6 +2164,7 @@ class AppViewModel(
             ui = ui.copy(toast = "请先打开一门已分析的课程再开始练习。")
             return
         }
+        maybePromptMissingCloudConfig("Practice generation")
         val now = System.currentTimeMillis()
         ui = ui.copy(
             aiProcessing = AiProcessingUiState(
@@ -2175,6 +2298,7 @@ class AppViewModel(
             ui = ui.copy(toast = "请先打开已分析的课程并输入问题。")
             return
         }
+        maybePromptMissingCloudConfig("Ask 云端回答")
         // Grounded QA routes through the SAME profile order as the analyzer (BlueLM/Compatible/Local).
         // The network call runs off the main thread; with no real credentials the seam returns null
         // and the engine answers from local evidence — never inventing course-external facts.

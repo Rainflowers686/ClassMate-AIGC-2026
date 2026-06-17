@@ -37,7 +37,7 @@ data class ProviderConfigSummary(
             for (name in providerOrder) {
                 when (name) {
                     ProviderKind.BLUELM.name -> if (blueLmConfigured) return "官方 BlueLM"
-                    ProviderKind.COMPATIBLE.name -> if (compatibleConfigured) return "兼容演示"
+                    ProviderKind.COMPATIBLE.name -> if (compatibleConfigured) return "自有模型"
                     ProviderKind.LOCAL_FALLBACK.name -> if (localFallbackEnabled) return "安全占位"
                 }
             }

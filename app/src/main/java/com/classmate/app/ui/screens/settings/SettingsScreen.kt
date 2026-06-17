@@ -23,10 +23,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -39,17 +41,21 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.classmate.app.BuildConfig
 import com.classmate.app.BuildInfo
 import com.classmate.app.ondevice.BitmapToRgb
 import com.classmate.app.ondevice.OnDevicePermissions
 import com.classmate.app.platform.ConfigImportPreview
+import com.classmate.app.platform.AiModelProviderMode
+import com.classmate.app.platform.ModelApiProfile
 import com.classmate.app.platform.ProviderConfigSummary
 import com.classmate.app.platform.ProviderSummary
 import com.classmate.app.state.AnalysisSourceReport
 import com.classmate.app.state.AppViewModel
 import com.classmate.app.state.ClassMateUiState
+import com.classmate.app.state.SettingsDeepLink
 import com.classmate.core.ondevice.OnDeviceErrorExplain
 import com.classmate.core.ondevice.OnDeviceLlmConfig
 import com.classmate.core.official.VivoOfficialProviderRegistry
@@ -73,13 +79,22 @@ import com.classmate.app.ui.theme.ClassMateTheme
 import com.classmate.app.ui.theme.ThemeOption
 import com.classmate.app.ui.i18n.AppLanguage
 import com.classmate.app.ui.i18n.appStrings
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 
-private enum class SettingsSection(val title: String, val subtitle: String) {
-    HOME("设置首页", "常用入口与状态概览"),
-    THEME("主题设置", "Focus / Flow / Vitality 与授权背景音说明"),
-    MODEL("模型接入", "云端、端侧、OCR、ASR 与路由状态"),
-    LEARNING_EXPORT("学习与导出", "学习资料处理偏好与导出默认项"),
-    DEVELOPER("开发者选项", "诊断、smoke 与脱敏日志"),
+private enum class SettingsTopLevel(val title: String, val subtitle: String) {
+    HOME("设置首页", "通用设置与开发者设置"),
+    GENERAL("通用设置", "外观、AI 模型、隐私、学习导出和背景音"),
+    DEVELOPER("开发者设置", "诊断、smoke、端侧状态与脱敏日志"),
+}
+
+private enum class GeneralSettingsPage(val title: String, val subtitle: String) {
+    HOME("通用设置", "面向日常使用的设置入口"),
+    APPEARANCE("外观与主题", "Focus / Flow / Vitality、主题色、字号与阅读密度"),
+    AI_MODEL_CONFIG("AI 模型配置", "蓝心大模型与自有模型配置，保存后持续可用"),
+    PRIVACY("隐私与权限", "本地数据、导入权限和用户确认说明"),
+    LEARNING_EXPORT("学习与导出", "练习、复习和导出默认项"),
+    AMBIENT_AUDIO("沉浸式背景音", "授权循环背景音、音量和播放说明"),
 }
 
 @Composable
@@ -88,7 +103,16 @@ fun SettingsScreen(viewModel: AppViewModel) {
     val s = appStrings(ui.language)
     var showDebug by remember { mutableStateOf(false) }
     var showLogs by remember { mutableStateOf(false) }
-    var section by remember { mutableStateOf(SettingsSection.HOME) }
+    var topLevel by remember { mutableStateOf(SettingsTopLevel.HOME) }
+    var generalPage by remember { mutableStateOf(GeneralSettingsPage.HOME) }
+
+    LaunchedEffect(ui.settingsDeepLink) {
+        if (ui.settingsDeepLink == SettingsDeepLink.AI_MODEL_CONFIG_BLUELM) {
+            topLevel = SettingsTopLevel.GENERAL
+            generalPage = GeneralSettingsPage.AI_MODEL_CONFIG
+            viewModel.consumeSettingsDeepLink()
+        }
+    }
 
     ProductCanvas {
       ProductScaffold(contextLabel = s.settingsTitle) { padding ->
@@ -102,139 +126,106 @@ fun SettingsScreen(viewModel: AppViewModel) {
         ) {
             Spacer(Modifier.height(ProductSpace.tight))
             ProductHero(
-                overline = "能力中心",
-                title = "模型与诊断",
-                subtitle = "云端蓝心 → 端侧蓝心 → 安全占位。在这里管理官方模型路径、端侧诊断与权限；开发详情默认折叠。",
+                overline = "设置",
+                title = "ClassMate 设置",
+                subtitle = "通用设置面向日常学习；开发者设置只放诊断和 smoke。云端优先，端侧兜底，用户确认后再入库。",
             )
             CapabilityOverviewRow(viewModel)
             Spacer(Modifier.height(Dimens.xxs))
-            SettingsSectionNav(section = section, onSelect = { section = it })
+            SettingsTopLevelNav(topLevel = topLevel, onSelect = { selected ->
+                topLevel = selected
+                if (selected == SettingsTopLevel.GENERAL) generalPage = GeneralSettingsPage.HOME
+            })
 
-            if (section == SettingsSection.HOME) {
-                SettingsLandingCard(
-                    onTheme = { section = SettingsSection.THEME },
-                    onModel = { section = SettingsSection.MODEL },
-                    onLearning = { section = SettingsSection.LEARNING_EXPORT },
-                    onDeveloper = { section = SettingsSection.DEVELOPER },
+            when (topLevel) {
+                SettingsTopLevel.HOME -> SettingsHomeV2Card(
+                    onGeneral = {
+                        topLevel = SettingsTopLevel.GENERAL
+                        generalPage = GeneralSettingsPage.HOME
+                    },
+                    onDeveloper = { topLevel = SettingsTopLevel.DEVELOPER },
                 )
-            }
 
-            if (section == SettingsSection.MODEL) {
-            ModelApiManagementCard(viewModel)
-            PermissionCenterCard(viewModel)
-            OnDeviceDiagnosticCard(viewModel)
-            OnDeviceMultimodalDiagnosticCard(viewModel)
-            OnDeviceCapabilityCard(viewModel)
-            ModelAccessNotesCard()
-            OfficialProviderReadinessCard(includeDevLab = false)
-            }
-
-            if (section == SettingsSection.THEME) {
-            ClassMateCard {
-                Text(s.settingsLanguage, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(Dimens.xxs))
-                Text(s.settingsLanguageDesc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(Dimens.s))
-                Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
-                    AppLanguage.entries.forEach { lang ->
-                        SelectableChip(lang.displayName, ui.language == lang) { viewModel.setLanguage(lang) }
+                SettingsTopLevel.GENERAL -> {
+                    GeneralSettingsNav(page = generalPage, onSelect = { generalPage = it })
+                    when (generalPage) {
+                        GeneralSettingsPage.HOME -> GeneralSettingsHomeCard(
+                            onAppearance = { generalPage = GeneralSettingsPage.APPEARANCE },
+                            onAiModel = { generalPage = GeneralSettingsPage.AI_MODEL_CONFIG },
+                            onPrivacy = { generalPage = GeneralSettingsPage.PRIVACY },
+                            onLearningExport = { generalPage = GeneralSettingsPage.LEARNING_EXPORT },
+                            onAmbientAudio = { generalPage = GeneralSettingsPage.AMBIENT_AUDIO },
+                        )
+                        GeneralSettingsPage.APPEARANCE -> AppearanceAndThemeSettingsCard(viewModel)
+                        GeneralSettingsPage.AI_MODEL_CONFIG -> {
+                            AiModelConfigurationPage(viewModel)
+                            ModelAccessNotesCard()
+                            OfficialProviderReadinessCard(includeDevLab = false)
+                        }
+                        GeneralSettingsPage.PRIVACY -> {
+                            PrivacyAndPermissionsSettingsCard()
+                            PermissionCenterCard(viewModel)
+                        }
+                        GeneralSettingsPage.LEARNING_EXPORT -> {
+                            LearningExportSettingsCard(viewModel)
+                            LearningExportDocxPolicyCard(viewModel)
+                        }
+                        GeneralSettingsPage.AMBIENT_AUDIO -> BackgroundAudioPolicyCard()
                     }
                 }
-            }
 
-            PrivacyCard()
-            SpeakerCapabilityCard()
-            CapabilityRoadmapCard()
+                SettingsTopLevel.DEVELOPER -> {
+                    DeveloperSettingsHomeCard(viewModel)
+                    OnDeviceDiagnosticCard(viewModel)
+                    OnDeviceMultimodalDiagnosticCard(viewModel)
+                    OnDeviceCapabilityCard(viewModel)
+                    OfficialProviderReadinessCard(includeDevLab = true)
+                    if (BuildConfig.DEBUG) {
+                        ClassMateCard {
+                            Text("Debug 导入", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Spacer(Modifier.height(Dimens.s))
+                            Text("仅 debug build 可见。用于临时诊断，不保存到普通用户设置。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.height(Dimens.s))
+                            SecondaryButton(
+                                text = if (showDebug) "收起 Debug 导入" else "展开 Debug 导入",
+                                onClick = { showDebug = !showDebug },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                        if (showDebug) DebugImportCard(viewModel)
+                    }
 
-            ClassMateCard {
-                Text("主题", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(Dimens.xxs))
-                Text(
-                    "默认 Focus 专注主题。Flow 心流仅用于课堂伴学 / 专注计时等沉浸场景，Vitality 活力为预留增强主题。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(Dimens.s))
-                ThemeOption.entries.forEach { option ->
-                    ThemePreviewCard(
-                        name = option.displayName,
-                        tagline = option.tagline,
-                        description = option.description,
-                        swatches = themeSwatches(option),
-                        selected = ui.theme == option,
-                        onClick = { viewModel.setTheme(option) },
-                        modifier = Modifier.padding(top = Dimens.xs),
-                    )
+                    ClassMateCard {
+                        Text("日志", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(Dimens.s))
+                        Text("仅显示脱敏后的短状态日志；默认折叠。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(Dimens.s))
+                        SecondaryButton(
+                            text = if (showLogs) "收起日志" else "展开最近日志",
+                            onClick = { showLogs = !showLogs },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    if (showLogs) LogsCard(viewModel)
+                    BuildInfoCard()
                 }
-                Spacer(Modifier.height(Dimens.m))
-                Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
-                    SelectableChip("跟随系统", ui.darkMode == null) { viewModel.setDarkMode(null) }
-                    SelectableChip("浅色", ui.darkMode == false) { viewModel.setDarkMode(false) }
-                    SelectableChip("深色", ui.darkMode == true) { viewModel.setDarkMode(true) }
-                }
-            }
-            BackgroundAudioPolicyCard()
-            }
-
-            if (section == SettingsSection.LEARNING_EXPORT) {
-                LearningExportSettingsCard(viewModel)
-                LearningExportDocxPolicyCard(viewModel)
-                PrivacyCard()
-                SpeakerCapabilityCard()
-                CapabilityRoadmapCard()
-            }
-
-            if (section == SettingsSection.DEVELOPER) {
-            if (BuildConfig.DEBUG) {
-                ClassMateCard {
-                    Text("调试区", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.height(Dimens.s))
-                    Text("仅 debug build 可见。默认折叠，不在设置首页展开大段导入内容。", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(Dimens.s))
-                    SecondaryButton(
-                        text = if (showDebug) "收起 Debug 导入" else "展开 Debug 导入",
-                        onClick = { showDebug = !showDebug },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                if (showDebug) DebugImportCard(viewModel)
-            }
-
-            ClassMateCard {
-                Text("日志", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(Dimens.s))
-                Text("仅显示脱敏后的短状态日志；默认折叠。", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(Dimens.s))
-                SecondaryButton(
-                    text = if (showLogs) "收起日志" else "展开最近日志",
-                    onClick = { showLogs = !showLogs },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            if (showLogs) LogsCard(viewModel)
-            OfficialProviderReadinessCard(includeDevLab = true)
-            BuildInfoCard()
             }
         }
       }
     }
 }
 
-/**
- * The main config page: official cloud BlueLM first, then on-device BlueLM and safety placeholder.
- * It intentionally keeps custom-model diagnostics inside the debug-only, collapsed section below.
- */
 @Composable
-private fun SettingsSectionNav(section: SettingsSection, onSelect: (SettingsSection) -> Unit) {
+private fun SettingsTopLevelNav(topLevel: SettingsTopLevel, onSelect: (SettingsTopLevel) -> Unit) {
     ClassMateCard {
-        Text("设置分组", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text("设置层级", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.s))
         Column(verticalArrangement = Arrangement.spacedBy(Dimens.xs)) {
-            SettingsSection.entries.forEach { item ->
+            SettingsTopLevel.entries.forEach { item ->
                 Surface(
                     modifier = Modifier.fillMaxWidth().clickable { onSelect(item) },
                     shape = RoundedCornerShape(12.dp),
-                    color = if (item == section) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                    color = if (item == topLevel) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
                 ) {
                     Column(Modifier.padding(Dimens.s)) {
                         Text(item.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
@@ -247,19 +238,56 @@ private fun SettingsSectionNav(section: SettingsSection, onSelect: (SettingsSect
 }
 
 @Composable
-private fun SettingsLandingCard(
-    onTheme: () -> Unit,
-    onModel: () -> Unit,
-    onLearning: () -> Unit,
+private fun GeneralSettingsNav(page: GeneralSettingsPage, onSelect: (GeneralSettingsPage) -> Unit) {
+    ClassMateCard {
+        Text("通用设置", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(Dimens.s))
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.xs)) {
+            GeneralSettingsPage.entries.forEach { item ->
+                Surface(
+                    modifier = Modifier.fillMaxWidth().clickable { onSelect(item) },
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (item == page) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                ) {
+                    Column(Modifier.padding(Dimens.s)) {
+                        Text(item.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                        Text(item.subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsHomeV2Card(
+    onGeneral: () -> Unit,
     onDeveloper: () -> Unit,
 ) {
     ClassMateCard {
-        Text("四个设置入口", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text("设置首页", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.s))
-        SettingsLandingRow("主题设置", "主题、明暗模式、授权循环背景音说明", onTheme)
-        SettingsLandingRow("模型接入", "云端优先、端侧兜底、OCR/ASR 状态", onModel)
-        SettingsLandingRow("学习与导出", "学习资料处理偏好和默认导出结构", onLearning)
-        SettingsLandingRow("开发者选项", "诊断、smoke、脱敏日志，默认折叠", onDeveloper)
+        SettingsLandingRow("通用设置", "外观、AI 模型配置、隐私权限、学习导出与沉浸背景音", onGeneral)
+        SettingsLandingRow("开发者设置", "Provider 诊断、official smoke dry-run、端侧状态与脱敏日志", onDeveloper)
+    }
+}
+
+@Composable
+private fun GeneralSettingsHomeCard(
+    onAppearance: () -> Unit,
+    onAiModel: () -> Unit,
+    onPrivacy: () -> Unit,
+    onLearningExport: () -> Unit,
+    onAmbientAudio: () -> Unit,
+) {
+    ClassMateCard {
+        Text("通用设置", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(Dimens.s))
+        SettingsLandingRow("外观与主题", "Focus / Flow / Vitality、主题色、字号与阅读密度", onAppearance)
+        SettingsLandingRow("AI 模型配置", "蓝心大模型与自有模型配置，保存后持续可用", onAiModel)
+        SettingsLandingRow("隐私与权限", "本地数据、用户确认、导入内容和相机/文件/音频权限", onPrivacy)
+        SettingsLandingRow("学习与导出", "练习、复习和 PDF / DOCX / HTML / Markdown / Text / 音频脚本", onLearningExport)
+        SettingsLandingRow("沉浸式背景音", "6 种授权循环背景音、音量和播放说明", onAmbientAudio)
     }
 }
 
@@ -279,6 +307,342 @@ private fun SettingsLandingRow(title: String, subtitle: String, onClick: () -> U
         }
     }
 }
+
+@Composable
+private fun AppearanceAndThemeSettingsCard(viewModel: AppViewModel) {
+    val ui = viewModel.ui
+    val s = appStrings(ui.language)
+    ClassMateCard {
+        Text("外观与主题", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(Dimens.xs))
+        Text("默认 Focus 适合日常学习，Flow 适合沉浸学习，Vitality 适合轻量复习。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(Dimens.s))
+        Text(s.settingsLanguage, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(Dimens.xxs))
+        Text(s.settingsLanguageDesc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(Dimens.s))
+        Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+            AppLanguage.entries.forEach { lang ->
+                SelectableChip(lang.displayName, ui.language == lang) { viewModel.setLanguage(lang) }
+            }
+        }
+        Spacer(Modifier.height(Dimens.m))
+        ThemeOption.entries.forEach { option ->
+            ThemePreviewCard(
+                name = option.displayName,
+                tagline = option.tagline,
+                description = option.description,
+                swatches = themeSwatches(option),
+                selected = ui.theme == option,
+                onClick = { viewModel.setTheme(option) },
+                modifier = Modifier.padding(top = Dimens.xs),
+            )
+        }
+        Spacer(Modifier.height(Dimens.m))
+        Text("显示", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(Dimens.xs))
+        Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+            SelectableChip("跟随系统", ui.darkMode == null) { viewModel.setDarkMode(null) }
+            SelectableChip("浅色", ui.darkMode == false) { viewModel.setDarkMode(false) }
+            SelectableChip("深色", ui.darkMode == true) { viewModel.setDarkMode(true) }
+        }
+        Spacer(Modifier.height(Dimens.s))
+        ProviderStatusRow("字号 / 阅读密度", "当前使用系统字号与紧凑学习密度")
+    }
+}
+
+@Composable
+private fun AiModelConfigurationPage(viewModel: AppViewModel) {
+    val summary = viewModel.ui.providerConfigSummary
+    ClassMateCard {
+        Text("AI 模型配置", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(Dimens.xs))
+        Text(
+            "蓝心大模型和其他模型都只保存在本机应用私有存储。未配置云端时，课堂分析、问答、练习和导出仍会继续端侧处理或手动编辑。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(Dimens.s))
+        ProviderStatusRow("当前模型：云端蓝心", "qwen3.5-plus / DEEP_STUDY")
+        ProviderStatusRow("Cloud quality profile", cloudQualityProfileStatus())
+        ProviderStatusRow("Official OCR config", configuredStatus(summary.officialProviders.ocrConfigured))
+        ProviderStatusRow("Query Rewrite config", configuredStatus(summary.officialProviders.queryRewriteConfigured))
+        ProviderStatusRow("Text Similarity config", configuredStatus(summary.officialProviders.textSimilarityConfigured))
+        ProviderStatusRow("Embedding config", configuredStatus(summary.officialProviders.embeddingConfigured))
+        ProviderStatusRow("Translation config", configuredStatus(summary.officialProviders.translationConfigured))
+        ProviderStatusRow("TTS config", configuredStatus(summary.officialProviders.ttsConfigured, missing = "missing: script-only"))
+    }
+    OfficialBlueLmConfigCard(viewModel)
+    CustomModelConfigCard(viewModel)
+}
+
+@Composable
+private fun OfficialBlueLmConfigCard(viewModel: AppViewModel) {
+    val masked = viewModel.ui.modelConfigMasked
+    val selected = masked?.mode != AiModelProviderMode.CUSTOM
+    var appId by remember { mutableStateOf(ModelApiProfile.DEFAULT_APP_ID) }
+    var appKey by remember { mutableStateOf("") }
+    var showKey by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
+
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("删除蓝心大模型配置") },
+            text = { Text("删除后云端蓝心会变为未配置。你仍可以继续使用端侧蓝心或手动编辑。") },
+            confirmButton = {
+                TextButton(onClick = { confirmDelete = false; viewModel.deleteOfficialModelConfig() }) {
+                    Text("删除配置")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = false }) { Text("取消") }
+            },
+        )
+    }
+
+    ClassMateCard {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Dimens.xs)) {
+            RadioButton(selected = selected, onClick = { viewModel.selectAiModelProviderMode(AiModelProviderMode.OFFICIAL_BLUELM) })
+            Column(Modifier.weight(1f)) {
+                Text("蓝心大模型", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "适合比赛官方能力，使用云端蓝心 / qwen3.5-plus，重要学习任务使用深度学习配置。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Spacer(Modifier.height(Dimens.s))
+        ProviderStatusRow("当前状态", if (masked?.officialConfigured == true) "已配置" else "未配置")
+        ProviderStatusRow("默认 AppID", "2026374747")
+        ProviderStatusRow("质量模式", "默认 DEEP_STUDY；重要学习任务使用深度思考，轻量任务使用均衡")
+        ProviderStatusRow("配置保存", "配置仅保存在本机，不写入 Git / docs / tests")
+        Spacer(Modifier.height(Dimens.s))
+        OutlinedTextField(
+            value = appId,
+            onValueChange = { appId = it },
+            label = { Text("AppID") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            shape = MaterialTheme.shapes.medium,
+        )
+        Spacer(Modifier.height(Dimens.xs))
+        SecondaryButton(
+            text = "恢复默认 AppID",
+            onClick = { appId = ModelApiProfile.DEFAULT_APP_ID },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(Dimens.s))
+        OutlinedTextField(
+            value = appKey,
+            onValueChange = { appKey = it },
+            label = { Text("AppKey") },
+            visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            shape = MaterialTheme.shapes.medium,
+        )
+        Spacer(Modifier.height(Dimens.xs))
+        SecondaryButton(
+            text = if (showKey) "隐藏 AppKey" else "显示 AppKey",
+            onClick = { showKey = !showKey },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(Dimens.s))
+        PrimaryButton(
+            text = "保存配置",
+            onClick = {
+                viewModel.saveOfficialModelConfig(
+                    baseUrl = ModelApiProfile.DEFAULT_BASE_URL,
+                    model = ModelApiProfile.DEFAULT_MODEL,
+                    appId = appId,
+                    appKey = appKey,
+                )
+                appKey = ""
+                showKey = false
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(Dimens.xs))
+        SecondaryButton(
+            text = "测试配置（readiness / dry-run）",
+            onClick = { viewModel.testAiConfigReadiness() },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(Dimens.xs))
+        SecondaryButton(
+            text = "删除配置",
+            onClick = { confirmDelete = true },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (masked?.officialConfigured == true) {
+            Spacer(Modifier.height(Dimens.s))
+            Text("蓝心大模型已配置；完整 AppKey 不会显示。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun CustomModelConfigCard(viewModel: AppViewModel) {
+    val masked = viewModel.ui.modelConfigMasked
+    val selected = masked?.mode == AiModelProviderMode.CUSTOM
+    var apiKey by remember { mutableStateOf("") }
+    var showKey by remember { mutableStateOf(false) }
+    var advancedJson by remember { mutableStateOf("") }
+    var expanded by remember { mutableStateOf(false) }
+    var jsonError by remember { mutableStateOf<String?>(null) }
+    var confirmDelete by remember { mutableStateOf(false) }
+
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("删除其他模型配置") },
+            text = { Text("删除后自有模型会变为未配置。已保存的蓝心大模型配置不会被覆盖。") },
+            confirmButton = {
+                TextButton(onClick = { confirmDelete = false; viewModel.deleteCustomModelConfig() }) {
+                    Text("删除配置")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = false }) { Text("取消") }
+            },
+        )
+    }
+
+    ClassMateCard {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Dimens.xs)) {
+            RadioButton(selected = selected, onClick = { viewModel.selectAiModelProviderMode(AiModelProviderMode.CUSTOM) })
+            Column(Modifier.weight(1f)) {
+                Text("其他模型", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "适合使用自己的兼容模型服务。高级 JSON 配置可填写 endpoint、model、headers、bodyTemplate 或 extra fields。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Spacer(Modifier.height(Dimens.s))
+        ProviderStatusRow("当前状态", if (masked?.customConfigured == true) "已配置" else "未配置")
+        ProviderStatusRow("高级 JSON 配置", if (masked?.customAdvancedJsonPresent == true) "已保存" else "未填写")
+        Spacer(Modifier.height(Dimens.s))
+        OutlinedTextField(
+            value = apiKey,
+            onValueChange = { apiKey = it },
+            label = { Text("API Key") },
+            visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            shape = MaterialTheme.shapes.medium,
+        )
+        Spacer(Modifier.height(Dimens.xs))
+        SecondaryButton(
+            text = if (showKey) "隐藏 API Key" else "显示 API Key",
+            onClick = { showKey = !showKey },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(Dimens.s))
+        SecondaryButton(
+            text = if (expanded) "收起高级 JSON 配置" else "高级 JSON 配置",
+            onClick = { expanded = !expanded },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (expanded) {
+            Spacer(Modifier.height(Dimens.s))
+            OutlinedTextField(
+                value = advancedJson,
+                onValueChange = {
+                    advancedJson = it
+                    jsonError = advancedJsonError(it)
+                },
+                label = { Text("高级 JSON 配置") },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 5,
+                shape = MaterialTheme.shapes.medium,
+            )
+            jsonError?.let {
+                Spacer(Modifier.height(Dimens.xs))
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            }
+        }
+        Spacer(Modifier.height(Dimens.s))
+        PrimaryButton(
+            text = "保存配置",
+            onClick = {
+                val error = advancedJsonError(advancedJson)
+                jsonError = error
+                if (error == null) {
+                    viewModel.saveCustomModelConfig(apiKey = apiKey, advancedJson = advancedJson)
+                    apiKey = ""
+                    showKey = false
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(Dimens.xs))
+        SecondaryButton(
+            text = "测试配置（readiness / dry-run）",
+            onClick = { viewModel.testAiConfigReadiness() },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(Dimens.xs))
+        SecondaryButton(
+            text = "删除配置",
+            onClick = { confirmDelete = true },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (masked?.customConfigured == true) {
+            Spacer(Modifier.height(Dimens.s))
+            Text("其他模型已配置；完整 API Key 不会显示。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun PrivacyAndPermissionsSettingsCard() {
+    ClassMateCard {
+        Text("隐私与权限", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(Dimens.xs))
+        Text(
+            "导入内容、课程资料、AI 配置和学习记录保存在本机；AI 输出入库前需要用户确认。未配置云端时仍可走端侧蓝心或手动编辑。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(Dimens.s))
+        ProviderStatusRow("本地数据", "课程记录、学习状态、模型配置保存在应用私有目录")
+        ProviderStatusRow("用户确认", "图片草稿、转写草稿和 AI 整理结果确认后再进入学习链路")
+        ProviderStatusRow("相机 / 文件 / 音频", "仅用于用户主动导入资料；不会在设置页强行申请新权限")
+        ProviderStatusRow("云端未配置", "继续端侧处理或手动编辑，不阻断学习")
+    }
+    PrivacyCard()
+}
+
+@Composable
+private fun DeveloperSettingsHomeCard(viewModel: AppViewModel) {
+    val summary = viewModel.ui.providerConfigSummary
+    ClassMateCard {
+        Text("开发者设置", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(Dimens.xs))
+        Text("这里只放诊断、smoke dry-run、端侧状态和脱敏日志。普通用户填写 AI Key 的主入口在通用设置 → AI 模型配置。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(Dimens.s))
+        ProviderStatusRow("Provider 诊断", "可查看云端 / 端侧 / official provider readiness")
+        ProviderStatusRow("Official Provider Smoke", "默认 dry-run；真实网络 smoke 需要显式授权")
+        ProviderStatusRow("端侧模型状态", viewModel.ui.onDeviceDiagnostic?.status?.displayZh ?: "未知")
+        ProviderStatusRow("qwen profile", cloudQualityProfileStatus())
+        ProviderStatusRow("云端模型", if (summary.blueLmConfigured || summary.compatibleConfigured) "已配置" else "未配置")
+        ProviderStatusRow("密钥显示", "不显示完整 key，仅显示 configured / missing 或脱敏状态")
+    }
+}
+
+private fun advancedJsonError(text: String): String? =
+    if (text.isBlank()) {
+        null
+    } else {
+        runCatching { settingsJson.parseToJsonElement(text).jsonObject }
+            .fold(onSuccess = { null }, onFailure = { "JSON 格式不正确，请输入合法对象。" })
+    }
+
+private val settingsJson = Json { ignoreUnknownKeys = true; isLenient = true }
 
 @Composable
 private fun ModelAccessNotesCard() {
@@ -395,129 +759,6 @@ private fun LearningExportDocxPolicyCard(viewModel: AppViewModel) {
             onClick = { viewModel.prepareRefinedExportDraft() },
             modifier = Modifier.fillMaxWidth(),
         )
-    }
-}
-
-@Composable
-private fun ModelApiManagementCard(viewModel: AppViewModel) {
-    val ui = viewModel.ui
-    val summary = ui.providerConfigSummary
-    val masked = ui.modelConfigMasked
-    var editing by remember { mutableStateOf(false) }
-    var baseUrl by remember { mutableStateOf("") }
-    var model by remember { mutableStateOf("") }
-    var appId by remember { mutableStateOf("") }
-    var appKey by remember { mutableStateOf("") }
-
-    val activeModel = displayCloudModelName(
-        masked?.model ?: summary.providers.firstOrNull { it.provider == "BLUELM" }?.model,
-    )
-
-    ClassMateCard {
-        Text("模型 API 管理", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(Dimens.s))
-        Text("当前模型：云端蓝心 / $activeModel", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-        Spacer(Modifier.height(Dimens.xxs))
-        Text(
-            "主路径：云端蓝心（qwen3.5-plus） → 端侧蓝心（端侧 BlueLM 3B） → 安全占位（模型不可用保护）。",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(Dimens.m))
-        ProviderStatusRow("云端蓝心", cloudBlueLmStatus(ui))
-        ProviderStatusRow("端侧蓝心（BlueLM 3B）", onDeviceShortStatus(ui))
-        ProviderStatusRow("安全占位", if (summary.localFallbackEnabled) "就绪（仅模型全部不可用时）" else "已停用")
-        Spacer(Modifier.height(Dimens.xs))
-        Text(
-            "Provider path：${providerPathText(summary, ui)}",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(Dimens.xs))
-        ProviderStatusRow("Cloud quality profile", cloudQualityProfileStatus())
-        ProviderStatusRow("Official OCR config", configuredStatus(summary.officialProviders.ocrConfigured))
-        ProviderStatusRow("Query Rewrite config", configuredStatus(summary.officialProviders.queryRewriteConfigured))
-        ProviderStatusRow("Text Similarity config", configuredStatus(summary.officialProviders.textSimilarityConfigured))
-        ProviderStatusRow("Embedding config", configuredStatus(summary.officialProviders.embeddingConfigured))
-        ProviderStatusRow("Translation config", configuredStatus(summary.officialProviders.translationConfigured))
-        ProviderStatusRow("TTS config", configuredStatus(summary.officialProviders.ttsConfigured, missing = "missing: script-only"))
-        ProviderStatusRow("Function Calling config", configuredStatus(summary.officialProviders.functionCallingConfigured))
-        ProviderStatusRow("ASR Long config", configuredStatus(summary.officialProviders.asrLongConfigured))
-        if (masked != null && masked.credentialPresent) {
-            Spacer(Modifier.height(Dimens.xxs))
-            Text(
-                "已保存配置：appId=${masked.maskedAppId} · appKey=${masked.maskedAppKey}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        Spacer(Modifier.height(Dimens.m))
-        SecondaryButton(
-            text = if (editing) "收起官方模型配置" else "编辑官方模型配置",
-            onClick = { editing = !editing },
-            modifier = Modifier.fillMaxWidth(),
-        )
-        if (editing) {
-            Spacer(Modifier.height(Dimens.s))
-            OutlinedTextField(
-                value = baseUrl, onValueChange = { baseUrl = it },
-                label = { Text("Base URL（默认 vivo 官方）") },
-                modifier = Modifier.fillMaxWidth(), singleLine = true, shape = MaterialTheme.shapes.medium,
-            )
-            Spacer(Modifier.height(Dimens.s))
-            OutlinedTextField(
-                value = model, onValueChange = { model = it },
-                label = { Text("模型（默认 qwen3.5-plus）") },
-                modifier = Modifier.fillMaxWidth(), singleLine = true, shape = MaterialTheme.shapes.medium,
-            )
-            Spacer(Modifier.height(Dimens.s))
-            OutlinedTextField(
-                value = appId, onValueChange = { appId = it },
-                label = { Text("AppID") },
-                modifier = Modifier.fillMaxWidth(), singleLine = true, shape = MaterialTheme.shapes.medium,
-            )
-            Spacer(Modifier.height(Dimens.s))
-            OutlinedTextField(
-                value = appKey, onValueChange = { appKey = it },
-                label = { Text("AppKEY") },
-                visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth(), singleLine = true, shape = MaterialTheme.shapes.medium,
-            )
-            Spacer(Modifier.height(Dimens.s))
-            PrimaryButton(
-                text = "保存配置",
-                onClick = {
-                    viewModel.saveOfficialModelConfig(baseUrl, model, appId, appKey)
-                    appId = ""; appKey = "" // never keep secrets in UI state after save
-                },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(Dimens.s))
-            PrimaryButton(
-                text = if (ui.blueLmDiagnosticRunning) "测试中…" else "测试连接",
-                onClick = { viewModel.testOfficialModelConnection() },
-                enabled = !ui.blueLmDiagnosticRunning,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(Dimens.s))
-            SecondaryButton(
-                text = "删除配置",
-                onClick = { viewModel.deleteOfficialModelConfig() },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            ui.blueLmDiagnostic?.let { report ->
-                Spacer(Modifier.height(Dimens.m))
-                Text("连接诊断", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                DiagnosticDetailsCard(lines = report.safeLines())
-            }
-            Spacer(Modifier.height(Dimens.s))
-            Text(
-                "配置仅保存在本机应用私有存储；AppID/AppKEY 不写入仓库、日志、导出或截图。",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
     }
 }
 
