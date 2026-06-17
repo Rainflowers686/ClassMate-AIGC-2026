@@ -146,3 +146,35 @@ After explicit user authorization and capability-specific endpoint/auth configur
 6. `FUNCTION_CALLING`, after endpoint mapping is confirmed or env endpoint is provided
 7. `EMBEDDING`
 8. `ASR_LONG`, only after a non-sensitive test audio file is prepared
+
+## 2026-06-17 Schema v1 Update
+
+This task upgraded the dry-run/config diagnosis path for Official Provider Config Schema v1.
+
+Executed without network:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -ExplainConfig
+powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -ExplainConfig -UseLocalConfig
+```
+
+Observed value-free status with the real local config opt-in:
+
+- `config.local.json exists`: true
+- `local config read`: true
+- detected group: `topLevel.bluelm`
+- `officialProviders exists`: false
+- official provider groups: none
+- no local value was printed
+- no request was sent
+
+`topLevel.bluelm` still does not map OCR, Query Rewrite, Text Similarity, Embedding, Translation, TTS, Function Calling, or ASR Long to `READY`.
+
+Schema v1 behavior validated with a temporary fake config:
+
+- `officialProviders.ocr` with endpoint/auth field presence maps OCR to `READY`
+- `officialProviders.queryRewrite` with endpoint/auth field presence maps Query Rewrite to `READY`
+- fake URL/auth values were not printed
+- no network request was sent
+
+Real network smoke remains intentionally unexecuted in this task.

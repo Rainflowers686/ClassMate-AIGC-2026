@@ -22,20 +22,27 @@ class CloudModelQualityProfileTest {
     }
 
     @Test
-    fun deepStudyProfileUsesOfficialChatQualityParamsWithoutThinkingChange() {
+    fun deepStudyProfileUsesOfficialChatQualityParamsWithThinkingEnabled() {
         val config = ProviderConfig(
             kind = ProviderKind.BLUELM,
             enabled = true,
             model = "qwen3.5-plus",
-            maxTokens = 4096,
+            maxTokens = 1200,
         )
 
         val options = CloudModelQualityProfile.DEEP_STUDY.toRequestOptions(config)
 
         assertEquals(false, options.stream)
         assertEquals(0.30, options.temperature, 0.0001)
-        assertEquals(0.70, options.topP!!, 0.0001)
+        assertEquals(0.90, options.topP!!, 0.0001)
         assertEquals(4096, options.maxTokens)
+        assertEquals(65_536, options.maxCompletionTokens)
+        assertEquals(true, options.enableThinking)
+        assertEquals(ReasoningEffort.HIGH, options.reasoningEffort)
+        assertEquals(0.20, options.frequencyPenalty ?: 0.0, 0.0001)
+        assertEquals(0.08, options.presencePenalty ?: 0.0, 0.0001)
+        assertEquals(120, CloudModelQualityProfile.DEEP_STUDY.timeoutSeconds)
+        assertEquals(2, CloudModelQualityProfile.DEEP_STUDY.retryCount)
         assertEquals(CloudModelQualityProfile.DEEP_STUDY, options.qualityProfile)
     }
 
@@ -51,6 +58,14 @@ class CloudModelQualityProfileTest {
         val options = CloudModelQualityProfile.DEEP_STUDY.toRequestOptions(config, maxTokensCap = 1600)
 
         assertEquals(1600, options.maxTokens)
+        assertEquals(65_536, options.maxCompletionTokens)
         assertEquals(CloudModelQualityProfile.DEEP_STUDY, options.qualityProfile)
+    }
+
+    @Test
+    fun balancedKeepsMediumOrHigherReasoning() {
+        assertEquals(true, CloudModelQualityProfile.BALANCED.enableThinking)
+        assertEquals(ReasoningEffort.MEDIUM, CloudModelQualityProfile.BALANCED.reasoningEffort)
+        assertEquals(32768, CloudModelQualityProfile.BALANCED.maxCompletionTokens)
     }
 }

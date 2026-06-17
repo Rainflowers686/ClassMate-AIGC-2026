@@ -75,7 +75,7 @@ Non-capability reference docs:
 - Auth notes: Bearer AppKey / official auth reference；真实凭据只能走安全配置注入。
 - Input type: 课堂资料、证据摘要、用户问题、练习上下文、导出摘要。
 - Output type: JSON 学习草稿、grounded answer、练习解释、报告片段。
-- Key params summary: model、messages、temperature、max tokens、request id；qwen3.5-plus 必须保持 `enable_thinking=false`。
+- Key params summary: model、messages、temperature、top_p、max_tokens、max_completion_tokens、reasoning_effort、request id；qwen3.5-plus 按 quality profile 在兼容支持时启用 `enable_thinking=true`。
 - Error handling summary: 映射 HTTP / vendor code / parse / validation；失败后进入端侧 fallback 或安全占位。
 - Existing code likely involved: `core/provider`、`CourseAnalyzer`、`AppViewModel`、Ask / Practice / Export flows。
 - New provider/interface needed: `AiCapabilityRouter`、cloud source marker、retry / timeout profile consolidation。

@@ -78,7 +78,7 @@ class BlueLMProviderTest {
     }
 
     @Test
-    fun qwenAnalysisRequestDisablesThinkingWithImportedModelAndMaxTokens() {
+    fun qwenAnalysisRequestUsesDeepStudyThinkingWithImportedModel() {
         var capturedProfile: HttpRequestProfile? = null
         val transport = object : HttpTransport {
             override fun postJson(
@@ -101,8 +101,10 @@ class BlueLMProviderTest {
                 assertEquals("fake-app-id", headers["app_id"])
                 val root = Json.parseToJsonElement(body) as JsonObject
                 assertEquals("qwen3.5-plus", (root["model"] as JsonPrimitive).content)
-                assertEquals(false, (root["enable_thinking"] as JsonPrimitive).content.toBoolean())
-                assertEquals(2200, (root["max_tokens"] as JsonPrimitive).content.toInt())
+                assertEquals(true, (root["enable_thinking"] as JsonPrimitive).content.toBoolean())
+                assertEquals("high", (root["reasoning_effort"] as JsonPrimitive).content)
+                assertEquals(4096, (root["max_tokens"] as JsonPrimitive).content.toInt())
+                assertEquals(65_536, (root["max_completion_tokens"] as JsonPrimitive).content.toInt())
                 assertEquals(false, (root["stream"] as JsonPrimitive).content.toBoolean())
                 return TransportResponse(200, """{"choices":[{"message":{"content":"{\"knowledgePoints\":[],\"quizQuestions\":[]}"}}]}""")
             }

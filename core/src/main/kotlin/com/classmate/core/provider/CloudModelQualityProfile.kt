@@ -1,46 +1,122 @@
 package com.classmate.core.provider
 
+const val OFFICIAL_QWEN_MAX_COMPLETION_TOKENS = 65_536
+
 /**
  * Quality presets for cloud text-generation calls used by learning tasks.
  *
- * qwen3.5-plus still keeps the compatibility guard in [VivoOpenAIChatRequestFactory]:
- * enable_thinking=false. These profiles improve output quality through documented chat
- * parameters only, without enabling hidden reasoning output.
+ * The official large-model docs say qwen3.5-plus supports `enable_thinking` and
+ * `reasoning_effort`. These profiles make thinking profile-aware instead of globally
+ * disabling it. Reasoning text is still never surfaced or logged by response readers.
  */
 enum class CloudModelQualityProfile(
     val temperature: Double,
     val topP: Double,
     val maxTokens: Int,
+    val maxCompletionTokens: Int,
+    val enableThinking: Boolean,
+    val reasoningEffort: ReasoningEffort,
+    val frequencyPenalty: Double,
+    val presencePenalty: Double,
+    val timeoutSeconds: Int,
+    val retryCount: Int,
+    val intendedTasks: Set<String>,
 ) {
     FAST(
-        temperature = 0.15,
-        topP = 0.60,
-        maxTokens = 1200,
+        temperature = 0.20,
+        topP = 0.85,
+        maxTokens = 2048,
+        maxCompletionTokens = 8192,
+        enableThinking = true,
+        reasoningEffort = ReasoningEffort.MEDIUM,
+        frequencyPenalty = 0.10,
+        presencePenalty = 0.05,
+        timeoutSeconds = 20,
+        retryCount = 1,
+        intendedTasks = setOf("FAST_UI_FEEDBACK", "short_titles", "small_status_copy"),
     ),
     BALANCED(
-        temperature = 0.25,
-        topP = 0.70,
-        maxTokens = 2200,
+        temperature = 0.35,
+        topP = 0.90,
+        maxTokens = 4096,
+        maxCompletionTokens = 32768,
+        enableThinking = true,
+        reasoningEffort = ReasoningEffort.MEDIUM,
+        frequencyPenalty = 0.15,
+        presencePenalty = 0.08,
+        timeoutSeconds = 60,
+        retryCount = 1,
+        intendedTasks = setOf("DEFAULT_LEARNING", "normal_ask", "light_summary"),
     ),
     DEEP_STUDY(
         temperature = 0.30,
-        topP = 0.70,
+        topP = 0.90,
         maxTokens = 4096,
+        maxCompletionTokens = OFFICIAL_QWEN_MAX_COMPLETION_TOKENS,
+        enableThinking = true,
+        reasoningEffort = ReasoningEffort.HIGH,
+        frequencyPenalty = 0.20,
+        presencePenalty = 0.08,
+        timeoutSeconds = 120,
+        retryCount = 2,
+        intendedTasks = setOf(
+            "COURSE_ANALYSIS",
+            "ASK_WITH_EVIDENCE",
+            "PRACTICE_GENERATION",
+            "PRACTICE_FEEDBACK",
+            "REVIEW_PLAN",
+            "STUDY_REPORT",
+            "COURSE_ESSENCE_SCRIPT",
+            "EXPORT_REFINEMENT",
+        ),
     );
 
     fun toRequestOptions(
         config: ProviderConfig,
         stream: Boolean = config.stream,
         maxTokensCap: Int? = null,
+        featureSupport: CloudModelFeatureSupport = CloudModelFeatureSupport.QWEN_COMPATIBLE,
     ): BlueLMRequestOptions {
-        val configuredMax = config.maxTokens.takeIf { it > 0 } ?: maxTokens
+        val configuredMax = config.maxTokens.takeIf { it > maxTokens } ?: maxTokens
         val profileMax = maxTokensCap?.let { minOf(maxTokens, it) } ?: maxTokens
         return BlueLMRequestOptions(
             stream = stream,
             temperature = temperature,
             maxTokens = minOf(configuredMax, profileMax).coerceAtLeast(1),
+            maxCompletionTokens = maxCompletionTokens,
             topP = topP,
             qualityProfile = this,
+            enableThinking = enableThinking,
+            reasoningEffort = reasoningEffort,
+            frequencyPenalty = frequencyPenalty,
+            presencePenalty = presencePenalty,
+            featureSupport = featureSupport,
+        )
+    }
+
+}
+
+enum class ReasoningEffort(val wireValue: String) {
+    LOW("low"),
+    MEDIUM("medium"),
+    HIGH("high"),
+}
+
+data class CloudModelFeatureSupport(
+    val supportsEnableThinking: Boolean = true,
+    val supportsReasoningEffort: Boolean = true,
+    val supportsMaxCompletionTokens: Boolean = true,
+    val supportsFrequencyPenalty: Boolean = true,
+    val supportsPresencePenalty: Boolean = true,
+) {
+    companion object {
+        val QWEN_COMPATIBLE = CloudModelFeatureSupport()
+        val COMPATIBILITY_UNSUPPORTED = CloudModelFeatureSupport(
+            supportsEnableThinking = false,
+            supportsReasoningEffort = false,
+            supportsMaxCompletionTokens = false,
+            supportsFrequencyPenalty = false,
+            supportsPresencePenalty = false,
         )
     }
 }

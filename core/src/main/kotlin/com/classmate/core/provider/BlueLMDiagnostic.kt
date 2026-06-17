@@ -210,11 +210,19 @@ class BlueLMDiagnosticRunner(
         return baseUrl.trimEnd('/') + "/chat/completions?$encodedName=$encodedId"
     }
 
-    private fun diagnosticBody(model: String): String =
-        buildJsonObject {
+    private fun diagnosticBody(model: String): String {
+        val options = CloudModelQualityProfile.FAST.toRequestOptions(
+            config = ProviderConfig(kind = ProviderKind.BLUELM, enabled = true, model = model),
+            stream = false,
+            maxTokensCap = 64,
+        )
+        return buildJsonObject {
             put("model", model)
-            if (shouldDisableQwenThinking(model)) {
-                put("enable_thinking", false)
+            if (shouldUseQwenEnableThinking(model) && options.featureSupport.supportsEnableThinking) {
+                options.enableThinking?.let { put("enable_thinking", it) }
+            }
+            if (options.featureSupport.supportsReasoningEffort) {
+                options.reasoningEffort?.let { put("reasoning_effort", it.wireValue) }
             }
             putJsonArray("messages") {
                 addJsonObject {
@@ -222,10 +230,21 @@ class BlueLMDiagnosticRunner(
                     put("content", "请只回复 OK")
                 }
             }
-            put("temperature", 0.2)
-            put("max_tokens", 32)
+            put("temperature", options.temperature)
+            put("top_p", options.topP ?: 0.85)
+            put("max_tokens", options.maxTokens)
+            if (options.featureSupport.supportsMaxCompletionTokens) {
+                options.maxCompletionTokens?.let { put("max_completion_tokens", it) }
+            }
+            if (options.featureSupport.supportsFrequencyPenalty) {
+                options.frequencyPenalty?.let { put("frequency_penalty", it) }
+            }
+            if (options.featureSupport.supportsPresencePenalty) {
+                options.presencePenalty?.let { put("presence_penalty", it) }
+            }
             put("stream", false)
         }.toString()
+    }
 
     private fun httpSubtype(status: Int, errorType: ProviderErrorType): BlueLMDiagnosticSubtype =
         if (errorType == ProviderErrorType.APP_ID_HEADER_MISSING) {

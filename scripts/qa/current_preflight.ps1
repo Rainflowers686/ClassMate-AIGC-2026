@@ -254,14 +254,17 @@ Run-Step "Forbidden wording guard" {
     ) $forbiddenWording -AllowNegatedContext
 }
 
-Run-Step "qwen enable_thinking guard" {
+Run-Step "qwen profile-aware thinking guard" {
     $providerFiles = @(
         "core\src\main\kotlin\com\classmate\core\provider\VendorIo.kt",
+        "core\src\main\kotlin\com\classmate\core\provider\CloudModelQualityProfile.kt",
         "core\src\main\kotlin\com\classmate\core\provider\BlueLMDiagnostic.kt"
     )
     Check-PatternPresent "qwen3.5-plus model guard is present" $providerFiles "qwen3\.5-plus" 1
-    Check-PatternPresent "enable_thinking=false guard is present" $providerFiles "enable_thinking" 2
-    Check-PatternPresent "enable_thinking is set false" $providerFiles "put\(`"enable_thinking`",\s*false\)" 2
+    Check-PatternPresent "enable_thinking profile field is present" $providerFiles "enable_thinking" 2
+    Check-PatternPresent "thinking support flag is present" $providerFiles "supportsEnableThinking" 1
+    Check-PatternPresent "reasoning effort is present" $providerFiles "reasoning_effort" 1
+    Check-PatternPresent "deep study enables thinking" $providerFiles "enableThinking\s*=\s*true" 1
 }
 
 Run-Step "Secrets scan" {

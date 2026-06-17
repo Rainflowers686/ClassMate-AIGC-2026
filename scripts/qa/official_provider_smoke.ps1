@@ -268,6 +268,18 @@ function Print-SetupHelp {
     Write-Host "  Generic providers.bluelm/providers.qwen/top-level BlueLM can describe cloud text generation, but never makes OCR, ASR, retrieval, TTS, translation, or function-calling READY."
     Write-Host "  Values are kept in memory only and are never printed or written."
     Write-Host ""
+    Write-Host "Official provider config schema v1:"
+    Write-Host '  "officialProviders": {'
+    Write-Host '    "ocr": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },'
+    Write-Host '    "queryRewrite": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },'
+    Write-Host '    "textSimilarity": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },'
+    Write-Host '    "embedding": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },'
+    Write-Host '    "translation": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },'
+    Write-Host '    "tts": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },'
+    Write-Host '    "functionCalling": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },'
+    Write-Host '    "asrLong": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" }'
+    Write-Host '  }'
+    Write-Host ""
     Write-Host "Mapping states:"
     Write-Host "  READY: endpoint/auth/schema can be derived."
     Write-Host "  MISSING: required mapping or config is absent."
@@ -326,6 +338,8 @@ function New-LocalConfigState($Path) {
         topLevelBlueLmExists = $false
         officialProvidersExists = $false
         officialProvidersVivoCaptureExists = $false
+        officialProviderGroupNames = @()
+        officialProviderCandidates = @{}
         credentialSource = "NONE"
         domainSource = "PROVIDER_CODE_DEFAULT"
         hasAppId = $false
@@ -347,17 +361,47 @@ function Add-DetectedGroup($State, [string]$GroupName) {
 function Get-CredentialCandidate($Group, [string]$SourceName) {
     if ($null -eq $Group) { return $null }
     $appId = Get-ObjectPropertyValue $Group @("appId", "appID", "appid", "app_id", "AppID", "APP_ID")
-    $appKey = Get-ObjectPropertyValue $Group @("appKey", "appKEY", "appkey", "app_key", "AppKey", "AppKEY", "APP_KEY", "token")
+    $appKey = Get-ObjectPropertyValue $Group @("appKey", "appKEY", "appkey", "app_key", "AppKey", "AppKEY", "APP_KEY", "authValue", "authorizationValue", "apiKey", "api_key", "token")
     $baseUrl = Get-ObjectPropertyValue $Group @("baseUrl", "baseURL", "base_url", "url", "endpoint", "domain", "host")
+    $authHeader = Get-ObjectPropertyValue $Group @("authHeader", "authorizationHeader", "header")
     return [PSCustomObject]@{
         source = $SourceName
         appId = $appId
         appKey = $appKey
         baseUrl = $baseUrl
+        authHeader = $authHeader
         hasAppId = Test-RealValue $appId
         hasAppKey = Test-RealValue $appKey
         hasBaseUrl = Test-RealValue $baseUrl
+        hasAuthHeader = Test-RealValue $authHeader
     }
+}
+
+function Get-OfficialProviderAliases($CapabilityName) {
+    switch ($CapabilityName) {
+        "OCR" { return @("ocr") }
+        "QUERY_REWRITE" { return @("queryRewrite", "query_rewrite") }
+        "TEXT_SIMILARITY" { return @("textSimilarity", "text_similarity", "similarity") }
+        "EMBEDDING" { return @("embedding", "textVector", "text_vector") }
+        "TRANSLATION" { return @("translation") }
+        "TTS" { return @("tts", "audioGeneration", "audio_generation") }
+        "FUNCTION_CALLING" { return @("functionCalling", "function_calling") }
+        "ASR_LONG" { return @("asrLong", "asr_long", "longAsr") }
+        default { return @() }
+    }
+}
+
+function Find-OfficialProviderGroup($OfficialProviders, $CapabilityName) {
+    foreach ($alias in @(Get-OfficialProviderAliases $CapabilityName)) {
+        $group = Get-ChildConfigGroup $OfficialProviders @($alias)
+        if ($null -ne $group) {
+            return [PSCustomObject]@{
+                name = "officialProviders.$alias"
+                value = $group
+            }
+        }
+    }
+    return $null
 }
 
 function Select-CredentialCandidate([object[]]$Candidates) {
@@ -416,6 +460,14 @@ function Read-LocalSmokeConfig {
         if ($state.officialProvidersVivoCaptureExists) { Add-DetectedGroup $state "officialProviders.vivoCapture" }
         if ($null -ne $officialBlueLm) { Add-DetectedGroup $state "officialProviders.bluelm" }
         if ($null -ne $officialQwen) { Add-DetectedGroup $state "officialProviders.qwen" }
+        foreach ($capName in $CapabilityCatalog.Keys) {
+            $officialGroup = Find-OfficialProviderGroup $officialProviders $capName
+            if ($officialGroup) {
+                Add-DetectedGroup $state $officialGroup.name
+                $state.officialProviderGroupNames = @($state.officialProviderGroupNames + $officialGroup.name)
+                $state.officialProviderCandidates[$capName] = Get-CredentialCandidate $officialGroup.value "LOCAL_CONFIG_OFFICIAL_PROVIDER"
+            }
+        }
 
         $candidate = Select-CredentialCandidate @(
             (Get-CredentialCandidate $vivoCapture "LOCAL_CONFIG_VIVO_CAPTURE"),
@@ -527,6 +579,14 @@ function New-ConcreteUrl($Domain, $Path, $CapabilityName) {
     return "https://$Domain$Path"
 }
 
+function New-OfficialProviderUrl($Candidate, $Path, $CapabilityName) {
+    $domain = Normalize-Domain $Candidate.baseUrl
+    if (Test-RealValue $Path) {
+        return New-ConcreteUrl $domain $Path $CapabilityName
+    }
+    return "https://$domain"
+}
+
 function Test-CaptureSpecificConfig($LocalConfig) {
     return $LocalConfig.read -and
         ($LocalConfig.credentialSource -eq "LOCAL_CONFIG_VIVO_CAPTURE") -and
@@ -534,7 +594,37 @@ function Test-CaptureSpecificConfig($LocalConfig) {
         $LocalConfig.hasAppId
 }
 
+function Get-OfficialProviderCandidate($CapabilityName, $LocalConfig) {
+    if (-not $LocalConfig.read) { return $null }
+    if ($LocalConfig.officialProviderCandidates.ContainsKey($CapabilityName)) {
+        return $LocalConfig.officialProviderCandidates[$CapabilityName]
+    }
+    return $null
+}
+
+function Test-OfficialProviderSpecificConfig($CapabilityName, $LocalConfig) {
+    $candidate = Get-OfficialProviderCandidate $CapabilityName $LocalConfig
+    return $candidate -and $candidate.hasBaseUrl -and $candidate.hasAppKey
+}
+
+function Add-OfficialProviderMissingFields($CapabilityName, $LocalConfig, $MissingConfig) {
+    $aliases = @(Get-OfficialProviderAliases $CapabilityName)
+    if ($aliases.Count -eq 0) { return }
+    $candidate = Get-OfficialProviderCandidate $CapabilityName $LocalConfig
+    $primary = "officialProviders." + $aliases[0]
+    if (-not $candidate) {
+        [void]$MissingConfig.Add($primary)
+        return
+    }
+    if (-not $candidate.hasBaseUrl) { [void]$MissingConfig.Add("$primary.baseUrl") }
+    if (-not $candidate.hasAppKey) { [void]$MissingConfig.Add("$primary.authValue or $primary.appKey") }
+}
+
 function Add-CapabilitySpecificMissingFields($CapabilityName, $LocalConfig, $MissingConfig) {
+    Add-OfficialProviderMissingFields $CapabilityName $LocalConfig $MissingConfig
+    if (Test-OfficialProviderSpecificConfig $CapabilityName $LocalConfig) {
+        return
+    }
     switch ($CapabilityName) {
         { $_ -in @("OCR", "ASR_LONG") } {
             if (-not ($LocalConfig.vivoCaptureExists -or $LocalConfig.officialProvidersVivoCaptureExists)) {
@@ -575,11 +665,18 @@ function Get-SmokeConfig($CapabilityName, $LocalConfig) {
     $missingConfig = New-Object System.Collections.Generic.List[string]
 
     $captureSpecificConfig = Test-CaptureSpecificConfig $LocalConfig
+    $officialProviderCandidate = Get-OfficialProviderCandidate $CapabilityName $LocalConfig
+    $officialProviderSpecificConfig = Test-OfficialProviderSpecificConfig $CapabilityName $LocalConfig
 
     if (Test-RealValue $url) {
         $configSource = "ENV_EXPLICIT"
         $mappingSource = "ENV_EXPLICIT"
         $endpointMappingStatus = "READY"
+    } elseif ($officialProviderSpecificConfig) {
+        $configSource = "LOCAL_CONFIG_OFFICIAL_PROVIDER"
+        $mappingSource = "LOCAL_CONFIG_OFFICIAL_PROVIDER"
+        $endpointMappingStatus = "READY"
+        $url = New-OfficialProviderUrl $officialProviderCandidate $entry.localPath $CapabilityName
     } elseif (($CapabilityName -in @("OCR", "ASR_LONG")) -and $captureSpecificConfig) {
         $mappingSource = if ($LocalConfig.hasBaseUrl) { $LocalConfig.domainSource } else { "PROVIDER_CODE_DEFAULT" }
         $endpointMappingStatus = "READY"
@@ -602,6 +699,11 @@ function Get-SmokeConfig($CapabilityName, $LocalConfig) {
         if ($configSource -eq "NONE") { $configSource = "ENV_EXPLICIT" }
         $authValue = $globalAuth
         $authMappingStatus = "READY"
+    } elseif ($officialProviderSpecificConfig) {
+        if ($configSource -eq "NONE") { $configSource = "LOCAL_CONFIG_OFFICIAL_PROVIDER" }
+        $authValue = $officialProviderCandidate.appKey
+        if ($officialProviderCandidate.hasAuthHeader) { $authHeader = $officialProviderCandidate.authHeader }
+        $authMappingStatus = "READY"
     } elseif ($captureSpecificConfig -and ($CapabilityName -in @("OCR", "ASR_LONG"))) {
         if ($configSource -eq "NONE") { $configSource = "LOCAL_CONFIG_VIVO_CAPTURE" }
         $authValue = $LocalConfig.appKey
@@ -619,11 +721,13 @@ function Get-SmokeConfig($CapabilityName, $LocalConfig) {
     }
 
     if ($LocalConfig.read) {
-        if (-not $LocalConfig.hasAppId) { [void]$missingConfig.Add("appId") }
-        if (-not $LocalConfig.hasAppKey) { [void]$missingConfig.Add("appKey") }
-        if (-not $LocalConfig.hasBaseUrl) { [void]$missingConfig.Add("baseUrl (provider default domain will be used if auth is present)") }
-        if (-not ($LocalConfig.vivoCaptureExists -or $LocalConfig.providersBluelmExists -or $LocalConfig.providersQwenExists -or $LocalConfig.officialProvidersVivoCaptureExists -or $LocalConfig.topLevelBlueLmExists)) {
-            [void]$missingConfig.Add("vivoCapture or providers.bluelm or providers.qwen or top-level BlueLM")
+        if (($CapabilityName -in @("OCR", "ASR_LONG")) -and -not $officialProviderSpecificConfig) {
+            if (-not $LocalConfig.hasAppId) { [void]$missingConfig.Add("appId") }
+            if (-not $LocalConfig.hasAppKey) { [void]$missingConfig.Add("appKey") }
+            if (-not $LocalConfig.hasBaseUrl) { [void]$missingConfig.Add("baseUrl (provider default domain will be used if auth is present)") }
+            if (-not ($LocalConfig.vivoCaptureExists -or $LocalConfig.officialProvidersVivoCaptureExists -or $LocalConfig.topLevelBlueLmExists)) {
+                [void]$missingConfig.Add("vivoCapture or officialProviders.vivoCapture")
+            }
         }
         Add-CapabilitySpecificMissingFields $CapabilityName $LocalConfig $missingConfig
     }
@@ -837,6 +941,8 @@ function Write-ExplainConfig($LocalConfig, $Selected) {
     Write-Host ("providers.qwen exists: " + $LocalConfig.providersQwenExists)
     Write-Host ("topLevel.bluelm exists: " + $LocalConfig.topLevelBlueLmExists)
     Write-Host ("officialProviders exists: " + $LocalConfig.officialProvidersExists)
+    $officialGroups = if ($LocalConfig.officialProviderGroupNames.Count -gt 0) { ($LocalConfig.officialProviderGroupNames | Select-Object -Unique) -join ", " } else { "None" }
+    Write-Host ("officialProvider groups: " + $officialGroups)
     foreach ($cap in $Selected) {
         if (-not $CapabilityCatalog.Contains($cap)) { continue }
         $cfg = Get-SmokeConfig $cap $LocalConfig

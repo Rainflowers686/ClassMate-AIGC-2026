@@ -11,15 +11,18 @@ import org.junit.Test
 class VivoRequestFactoryTest {
 
     @Test
-    fun qwenRequestBodyDisablesThinkingAtTopLevel() {
+    fun qwenRequestBodyEnablesThinkingForDeepStudyWhenSupported() {
         val body = VivoOpenAIChatRequestFactory.build(
             model = "qwen3.5-plus",
             prompt = Prompt("system rules", "user content"),
-            options = BlueLMRequestOptions(stream = false, temperature = 0.1, maxTokens = 2200),
+            options = CloudModelQualityProfile.DEEP_STUDY.toRequestOptions(
+                config = ProviderConfigBundle.defaults().configOf(com.classmate.core.model.ProviderKind.BLUELM)!!,
+            ),
         )
         val obj = Json.parseToJsonElement(body) as JsonObject
-        // The qwen3.5-plus request body MUST carry top-level enable_thinking=false.
-        assertEquals(false, (obj["enable_thinking"] as? JsonPrimitive)?.booleanOrNull)
+        assertEquals(true, (obj["enable_thinking"] as? JsonPrimitive)?.booleanOrNull)
+        assertEquals("high", (obj["reasoning_effort"] as JsonPrimitive).content)
+        assertEquals(65_536, (obj["max_completion_tokens"] as JsonPrimitive).content.toInt())
         assertEquals("qwen3.5-plus", (obj["model"] as JsonPrimitive).content)
     }
 }

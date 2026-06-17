@@ -133,6 +133,87 @@ class OfficialProviderNetworkSmokeTest {
     }
 
     @Test
+    fun officialProvidersOcrConfigMapsOcrReadyWithoutLeakingValues() {
+        val temp = Files.createTempDirectory("classmate-smoke-official-ocr").toFile()
+        val config = File(temp, "config.local.json")
+        val outputDir = File(temp, "out")
+        config.writeText(
+            """
+            {
+              "officialProviders": {
+                "ocr": {
+                  "enabled": true,
+                  "baseUrl": "https://official-ocr.example.invalid",
+                  "authHeader": "Authorization",
+                  "authValue": "secret-ocr-auth"
+                }
+              }
+            }
+            """.trimIndent(),
+        )
+
+        val output = runSmokeScript(
+            "-ExplainConfig",
+            "-UseLocalConfig",
+            "-Capability",
+            "OCR",
+            "-LocalConfigPath",
+            config.absolutePath,
+            "-OutputDir",
+            outputDir.absolutePath,
+        )
+
+        assertTrue(output.contains("officialProviders exists: True"))
+        assertTrue(output.contains("officialProviders.ocr"))
+        assertTrue(output.contains("OCR: capability URL configured=True; auth configured=True"))
+        assertTrue(output.contains("source=LOCAL_CONFIG_OFFICIAL_PROVIDER"))
+        assertTrue(output.contains("mappingSource=LOCAL_CONFIG_OFFICIAL_PROVIDER"))
+        assertTrue(output.contains("endpointMapping=READY"))
+        assertTrue(output.contains("authMapping=READY"))
+        listOf("official-ocr.example.invalid", "secret-ocr-auth").forEach {
+            assertFalse("config value leaked: $it", output.contains(it))
+        }
+    }
+
+    @Test
+    fun officialProvidersQueryRewriteConfigMapsReadyWithoutTopLevelBlueLm() {
+        val temp = Files.createTempDirectory("classmate-smoke-official-query").toFile()
+        val config = File(temp, "config.local.json")
+        val outputDir = File(temp, "out")
+        config.writeText(
+            """
+            {
+              "officialProviders": {
+                "queryRewrite": {
+                  "enabled": true,
+                  "baseUrl": "https://official-query.example.invalid",
+                  "authValue": "secret-query-auth"
+                }
+              }
+            }
+            """.trimIndent(),
+        )
+
+        val output = runSmokeScript(
+            "-ExplainConfig",
+            "-UseLocalConfig",
+            "-Capability",
+            "QUERY_REWRITE",
+            "-LocalConfigPath",
+            config.absolutePath,
+            "-OutputDir",
+            outputDir.absolutePath,
+        )
+
+        assertTrue(output.contains("officialProviders.queryRewrite"))
+        assertTrue(output.contains("QUERY_REWRITE: capability URL configured=True; auth configured=True"))
+        assertTrue(output.contains("source=LOCAL_CONFIG_OFFICIAL_PROVIDER"))
+        assertTrue(output.contains("endpointMapping=READY"))
+        assertFalse(output.contains("official-query.example.invalid"))
+        assertFalse(output.contains("secret-query-auth"))
+    }
+
+    @Test
     fun explainConfigReportsMissingLocalFieldNamesOnly() {
         val temp = Files.createTempDirectory("classmate-smoke-missing").toFile()
         val config = File(temp, "config.local.json")
@@ -197,6 +278,9 @@ class OfficialProviderNetworkSmokeTest {
         assertTrue(script.contains("CLASSMATE_PROVIDER_SMOKE_OCR_URL=<your-value>") || script.contains("\$entry.urlEnv + \"=<your-value>\""))
         assertTrue(script.contains("CLASSMATE_PROVIDER_SMOKE_AUTH_VALUE=<your-value>"))
         assertTrue(script.contains("CLASSMATE_PROVIDER_SMOKE_QUERY_REWRITE_URL"))
+        assertTrue(script.contains("officialProviders"))
+        assertTrue(script.contains("\"ocr\": { \"enabled\": true, \"baseUrl\": \"<your-value>\""))
+        assertTrue(script.contains("\"queryRewrite\""))
         assertTrue(script.contains("-TimeoutSeconds <seconds>"))
         assertFalse(script.contains("CLASSMATE_PROVIDER_SMOKE_AUTH_VALUE=sk-"))
     }
@@ -295,8 +379,12 @@ class OfficialProviderNetworkSmokeTest {
             )
 
         assertTrue(vendorIo.contains("qwen3.5-plus"))
-        assertTrue(vendorIo.contains("put(\"enable_thinking\", false)"))
-        assertTrue(diagnostic.contains("put(\"enable_thinking\", false)"))
+        assertTrue(vendorIo.contains("supportsEnableThinking"))
+        assertTrue(vendorIo.contains("put(\"enable_thinking\", it)"))
+        assertTrue(vendorIo.contains("reasoning_effort"))
+        assertTrue(diagnostic.contains("enable_thinking"))
+        assertFalse(vendorIo.contains("put(\"enable_thinking\", false)"))
+        assertFalse(diagnostic.contains("put(\"enable_thinking\", false)"))
         assertFalse(mainFiles.any { it.readText().contains("import com.vivo.llmsdk") })
     }
 }

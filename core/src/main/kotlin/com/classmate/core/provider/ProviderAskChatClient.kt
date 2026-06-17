@@ -12,7 +12,7 @@ import java.util.UUID
  * Routes an "Ask This Lesson" chat call through the SAME profile order and credentials the analyzer
  * uses. It does NOT bypass the resolver philosophy: it walks [ProviderConfigBundle.order]
  * (official_bluelm: BlueLM→Local; demo_compatible: Compatible→BlueLM→Local; local_only: Local only),
- * reusing [VivoOpenAIChatRequestFactory] so qwen3.5-plus keeps `enable_thinking=false`.
+ * reusing [VivoOpenAIChatRequestFactory] so qwen3.5-plus uses profile-aware thinking.
  *
  * Returns null when only the local fallback remains (e.g. local_only, or no real transport), which
  * tells the engine to answer from local evidence instead of the network. It never logs or returns the

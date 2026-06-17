@@ -58,6 +58,37 @@ Allowed value-free group names:
 - `topLevel.bluelm`
 - `officialProviders`
 - `officialProviders.vivoCapture`
+- `officialProviders.ocr`
+- `officialProviders.queryRewrite`
+- `officialProviders.textSimilarity`
+- `officialProviders.embedding`
+- `officialProviders.translation`
+- `officialProviders.tts`
+- `officialProviders.functionCalling`
+- `officialProviders.asrLong`
+
+## Official Provider Config Schema v1
+
+Specialized official capabilities use dedicated groups under `officialProviders`. These groups are only read when `-UseLocalConfig` is explicit, and only field presence is reported.
+
+Use placeholders in docs/examples only:
+
+```json
+{
+  "officialProviders": {
+    "ocr": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },
+    "queryRewrite": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },
+    "textSimilarity": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },
+    "embedding": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },
+    "translation": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },
+    "tts": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },
+    "functionCalling": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },
+    "asrLong": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" }
+  }
+}
+```
+
+If a capability-specific group has `enabled=true`, endpoint field presence, and auth field presence, `-ExplainConfig -UseLocalConfig` can mark that capability as `READY`. It still does not send a request unless `-RunNetwork` is also passed.
 
 ## Conservative Mapping Policy
 
@@ -136,6 +167,8 @@ The script output uses only variable names and `<your-value>` placeholders.
 | TRANSLATION | `SEAM_ONLY` without explicit live endpoint mapping. | Add provider mapping or provide explicit env endpoint. |
 | TTS | `SEAM_ONLY` without explicit live websocket mapping. | Keep course essence script-only fallback. |
 | FUNCTION_CALLING | `SEAM_ONLY`; internal function router remains source of truth. | Add official cloud tool adapter only when request schema is confirmed. |
+
+With Schema v1, `officialProviders.<capability>` can also make the corresponding capability `READY` when the group has endpoint and auth field presence. This is preferred over reusing `topLevel.bluelm`.
 
 ## ConfigMissing vs EndpointMappingMissing
 

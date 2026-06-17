@@ -26,6 +26,7 @@ data class ProviderConfigSummary(
     val primaryReady: Boolean,
     val localFallbackEnabled: Boolean,
     val providers: List<ProviderSummary>,
+    val officialProviders: OfficialProviderConfigSummary = OfficialProviderConfigSummary(),
 ) {
     /**
      * Short, honest mode label for the Home chip: the first provider in the resolver order that
@@ -51,6 +52,7 @@ data class ProviderConfigSummary(
             source: String,
             bundle: ProviderConfigBundle,
             primaryReady: Boolean,
+            officialProviders: OfficialProviderConfigSummary = OfficialProviderConfigSummary(),
         ): ProviderConfigSummary {
             val providers = bundle.configs.values
                 .sortedBy { it.kind.ordinal }
@@ -66,9 +68,33 @@ data class ProviderConfigSummary(
                 primaryReady = primaryReady,
                 localFallbackEnabled = bundle.configOf(ProviderKind.LOCAL_FALLBACK)?.enabled == true,
                 providers = providers,
+                officialProviders = officialProviders,
             )
         }
     }
+}
+
+data class OfficialProviderConfigSummary(
+    val ocrConfigured: Boolean = false,
+    val queryRewriteConfigured: Boolean = false,
+    val textSimilarityConfigured: Boolean = false,
+    val embeddingConfigured: Boolean = false,
+    val translationConfigured: Boolean = false,
+    val ttsConfigured: Boolean = false,
+    val functionCallingConfigured: Boolean = false,
+    val asrLongConfigured: Boolean = false,
+) {
+    val anyConfigured: Boolean
+        get() = listOf(
+            ocrConfigured,
+            queryRewriteConfigured,
+            textSimilarityConfigured,
+            embeddingConfigured,
+            translationConfigured,
+            ttsConfigured,
+            functionCallingConfigured,
+            asrLongConfigured,
+        ).any { it }
 }
 
 data class ProviderSummary(
@@ -167,9 +193,15 @@ class ConfigRepository(
                 fallbackOnValidationError = resolver.bool("fallbackOnValidationError", defaults.policy.fallbackOnValidationError),
             ),
         )
+        val officialProvidersSummary = parseOfficialProviders(root.obj("officialProviders"))
         return ConfigLoadResult(
             bundle = bundle,
-            summary = ProviderConfigSummary.fromBundle(source, bundle, primaryReady = false),
+            summary = ProviderConfigSummary.fromBundle(
+                source = source,
+                bundle = bundle,
+                primaryReady = false,
+                officialProviders = officialProvidersSummary,
+            ),
         )
     }
 
@@ -215,6 +247,18 @@ class ConfigRepository(
             stream = json.bool("stream", default?.stream ?: false),
         )
     }
+
+    private fun parseOfficialProviders(root: JsonObject?): OfficialProviderConfigSummary =
+        OfficialProviderConfigSummary(
+            ocrConfigured = root.providerReady("ocr"),
+            queryRewriteConfigured = root.providerReady("queryRewrite", "query_rewrite"),
+            textSimilarityConfigured = root.providerReady("textSimilarity", "text_similarity", "similarity"),
+            embeddingConfigured = root.providerReady("embedding", "textVector", "text_vector"),
+            translationConfigured = root.providerReady("translation"),
+            ttsConfigured = root.providerReady("tts", "audioGeneration", "audio_generation"),
+            functionCallingConfigured = root.providerReady("functionCalling", "function_calling"),
+            asrLongConfigured = root.providerReady("asrLong", "asr_long", "longAsr"),
+        )
 
     private fun fallback(code: String, message: String): ConfigLoadResult {
         val bundle = ProviderConfigBundle.defaults()
@@ -270,3 +314,23 @@ private fun JsonObject.obj(key: String): JsonObject? = get(key) as? JsonObject
 private fun JsonObject.arrayStrings(key: String): List<String>? =
     (get(key) as? kotlinx.serialization.json.JsonArray)
         ?.mapNotNull { (it as? JsonPrimitive)?.takeIf { primitive -> primitive.isString }?.content }
+
+private fun JsonObject?.providerReady(vararg keys: String): Boolean {
+    val group = keys.firstNotNullOfOrNull { this?.obj(it) } ?: return false
+    val enabled = group.bool("enabled", true)
+    val hasEndpoint = group.hasAny("baseUrl", "baseURL", "base_url", "url", "endpoint", "domain", "host")
+    val hasAuth = group.hasAny(
+        "authValue",
+        "authorizationValue",
+        "appKey",
+        "appKEY",
+        "app_key",
+        "apiKey",
+        "api_key",
+        "token",
+    )
+    return enabled && hasEndpoint && hasAuth
+}
+
+private fun JsonObject.hasAny(vararg keys: String): Boolean =
+    keys.any { key -> str(key)?.isNotBlank() == true }

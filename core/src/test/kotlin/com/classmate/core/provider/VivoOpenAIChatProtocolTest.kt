@@ -33,7 +33,7 @@ class VivoOpenAIChatProtocolTest {
     }
 
     @Test
-    fun requestBodyUsesOfficialTopPWhenQualityProfileProvidesIt() {
+    fun requestBodyUsesDeepStudyQwenQualityProfileWhenSupported() {
         val body = VivoOpenAIChatRequestFactory.build(
             model = "qwen3.5-plus",
             prompt = Prompt(system = "system rules", user = "course prompt"),
@@ -44,18 +44,34 @@ class VivoOpenAIChatProtocolTest {
         val obj = Json.parseToJsonElement(body) as JsonObject
 
         assertEquals("qwen3.5-plus", obj.str("model"))
-        assertEquals(false, (obj["enable_thinking"] as JsonPrimitive).content.toBoolean())
+        assertEquals(true, (obj["enable_thinking"] as JsonPrimitive).content.toBoolean())
+        assertEquals("high", obj.str("reasoning_effort"))
         assertEquals(0.30, (obj["temperature"] as JsonPrimitive).content.toDouble(), 0.0001)
-        assertEquals(0.70, (obj["top_p"] as JsonPrimitive).content.toDouble(), 0.0001)
+        assertEquals(0.90, (obj["top_p"] as JsonPrimitive).content.toDouble(), 0.0001)
         assertEquals(4096, (obj["max_tokens"] as JsonPrimitive).content.toInt())
+        assertEquals(65_536, (obj["max_completion_tokens"] as JsonPrimitive).content.toInt())
+        assertEquals(0.20, (obj["frequency_penalty"] as JsonPrimitive).content.toDouble(), 0.0001)
+        assertEquals(0.08, (obj["presence_penalty"] as JsonPrimitive).content.toDouble(), 0.0001)
     }
 
     @Test
-    fun qwen35PlusRequestBodyDisablesThinking() {
-        val obj = requestObject("qwen3.5-plus")
+    fun qwen35PlusCompatibilityUnsupportedOmitsThinkingFields() {
+        val body = VivoOpenAIChatRequestFactory.build(
+            model = "qwen3.5-plus",
+            prompt = Prompt(system = "system rules", user = "course prompt"),
+            options = CloudModelQualityProfile.DEEP_STUDY.toRequestOptions(
+                config = ProviderConfigBundle.defaults().configOf(ProviderKind.BLUELM)!!,
+                featureSupport = CloudModelFeatureSupport.COMPATIBILITY_UNSUPPORTED,
+            ),
+        )
+        val obj = Json.parseToJsonElement(body) as JsonObject
 
         assertEquals("qwen3.5-plus", obj.str("model"))
-        assertEquals(false, (obj["enable_thinking"] as JsonPrimitive).content.toBoolean())
+        assertFalse(obj.containsKey("enable_thinking"))
+        assertFalse(obj.containsKey("reasoning_effort"))
+        assertFalse(obj.containsKey("max_completion_tokens"))
+        assertFalse(obj.containsKey("frequency_penalty"))
+        assertFalse(obj.containsKey("presence_penalty"))
     }
 
     @Test

@@ -83,6 +83,47 @@ class ConfigRepositoryTest {
     }
 
     @Test
+    fun parsesOfficialProviderSchemaPresenceWithoutPromotingTopLevelBlueLm() {
+        val result = ConfigRepository().parseOrDefault(
+            """
+            {
+              "provider": "bluelm",
+              "baseUrl": "https://api-ai.vivo.com.cn/v1",
+              "model": "qwen3.5-plus",
+              "appId": "FAKE_APP_ID_2026374747",
+              "appKey": "sk-xuanji-FAKE-ONLY-DO-NOT-USE",
+              "officialProviders": {
+                "ocr": {
+                  "enabled": true,
+                  "baseUrl": "https://official-ocr.example.invalid",
+                  "authValue": "secret-ocr-auth"
+                },
+                "queryRewrite": {
+                  "enabled": true,
+                  "baseUrl": "https://official-query.example.invalid",
+                  "authValue": "secret-query-auth"
+                },
+                "tts": {
+                  "enabled": false,
+                  "baseUrl": "https://official-tts.example.invalid",
+                  "authValue": "secret-tts-auth"
+                }
+              }
+            }
+            """.trimIndent(),
+            source = "debug import",
+        )
+
+        assertTrue(result.summary.blueLmConfigured)
+        assertTrue(result.summary.officialProviders.ocrConfigured)
+        assertTrue(result.summary.officialProviders.queryRewriteConfigured)
+        assertFalse(result.summary.officialProviders.ttsConfigured)
+        assertFalse(result.summary.officialProviders.textSimilarityConfigured)
+        assertFalse(result.toString().contains("secret-ocr-auth"))
+        assertFalse(result.toString().contains("official-ocr.example.invalid"))
+    }
+
+    @Test
     fun missingLocalConfigFallsBackSafely() {
         val missing = Files.createTempDirectory("classmate-missing").resolve("config.local.json").toFile()
         val result = ConfigRepository(missing).loadLocalOrDefault()

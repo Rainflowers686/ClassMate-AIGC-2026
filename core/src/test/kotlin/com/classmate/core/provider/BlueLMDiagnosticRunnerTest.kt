@@ -47,7 +47,7 @@ class BlueLMDiagnosticRunnerTest {
                     val messages = root["messages"] as JsonArray
                     assertEquals("Doubao-Seed-2.0-mini", (root["model"] as JsonPrimitive).content)
                     assertEquals(false, (root["stream"] as JsonPrimitive).content.toBoolean())
-                    assertEquals(32, (root["max_tokens"] as JsonPrimitive).content.toInt())
+                    assertEquals(64, (root["max_tokens"] as JsonPrimitive).content.toInt())
                     assertEquals("user", ((messages[0] as JsonObject)["role"] as JsonPrimitive).content)
 
                     return TransportResponse(200, """{"choices":[{"message":{"content":"OK"}}]}""")
@@ -95,7 +95,7 @@ class BlueLMDiagnosticRunnerTest {
     }
 
     @Test
-    fun qwenDiagnosticDisablesThinkingAndKeepsReasoningMetadataOnly() {
+    fun qwenDiagnosticEnablesFastThinkingAndKeepsReasoningMetadataOnly() {
         val runner = BlueLMDiagnosticRunner(
             transport = object : HttpTransport {
                 override fun postJson(
@@ -114,7 +114,10 @@ class BlueLMDiagnosticRunnerTest {
                 ): TransportResponse {
                     val root = Json.parseToJsonElement(body) as JsonObject
                     assertEquals("qwen3.5-plus", (root["model"] as JsonPrimitive).content)
-                    assertEquals(false, (root["enable_thinking"] as JsonPrimitive).content.toBoolean())
+                    assertEquals(true, (root["enable_thinking"] as JsonPrimitive).content.toBoolean())
+                    assertEquals("medium", (root["reasoning_effort"] as JsonPrimitive).content)
+                    assertEquals(64, (root["max_tokens"] as JsonPrimitive).content.toInt())
+                    assertEquals(8192, (root["max_completion_tokens"] as JsonPrimitive).content.toInt())
                     assertEquals("Bearer fake-app-key-for-tests", headers["Authorization"])
                     assertEquals("fake-app-id", headers["app_id"])
                     assertEquals(HttpRequestProfile.DIAGNOSTIC, profile)

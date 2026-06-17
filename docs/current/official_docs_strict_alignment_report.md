@@ -43,10 +43,14 @@ Excluded from product and smoke:
 | Parameter | Official docs | Current code before this pass | Current code after this pass | Conflict with guard | Decision |
 |---|---|---|---|---|---|
 | Model | official docs include several cloud models including `qwen3.5-plus` | `qwen3.5-plus` as cloud BlueLM-compatible default | unchanged | none | Keep qwen / cloud BlueLM-compatible path; do not switch to doubao. |
-| `enable_thinking` / thinking | official responses may expose reasoning fields; model docs vary by model | `qwen3.5-plus` request sets top-level `enable_thinking=false` | unchanged | yes, possible quality tradeoff | Guard is retained. No hidden reasoning is requested or logged. Revisit only after an explicit compatibility/security migration. |
-| `max_tokens` | default 4096; does not include thinking content | default provider used lower cap in some paths | `DEEP_STUDY` uses 4096, repair path still caps at 1600, Ask caps at 1800 | no | Improve important learning tasks without widening repair loops. |
-| `temperature` | range 0-2, default 1 | configured per provider, often low | profile-based: FAST 0.15, BALANCED 0.25, DEEP_STUDY 0.30 | no | Keep conservative values for evidence-grounded learning. |
-| `top_p` | default 0.7 | not sent | sent by quality profile; DEEP_STUDY uses 0.7 | no | Align with official default and make behavior explicit. |
+| `enable_thinking` / thinking | official docs state `qwen3.5-plus` defaults to thinking enabled and supports top-level `enable_thinking` | `qwen3.5-plus` request used a top-level `enable_thinking=false` compatibility guard | profile-aware: `DEEP_STUDY` and `BALANCED` send `enable_thinking=true` when the endpoint declares support; unsupported compatibility mode omits thinking fields | yes, old global false guard conflicted with quality goals | Replace global false guard with feature flags: `supportsEnableThinking`, `supportsReasoningEffort`, `supportsMaxCompletionTokens`. Response readers still detect reasoning metadata only and never surface or log reasoning text. |
+| `reasoning_effort` | official values include `minimal`, `low`, `medium`, `high` | not sent | `DEEP_STUDY=high`, `BALANCED=medium`, `FAST=medium` when supported | no | Use high for persistent learning outputs and medium for default/fast tasks. |
+| `max_tokens` | default 4096; does not include thinking content | default provider used lower cap in some paths | `DEEP_STUDY` and `BALANCED` use 4096 unless a repair call-site cap is explicit | no | Keep visible answer length high for CourseAnalysis / Ask / Report. |
+| `max_completion_tokens` | official range `[0, 65,536]`; includes answer plus thinking chain | not sent | `DEEP_STUDY=65,536`, `BALANCED=32,768`, `FAST=8,192` when supported | no | Use the official high ceiling for deep study while preserving compatibility flags. |
+| `temperature` | range 0-2, default 1 | configured per provider, often low | profile-based: FAST 0.20, BALANCED 0.35, DEEP_STUDY 0.30 | no | Keep conservative values for evidence-grounded learning. |
+| `top_p` | default 0.7 | not sent | sent by quality profile; `DEEP_STUDY=0.90`, `BALANCED=0.90`, `FAST=0.85` | no | Increase diversity slightly while keeping learning output stable. |
+| `frequency_penalty` | range `[-2.0, 2.0]` | not sent | `DEEP_STUDY=0.20`, `BALANCED=0.15`, `FAST=0.10` | no | Reduce repetitive explanations in study reports and feedback. |
+| `presence_penalty` | range `[-2.0, 2.0]` | not sent | `DEEP_STUDY=0.08`, `BALANCED=0.08`, `FAST=0.05` | no | Encourage useful next-step coverage without making factual tasks too divergent. |
 | `stream` | supported | false in current core tasks | unchanged | no | Keep non-streaming for parse/validator-gated tasks. |
 | timeout/retry | official docs expose normal HTTP behavior; project uses profiled transport | BlueLM analysis has long read timeout and requestId retry | unchanged for provider; smoke harness gets explicit timeout | no | Keep production timeout profile; add smoke timeout. |
 
@@ -68,7 +72,35 @@ The following learning tasks must use `DEEP_STUDY` or an equivalent high-quality
 - StudyReport
 - CourseEssenceScript
 
-The profile changes only public generation parameters (`temperature`, `top_p`, `max_tokens`). It does not remove or weaken the qwen `enable_thinking=false` guard.
+The profile now controls public generation parameters plus qwen thinking fields. The old global `enable_thinking=false` guard is replaced by feature flags:
+
+- supported qwen path: `enable_thinking=true`
+- supported qwen path: `reasoning_effort=high` for `DEEP_STUDY`, `medium` for `BALANCED` and `FAST`
+- unsupported compatibility path: omit thinking / reasoning / max-completion / penalty fields instead of forcing a failing request
+- response readers keep reasoning text private and expose only `reasoningContentPresent` and length metadata
+
+## Official Provider Config Schema v1
+
+Specialized official capabilities must use dedicated config groups. Generic top-level BlueLM/qwen config is only for cloud large-model text generation and must not make OCR, ASR, retrieval, translation, TTS, or function calling `READY`.
+
+Example schema shape with placeholders only:
+
+```json
+{
+  "officialProviders": {
+    "ocr": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },
+    "queryRewrite": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },
+    "textSimilarity": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },
+    "embedding": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },
+    "translation": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },
+    "tts": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },
+    "functionCalling": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },
+    "asrLong": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" }
+  }
+}
+```
+
+The app and smoke harness store only configured/missing status for these groups. They must not print or export actual URL or credential values.
 
 ## Endpoint Mapping Findings
 
@@ -120,4 +152,6 @@ Detected config group in the local opt-in run: `topLevel.bluelm`. No value was p
 - Align `VivoQueryRewriteProvider` body shape to the official `query_rewrite_base` schema before network smoke.
 - Decide whether OCR should use official `http://` endpoint exactly or whether HTTPS is accepted by vivo gateway.
 - Add retrieval-specific local config groups if real endpoints need to be configured without env variables.
-- Keep `enable_thinking=false` until a dedicated qwen compatibility migration is approved.
+- Run real smoke only after `officialProviders.*` or explicit env mapping exists for each specialized capability.
+- Keep qwen on `qwen3.5-plus`; do not switch to doubao.
+- If a deployed endpoint rejects thinking fields, use the compatibility feature flags to omit unsupported fields for that endpoint while keeping `DEEP_STUDY` as the default supported profile.

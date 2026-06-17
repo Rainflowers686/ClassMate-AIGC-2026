@@ -87,4 +87,20 @@ class SettingsModelConfigTextTest {
         ).forEach { assertTrue("missing P2 settings copy: $it", s.contains(it)) }
         assertFalse(s.contains("完整密钥"))
     }
+    @Test
+    fun qwenDeepStudyAndOfficialProviderConfigStatusAreVisible() {
+        val s = source()
+        listOf(
+            "Cloud quality profile",
+            "qwen3.5-plus",
+            "DEEP_STUDY",
+            "enable_thinking=true if supported",
+            "reasoning_effort",
+            "Official OCR config",
+            "Query Rewrite config",
+            "Text Similarity config",
+            "Embedding config",
+            "TTS config",
+        ).forEach { assertTrue("missing current AI status copy: $it", s.contains(it)) }
+    }
 }

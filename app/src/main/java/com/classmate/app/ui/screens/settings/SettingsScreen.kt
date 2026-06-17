@@ -54,6 +54,7 @@ import com.classmate.core.ondevice.OnDeviceErrorExplain
 import com.classmate.core.ondevice.OnDeviceLlmConfig
 import com.classmate.core.official.VivoOfficialProviderRegistry
 import com.classmate.core.provider.BlueLMDiagnosticStatus
+import com.classmate.core.provider.CloudModelQualityProfile
 import com.classmate.app.ui.components.CapabilityStatusPill
 import com.classmate.app.ui.components.ClassMateCard
 import com.classmate.app.ui.components.ClassMateScaffold
@@ -432,6 +433,16 @@ private fun ModelApiManagementCard(viewModel: AppViewModel) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        Spacer(Modifier.height(Dimens.xs))
+        ProviderStatusRow("Cloud quality profile", cloudQualityProfileStatus())
+        ProviderStatusRow("Official OCR config", configuredStatus(summary.officialProviders.ocrConfigured))
+        ProviderStatusRow("Query Rewrite config", configuredStatus(summary.officialProviders.queryRewriteConfigured))
+        ProviderStatusRow("Text Similarity config", configuredStatus(summary.officialProviders.textSimilarityConfigured))
+        ProviderStatusRow("Embedding config", configuredStatus(summary.officialProviders.embeddingConfigured))
+        ProviderStatusRow("Translation config", configuredStatus(summary.officialProviders.translationConfigured))
+        ProviderStatusRow("TTS config", configuredStatus(summary.officialProviders.ttsConfigured, missing = "missing: script-only"))
+        ProviderStatusRow("Function Calling config", configuredStatus(summary.officialProviders.functionCallingConfigured))
+        ProviderStatusRow("ASR Long config", configuredStatus(summary.officialProviders.asrLongConfigured))
         if (masked != null && masked.credentialPresent) {
             Spacer(Modifier.height(Dimens.xxs))
             Text(
@@ -947,6 +958,14 @@ private fun cloudBlueLmStatus(ui: ClassMateUiState): String {
         else -> base
     }
 }
+
+private fun cloudQualityProfileStatus(): String {
+    val profile = CloudModelQualityProfile.DEEP_STUDY
+    return "qwen3.5-plus / ${profile.name} / enable_thinking=true if supported / reasoning_effort=${profile.reasoningEffort.wireValue}"
+}
+
+private fun configuredStatus(configured: Boolean, missing: String = "missing"): String =
+    if (configured) "configured" else missing
 
 private fun displayCloudModelName(raw: String?): String {
     val trimmed = raw?.trim().orEmpty()

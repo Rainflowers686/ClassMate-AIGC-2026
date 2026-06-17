@@ -18,8 +18,14 @@ data class BlueLMRequestOptions(
     val stream: Boolean = false,
     val temperature: Double = 0.3,
     val maxTokens: Int = 4096,
+    val maxCompletionTokens: Int? = null,
     val topP: Double? = null,
     val qualityProfile: CloudModelQualityProfile = CloudModelQualityProfile.BALANCED,
+    val enableThinking: Boolean? = null,
+    val reasoningEffort: ReasoningEffort? = null,
+    val frequencyPenalty: Double? = null,
+    val presencePenalty: Double? = null,
+    val featureSupport: CloudModelFeatureSupport = CloudModelFeatureSupport.QWEN_COMPATIBLE,
 )
 
 fun interface BlueLMRequestFactory {
@@ -48,13 +54,25 @@ object VivoOpenAIChatRequestFactory : BlueLMRequestFactory {
     override fun build(model: String, prompt: Prompt, options: BlueLMRequestOptions): String =
         buildJsonObject {
             put("model", model)
-            if (shouldDisableQwenThinking(model)) {
-                put("enable_thinking", false)
+            if (shouldUseQwenEnableThinking(model) && options.featureSupport.supportsEnableThinking) {
+                options.enableThinking?.let { put("enable_thinking", it) }
+            }
+            if (options.featureSupport.supportsReasoningEffort) {
+                options.reasoningEffort?.let { put("reasoning_effort", it.wireValue) }
             }
             put("stream", options.stream)
             put("temperature", options.temperature)
             options.topP?.let { put("top_p", it) }
             put("max_tokens", options.maxTokens)
+            if (options.featureSupport.supportsMaxCompletionTokens) {
+                options.maxCompletionTokens?.let { put("max_completion_tokens", it) }
+            }
+            if (options.featureSupport.supportsFrequencyPenalty) {
+                options.frequencyPenalty?.let { put("frequency_penalty", it) }
+            }
+            if (options.featureSupport.supportsPresencePenalty) {
+                options.presencePenalty?.let { put("presence_penalty", it) }
+            }
             putJsonArray("messages") {
                 addJsonObject {
                     put("role", "system")
@@ -197,7 +215,7 @@ internal fun JsonObject?.int(key: String): Int? =
 internal fun JsonObject?.double(key: String): Double? =
     (this?.get(key) as? JsonPrimitive)?.doubleOrNull
 
-internal fun shouldDisableQwenThinking(model: String): Boolean =
+internal fun shouldUseQwenEnableThinking(model: String): Boolean =
     model.trim().equals("qwen3.5-plus", ignoreCase = true)
 
 private val json = Json { ignoreUnknownKeys = true; isLenient = true }
