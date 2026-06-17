@@ -61,7 +61,7 @@ class OfficialDocsStrictAlignmentReportTest {
     fun smokeSetupDocumentsV4ConservativeMapping() {
         val setup = readWorkspace("docs/current/official_provider_smoke_setup.md")
 
-        assertTrue(setup.contains("Official Provider Smoke Setup v4"))
+        assertTrue(setup.contains("Official Provider Smoke Setup v5"))
         assertTrue(setup.contains("officialProviders"))
         assertTrue(setup.contains("\"ocr\""))
         assertTrue(setup.contains("Generic cloud model config does not mean"))

@@ -244,7 +244,7 @@ function Write-SmokeLog($Message) {
 }
 
 function Print-SetupHelp {
-    Write-Host "Official provider smoke setup v4"
+    Write-Host "Official provider smoke setup v5"
     Write-Host ""
     Write-Host "Default mode is dry-run. Real requests require -RunNetwork and one explicit -Capability."
     Write-Host "config.local.json is not read unless -UseLocalConfig is passed."
@@ -298,6 +298,18 @@ function Normalize-Domain($Raw) {
     $value = [string]$Raw
     if (-not (Test-RealValue $value)) { return $DefaultOfficialDomain }
     return $value.Replace("https://", "").Replace("http://", "").TrimEnd("/")
+}
+
+function Normalize-BaseUrl($Raw) {
+    $value = [string]$Raw
+    if (-not (Test-RealValue $value)) {
+        $value = $DefaultOfficialDomain
+    }
+    $value = $value.Trim().TrimEnd("/")
+    if ($value -notmatch "^[a-zA-Z][a-zA-Z0-9+.-]*://") {
+        $value = "https://$value"
+    }
+    return $value
 }
 
 function Get-ObjectPropertyValue($Object, [string[]]$Names) {
@@ -574,21 +586,43 @@ function Get-SelectedCapabilities {
     return @($SafeCapabilities)
 }
 
-function New-ConcreteUrl($Domain, $Path, $CapabilityName) {
-    if (-not (Test-RealValue $Path)) { return "" }
-    if ($CapabilityName -eq "OCR") {
-        return "https://$Domain$Path?requestId=classmate-smoke"
+function Join-SmokeUrl($BaseUrl, $EndpointPath) {
+    $base = Normalize-BaseUrl $BaseUrl
+    if (-not (Test-RealValue $EndpointPath)) { return $base }
+    $path = ([string]$EndpointPath).Trim()
+    if ($path -match "^[a-zA-Z][a-zA-Z0-9+.-]*://") {
+        return $path.TrimEnd("/")
     }
-    return "https://$Domain$Path"
+    if ($path.StartsWith("?")) {
+        return "$base$path"
+    }
+    if (-not $path.StartsWith("/")) {
+        $path = "/$path"
+    }
+    return "$base$path"
+}
+
+function Add-SmokeQueryParameter($Url, $Name, $Value) {
+    $separator = if ([string]$Url -like "*?*") { "&" } else { "?" }
+    $encodedName = [System.Uri]::EscapeDataString([string]$Name)
+    $encodedValue = [System.Uri]::EscapeDataString([string]$Value)
+    return "$Url$separator$encodedName=$encodedValue"
+}
+
+function New-ConcreteUrl($BaseUrl, $Path, $CapabilityName) {
+    $url = Join-SmokeUrl $BaseUrl $Path
+    if ($CapabilityName -eq "OCR") {
+        return Add-SmokeQueryParameter $url "requestId" "classmate-smoke"
+    }
+    return $url
 }
 
 function New-OfficialProviderUrl($Candidate, $Path, $CapabilityName) {
-    $domain = Normalize-Domain $Candidate.baseUrl
     $effectivePath = if ($Candidate.hasEndpointPath) { $Candidate.endpointPath } else { $Path }
     if (Test-RealValue $effectivePath) {
-        return New-ConcreteUrl $domain $effectivePath $CapabilityName
+        return New-ConcreteUrl $Candidate.baseUrl $effectivePath $CapabilityName
     }
-    return "https://$domain"
+    return Normalize-BaseUrl $Candidate.baseUrl
 }
 
 function Test-CaptureSpecificConfig($LocalConfig) {
@@ -771,6 +805,9 @@ function Get-HttpStatusCode($Exception) {
 function Get-NetworkFailureStatus($Exception, $SmokeConfig) {
     $message = [string]$Exception.Message
     $statusCode = Get-HttpStatusCode $Exception
+    if ($message -match "(?i)invalid uri|cannot bind parameter.*uri|could not parse.*host|could not parse.*hostname") {
+        return "FAIL_INVALID_URI"
+    }
     if ($message -match "(?i)timed out|timeout|operation has timed out") {
         return "FAIL_TIMEOUT"
     }
@@ -830,6 +867,21 @@ function New-EmptySmokeConfig($LocalConfig) {
     }
 }
 
+function Test-SmokeUri($Url) {
+    $uri = $null
+    $isValid = [System.Uri]::TryCreate([string]$Url, [System.UriKind]::Absolute, [ref]$uri)
+    if ($isValid -and $uri -and ($uri.Scheme -in @("http", "https"))) {
+        return [PSCustomObject]@{
+            isValid = $true
+            uri = $uri
+        }
+    }
+    return [PSCustomObject]@{
+        isValid = $false
+        uri = $null
+    }
+}
+
 function New-SmokeResult {
     param(
         [string]$CapabilityName,
@@ -840,8 +892,12 @@ function New-SmokeResult {
         [string]$SanitizedStatus,
         [string]$SanitizedError,
         [string]$OutputPath,
-        [int]$DurationMs
+        [int]$DurationMs,
+        [bool]$RequestAttempted,
+        [bool]$UriValidated
     )
+    if (-not $PSBoundParameters.ContainsKey("RequestAttempted")) { $RequestAttempted = $RequestSent }
+    if (-not $PSBoundParameters.ContainsKey("UriValidated")) { $UriValidated = $false }
     $entry = $CapabilityCatalog[$CapabilityName]
     [PSCustomObject]@{
         capability = $CapabilityName
@@ -851,6 +907,8 @@ function New-SmokeResult {
         status = $Status
         configured = ($SmokeConfig.authMappingStatus -eq "READY" -and $SmokeConfig.endpointMappingStatus -eq "READY")
         requestSent = $RequestSent
+        requestAttempted = $RequestAttempted
+        uriValidated = $UriValidated
         sanitizedStatus = Redact-Text $SanitizedStatus
         sanitizedError = Redact-Text $SanitizedError
         outputPath = $OutputPath
@@ -908,6 +966,13 @@ function Invoke-CapabilitySmoke($CapabilityName, $LocalConfig) {
         return New-SmokeResult -CapabilityName $CapabilityName -Mode "NETWORK" -Status "SKIPPED_REQUEST_SCHEMA_MISSING" -SmokeConfig $smokeConfig -RequestSent $false -SanitizedStatus "RequestSchemaMissing." -SanitizedError "" -OutputPath "" -DurationMs $elapsed
     }
 
+    $uriCheck = Test-SmokeUri $smokeConfig.url
+    if (-not $uriCheck.isValid) {
+        $elapsed = [int]((Get-Date) - $started).TotalMilliseconds
+        return New-SmokeResult -CapabilityName $CapabilityName -Mode "NETWORK" -Status "FAIL_INVALID_URI" -SmokeConfig $smokeConfig -RequestSent $false -RequestAttempted $false -UriValidated $false -SanitizedStatus "Invalid URI after endpoint composition." -SanitizedError "Invalid URI after endpoint composition; check baseUrl and endpointPath fields." -OutputPath "" -DurationMs $elapsed
+    }
+
+    $requestAttempted = $false
     try {
         $headers = @{}
         if (Test-RealValue $smokeConfig.authValue) {
@@ -920,20 +985,25 @@ function Invoke-CapabilitySmoke($CapabilityName, $LocalConfig) {
             $image64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($imagePath))
             $business = if (Test-RealValue $smokeConfig.appId) { "aigc$($smokeConfig.appId)" } else { "aigc" }
             $body = "image=$([System.Net.WebUtility]::UrlEncode($image64))&pos=2&businessid=$([System.Net.WebUtility]::UrlEncode($business))"
-            $response = Invoke-WebRequest -Uri $smokeConfig.url -Method Post -Headers $headers -ContentType "application/x-www-form-urlencoded" -Body $body -TimeoutSec $TimeoutSeconds -UseBasicParsing
+            $requestAttempted = $true
+            $response = Invoke-WebRequest -Uri $uriCheck.uri -Method Post -Headers $headers -ContentType "application/x-www-form-urlencoded" -Body $body -TimeoutSec $TimeoutSeconds -UseBasicParsing
         } else {
             $payload = New-RequestPayload $CapabilityName
             $json = $payload | ConvertTo-Json -Depth 12
             $headers["Content-Type"] = "application/json"
-            $response = Invoke-WebRequest -Uri $smokeConfig.url -Method Post -Headers $headers -ContentType "application/json" -Body $json -TimeoutSec $TimeoutSeconds -UseBasicParsing
+            $requestAttempted = $true
+            $response = Invoke-WebRequest -Uri $uriCheck.uri -Method Post -Headers $headers -ContentType "application/json" -Body $json -TimeoutSec $TimeoutSeconds -UseBasicParsing
         }
         Set-Content -LiteralPath $outputPath -Value (Redact-Text ([string]$response.Content))
         $elapsed = [int]((Get-Date) - $started).TotalMilliseconds
-        return New-SmokeResult -CapabilityName $CapabilityName -Mode "NETWORK" -Status "PASS" -SmokeConfig $smokeConfig -RequestSent $true -SanitizedStatus "HTTP $($response.StatusCode)" -SanitizedError "" -OutputPath $outputPath -DurationMs $elapsed
+        return New-SmokeResult -CapabilityName $CapabilityName -Mode "NETWORK" -Status "PASS" -SmokeConfig $smokeConfig -RequestSent $true -RequestAttempted $true -UriValidated $true -SanitizedStatus "HTTP $($response.StatusCode)" -SanitizedError "" -OutputPath $outputPath -DurationMs $elapsed
     } catch {
         $elapsed = [int]((Get-Date) - $started).TotalMilliseconds
         $failureStatus = Get-NetworkFailureStatus $_.Exception $smokeConfig
-        return New-SmokeResult -CapabilityName $CapabilityName -Mode "NETWORK" -Status $failureStatus -SmokeConfig $smokeConfig -RequestSent $true -SanitizedStatus "Network request failed." -SanitizedError $_.Exception.Message -OutputPath "" -DurationMs $elapsed
+        $requestSent = if ($failureStatus -eq "FAIL_INVALID_URI") { $false } else { $requestAttempted }
+        $statusText = if ($failureStatus -eq "FAIL_INVALID_URI") { "Invalid URI after endpoint composition." } else { "Network request failed." }
+        $errorText = if ($failureStatus -eq "FAIL_INVALID_URI") { "Invalid URI after endpoint composition; check baseUrl and endpointPath fields." } else { $_.Exception.Message }
+        return New-SmokeResult -CapabilityName $CapabilityName -Mode "NETWORK" -Status $failureStatus -SmokeConfig $smokeConfig -RequestSent $requestSent -RequestAttempted $requestAttempted -UriValidated $uriCheck.isValid -SanitizedStatus $statusText -SanitizedError $errorText -OutputPath "" -DurationMs $elapsed
     }
 }
 
@@ -1007,12 +1077,12 @@ function Write-Results {
     $md += ""
     $md += "## Capability Table"
     $md += ""
-    $md += "| Capability | mode | status | requestSent | configSource | mappingSource | endpointMapping | authMapping | requestSchema | missingEnvNames | missingConfigFields |"
-    $md += "|---|---|---|---|---|---|---|---|---|---|---|"
+    $md += "| Capability | mode | status | requestSent | requestAttempted | uriValidated | configSource | mappingSource | endpointMapping | authMapping | requestSchema | missingEnvNames | missingConfigFields |"
+    $md += "|---|---|---|---|---|---|---|---|---|---|---|---|---|"
     foreach ($r in $Results) {
         $missingEnv = if ($r.missingEnvNames.Count -gt 0) { ($r.missingEnvNames -join "<br>") } else { "" }
         $missingConfig = if ($r.missingConfigFields.Count -gt 0) { ($r.missingConfigFields -join "<br>") } else { "" }
-        $md += ("| " + $r.capability + " | " + $r.mode + " | " + $r.status + " | " + $r.requestSent + " | " + $r.configSource + " | " + $r.mappingSource + " | " + $r.endpointMappingStatus + " | " + $r.authMappingStatus + " | " + $r.requestSchemaStatus + " | " + $missingEnv + " | " + $missingConfig + " |")
+        $md += ("| " + $r.capability + " | " + $r.mode + " | " + $r.status + " | " + $r.requestSent + " | " + $r.requestAttempted + " | " + $r.uriValidated + " | " + $r.configSource + " | " + $r.mappingSource + " | " + $r.endpointMappingStatus + " | " + $r.authMappingStatus + " | " + $r.requestSchemaStatus + " | " + $missingEnv + " | " + $missingConfig + " |")
     }
     $md += ""
     $md += "## Passed"

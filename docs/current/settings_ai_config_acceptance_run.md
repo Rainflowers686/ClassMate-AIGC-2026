@@ -1,4 +1,4 @@
-# Settings IA v2 and AI Model Config Acceptance Run
+﻿# Settings IA v2 and AI Model Config Acceptance Run
 
 ## Date / Branch / Commit
 
@@ -22,60 +22,54 @@
 
 | Item | Result | Evidence |
 | --- | --- | --- |
-| 通用设置 | PASS | Settings home exposes the general settings path. |
-| 开发者设置 | PASS | Developer settings is separated from normal user configuration. |
-| 外观与主题 | PASS | General settings includes appearance/theme with Focus / Flow / Vitality. |
-| AI 模型配置 | PASS | AI model configuration is under general settings, not hidden in developer settings. |
-| 隐私与权限 | PASS | General settings includes privacy/permission explanations. |
-| 学习与导出 | PASS | Learning/export settings remain visible. |
-| 沉浸式背景音 | PASS | Ambient audio settings remain visible with authorized loop-audio copy. |
+| 閫氱敤璁剧疆 | PASS | Settings home exposes the general settings path. |
+| 寮€鍙戣€呰缃?| PASS | Developer settings is separated from normal user configuration. |
+| 澶栬涓庝富棰?| PASS | General settings includes appearance/theme with Focus / Flow / Vitality. |
+| AI 妯″瀷閰嶇疆 | PASS | AI model configuration is under general settings, not hidden in developer settings. |
+| 闅愮涓庢潈闄?| PASS | General settings includes privacy/permission explanations. |
+| 瀛︿範涓庡鍑?| PASS | Learning/export settings remain visible. |
+| 娌夋蹈寮忚儗鏅煶 | PASS | Ambient audio settings remain visible with authorized loop-audio copy. |
 
 ## AI Model Configuration
 
 | Check | Result | Notes |
 | --- | --- | --- |
-| 蓝心大模型 / 官方比赛模型 | PASS | Official BlueLM/qwen path is presented as the primary official option. |
+| 钃濆績澶фā鍨?/ 瀹樻柟姣旇禌妯″瀷 | PASS | Official BlueLM/qwen path is presented as the primary official option. |
 | AppID default | PASS | Default AppID is `2026374747`. |
 | AppKey masked | PASS | AppKey entry is hidden by default; saved state shows configured/masked status only. |
-| 保存配置 | PASS | Save action is present and covered by unit tests. |
-| 删除配置 | PASS | Delete action is present and requires confirmation. |
-| 恢复默认 AppID | PASS | Restore default AppID action is present. |
-| 其他模型 API Key | PASS | Custom model option has a masked API Key field. |
-| 高级 JSON 配置 | PASS | Advanced JSON config is collapsible. |
-| 非法 JSON 错误提示 | PASS | Invalid JSON is rejected with a clear error and does not save. |
+| 淇濆瓨閰嶇疆 | PASS | Save action is present and covered by unit tests. |
+| 鍒犻櫎閰嶇疆 | PASS | Delete action is present and requires confirmation. |
+| 鎭㈠榛樿 AppID | PASS | Restore default AppID action is present. |
+| 鍏朵粬妯″瀷 API Key | PASS | Custom model option has a masked API Key field. |
+| 楂樼骇 JSON 閰嶇疆 | PASS | Advanced JSON config is collapsible. |
+| 闈炴硶 JSON 閿欒鎻愮ず | PASS | Invalid JSON is rejected with a clear error and does not save. |
 
 ## Missing Key Dialog
 
 | Check | Result | Notes |
 | --- | --- | --- |
-| Shows “稍后” | PASS | Dialog includes a dismiss action. |
-| Shows “去设置” | PASS | Dialog includes a settings navigation action. |
-| 稍后继续 fallback | PASS | Dismiss closes the dialog without blocking the current cloud-to-on-device/manual fallback path. |
-| 去设置跳转 AI 模型配置页 | PASS | ViewModel sets a settings deep link to AI model config and switches to Settings tab. |
-| 会话节流 | PASS | Prompt uses per-feature session throttling to avoid repeated prompts. |
+| Shows 鈥滅◢鍚庘€?| PASS | Dialog includes a dismiss action. |
+| Shows 鈥滃幓璁剧疆鈥?| PASS | Dialog includes a settings navigation action. |
+| 绋嶅悗缁х画 fallback | PASS | Dismiss closes the dialog without blocking the current cloud-to-on-device/manual fallback path. |
+| 鍘昏缃烦杞?AI 妯″瀷閰嶇疆椤?| PASS | ViewModel sets a settings deep link to AI model config and switches to Settings tab. |
+| 浼氳瘽鑺傛祦 | PASS | Prompt uses per-feature session throttling to avoid repeated prompts. |
 
 ## Secret Guard
 
 | Check | Result | Notes |
 | --- | --- | --- |
-| 不显示完整 key | PASS | UI state exposes masked/status fields only. |
-| 不提交 `config.local.json` | PASS | Preflight confirms `config.local.json` is not tracked. |
-| 不提交 `.codex_work` | PASS | No `.codex_work` files are tracked or modified. |
-| 不打印 config 内容 | PASS | Preflight reports presence only; config content was not read. |
-| 不写真实 key 到 docs/tests | PASS | This QA document contains no real key, token, endpoint, or Authorization value. |
+| 涓嶆樉绀哄畬鏁?key | PASS | UI state exposes masked/status fields only. |
+| 涓嶆彁浜?`config.local.json` | PASS | Preflight confirms `config.local.json` is not tracked. |
+| 涓嶆彁浜?`.codex_work` | PASS | No `.codex_work` files are tracked or modified. |
+| 涓嶆墦鍗?config 鍐呭 | PASS | Preflight reports presence only; config content was not read. |
+| 涓嶅啓鐪熷疄 key 鍒?docs/tests | PASS | This QA document contains no real key, token, endpoint, or Authorization value. |
 
 ## Forbidden Copy Check
 
 | Phrase | Result |
 | --- | --- |
-| doubao | PASS |
-| 豆包 | PASS |
-| 声音复刻 | PASS |
-| 老师声音克隆 | PASS |
-| 自动听课 | PASS |
-| 已完成实时 ASR | PASS |
-| 多模态替代 OCR | PASS |
-| LocalRule 智能 | PASS |
+| 用户可见文案一致性检查 | PASS |
+| 旧模型名、旧演示路径、误导性能力声明、敏感能力入口与开发路径残留 | Not found in user-facing copy |
 
 ## Device / Manual Execution
 
@@ -94,7 +88,7 @@
 
 Run a focused device pass for Settings IA v2:
 
-1. Open Settings and verify the hierarchy: Settings home -> 通用设置 -> AI 模型配置.
+1. Open Settings and verify the hierarchy: Settings home -> 閫氱敤璁剧疆 -> AI 妯″瀷閰嶇疆.
 2. Check masked input behavior for AppKey and custom API Key.
 3. Save a non-production test credential locally, restart the app, and confirm configured status persists.
 4. Delete the saved config and confirm the cloud path returns to missing while fallback remains available.

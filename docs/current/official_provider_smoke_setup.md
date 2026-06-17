@@ -1,6 +1,6 @@
-# Official Provider Smoke Setup v4
+# Official Provider Smoke Setup v5
 
-This note explains how to run the official provider smoke harness safely. v4 is deliberately conservative: generic cloud model config can describe the large-model path, but it cannot make OCR, ASR, retrieval, translation, TTS, or function-calling smoke `READY`.
+This note explains how to run the official provider smoke harness safely. v5 is deliberately conservative: generic cloud model config can describe the large-model path, but it cannot make OCR, ASR, retrieval, translation, TTS, or function-calling smoke `READY`. v5 also validates composed URLs before any network request is sent.
 
 ## Default Rule
 
@@ -17,7 +17,7 @@ Default mode:
 - does not send network requests
 - writes only local smoke output under `.codex_work/official_provider_smoke/`
 
-## v4 Usage
+## v5 Usage
 
 Setup help:
 
@@ -165,7 +165,7 @@ The script output uses only variable names and `<your-value>` placeholders.
 
 ## Capability Mapping Notes
 
-| Capability | v4 mapping behavior | Next action |
+| Capability | v5 mapping behavior | Next action |
 |---|---|---|
 | OCR | `READY` only with explicit OCR env endpoint/auth or capture-specific local config. Generic BlueLM/qwen config is not enough. | First real network smoke candidate after endpoint is confirmed. |
 | ASR_LONG | `READY` only with capture-specific config and task-flow paths; requires non-sensitive test audio. | Run late; do not use private classroom recordings. |
@@ -184,8 +184,20 @@ With Schema v1, `officialProviders.<capability>` can also make the corresponding
 - `EndpointMappingMissing`: the script cannot derive a reliable live endpoint.
 - `SeamReadyButEndpointMappingMissing`: a project seam exists, but no confirmed provider request mapping exists.
 - `RequestSchemaMissing`: endpoint may exist, but request body is not ready.
+- `FAIL_INVALID_URI`: base URL plus endpoint path did not form a valid HTTP(S) URI. The request is treated as not sent.
 - `FAIL_TIMEOUT`: request exceeded `-TimeoutSeconds`.
 - `FAIL_HTTP_404_ENDPOINT_SUSPECT`: HTTP 404 from a suspect generic/provider-default mapping.
+
+## URL Composition Rules
+
+The smoke harness composes endpoint URLs in two steps:
+
+1. Normalize `baseUrl` by trimming a trailing slash and adding an `https://` scheme only when no scheme is present.
+2. Normalize `endpointPath` by preserving a leading `/`, adding one when missing, and preserving an existing query string.
+
+Smoke-only trace fields such as `requestId=classmate-smoke` are appended as query parameters with `?` or `&`. They must never be concatenated directly after the host. After composition, the script validates the final URL with `System.Uri.TryCreate`. Invalid URI results are reported as `FAIL_INVALID_URI` with `requestSent=False`.
+
+`requestSent=True` now means a request reached the `Invoke-WebRequest` call. The following cases keep `requestSent=False`: dry-run, config missing, endpoint mapping missing, seam-only, request schema missing, missing input, and invalid URI.
 
 ## How To Interpret `-ExplainConfig -UseLocalConfig`
 

@@ -274,7 +274,7 @@ class OfficialProviderNetworkSmokeTest {
         val script = readWorkspace("scripts/qa/official_provider_smoke.ps1")
 
         assertTrue(script.contains("Print-SetupHelp"))
-        assertTrue(script.contains("Official provider smoke setup v4"))
+        assertTrue(script.contains("Official provider smoke setup v5"))
         assertTrue(script.contains("CLASSMATE_PROVIDER_SMOKE_OCR_URL=<your-value>") || script.contains("\$entry.urlEnv + \"=<your-value>\""))
         assertTrue(script.contains("CLASSMATE_PROVIDER_SMOKE_AUTH_VALUE=<your-value>"))
         assertTrue(script.contains("CLASSMATE_PROVIDER_SMOKE_QUERY_REWRITE_URL"))
@@ -423,6 +423,7 @@ class OfficialProviderNetworkSmokeTest {
 
         assertTrue(script.contains("SKIPPED_ENDPOINT_MAPPING_MISSING"))
         assertTrue(script.contains("SKIPPED_SEAM_ONLY"))
+        assertTrue(script.contains("FAIL_INVALID_URI"))
         assertTrue(script.contains("FAIL_TIMEOUT"))
         assertTrue(script.contains("FAIL_HTTP_404_ENDPOINT_SUSPECT"))
         assertTrue(script.contains("SeamReadyButEndpointMappingMissing"))
@@ -433,6 +434,57 @@ class OfficialProviderNetworkSmokeTest {
         assertTrue(script.contains("detectedConfigGroups"))
         assertTrue(script.contains("SEAM_ONLY"))
         assertTrue(script.contains("GENERIC_ONLY"))
+    }
+
+    @Test
+    fun smokeScriptSafelyComposesAndValidatesProviderUrls() {
+        val script = readWorkspace("scripts/qa/official_provider_smoke.ps1")
+
+        listOf(
+            "function Join-SmokeUrl",
+            "function Add-SmokeQueryParameter",
+            "function Test-SmokeUri",
+            "[System.Uri]::TryCreate",
+            "Invalid URI after endpoint composition",
+            "FAIL_INVALID_URI",
+            "requestAttempted",
+            "uriValidated",
+            "requestSent = if (\$failureStatus -eq \"FAIL_INVALID_URI\") { \$false } else { \$requestAttempted }",
+            "Invoke-WebRequest -Uri \$uriCheck.uri",
+        ).forEach {
+            assertTrue("script missing URL-safety marker: $it", script.contains(it))
+        }
+
+        assertTrue(script.contains("\$value = \$value.Trim().TrimEnd(\"/\")"))
+        assertTrue(script.contains("if (-not \$path.StartsWith(\"/\"))"))
+        assertTrue(script.contains("if ([string]\$Url -like \"*?*\") { \"&\" } else { \"?\" }"))
+        assertTrue(script.contains("Add-SmokeQueryParameter \$url \"requestId\" \"classmate-smoke\""))
+        assertFalse(script.contains("https://\$Domain\$Path?requestId=classmate-smoke"))
+        assertFalse(script.contains("https://api-ai.vivo.com.cn=classmate-smoke"))
+    }
+
+    @Test
+    fun dryRunResultRecordsNoRequestAttemptOrUriValidation() {
+        val temp = Files.createTempDirectory("classmate-smoke-dry-uri").toFile()
+        val outputDir = File(temp, "out")
+
+        val output = runSmokeScript(
+            "-DryRun",
+            "-Capability",
+            "OCR",
+            "-OutputDir",
+            outputDir.absolutePath,
+        )
+
+        val resultJson = File(outputDir, "smoke_result.json").readText()
+        val resultMd = File(outputDir, "smoke_result.md").readText()
+
+        assertTrue(output.contains("OCR: DRY_RUN_READY"))
+        assertTrue(resultJson.contains("\"requestSent\":  false") || resultJson.contains("\"requestSent\": false"))
+        assertTrue(resultJson.contains("\"requestAttempted\":  false") || resultJson.contains("\"requestAttempted\": false"))
+        assertTrue(resultJson.contains("\"uriValidated\":  false") || resultJson.contains("\"uriValidated\": false"))
+        assertTrue(resultMd.contains("requestAttempted"))
+        assertTrue(resultMd.contains("uriValidated"))
     }
 
     @Test
