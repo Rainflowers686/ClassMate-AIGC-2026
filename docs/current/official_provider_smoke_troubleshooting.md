@@ -90,3 +90,48 @@ powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 
 ```
 
 Do not commit `.codex_work` smoke outputs, `config.local.json`, or local backup files.
+
+## 2026-06-18 Query Rewrite Hard Hang Before Results
+
+Observed operator behavior:
+
+- capability: `QUERY_REWRITE`
+- local config explain status: endpoint/auth/schema all `READY`
+- network command used `-RunNetwork -UseLocalConfig -Capability QUERY_REWRITE`
+- both short and longer `-TimeoutSeconds` values appeared to hang
+- no harness header was printed
+- no `smoke_result.md` / `smoke_result.json` was produced before Ctrl+C
+
+Diagnosis:
+
+- The harness printed its header only after all capability work finished.
+- The harness wrote result files only after all capability work finished.
+- `QUERY_REWRITE` used the same direct request path as other capabilities, so a PowerShell HTTP/proxy/TLS/progress or response-stream stall could prevent any visible result.
+- This is a harness stability issue, not evidence that the Query Rewrite endpoint, credentials, or request schema failed.
+
+Fix:
+
+- The harness now prints `Official provider smoke harness` before capability execution.
+- Network mode writes an initial `RUNNING` result before calling the provider.
+- All live requests go through `Invoke-SmokeHttpRequestWithTimeout`.
+- The wrapper disables progress output, runs the HTTP call in a worker job, waits for `-TimeoutSeconds`, stops the worker on timeout, and records `FAIL_TIMEOUT`.
+- Invalid URI still returns `FAIL_INVALID_URI` with `requestSent=False`.
+
+Expected timeout result:
+
+- `status=FAIL_TIMEOUT`
+- `requestAttempted=True`
+- `requestSent=True`
+- `uriValidated=True`
+- `sanitizedError=Timed out after configured timeout`
+
+Next step after this fix:
+
+1. Run value-free readiness:
+
+   ```powershell
+   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -ExplainConfig -UseLocalConfig
+   ```
+
+2. Confirm `QUERY_REWRITE` remains `endpointMapping=READY`, `authMapping=READY`, and `requestSchema=READY`.
+3. Only after explicit authorization, rerun a single `QUERY_REWRITE` network smoke with a conservative timeout and inspect the generated local-only smoke result files.

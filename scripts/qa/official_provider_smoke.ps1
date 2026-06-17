@@ -14,6 +14,7 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
+$ProgressPreference = "SilentlyContinue"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 if (-not $OutputDir -or $OutputDir.Trim().Length -eq 0) {
@@ -241,6 +242,12 @@ function Write-SmokeLog($Message) {
     if ($VerboseLog) {
         Write-Host (Redact-Text $Message)
     }
+}
+
+function Write-HarnessHeader {
+    Write-Host "Official provider smoke harness"
+    Write-Host "Mode: $(if ($RunNetwork) { 'NETWORK' } else { 'DRY_RUN' })"
+    Write-Host "Output: $ResultJson"
 }
 
 function Print-SetupHelp {
@@ -814,6 +821,11 @@ function Get-HttpStatusCode($Exception) {
 function Get-NetworkFailureStatus($Exception, $SmokeConfig) {
     $message = [string]$Exception.Message
     $statusCode = Get-HttpStatusCode $Exception
+    return Get-NetworkFailureStatusFromDetails $message $statusCode
+}
+
+function Get-NetworkFailureStatusFromDetails($Message, $StatusCode) {
+    $message = [string]$Message
     if ($message -match "(?i)invalid uri|cannot bind parameter.*uri|could not parse.*host|could not parse.*hostname") {
         return "FAIL_INVALID_URI"
     }
@@ -824,6 +836,79 @@ function Get-NetworkFailureStatus($Exception, $SmokeConfig) {
         return "FAIL_HTTP_404_ENDPOINT_SUSPECT"
     }
     return "FAIL_NETWORK"
+}
+
+function Invoke-SmokeHttpRequestWithTimeout {
+    param(
+        [System.Uri]$Uri,
+        [string]$Method,
+        [hashtable]$Headers,
+        [string]$ContentType,
+        [string]$Body,
+        [int]$TimeoutSeconds
+    )
+    $effectiveTimeout = [Math]::Max(1, $TimeoutSeconds)
+    $job = Start-Job -ScriptBlock {
+        param($UriText, $Method, $Headers, $ContentType, $Body, $TimeoutSeconds)
+        $ErrorActionPreference = "Stop"
+        $ProgressPreference = "SilentlyContinue"
+        try {
+            if ($null -eq $Headers) { $Headers = @{} }
+            $response = Invoke-WebRequest -Uri $UriText -Method $Method -Headers $Headers -ContentType $ContentType -Body $Body -TimeoutSec $TimeoutSeconds -UseBasicParsing
+            [PSCustomObject]@{
+                ok = $true
+                timedOut = $false
+                statusCode = [int]$response.StatusCode
+                content = [string]$response.Content
+                error = ""
+            }
+        } catch {
+            $statusCode = $null
+            try {
+                if ($_.Exception.Response -and $_.Exception.Response.StatusCode) {
+                    $statusCode = [int]$_.Exception.Response.StatusCode
+                }
+            } catch {
+                $statusCode = $null
+            }
+            [PSCustomObject]@{
+                ok = $false
+                timedOut = $false
+                statusCode = $statusCode
+                content = ""
+                error = [string]$_.Exception.Message
+            }
+        }
+    } -ArgumentList $Uri.AbsoluteUri, $Method, $Headers, $ContentType, $Body, $effectiveTimeout
+
+    $completed = Wait-Job -Job $job -Timeout $effectiveTimeout
+    if (-not $completed) {
+        Stop-Job -Job $job -ErrorAction SilentlyContinue | Out-Null
+        Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
+        return [PSCustomObject]@{
+            ok = $false
+            timedOut = $true
+            statusCode = $null
+            content = ""
+            error = "Timed out after configured timeout"
+        }
+    }
+
+    $result = Receive-Job -Job $job -ErrorAction SilentlyContinue
+    Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
+    if ($result -is [array]) {
+        $result = $result | Select-Object -Last 1
+    }
+    if ($null -eq $result) {
+        return [PSCustomObject]@{
+            ok = $false
+            timedOut = $false
+            statusCode = $null
+            content = ""
+            error = "Network worker returned no result"
+        }
+    }
+    return $result
 }
 
 function Get-SmokeHttpMethod($CapabilityName) {
@@ -1042,6 +1127,9 @@ function Invoke-CapabilitySmoke($CapabilityName, $LocalConfig) {
     }
 
     $requestAttempted = $false
+    $runningElapsed = [int]((Get-Date) - $started).TotalMilliseconds
+    $runningResult = New-SmokeResult -CapabilityName $CapabilityName -Mode "NETWORK" -Status "RUNNING" -SmokeConfig $smokeConfig -RequestSent $false -RequestAttempted $true -UriValidated $true -SanitizedStatus "Network request starting; partial result written before provider call." -SanitizedError "" -OutputPath "" -DurationMs $runningElapsed
+    Write-Results -Results @($runningResult) -LocalConfig $LocalConfig
     try {
         $headers = @{}
         if (Test-RealValue $smokeConfig.authValue) {
@@ -1055,23 +1143,33 @@ function Invoke-CapabilitySmoke($CapabilityName, $LocalConfig) {
             $business = if (Test-RealValue $smokeConfig.appId) { "aigc$($smokeConfig.appId)" } else { "aigc" }
             $body = "image=$([System.Net.WebUtility]::UrlEncode($image64))&pos=2&businessid=$([System.Net.WebUtility]::UrlEncode($business))"
             $requestAttempted = $true
-            $response = Invoke-WebRequest -Uri $uriCheck.uri -Method Post -Headers $headers -ContentType "application/x-www-form-urlencoded" -Body $body -TimeoutSec $TimeoutSeconds -UseBasicParsing
+            $response = Invoke-SmokeHttpRequestWithTimeout -Uri $uriCheck.uri -Method "POST" -Headers $headers -ContentType "application/x-www-form-urlencoded" -Body $body -TimeoutSeconds $TimeoutSeconds
         } else {
             $payload = New-RequestPayload $CapabilityName
             $json = $payload | ConvertTo-Json -Depth 12
             $headers["Content-Type"] = "application/json"
             $requestAttempted = $true
-            $response = Invoke-WebRequest -Uri $uriCheck.uri -Method Post -Headers $headers -ContentType "application/json" -Body $json -TimeoutSec $TimeoutSeconds -UseBasicParsing
+            $response = Invoke-SmokeHttpRequestWithTimeout -Uri $uriCheck.uri -Method "POST" -Headers $headers -ContentType "application/json" -Body $json -TimeoutSeconds $TimeoutSeconds
         }
-        Set-Content -LiteralPath $outputPath -Value (Redact-Text ([string]$response.Content))
         $elapsed = [int]((Get-Date) - $started).TotalMilliseconds
-        return New-SmokeResult -CapabilityName $CapabilityName -Mode "NETWORK" -Status "PASS" -SmokeConfig $smokeConfig -RequestSent $true -RequestAttempted $true -UriValidated $true -SanitizedStatus "HTTP $($response.StatusCode)" -SanitizedError "" -OutputPath $outputPath -DurationMs $elapsed
+        if ($response.timedOut) {
+            return New-SmokeResult -CapabilityName $CapabilityName -Mode "NETWORK" -Status "FAIL_TIMEOUT" -SmokeConfig $smokeConfig -RequestSent $true -RequestAttempted $true -UriValidated $true -SanitizedStatus "Network request timed out." -SanitizedError "Timed out after configured timeout" -OutputPath "" -DurationMs $elapsed
+        }
+        if ($response.ok) {
+            Set-Content -LiteralPath $outputPath -Value (Redact-Text ([string]$response.content))
+            return New-SmokeResult -CapabilityName $CapabilityName -Mode "NETWORK" -Status "PASS" -SmokeConfig $smokeConfig -RequestSent $true -RequestAttempted $true -UriValidated $true -SanitizedStatus "HTTP $($response.statusCode)" -SanitizedError "" -OutputPath $outputPath -DurationMs $elapsed
+        }
+        $failureStatus = Get-NetworkFailureStatusFromDetails $response.error $response.statusCode
+        $requestSent = if ($failureStatus -eq "FAIL_INVALID_URI") { $false } else { $true }
+        $statusText = if ($failureStatus -eq "FAIL_INVALID_URI") { "Invalid URI after endpoint composition." } elseif ($failureStatus -eq "FAIL_TIMEOUT") { "Network request timed out." } else { "Network request failed." }
+        $errorText = if ($failureStatus -eq "FAIL_INVALID_URI") { "Invalid URI after endpoint composition; check baseUrl and endpointPath fields." } elseif ($failureStatus -eq "FAIL_TIMEOUT") { "Timed out after configured timeout" } else { $response.error }
+        return New-SmokeResult -CapabilityName $CapabilityName -Mode "NETWORK" -Status $failureStatus -SmokeConfig $smokeConfig -RequestSent $requestSent -RequestAttempted $true -UriValidated $uriCheck.isValid -SanitizedStatus $statusText -SanitizedError $errorText -OutputPath "" -DurationMs $elapsed
     } catch {
         $elapsed = [int]((Get-Date) - $started).TotalMilliseconds
         $failureStatus = Get-NetworkFailureStatus $_.Exception $smokeConfig
         $requestSent = if ($failureStatus -eq "FAIL_INVALID_URI") { $false } else { $requestAttempted }
-        $statusText = if ($failureStatus -eq "FAIL_INVALID_URI") { "Invalid URI after endpoint composition." } else { "Network request failed." }
-        $errorText = if ($failureStatus -eq "FAIL_INVALID_URI") { "Invalid URI after endpoint composition; check baseUrl and endpointPath fields." } else { $_.Exception.Message }
+        $statusText = if ($failureStatus -eq "FAIL_INVALID_URI") { "Invalid URI after endpoint composition." } elseif ($failureStatus -eq "FAIL_TIMEOUT") { "Network request timed out." } else { "Network request failed." }
+        $errorText = if ($failureStatus -eq "FAIL_INVALID_URI") { "Invalid URI after endpoint composition; check baseUrl and endpointPath fields." } elseif ($failureStatus -eq "FAIL_TIMEOUT") { "Timed out after configured timeout" } else { $_.Exception.Message }
         return New-SmokeResult -CapabilityName $CapabilityName -Mode "NETWORK" -Status $failureStatus -SmokeConfig $smokeConfig -RequestSent $requestSent -RequestAttempted $requestAttempted -UriValidated $uriCheck.isValid -SanitizedStatus $statusText -SanitizedError $errorText -OutputPath "" -DurationMs $elapsed
     }
 }
@@ -1192,6 +1290,7 @@ Ensure-TestInputs
 
 $selected = @(Get-SelectedCapabilities)
 $localConfig = Read-LocalSmokeConfig
+Write-HarnessHeader
 Write-SmokeLog ("config.local.json exists: " + $localConfig.exists + "; local config read: " + $localConfig.read)
 Write-SmokeLog ("AAR exists: " + (Test-Path -LiteralPath (Join-Path $RepoRoot "app\libs\llm-sdk-release.aar")) + "; content not read.")
 
@@ -1210,9 +1309,6 @@ foreach ($cap in $selected) {
 
 Write-Results -Results $results.ToArray() -LocalConfig $localConfig
 
-Write-Host "Official provider smoke harness"
-Write-Host "Mode: $(if ($RunNetwork) { 'NETWORK' } else { 'DRY_RUN' })"
-Write-Host "Output: $ResultJson"
 foreach ($result in $results) {
     Write-Host "$($result.capability): $($result.status)"
 }

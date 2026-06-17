@@ -218,6 +218,30 @@ A later explicitly authorized OCR smoke produced:
 Doc 1737 alignment:
 
 - public path suffix: `general_recognition`
+
+## 2026-06-18 Query Rewrite Smoke Hang Finding
+
+Observed operator report:
+
+- `QUERY_REWRITE` was `READY` in `-ExplainConfig -UseLocalConfig`
+- network smoke was explicitly invoked with `-RunNetwork`
+- the terminal appeared to hang before printing the harness header
+- no `smoke_result.md` / `smoke_result.json` was produced before Ctrl+C
+
+Root cause in the harness:
+
+- The header was printed after all capability execution, so a blocked request hid startup status.
+- Result files were written after all capability execution, so a blocked request left no partial result.
+- The direct HTTP call could still stall before `-TimeoutSeconds` produced a usable result file.
+
+Fix recorded:
+
+- Header output now happens before capability execution.
+- Network mode writes a pre-request `RUNNING` result.
+- All live requests use the shared hard-timeout wrapper.
+- Timeout is recorded as `FAIL_TIMEOUT` with sanitized status and no endpoint/key values.
+
+No network request was run as part of this documentation update.
 - method: `POST`
 - content type: `application/x-www-form-urlencoded`
 - payload kind: form body with base64 `image`, `pos`, and `businessid`

@@ -444,13 +444,18 @@ class OfficialProviderNetworkSmokeTest {
             "function Join-SmokeUrl",
             "function Add-SmokeQueryParameter",
             "function Test-SmokeUri",
+            "function Invoke-SmokeHttpRequestWithTimeout",
             "[System.Uri]::TryCreate",
+            "Start-Job",
+            "Wait-Job -Job \$job -Timeout \$effectiveTimeout",
+            "Stop-Job -Job \$job",
             "Invalid URI after endpoint composition",
             "FAIL_INVALID_URI",
+            "FAIL_TIMEOUT",
             "requestAttempted",
             "uriValidated",
             "requestSent = if (\$failureStatus -eq \"FAIL_INVALID_URI\") { \$false } else { \$requestAttempted }",
-            "Invoke-WebRequest -Uri \$uriCheck.uri",
+            "Invoke-WebRequest -Uri \$UriText",
         ).forEach {
             assertTrue("script missing URL-safety marker: $it", script.contains(it))
         }
@@ -462,6 +467,50 @@ class OfficialProviderNetworkSmokeTest {
         assertFalse(script.contains("https://\$Domain\$Path?requestId=classmate-smoke"))
         assertFalse(script.contains("https://api-ai.vivo.com.cn=classmate-smoke"))
         assertFalse(script.contains("general_recognition&requestId"))
+    }
+
+    @Test
+    fun harnessHeaderIsEmittedBeforeCapabilityResults() {
+        val temp = Files.createTempDirectory("classmate-smoke-header").toFile()
+        val outputDir = File(temp, "out")
+
+        val output = runSmokeScript(
+            "-DryRun",
+            "-Capability",
+            "QUERY_REWRITE",
+            "-OutputDir",
+            outputDir.absolutePath,
+        )
+
+        val headerIndex = output.indexOf("Official provider smoke harness")
+        val resultIndex = output.indexOf("QUERY_REWRITE: DRY_RUN_READY")
+        assertTrue("harness header missing", headerIndex >= 0)
+        assertTrue("capability result missing", resultIndex > 0)
+        assertTrue("header should be emitted before capability result", headerIndex < resultIndex)
+    }
+
+    @Test
+    fun networkPathWritesRunningResultBeforeProviderRequest() {
+        val script = readWorkspace("scripts/qa/official_provider_smoke.ps1")
+        val networkBlock = script.substringAfter("\$uriCheck = Test-SmokeUri").substringBefore("function Write-ExplainConfig")
+
+        assertTrue(networkBlock.contains("Status \"RUNNING\""))
+        assertTrue(networkBlock.contains("Network request starting; partial result written before provider call."))
+        assertTrue(networkBlock.contains("Write-Results -Results @(\$runningResult) -LocalConfig \$LocalConfig"))
+        assertTrue(networkBlock.indexOf("Write-Results -Results @(\$runningResult)") < networkBlock.indexOf("Invoke-SmokeHttpRequestWithTimeout"))
+    }
+
+    @Test
+    fun liveRequestsUseHardTimeoutWrapper() {
+        val script = readWorkspace("scripts/qa/official_provider_smoke.ps1")
+        val networkBlock = script.substringAfter("function Invoke-CapabilitySmoke").substringBefore("function Write-ExplainConfig")
+
+        assertTrue(script.contains("function Invoke-SmokeHttpRequestWithTimeout"))
+        assertTrue(script.contains("[int]\$TimeoutSeconds"))
+        assertTrue(script.contains("Timed out after configured timeout"))
+        assertTrue(script.contains("Status \"FAIL_TIMEOUT\""))
+        assertTrue(networkBlock.contains("Invoke-SmokeHttpRequestWithTimeout -Uri \$uriCheck.uri"))
+        assertFalse(networkBlock.contains("Invoke-WebRequest -Uri \$uriCheck.uri"))
     }
 
     @Test
