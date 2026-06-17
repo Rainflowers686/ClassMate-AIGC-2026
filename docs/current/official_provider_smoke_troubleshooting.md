@@ -30,7 +30,50 @@ The smoke harness now:
 - `SKIPPED_CONFIG_MISSING`: endpoint may be mapped, but auth/config is missing.
 - `SKIPPED_SEAM_ONLY`: code seam exists, but live provider request mapping is not confirmed.
 - `FAIL_TIMEOUT`: request exceeded `-TimeoutSeconds`.
+- `FAIL_HTTP_404_ENDPOINT_SUSPECT`: a request was attempted and the provider returned 404. Treat this as route, method, or endpoint-shape suspect first; it is not proof of auth failure.
 - `FAIL_NETWORK`: a request was attempted and failed outside the more specific categories.
+
+## 2026-06-17 OCR HTTP 404
+
+Observed result:
+
+- capability: `OCR`
+- status: `FAIL_HTTP_404`
+- `requestSent=True`
+- `requestAttempted=True`
+- `uriValidated=True`
+- config source: `LOCAL_CONFIG_OFFICIAL_PROVIDER`
+- mapping source: `LOCAL_CONFIG_OFFICIAL_PROVIDER`
+- secret leaked: no
+
+Official OCR doc 1737 says the smoke request should be:
+
+- method: `POST`
+- content type: `application/x-www-form-urlencoded`
+- body kind: form fields with base64 image, `pos`, and `businessid`
+- query key: `requestId`
+- public path suffix: `general_recognition`
+
+Diagnosis:
+
+- The provider and smoke request schema match the official method/content type/body shape.
+- The 404 is not an auth-shaped failure; 401/403 would be more suspicious for credentials.
+- The 404 is not a schema-shaped failure; malformed body usually points to 400 or a provider error body.
+- The concrete bug found in the smoke harness was query separator detection. PowerShell wildcard matching treated `?` as "any character", so the script appended `&requestId=classmate-smoke` even when the URL had no query string. That made the public path suffix become `general_recognition&requestId=classmate-smoke`, a valid URI but the wrong route.
+
+Fix:
+
+- Query detection now checks for a literal `?`.
+- Explain and smoke results now include sanitized endpoint shape: scheme configured, host configured, path segment count, last path segment, query keys, method, content type, payload kind, and path source.
+- 404 is now classified as `FAIL_HTTP_404_ENDPOINT_SUSPECT`.
+
+After the fix, `-ExplainConfig -UseLocalConfig` should show OCR shape similar to:
+
+- path last segment: `general_recognition`
+- query keys: `requestId`
+- method: `POST`
+- content type: `application/x-www-form-urlencoded`
+- payload kind: `FORM`
 
 ## Next OCR Smoke Steps
 

@@ -201,3 +201,37 @@ Next safe order:
 1. Run `-ExplainConfig -UseLocalConfig`.
 2. Confirm OCR remains `endpointMapping=READY`, `authMapping=READY`, and `requestSchema=READY`.
 3. Only after explicit authorization, rerun OCR network smoke with `-TimeoutSeconds`.
+
+## 2026-06-17 OCR HTTP 404 Diagnosis
+
+A later explicitly authorized OCR smoke produced:
+
+- status: `FAIL_HTTP_404`
+- `requestSent=True`
+- `requestAttempted=True`
+- `uriValidated=True`
+- config source: `LOCAL_CONFIG_OFFICIAL_PROVIDER`
+- mapping source: `LOCAL_CONFIG_OFFICIAL_PROVIDER`
+- endpoint mapping/auth mapping/request schema: `READY`
+- secret leaked: no
+
+Doc 1737 alignment:
+
+- public path suffix: `general_recognition`
+- method: `POST`
+- content type: `application/x-www-form-urlencoded`
+- payload kind: form body with base64 `image`, `pos`, and `businessid`
+- query key: `requestId`
+
+Root cause found in the smoke harness:
+
+- Query separator detection used PowerShell wildcard matching with `?`.
+- In PowerShell wildcard patterns, `?` means any single character.
+- The harness therefore appended `&requestId=classmate-smoke` to URLs that did not yet have a query string.
+- That made the endpoint route shape wrong while still producing a syntactically valid URI.
+
+v5 diagnosis/fix:
+
+- Query separator detection now checks for a literal `?`.
+- Sanitized endpoint shape is included in smoke results without full URL, host value, auth value, or key.
+- HTTP 404 is classified as `FAIL_HTTP_404_ENDPOINT_SUSPECT`, meaning route/endpoint mapping should be checked first. It is not proof that OCR auth failed.

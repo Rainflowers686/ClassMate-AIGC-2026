@@ -457,10 +457,11 @@ class OfficialProviderNetworkSmokeTest {
 
         assertTrue(script.contains("\$value = \$value.Trim().TrimEnd(\"/\")"))
         assertTrue(script.contains("if (-not \$path.StartsWith(\"/\"))"))
-        assertTrue(script.contains("if ([string]\$Url -like \"*?*\") { \"&\" } else { \"?\" }"))
+        assertTrue(script.contains("if ([string]\$Url -match \"\\?\") { \"&\" } else { \"?\" }"))
         assertTrue(script.contains("Add-SmokeQueryParameter \$url \"requestId\" \"classmate-smoke\""))
         assertFalse(script.contains("https://\$Domain\$Path?requestId=classmate-smoke"))
         assertFalse(script.contains("https://api-ai.vivo.com.cn=classmate-smoke"))
+        assertFalse(script.contains("general_recognition&requestId"))
     }
 
     @Test
@@ -485,6 +486,64 @@ class OfficialProviderNetworkSmokeTest {
         assertTrue(resultJson.contains("\"uriValidated\":  false") || resultJson.contains("\"uriValidated\": false"))
         assertTrue(resultMd.contains("requestAttempted"))
         assertTrue(resultMd.contains("uriValidated"))
+    }
+
+    @Test
+    fun dryRunOcrResultIncludesSanitizedEndpointShapeWithoutFullUrl() {
+        val temp = Files.createTempDirectory("classmate-smoke-ocr-shape").toFile()
+        val config = File(temp, "config.local.json")
+        val outputDir = File(temp, "out")
+        config.writeText(
+            """
+            {
+              "officialProviders": {
+                "ocr": {
+                  "enabled": true,
+                  "baseUrl": "https://official-ocr-shape.example.invalid",
+                  "endpointPath": "/ocr/general_recognition",
+                  "authHeader": "Authorization",
+                  "authValue": "secret-ocr-shape"
+                }
+              }
+            }
+            """.trimIndent(),
+        )
+
+        val output = runSmokeScript(
+            "-DryRun",
+            "-UseLocalConfig",
+            "-Capability",
+            "OCR",
+            "-LocalConfigPath",
+            config.absolutePath,
+            "-OutputDir",
+            outputDir.absolutePath,
+        )
+
+        val resultJson = File(outputDir, "smoke_result.json").readText()
+        val resultMd = File(outputDir, "smoke_result.md").readText()
+        val log = File(outputDir, "smoke.log").readText()
+
+        assertTrue(output.contains("OCR: DRY_RUN_READY"))
+        listOf(
+            "\"endpointShape\"",
+            "\"pathLastSegment\":  \"general_recognition\"",
+            "\"requestId\"",
+            "\"httpMethod\":  \"POST\"",
+            "\"contentType\":  \"application/x-www-form-urlencoded\"",
+            "\"payloadKind\":  \"FORM\"",
+            "\"providerPathSource\":  \"CONFIG\"",
+        ).forEach {
+            assertTrue("result json missing sanitized shape marker: $it", resultJson.contains(it))
+        }
+        listOf("method", "contentType", "payloadKind", "general_recognition", "requestId", "CONFIG").forEach {
+            assertTrue("result md missing sanitized shape marker: $it", resultMd.contains(it))
+        }
+        listOf("official-ocr-shape.example.invalid", "secret-ocr-shape", "https://official-ocr-shape.example.invalid/ocr/general_recognition").forEach {
+            assertFalse("full endpoint or secret leaked: $it", resultJson.contains(it))
+            assertFalse("full endpoint or secret leaked: $it", resultMd.contains(it))
+            assertFalse("full endpoint or secret leaked: $it", log.contains(it))
+        }
     }
 
     @Test

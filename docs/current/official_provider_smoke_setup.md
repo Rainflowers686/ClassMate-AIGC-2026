@@ -186,7 +186,7 @@ With Schema v1, `officialProviders.<capability>` can also make the corresponding
 - `RequestSchemaMissing`: endpoint may exist, but request body is not ready.
 - `FAIL_INVALID_URI`: base URL plus endpoint path did not form a valid HTTP(S) URI. The request is treated as not sent.
 - `FAIL_TIMEOUT`: request exceeded `-TimeoutSeconds`.
-- `FAIL_HTTP_404_ENDPOINT_SUSPECT`: HTTP 404 from a suspect generic/provider-default mapping.
+- `FAIL_HTTP_404_ENDPOINT_SUSPECT`: HTTP 404 after a request was attempted. Check route, path, method, and endpoint shape first; 404 is not proof of auth failure.
 
 ## URL Composition Rules
 
@@ -198,6 +198,8 @@ The smoke harness composes endpoint URLs in two steps:
 Smoke-only trace fields such as `requestId=classmate-smoke` are appended as query parameters with `?` or `&`. They must never be concatenated directly after the host. After composition, the script validates the final URL with `System.Uri.TryCreate`. Invalid URI results are reported as `FAIL_INVALID_URI` with `requestSent=False`.
 
 `requestSent=True` now means a request reached the `Invoke-WebRequest` call. The following cases keep `requestSent=False`: dry-run, config missing, endpoint mapping missing, seam-only, request schema missing, missing input, and invalid URI.
+
+Smoke results include only sanitized endpoint shape: scheme configured, host configured, path segment count, last path segment, query keys, method, content type, payload kind, and path source. They must not include the full endpoint, auth value, AppKey, cookie, or token.
 
 ## How To Interpret `-ExplainConfig -UseLocalConfig`
 

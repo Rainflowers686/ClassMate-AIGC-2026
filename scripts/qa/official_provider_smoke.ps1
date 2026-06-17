@@ -603,7 +603,7 @@ function Join-SmokeUrl($BaseUrl, $EndpointPath) {
 }
 
 function Add-SmokeQueryParameter($Url, $Name, $Value) {
-    $separator = if ([string]$Url -like "*?*") { "&" } else { "?" }
+    $separator = if ([string]$Url -match "\?") { "&" } else { "?" }
     $encodedName = [System.Uri]::EscapeDataString([string]$Name)
     $encodedValue = [System.Uri]::EscapeDataString([string]$Value)
     return "$Url$separator$encodedName=$encodedValue"
@@ -700,6 +700,7 @@ function Get-SmokeConfig($CapabilityName, $LocalConfig) {
     $endpointMappingStatus = "MISSING"
     $authMappingStatus = "MISSING"
     $requestSchemaStatus = $entry.requestSchema
+    $providerPathSource = "NONE"
     $missingEnv = New-Object System.Collections.Generic.List[string]
     $missingConfig = New-Object System.Collections.Generic.List[string]
 
@@ -711,14 +712,17 @@ function Get-SmokeConfig($CapabilityName, $LocalConfig) {
         $configSource = "ENV_EXPLICIT"
         $mappingSource = "ENV_EXPLICIT"
         $endpointMappingStatus = "READY"
+        $providerPathSource = "ENV"
     } elseif ($officialProviderSpecificConfig) {
         $configSource = "LOCAL_CONFIG_OFFICIAL_PROVIDER"
         $mappingSource = "LOCAL_CONFIG_OFFICIAL_PROVIDER"
         $endpointMappingStatus = "READY"
+        $providerPathSource = if ($officialProviderCandidate.hasEndpointPath) { "CONFIG" } else { "OFFICIAL_DOC" }
         $url = New-OfficialProviderUrl $officialProviderCandidate $entry.localPath $CapabilityName
     } elseif (($CapabilityName -in @("OCR", "ASR_LONG")) -and $captureSpecificConfig) {
         $mappingSource = if ($LocalConfig.hasBaseUrl) { $LocalConfig.domainSource } else { "PROVIDER_CODE_DEFAULT" }
         $endpointMappingStatus = "READY"
+        $providerPathSource = "PROVIDER_CODE"
         $url = New-ConcreteUrl $LocalConfig.domain $entry.localPath $CapabilityName
     } elseif ($entry.providerMapping -eq "SEAM_ONLY") {
         $endpointMappingStatus = "SEAM_ONLY"
@@ -784,6 +788,11 @@ function Get-SmokeConfig($CapabilityName, $LocalConfig) {
         missingEnvNames = @($missingEnv | Select-Object -Unique)
         missingConfigFields = @($missingConfig | Select-Object -Unique)
         mappingSource = $mappingSource
+        providerPathSource = $providerPathSource
+        endpointShape = Get-SanitizedEndpointShape $url
+        httpMethod = Get-SmokeHttpMethod $CapabilityName
+        contentType = Get-SmokeContentType $CapabilityName
+        payloadKind = Get-SmokePayloadKind $CapabilityName
         allowNoAuth = ((Get-EnvOrEmpty "CLASSMATE_PROVIDER_SMOKE_ALLOW_NO_AUTH") -eq "1")
         appId = $LocalConfig.appId
         schemaNote = $entry.schemaNote
@@ -811,13 +820,62 @@ function Get-NetworkFailureStatus($Exception, $SmokeConfig) {
     if ($message -match "(?i)timed out|timeout|operation has timed out") {
         return "FAIL_TIMEOUT"
     }
-    if ($statusCode -eq 404 -and ($SmokeConfig.mappingSource -in @("LOCAL_CONFIG_BLUELM", "LOCAL_CONFIG_QWEN", "PROVIDER_CODE_DEFAULT"))) {
+    if ($statusCode -eq 404) {
         return "FAIL_HTTP_404_ENDPOINT_SUSPECT"
     }
-    if ($statusCode -eq 404) {
-        return "FAIL_HTTP_404"
-    }
     return "FAIL_NETWORK"
+}
+
+function Get-SmokeHttpMethod($CapabilityName) {
+    return "POST"
+}
+
+function Get-SmokeContentType($CapabilityName) {
+    if ($CapabilityName -eq "OCR") { return "application/x-www-form-urlencoded" }
+    return "application/json"
+}
+
+function Get-SmokePayloadKind($CapabilityName) {
+    if ($CapabilityName -eq "OCR") { return "FORM" }
+    return "GENERIC_JSON"
+}
+
+function Get-SanitizedEndpointShape($Url) {
+    $uriCheck = Test-SmokeUri $Url
+    if (-not $uriCheck.isValid) {
+        return [PSCustomObject]@{
+            schemeConfigured = $false
+            hostConfigured = $false
+            pathSegmentCount = 0
+            pathLastSegment = ""
+            queryKeys = @()
+        }
+    }
+    $uri = $uriCheck.uri
+    $segments = @($uri.AbsolutePath.Split("/", [System.StringSplitOptions]::RemoveEmptyEntries))
+    $queryKeys = @()
+    if ($uri.Query -and $uri.Query.Length -gt 1) {
+        $queryKeys = @($uri.Query.TrimStart("?").Split("&", [System.StringSplitOptions]::RemoveEmptyEntries) | ForEach-Object {
+            ($_ -split "=", 2)[0]
+        } | Where-Object { $_.Length -gt 0 } | Select-Object -Unique)
+    }
+    [PSCustomObject]@{
+        schemeConfigured = (Test-RealValue $uri.Scheme)
+        hostConfigured = (Test-RealValue $uri.Host)
+        pathSegmentCount = $segments.Count
+        pathLastSegment = if ($segments.Count -gt 0) { $segments[$segments.Count - 1] } else { "" }
+        queryKeys = @($queryKeys)
+    }
+}
+
+function Get-SmokeRouteDiagnosis($Status, $CapabilityName) {
+    if ($Status -eq "FAIL_HTTP_404_ENDPOINT_SUSPECT") {
+        return "Endpoint route likely wrong or provider route/method mapping mismatch; 404 is not proof of auth failure."
+    }
+    if ($Status -eq "FAIL_INVALID_URI") {
+        return "Invalid URI before request; check baseUrl and endpointPath shape."
+    }
+    return ""
 }
 
 function New-RequestPayload($CapabilityName) {
@@ -864,6 +922,11 @@ function New-EmptySmokeConfig($LocalConfig) {
         authMappingStatus = "MISSING"
         requestSchemaStatus = "MISSING"
         mappingSource = "NONE"
+        providerPathSource = "NONE"
+        endpointShape = Get-SanitizedEndpointShape ""
+        httpMethod = ""
+        contentType = ""
+        payloadKind = ""
     }
 }
 
@@ -923,6 +986,12 @@ function New-SmokeResult {
         authMappingStatus = $SmokeConfig.authMappingStatus
         requestSchemaStatus = $SmokeConfig.requestSchemaStatus
         mappingSource = $SmokeConfig.mappingSource
+        providerPathSource = $SmokeConfig.providerPathSource
+        endpointShape = $SmokeConfig.endpointShape
+        httpMethod = $SmokeConfig.httpMethod
+        contentType = $SmokeConfig.contentType
+        payloadKind = $SmokeConfig.payloadKind
+        routeDiagnosis = Get-SmokeRouteDiagnosis $Status $CapabilityName
         timeoutSeconds = $SmokeConfig.timeoutSeconds
     }
 }
@@ -1028,6 +1097,11 @@ function Write-ExplainConfig($LocalConfig, $Selected) {
         if (-not $CapabilityCatalog.Contains($cap)) { continue }
         $cfg = Get-SmokeConfig $cap $LocalConfig
         Write-Host ("- " + $cap + ": capability URL configured=" + ($cfg.endpointMappingStatus -eq "READY") + "; auth configured=" + ($cfg.authMappingStatus -eq "READY") + "; source=" + $cfg.configSource + "; mappingSource=" + $cfg.mappingSource + "; endpointMapping=" + $cfg.endpointMappingStatus + "; authMapping=" + $cfg.authMappingStatus + "; requestSchema=" + $cfg.requestSchemaStatus + "; requestSent=False")
+        if ($cfg.endpointMappingStatus -eq "READY") {
+            $shape = $cfg.endpointShape
+            $queryKeys = if ($shape.queryKeys.Count -gt 0) { ($shape.queryKeys -join ",") } else { "none" }
+            Write-Host ("  endpoint shape: schemeConfigured=" + $shape.schemeConfigured + "; hostConfigured=" + $shape.hostConfigured + "; pathSegmentCount=" + $shape.pathSegmentCount + "; pathLastSegment=" + $shape.pathLastSegment + "; queryKeys=" + $queryKeys + "; method=" + $cfg.httpMethod + "; contentType=" + $cfg.contentType + "; payloadKind=" + $cfg.payloadKind + "; providerPathSource=" + $cfg.providerPathSource)
+        }
         if ($cfg.missingEnvNames.Count -gt 0) {
             Write-Host ("  missing env: " + (($cfg.missingEnvNames | Select-Object -Unique) -join ", "))
         }
@@ -1077,12 +1151,13 @@ function Write-Results {
     $md += ""
     $md += "## Capability Table"
     $md += ""
-    $md += "| Capability | mode | status | requestSent | requestAttempted | uriValidated | configSource | mappingSource | endpointMapping | authMapping | requestSchema | missingEnvNames | missingConfigFields |"
-    $md += "|---|---|---|---|---|---|---|---|---|---|---|---|---|"
+    $md += "| Capability | mode | status | requestSent | requestAttempted | uriValidated | method | contentType | payloadKind | pathLastSegment | queryKeys | pathSource | diagnosis | configSource | mappingSource | endpointMapping | authMapping | requestSchema | missingEnvNames | missingConfigFields |"
+    $md += "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"
     foreach ($r in $Results) {
         $missingEnv = if ($r.missingEnvNames.Count -gt 0) { ($r.missingEnvNames -join "<br>") } else { "" }
         $missingConfig = if ($r.missingConfigFields.Count -gt 0) { ($r.missingConfigFields -join "<br>") } else { "" }
-        $md += ("| " + $r.capability + " | " + $r.mode + " | " + $r.status + " | " + $r.requestSent + " | " + $r.requestAttempted + " | " + $r.uriValidated + " | " + $r.configSource + " | " + $r.mappingSource + " | " + $r.endpointMappingStatus + " | " + $r.authMappingStatus + " | " + $r.requestSchemaStatus + " | " + $missingEnv + " | " + $missingConfig + " |")
+        $queryKeys = if ($r.endpointShape.queryKeys.Count -gt 0) { ($r.endpointShape.queryKeys -join ",") } else { "" }
+        $md += ("| " + $r.capability + " | " + $r.mode + " | " + $r.status + " | " + $r.requestSent + " | " + $r.requestAttempted + " | " + $r.uriValidated + " | " + $r.httpMethod + " | " + $r.contentType + " | " + $r.payloadKind + " | " + $r.endpointShape.pathLastSegment + " | " + $queryKeys + " | " + $r.providerPathSource + " | " + $r.routeDiagnosis + " | " + $r.configSource + " | " + $r.mappingSource + " | " + $r.endpointMappingStatus + " | " + $r.authMappingStatus + " | " + $r.requestSchemaStatus + " | " + $missingEnv + " | " + $missingConfig + " |")
     }
     $md += ""
     $md += "## Passed"
