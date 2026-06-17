@@ -46,9 +46,51 @@ class OfficialProviderNetworkSmokeTest {
         assertTrue(script.contains("[switch]\$PrintSetupHelp"))
         assertTrue(script.contains("[switch]\$ExplainConfig"))
         assertTrue(script.contains("[string]\$LocalConfigPath"))
+        assertTrue(script.contains("[int]\$TimeoutSeconds = 20"))
         assertTrue(script.contains("if (-not \$RunNetwork)"))
         assertTrue(script.contains("\$DryRun = \$true"))
         assertTrue(script.contains("No network request was sent."))
+    }
+
+    @Test
+    fun genericBlueLmLocalConfigDoesNotMakeOcrOrRetrievalReady() {
+        val temp = Files.createTempDirectory("classmate-smoke-generic").toFile()
+        val config = File(temp, "config.local.json")
+        val outputDir = File(temp, "out")
+        config.writeText("""{"provider":"bluelm","appId":"id12345","appKey":"key67890","baseUrl":"https://api-ai.vivo.com.cn/v1"}""")
+
+        val ocrOutput = runSmokeScript(
+            "-ExplainConfig",
+            "-UseLocalConfig",
+            "-Capability",
+            "OCR",
+            "-LocalConfigPath",
+            config.absolutePath,
+            "-OutputDir",
+            outputDir.absolutePath,
+        )
+        val retrievalOutput = runSmokeScript(
+            "-ExplainConfig",
+            "-UseLocalConfig",
+            "-Capability",
+            "QUERY_REWRITE",
+            "-LocalConfigPath",
+            config.absolutePath,
+            "-OutputDir",
+            File(temp, "out2").absolutePath,
+        )
+
+        assertTrue(ocrOutput.contains("topLevel.bluelm exists: True"))
+        assertTrue(ocrOutput.contains("OCR: capability URL configured=False"))
+        assertTrue(ocrOutput.contains("endpointMapping=MISSING"))
+        assertTrue(ocrOutput.contains("missing config:"))
+        assertTrue(ocrOutput.contains("vivoCapture"))
+        assertTrue(retrievalOutput.contains("QUERY_REWRITE: capability URL configured=False"))
+        assertTrue(retrievalOutput.contains("endpointMapping=MISSING"))
+        listOf("id12345", "key67890", "api-ai.vivo.com.cn/v1").forEach {
+            assertFalse("config value leaked: $it", ocrOutput.contains(it))
+            assertFalse("config value leaked: $it", retrievalOutput.contains(it))
+        }
     }
 
     @Test
@@ -151,9 +193,11 @@ class OfficialProviderNetworkSmokeTest {
         val script = readWorkspace("scripts/qa/official_provider_smoke.ps1")
 
         assertTrue(script.contains("Print-SetupHelp"))
+        assertTrue(script.contains("Official provider smoke setup v4"))
         assertTrue(script.contains("CLASSMATE_PROVIDER_SMOKE_OCR_URL=<your-value>") || script.contains("\$entry.urlEnv + \"=<your-value>\""))
         assertTrue(script.contains("CLASSMATE_PROVIDER_SMOKE_AUTH_VALUE=<your-value>"))
         assertTrue(script.contains("CLASSMATE_PROVIDER_SMOKE_QUERY_REWRITE_URL"))
+        assertTrue(script.contains("-TimeoutSeconds <seconds>"))
         assertFalse(script.contains("CLASSMATE_PROVIDER_SMOKE_AUTH_VALUE=sk-"))
     }
 
@@ -213,6 +257,8 @@ class OfficialProviderNetworkSmokeTest {
 
         assertTrue(script.contains("SKIPPED_ENDPOINT_MAPPING_MISSING"))
         assertTrue(script.contains("SKIPPED_SEAM_ONLY"))
+        assertTrue(script.contains("FAIL_TIMEOUT"))
+        assertTrue(script.contains("FAIL_HTTP_404_ENDPOINT_SUSPECT"))
         assertTrue(script.contains("SeamReadyButEndpointMappingMissing"))
         assertTrue(script.contains("endpointMappingStatus"))
         assertTrue(script.contains("requestSchemaStatus"))

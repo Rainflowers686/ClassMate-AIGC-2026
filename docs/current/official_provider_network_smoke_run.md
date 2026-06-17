@@ -4,29 +4,28 @@
 
 - Date: 2026-06-17
 - Branch: `feature/product-review-compatible`
-- Commit at start: `767cc0b`
-- Scope: Official provider smoke workflow v3 mapping diagnostics
+- Commit at start: `840dcef`
+- Scope: Official provider smoke workflow v4 conservative mapping and timeout diagnostics
 
 ## Smoke Script Version
 
 - Script: `scripts/qa/official_provider_smoke.ps1`
-- Version intent: provider-aware endpoint mapping diagnostics v3
+- Version intent: strict, provider-aware smoke diagnostics v4
 - Default mode: dry-run
 - Network mode: requires explicit `-RunNetwork`
 - Local config mode: requires explicit `-UseLocalConfig`
+- Timeout: `-TimeoutSeconds`, default 20 seconds
 - Output directory: `.codex_work/official_provider_smoke/`
 
 ## DryRun Result
 
-Dry-run was executed with:
+Executed:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -DryRun
+powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -DryRun -NoOpen
 ```
 
 Result: PASS.
-
-Dry-run request summary:
 
 | Capability | Status | Request sent |
 |---|---|---:|
@@ -46,12 +45,14 @@ Generated local-only files:
 - `.codex_work/official_provider_smoke/test_inputs/`
 - `.codex_work/official_provider_smoke/outputs/`
 
+These files are not intended for Git.
+
 ## Explain Config Without Local Read
 
 Executed:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -ExplainConfig
+powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -ExplainConfig -NoOpen
 ```
 
 Observed value-free status:
@@ -59,24 +60,24 @@ Observed value-free status:
 - `config.local.json exists`: true
 - `local config read`: false
 - detected local groups: none, because local config was not read
-- no request was sent
+- request sent: false
 
-| Capability | Endpoint mapping | Auth mapping | Request schema | Mapping source |
-|---|---|---|---|---|
-| OCR | READY | MISSING | READY | PROVIDER_CODE_DEFAULT |
-| QUERY_REWRITE | READY | MISSING | READY | PROVIDER_CODE_DEFAULT |
-| TEXT_SIMILARITY | READY | MISSING | READY | PROVIDER_CODE_DEFAULT |
-| TRANSLATION | SEAM_ONLY | MISSING | GENERIC_ONLY | NONE |
-| TTS | SEAM_ONLY | MISSING | GENERIC_ONLY | NONE |
-| FUNCTION_CALLING | SEAM_ONLY | MISSING | GENERIC_ONLY | NONE |
-| EMBEDDING | READY | MISSING | READY | PROVIDER_CODE_DEFAULT |
+| Capability | Endpoint mapping | Auth mapping | Request schema | Mapping source | Request sent |
+|---|---|---|---|---|---:|
+| OCR | MISSING | MISSING | READY | NONE | false |
+| QUERY_REWRITE | MISSING | MISSING | READY | NONE | false |
+| TEXT_SIMILARITY | MISSING | MISSING | READY | NONE | false |
+| TRANSLATION | SEAM_ONLY | MISSING | GENERIC_ONLY | NONE | false |
+| TTS | SEAM_ONLY | MISSING | GENERIC_ONLY | NONE | false |
+| FUNCTION_CALLING | SEAM_ONLY | MISSING | GENERIC_ONLY | NONE | false |
+| EMBEDDING | MISSING | MISSING | READY | NONE | false |
 
 ## Explain Config With Local Read
 
-Executed only because this v3 diagnostic task explicitly required:
+Executed only because this strict-alignment task explicitly required value-free diagnostics:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -ExplainConfig -UseLocalConfig
+powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -ExplainConfig -UseLocalConfig -NoOpen
 ```
 
 Observed value-free status:
@@ -89,18 +90,19 @@ Observed value-free status:
 
 | Capability | Endpoint mapping | Auth mapping | Request schema | Config source | Mapping source | Request sent |
 |---|---|---|---|---|---|---:|
-| OCR | READY | READY | READY | LOCAL_CONFIG_BLUELM | LOCAL_CONFIG_BLUELM | false |
-| QUERY_REWRITE | READY | READY | READY | LOCAL_CONFIG_BLUELM | LOCAL_CONFIG_BLUELM | false |
-| TEXT_SIMILARITY | READY | READY | READY | LOCAL_CONFIG_BLUELM | LOCAL_CONFIG_BLUELM | false |
-| TRANSLATION | SEAM_ONLY | READY | GENERIC_ONLY | LOCAL_CONFIG_BLUELM | NONE | false |
-| TTS | SEAM_ONLY | READY | GENERIC_ONLY | LOCAL_CONFIG_BLUELM | NONE | false |
-| FUNCTION_CALLING | SEAM_ONLY | READY | GENERIC_ONLY | LOCAL_CONFIG_BLUELM | NONE | false |
-| EMBEDDING | READY | READY | READY | LOCAL_CONFIG_BLUELM | LOCAL_CONFIG_BLUELM | false |
+| OCR | MISSING | MISSING | READY | NONE | NONE | false |
+| QUERY_REWRITE | MISSING | MISSING | READY | NONE | NONE | false |
+| TEXT_SIMILARITY | MISSING | MISSING | READY | NONE | NONE | false |
+| TRANSLATION | SEAM_ONLY | MISSING | GENERIC_ONLY | NONE | NONE | false |
+| TTS | SEAM_ONLY | MISSING | GENERIC_ONLY | NONE | NONE | false |
+| FUNCTION_CALLING | SEAM_ONLY | MISSING | GENERIC_ONLY | NONE | NONE | false |
+| EMBEDDING | MISSING | MISSING | READY | NONE | NONE | false |
 
-Important correction from v2:
+Important v4 correction:
 
-- OCR is no longer `EndpointMappingMissing` under local-config opt-in.
-- OCR is `READY / READY / READY` from top-level BlueLM-compatible local config plus provider-code endpoint mapping.
+- `topLevel.bluelm` is not treated as an OCR, ASR, retrieval, translation, TTS, or function-calling endpoint.
+- OCR no longer becomes `READY` from generic BlueLM/qwen config.
+- Query Rewrite / Text Similarity / Embedding no longer become `READY` from generic BlueLM/qwen config.
 - Translation, TTS, and Function calling remain seam-only until a confirmed live endpoint mapping is added or explicit env endpoints are provided.
 
 ## Network Smoke Result
@@ -111,7 +113,7 @@ Reason:
 
 - This task explicitly prohibited `-RunNetwork`.
 - The script defaults to dry-run.
-- Real network smoke requires `-RunNetwork`, one explicit `-Capability`, valid configuration, non-sensitive inputs, and explicit user authorization.
+- Real network smoke requires `-RunNetwork`, one explicit `-Capability`, valid configuration, non-sensitive inputs, timeout selection, and explicit user authorization.
 
 ## Setup Help Result
 
@@ -121,9 +123,7 @@ Executed:
 powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -PrintSetupHelp
 ```
 
-Result: PASS.
-
-The output lists only variable names and `<your-value>` placeholders. It does not print local values.
+Result expected: setup help lists env names, placeholders, and `-TimeoutSeconds`; it does not print local values.
 
 ## Security Notes
 
@@ -136,7 +136,7 @@ The output lists only variable names and `<your-value>` placeholders. It does no
 
 ## Next Recommended Smoke Order
 
-After explicit user authorization, run one capability at a time:
+After explicit user authorization and capability-specific endpoint/auth configuration, run one capability at a time:
 
 1. `OCR`
 2. `QUERY_REWRITE`

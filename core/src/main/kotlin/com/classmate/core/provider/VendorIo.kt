@@ -18,6 +18,8 @@ data class BlueLMRequestOptions(
     val stream: Boolean = false,
     val temperature: Double = 0.3,
     val maxTokens: Int = 4096,
+    val topP: Double? = null,
+    val qualityProfile: CloudModelQualityProfile = CloudModelQualityProfile.BALANCED,
 )
 
 fun interface BlueLMRequestFactory {
@@ -51,6 +53,7 @@ object VivoOpenAIChatRequestFactory : BlueLMRequestFactory {
             }
             put("stream", options.stream)
             put("temperature", options.temperature)
+            options.topP?.let { put("top_p", it) }
             put("max_tokens", options.maxTokens)
             putJsonArray("messages") {
                 addJsonObject {

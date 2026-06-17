@@ -1,18 +1,23 @@
-# Official Provider Smoke Setup v3
+# Official Provider Smoke Setup v4
 
-This note explains how to run the official provider smoke harness without leaking local credentials. The v3 harness is provider-aware: it can derive endpoint mapping from existing ClassMate provider code and official-doc-derived paths, while still requiring explicit opt-in before it reads local config or sends network requests.
+This note explains how to run the official provider smoke harness safely. v4 is deliberately conservative: generic cloud model config can describe the large-model path, but it cannot make OCR, ASR, retrieval, translation, TTS, or function-calling smoke `READY`.
 
 ## Default Rule
 
-The smoke harness is dry-run by default:
+Default mode is dry-run:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -DryRun
 ```
 
-Default mode does not read `config.local.json`, does not read the local AAR, and does not send network requests.
+Default mode:
 
-## v3 Usage
+- does not read `config.local.json`
+- does not read the local AAR
+- does not send network requests
+- writes only local smoke output under `.codex_work/official_provider_smoke/`
+
+## v4 Usage
 
 Setup help:
 
@@ -20,7 +25,7 @@ Setup help:
 powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -PrintSetupHelp
 ```
 
-Value-free config explanation without reading local config:
+Value-free config explanation without local config read:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -ExplainConfig
@@ -32,40 +37,49 @@ Value-free config explanation with explicit local-config opt-in:
 powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -ExplainConfig -UseLocalConfig
 ```
 
-Real network smoke is still explicit and single-capability:
+Real network smoke is explicit, single-capability, and timeout-bounded:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -RunNetwork -Capability OCR -UseLocalConfig
+powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -RunNetwork -Capability OCR -UseLocalConfig -TimeoutSeconds 20
 ```
 
-Do not run `-RunNetwork` unless the user has explicitly authorized a real provider request.
+Do not run `-RunNetwork` unless the user explicitly authorizes a real provider request.
 
 ## Why Config Is Not Read by Default
 
-`config.local.json` can contain local credentials. The script only checks whether the file exists unless `-UseLocalConfig` is passed. With `-UseLocalConfig`, the script reads only enough structure to decide field presence and mapping readiness. It never prints or writes credential values, base URL values, auth header values, cookie values, or tokens.
+`config.local.json` can contain local credentials. The script checks only file existence unless `-UseLocalConfig` is passed. With `-UseLocalConfig`, it reads structure and field presence only. It must not print or write credential values, base URL values, auth header values, cookie values, or tokens.
 
-## Local Config Opt-in
-
-When `-UseLocalConfig` is passed, v3 detects these groups by name only:
+Allowed value-free group names:
 
 - `vivoCapture`
+- `providers`
 - `providers.bluelm`
 - `providers.qwen`
-- top-level BlueLM-compatible fields
+- `topLevel.bluelm`
 - `officialProviders`
 - `officialProviders.vivoCapture`
 
-It maps recognized value presence into smoke status:
+## Conservative Mapping Policy
 
-- `LOCAL_CONFIG_VIVO_CAPTURE`
-- `LOCAL_CONFIG_BLUELM`
-- `LOCAL_CONFIG_QWEN`
+Generic cloud model config means only this:
 
-It may report missing field names such as `appId`, `appKey`, `baseUrl`, or `vivoCapture or providers.bluelm or providers.qwen or top-level BlueLM`. It must not report the corresponding values.
+- cloud text generation may be configured
+- qwen / BlueLM-compatible path may exist
+
+Generic cloud model config does not mean:
+
+- OCR endpoint is configured
+- ASR endpoint is configured
+- query rewrite endpoint is configured
+- similarity endpoint is configured
+- embedding endpoint is configured
+- translation endpoint is configured
+- TTS websocket endpoint is configured
+- function calling live endpoint is configured
 
 ## Env Override
 
-Environment variables are still supported and override local config:
+Environment variables are still the clearest way to run one capability smoke:
 
 ```powershell
 $env:CLASSMATE_PROVIDER_SMOKE_<CAPABILITY>_URL="<your-value>"
@@ -86,52 +100,51 @@ The script output uses only variable names and `<your-value>` placeholders.
 
 `endpointMappingStatus`:
 
-- `READY`: endpoint path can be derived from env, provider code, or local-config opt-in.
+- `READY`: endpoint path can be derived from explicit env or capability-specific local config.
 - `MISSING`: no reliable endpoint mapping is available.
-- `SEAM_ONLY`: a provider seam exists, but the live endpoint mapping is not confirmed.
+- `SEAM_ONLY`: a project seam exists, but the live endpoint mapping is not confirmed.
 
 `authMappingStatus`:
 
-- `READY`: auth source is available from env or local-config opt-in.
+- `READY`: auth source is available from env or capability-specific local-config opt-in.
 - `MISSING`: auth fields are absent or not readable under current options.
 
 `requestSchemaStatus`:
 
-- `READY`: request body shape is known enough for a controlled smoke.
+- `READY`: request body shape is known enough for controlled smoke.
 - `MISSING`: request body shape is not ready.
-- `GENERIC_ONLY`: a generic seam exists, but a confirmed live provider schema is not mapped.
+- `GENERIC_ONLY`: a generic seam exists, but confirmed live provider schema is not mapped.
 
 `mappingSource`:
 
 - `ENV_EXPLICIT`
 - `LOCAL_CONFIG_VIVO_CAPTURE`
-- `LOCAL_CONFIG_BLUELM`
-- `LOCAL_CONFIG_QWEN`
 - `PROVIDER_CODE_DEFAULT`
-- `OFFICIAL_DOC_DEFAULT`
 - `NONE`
+
+`LOCAL_CONFIG_BLUELM` and `LOCAL_CONFIG_QWEN` are intentionally not valid mapping sources for specialized provider smoke.
 
 ## Capability Mapping Notes
 
-| Capability | v3 mapping behavior | Next action |
+| Capability | v4 mapping behavior | Next action |
 |---|---|---|
-| OCR | Uses provider-code path `/ocr/general_recognition`; with local config or env auth it can become `READY`. | First real network smoke candidate. |
-| ASR_LONG | Uses provider-code task-flow root `/lasr`; request schema is ready, but non-sensitive test audio is required. | Run after OCR/retrieval smoke and only with synthetic audio. |
-| QUERY_REWRITE | Uses provider-code path `/query-rewrite-api/predict`. | Smoke after OCR. |
-| TEXT_SIMILARITY | Uses provider-code path `/similarity-model-api/predict`. | Smoke after query rewrite. |
-| EMBEDDING | Uses provider-code path `/embedding-model-api/predict/batch`. | Smoke after similarity; no vector DB involved. |
-| TRANSLATION | Current project has a translation seam, but no confirmed live endpoint mapping in provider code. | Provide explicit env endpoint or add live provider mapping later. |
-| TTS | Current project has course essence audio script/TTS seam, but no confirmed live endpoint mapping in provider code. | Provide explicit env endpoint or add live provider mapping later. |
-| FUNCTION_CALLING | Current project has internal function router and official adapter seam, but no confirmed live endpoint mapping. | Keep internal router as source of truth; add official endpoint mapping only when safe. |
+| OCR | `READY` only with explicit OCR env endpoint/auth or capture-specific local config. Generic BlueLM/qwen config is not enough. | First real network smoke candidate after endpoint is confirmed. |
+| ASR_LONG | `READY` only with capture-specific config and task-flow paths; requires non-sensitive test audio. | Run late; do not use private classroom recordings. |
+| QUERY_REWRITE | `MISSING` unless explicit endpoint/auth is supplied or a future retrieval-specific local config is added. | Review official `query_rewrite_base` schema before network smoke. |
+| TEXT_SIMILARITY | `MISSING` unless explicit endpoint/auth is supplied or a future retrieval-specific local config is added. | Review official `/rerank` endpoint before network smoke. |
+| EMBEDDING | `MISSING` unless explicit endpoint/auth is supplied or a future retrieval-specific local config is added. | Parser seam is safe; no vector DB is involved. |
+| TRANSLATION | `SEAM_ONLY` without explicit live endpoint mapping. | Add provider mapping or provide explicit env endpoint. |
+| TTS | `SEAM_ONLY` without explicit live websocket mapping. | Keep course essence script-only fallback. |
+| FUNCTION_CALLING | `SEAM_ONLY`; internal function router remains source of truth. | Add official cloud tool adapter only when request schema is confirmed. |
 
 ## ConfigMissing vs EndpointMappingMissing
 
-- `ConfigMissing`: endpoint mapping may be known, but auth or required local fields are absent.
+- `ConfigMissing`: endpoint may be known, but auth or required local fields are absent.
 - `EndpointMappingMissing`: the script cannot derive a reliable live endpoint.
 - `SeamReadyButEndpointMappingMissing`: a project seam exists, but no confirmed provider request mapping exists.
 - `RequestSchemaMissing`: endpoint may exist, but request body is not ready.
-
-Use `-ExplainConfig -UseLocalConfig` first. If endpoint is `READY` and auth is `READY`, a later explicit `-RunNetwork -Capability <name>` can send a request. If either is missing, do not run network smoke yet.
+- `FAIL_TIMEOUT`: request exceeded `-TimeoutSeconds`.
+- `FAIL_HTTP_404_ENDPOINT_SUSPECT`: HTTP 404 from a suspect generic/provider-default mapping.
 
 ## Recommended Real Smoke Order
 
@@ -144,7 +157,7 @@ Use `-ExplainConfig -UseLocalConfig` first. If endpoint is `READY` and auth is `
 7. EMBEDDING
 8. ASR_LONG
 
-`ASR_LONG` is later because it requires a non-sensitive audio file and task-flow polling. Do not use private classroom recordings for smoke.
+`ASR_LONG` is later because it requires a non-sensitive audio file and task-flow polling.
 
 ## Excluded Capabilities
 

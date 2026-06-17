@@ -123,8 +123,8 @@ data class ProviderConfigBundle(
                     enabled = true,
                     baseUrl = "https://api-ai.vivo.com.cn/v1",
                     model = "qwen3.5-plus",
-                    temperature = 0.1,
-                    maxTokens = 2200,
+                    temperature = CloudModelQualityProfile.DEEP_STUDY.temperature,
+                    maxTokens = CloudModelQualityProfile.DEEP_STUDY.maxTokens,
                     credential = Credential.None, // injected at runtime; never in repo
                 ),
                 ProviderKind.COMPATIBLE to ProviderConfig(

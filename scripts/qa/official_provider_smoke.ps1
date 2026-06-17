@@ -9,7 +9,8 @@ param(
     [switch]$PrintSetupHelp,
     [switch]$UseLocalConfig,
     [switch]$ExplainConfig,
-    [string]$LocalConfigPath
+    [string]$LocalConfigPath,
+    [int]$TimeoutSeconds = 20
 )
 
 $ErrorActionPreference = "Continue"
@@ -243,7 +244,7 @@ function Write-SmokeLog($Message) {
 }
 
 function Print-SetupHelp {
-    Write-Host "Official provider smoke setup v3"
+    Write-Host "Official provider smoke setup v4"
     Write-Host ""
     Write-Host "Default mode is dry-run. Real requests require -RunNetwork and one explicit -Capability."
     Write-Host "config.local.json is not read unless -UseLocalConfig is passed."
@@ -252,6 +253,7 @@ function Print-SetupHelp {
     Write-Host "  CLASSMATE_PROVIDER_SMOKE_AUTH_HEADER=<your-value>"
     Write-Host "  CLASSMATE_PROVIDER_SMOKE_AUTH_VALUE=<your-value>"
     Write-Host "  CLASSMATE_PROVIDER_SMOKE_ALLOW_NO_AUTH=<your-value>"
+    Write-Host "  -TimeoutSeconds <seconds>"
     Write-Host ""
     Write-Host "Capability-specific variables:"
     foreach ($cap in ($CapabilityCatalog.Keys | Sort-Object)) {
@@ -262,7 +264,8 @@ function Print-SetupHelp {
     }
     Write-Host ""
     Write-Host "Local config opt-in:"
-    Write-Host "  -UseLocalConfig maps value presence from vivoCapture, providers.bluelm, providers.qwen, or officialProviders."
+    Write-Host "  -UseLocalConfig maps value presence from capability-specific groups only."
+    Write-Host "  Generic providers.bluelm/providers.qwen/top-level BlueLM can describe cloud text generation, but never makes OCR, ASR, retrieval, TTS, translation, or function-calling READY."
     Write-Host "  Values are kept in memory only and are never printed or written."
     Write-Host ""
     Write-Host "Mapping states:"
@@ -524,6 +527,37 @@ function New-ConcreteUrl($Domain, $Path, $CapabilityName) {
     return "https://$Domain$Path"
 }
 
+function Test-CaptureSpecificConfig($LocalConfig) {
+    return $LocalConfig.read -and
+        ($LocalConfig.credentialSource -eq "LOCAL_CONFIG_VIVO_CAPTURE") -and
+        $LocalConfig.hasAppKey -and
+        $LocalConfig.hasAppId
+}
+
+function Add-CapabilitySpecificMissingFields($CapabilityName, $LocalConfig, $MissingConfig) {
+    switch ($CapabilityName) {
+        { $_ -in @("OCR", "ASR_LONG") } {
+            if (-not ($LocalConfig.vivoCaptureExists -or $LocalConfig.officialProvidersVivoCaptureExists)) {
+                [void]$MissingConfig.Add("vivoCapture or officialProviders.vivoCapture")
+            }
+            if (-not (Test-CaptureSpecificConfig $LocalConfig)) {
+                [void]$MissingConfig.Add("vivoCapture.appId")
+                [void]$MissingConfig.Add("vivoCapture.appKey")
+            }
+            break
+        }
+        { $_ -in @("QUERY_REWRITE", "TEXT_SIMILARITY", "EMBEDDING") } {
+            [void]$MissingConfig.Add("officialProviders.retrieval or explicit env endpoint")
+            [void]$MissingConfig.Add("doc-specific endpoint path")
+            break
+        }
+        { $_ -in @("TRANSLATION", "TTS", "FUNCTION_CALLING") } {
+            [void]$MissingConfig.Add("confirmed live endpoint mapping")
+            break
+        }
+    }
+}
+
 function Get-SmokeConfig($CapabilityName, $LocalConfig) {
     $entry = $CapabilityCatalog[$CapabilityName]
     $url = Get-EnvOrEmpty $entry.urlEnv
@@ -540,23 +574,25 @@ function Get-SmokeConfig($CapabilityName, $LocalConfig) {
     $missingEnv = New-Object System.Collections.Generic.List[string]
     $missingConfig = New-Object System.Collections.Generic.List[string]
 
+    $captureSpecificConfig = Test-CaptureSpecificConfig $LocalConfig
+
     if (Test-RealValue $url) {
         $configSource = "ENV_EXPLICIT"
         $mappingSource = "ENV_EXPLICIT"
         $endpointMappingStatus = "READY"
-    } elseif ($entry.providerMapping -eq "READY") {
-        $mappingSource = if ($LocalConfig.read -and $LocalConfig.hasBaseUrl) { $LocalConfig.domainSource } else { "PROVIDER_CODE_DEFAULT" }
+    } elseif (($CapabilityName -in @("OCR", "ASR_LONG")) -and $captureSpecificConfig) {
+        $mappingSource = if ($LocalConfig.hasBaseUrl) { $LocalConfig.domainSource } else { "PROVIDER_CODE_DEFAULT" }
         $endpointMappingStatus = "READY"
         $url = New-ConcreteUrl $LocalConfig.domain $entry.localPath $CapabilityName
-        if (-not $LocalConfig.read -and -not (Test-RealValue $url)) {
-            [void]$missingEnv.Add($entry.urlEnv)
-        }
     } elseif ($entry.providerMapping -eq "SEAM_ONLY") {
         $endpointMappingStatus = "SEAM_ONLY"
         $mappingSource = "NONE"
         [void]$missingEnv.Add($entry.urlEnv)
     } else {
         [void]$missingEnv.Add($entry.urlEnv)
+        if ($LocalConfig.read) {
+            Add-CapabilitySpecificMissingFields $CapabilityName $LocalConfig $missingConfig
+        }
     }
 
     if (Test-RealValue $authValue) {
@@ -566,8 +602,8 @@ function Get-SmokeConfig($CapabilityName, $LocalConfig) {
         if ($configSource -eq "NONE") { $configSource = "ENV_EXPLICIT" }
         $authValue = $globalAuth
         $authMappingStatus = "READY"
-    } elseif ($LocalConfig.read -and $LocalConfig.hasAppKey) {
-        if ($configSource -eq "NONE") { $configSource = $LocalConfig.credentialSource }
+    } elseif ($captureSpecificConfig -and ($CapabilityName -in @("OCR", "ASR_LONG"))) {
+        if ($configSource -eq "NONE") { $configSource = "LOCAL_CONFIG_VIVO_CAPTURE" }
         $authValue = $LocalConfig.appKey
         $authMappingStatus = "READY"
     } else {
@@ -589,6 +625,7 @@ function Get-SmokeConfig($CapabilityName, $LocalConfig) {
         if (-not ($LocalConfig.vivoCaptureExists -or $LocalConfig.providersBluelmExists -or $LocalConfig.providersQwenExists -or $LocalConfig.officialProvidersVivoCaptureExists -or $LocalConfig.topLevelBlueLmExists)) {
             [void]$missingConfig.Add("vivoCapture or providers.bluelm or providers.qwen or top-level BlueLM")
         }
+        Add-CapabilitySpecificMissingFields $CapabilityName $LocalConfig $missingConfig
     }
 
     [PSCustomObject]@{
@@ -607,7 +644,34 @@ function Get-SmokeConfig($CapabilityName, $LocalConfig) {
         allowNoAuth = ((Get-EnvOrEmpty "CLASSMATE_PROVIDER_SMOKE_ALLOW_NO_AUTH") -eq "1")
         appId = $LocalConfig.appId
         schemaNote = $entry.schemaNote
+        timeoutSeconds = $TimeoutSeconds
     }
+}
+
+function Get-HttpStatusCode($Exception) {
+    try {
+        if ($Exception.Response -and $Exception.Response.StatusCode) {
+            return [int]$Exception.Response.StatusCode
+        }
+    } catch {
+        return $null
+    }
+    return $null
+}
+
+function Get-NetworkFailureStatus($Exception, $SmokeConfig) {
+    $message = [string]$Exception.Message
+    $statusCode = Get-HttpStatusCode $Exception
+    if ($message -match "(?i)timed out|timeout|operation has timed out") {
+        return "FAIL_TIMEOUT"
+    }
+    if ($statusCode -eq 404 -and ($SmokeConfig.mappingSource -in @("LOCAL_CONFIG_BLUELM", "LOCAL_CONFIG_QWEN", "PROVIDER_CODE_DEFAULT"))) {
+        return "FAIL_HTTP_404_ENDPOINT_SUSPECT"
+    }
+    if ($statusCode -eq 404) {
+        return "FAIL_HTTP_404"
+    }
+    return "FAIL_NETWORK"
 }
 
 function New-RequestPayload($CapabilityName) {
@@ -692,6 +756,7 @@ function New-SmokeResult {
         authMappingStatus = $SmokeConfig.authMappingStatus
         requestSchemaStatus = $SmokeConfig.requestSchemaStatus
         mappingSource = $SmokeConfig.mappingSource
+        timeoutSeconds = $SmokeConfig.timeoutSeconds
     }
 }
 
@@ -746,19 +811,20 @@ function Invoke-CapabilitySmoke($CapabilityName, $LocalConfig) {
             $image64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($imagePath))
             $business = if (Test-RealValue $smokeConfig.appId) { "aigc$($smokeConfig.appId)" } else { "aigc" }
             $body = "image=$([System.Net.WebUtility]::UrlEncode($image64))&pos=2&businessid=$([System.Net.WebUtility]::UrlEncode($business))"
-            $response = Invoke-WebRequest -Uri $smokeConfig.url -Method Post -Headers $headers -ContentType "application/x-www-form-urlencoded" -Body $body -TimeoutSec 45 -UseBasicParsing
+            $response = Invoke-WebRequest -Uri $smokeConfig.url -Method Post -Headers $headers -ContentType "application/x-www-form-urlencoded" -Body $body -TimeoutSec $TimeoutSeconds -UseBasicParsing
         } else {
             $payload = New-RequestPayload $CapabilityName
             $json = $payload | ConvertTo-Json -Depth 12
             $headers["Content-Type"] = "application/json"
-            $response = Invoke-WebRequest -Uri $smokeConfig.url -Method Post -Headers $headers -ContentType "application/json" -Body $json -TimeoutSec 45 -UseBasicParsing
+            $response = Invoke-WebRequest -Uri $smokeConfig.url -Method Post -Headers $headers -ContentType "application/json" -Body $json -TimeoutSec $TimeoutSeconds -UseBasicParsing
         }
         Set-Content -LiteralPath $outputPath -Value (Redact-Text ([string]$response.Content))
         $elapsed = [int]((Get-Date) - $started).TotalMilliseconds
         return New-SmokeResult -CapabilityName $CapabilityName -Mode "NETWORK" -Status "PASS" -SmokeConfig $smokeConfig -RequestSent $true -SanitizedStatus "HTTP $($response.StatusCode)" -SanitizedError "" -OutputPath $outputPath -DurationMs $elapsed
     } catch {
         $elapsed = [int]((Get-Date) - $started).TotalMilliseconds
-        return New-SmokeResult -CapabilityName $CapabilityName -Mode "NETWORK" -Status "FAIL" -SmokeConfig $smokeConfig -RequestSent $true -SanitizedStatus "Network request failed." -SanitizedError $_.Exception.Message -OutputPath "" -DurationMs $elapsed
+        $failureStatus = Get-NetworkFailureStatus $_.Exception $smokeConfig
+        return New-SmokeResult -CapabilityName $CapabilityName -Mode "NETWORK" -Status $failureStatus -SmokeConfig $smokeConfig -RequestSent $true -SanitizedStatus "Network request failed." -SanitizedError $_.Exception.Message -OutputPath "" -DurationMs $elapsed
     }
 }
 
@@ -802,7 +868,7 @@ function Write-Results {
 
     $passed = @($Results | Where-Object { $_.status -eq "PASS" })
     $skipped = @($Results | Where-Object { $_.status -like "SKIPPED_*" -or $_.status -eq "DRY_RUN_READY" })
-    $failed = @($Results | Where-Object { $_.status -eq "FAIL" })
+    $failed = @($Results | Where-Object { $_.status -like "FAIL*" })
     $configMissing = @($Results | Where-Object { $_.status -eq "SKIPPED_CONFIG_MISSING" })
 
     $md = @()

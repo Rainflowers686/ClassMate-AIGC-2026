@@ -54,15 +54,16 @@ class BlueLMProvider(
         }
         return try {
             val prompt = promptBuilder.build(request)
-            activeMaxTokens = if (request.repairHint != null) minOf(config.maxTokens, REPAIR_MAX_TOKENS) else config.maxTokens
+            val options = CloudLearningTask.COURSE_ANALYSIS.qualityProfile.toRequestOptions(
+                config = config,
+                stream = config.stream,
+                maxTokensCap = if (request.repairHint != null) REPAIR_MAX_TOKENS else null,
+            )
+            activeMaxTokens = options.maxTokens
             val body = requestFactory.build(
                 model = config.model,
                 prompt = prompt,
-                options = BlueLMRequestOptions(
-                    stream = config.stream,
-                    temperature = config.temperature,
-                    maxTokens = activeMaxTokens,
-                ),
+                options = options,
             )
             val credential = config.credential as? Credential.BlueLm
                 ?: return ProviderResult.Failure(kind, clock() - start, ProviderError(ProviderErrorType.CONFIG_MISSING, kind))

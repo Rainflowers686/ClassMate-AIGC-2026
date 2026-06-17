@@ -26,9 +26,28 @@ class VivoOpenAIChatProtocolTest {
         assertEquals("Doubao-Seed-2.0-pro", obj.str("model"))
         assertEquals(false, (obj["stream"] as JsonPrimitive).content.toBoolean())
         assertEquals(0.2, (obj["temperature"] as JsonPrimitive).content.toDouble(), 0.0001)
+        assertFalse(obj.containsKey("top_p"))
         assertEquals(2048, (obj["max_tokens"] as JsonPrimitive).content.toInt())
         assertEquals("system", (messages[0] as JsonObject).str("role"))
         assertEquals("user", (messages[1] as JsonObject).str("role"))
+    }
+
+    @Test
+    fun requestBodyUsesOfficialTopPWhenQualityProfileProvidesIt() {
+        val body = VivoOpenAIChatRequestFactory.build(
+            model = "qwen3.5-plus",
+            prompt = Prompt(system = "system rules", user = "course prompt"),
+            options = CloudModelQualityProfile.DEEP_STUDY.toRequestOptions(
+                config = ProviderConfigBundle.defaults().configOf(ProviderKind.BLUELM)!!,
+            ),
+        )
+        val obj = Json.parseToJsonElement(body) as JsonObject
+
+        assertEquals("qwen3.5-plus", obj.str("model"))
+        assertEquals(false, (obj["enable_thinking"] as JsonPrimitive).content.toBoolean())
+        assertEquals(0.30, (obj["temperature"] as JsonPrimitive).content.toDouble(), 0.0001)
+        assertEquals(0.70, (obj["top_p"] as JsonPrimitive).content.toDouble(), 0.0001)
+        assertEquals(4096, (obj["max_tokens"] as JsonPrimitive).content.toInt())
     }
 
     @Test

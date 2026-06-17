@@ -46,7 +46,11 @@ class ProviderAskChatClient(
             val body = VivoOpenAIChatRequestFactory.build(
                 model = config.model,
                 prompt = prompt,
-                options = BlueLMRequestOptions(stream = false, temperature = config.temperature, maxTokens = minOf(config.maxTokens, ASK_MAX_TOKENS)),
+                options = CloudLearningTask.ASK_WITH_EVIDENCE.qualityProfile.toRequestOptions(
+                    config = config,
+                    stream = false,
+                    maxTokensCap = ASK_MAX_TOKENS,
+                ),
             )
             val headers = mapOf(
                 "Authorization" to "Bearer ${cred.appKey}",
@@ -89,6 +93,6 @@ class ProviderAskChatClient(
     }
 
     private companion object {
-        const val ASK_MAX_TOKENS = 1200
+        const val ASK_MAX_TOKENS = 1800
     }
 }
