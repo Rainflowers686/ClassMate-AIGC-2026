@@ -235,3 +235,43 @@ v5 diagnosis/fix:
 - Query separator detection now checks for a literal `?`.
 - Sanitized endpoint shape is included in smoke results without full URL, host value, auth value, or key.
 - HTTP 404 is classified as `FAIL_HTTP_404_ENDPOINT_SUSPECT`, meaning route/endpoint mapping should be checked first. It is not proof that OCR auth failed.
+
+## 2026-06-17 OCR Provider Network Smoke PASS
+
+Source: local smoke result under `.codex_work/official_provider_smoke/ocr_20260617_224223/` (local-only, not tracked).
+
+Result summary:
+
+- capability: `OCR`
+- docId: `1737`
+- tier: `product-facing`
+- network executed: true
+- mode: `NETWORK`
+- status: `PASS`
+- sanitized status: `HTTP 200`
+- request sent: true
+- request attempted: true
+- URI validated: true
+- method: `POST`
+- content type: `application/x-www-form-urlencoded`
+- payload kind: `FORM`
+- path last segment: `general_recognition`
+- query keys: `requestId`
+- config source: `LOCAL_CONFIG_OFFICIAL_PROVIDER`
+- mapping source: `LOCAL_CONFIG_OFFICIAL_PROVIDER`
+- provider path source: `CONFIG`
+- endpoint mapping: `READY`
+- auth mapping: `READY`
+- request schema: `READY`
+- missing env/config fields: none
+- secret leaked: no
+
+This PASS verifies the previous OCR 404 was resolved by the v5 URL composition fix. The smoke harness now composes the OCR route with the correct public path suffix and appends `requestId` as a query key rather than as part of the path. OCR is now the first real network PASS among the official product-facing provider smoke targets.
+
+Next recommended official provider smoke order:
+
+1. `QUERY_REWRITE`
+2. `TEXT_SIMILARITY`
+3. `EMBEDDING`
+
+Before each real network smoke, add the corresponding `officialProviders.<capability>` local config group, run `-ExplainConfig -UseLocalConfig`, and confirm `endpointMapping=READY`, `authMapping=READY`, and `requestSchema=READY`. Do not reuse `topLevel.bluelm` as a specialized provider endpoint.
