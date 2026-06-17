@@ -69,26 +69,34 @@ Allowed value-free group names:
 
 ## Official Provider Config Schema v1
 
-Specialized official capabilities use dedicated groups under `officialProviders`. These groups are only read when `-UseLocalConfig` is explicit, and only field presence is reported.
+Specialized official capabilities use dedicated groups under `officialProviders`. These groups are only read when `-UseLocalConfig` is explicit, and only field presence is reported. A copy/paste-safe template lives in `docs/current/official_provider_config_template.md`; keep real values only in local `config.local.json`.
 
 Use placeholders in docs/examples only:
 
 ```json
 {
   "officialProviders": {
-    "ocr": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },
-    "queryRewrite": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },
-    "textSimilarity": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },
-    "embedding": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },
-    "translation": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },
-    "tts": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },
-    "functionCalling": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },
+    "ocr": { "enabled": true, "baseUrl": "<your-value>", "endpointPath": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },
+    "queryRewrite": { "enabled": true, "baseUrl": "<your-value>", "endpointPath": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },
+    "textSimilarity": { "enabled": true, "baseUrl": "<your-value>", "endpointPath": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },
+    "embedding": { "enabled": true, "baseUrl": "<your-value>", "endpointPath": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },
+    "translation": { "enabled": true, "baseUrl": "<your-value>", "endpointPath": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },
+    "tts": { "enabled": true, "baseUrl": "<your-value>", "endpointPath": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },
+    "functionCalling": { "enabled": true, "baseUrl": "<your-value>", "endpointPath": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },
     "asrLong": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" }
   }
 }
 ```
 
 If a capability-specific group has `enabled=true`, endpoint field presence, and auth field presence, `-ExplainConfig -UseLocalConfig` can mark that capability as `READY`. It still does not send a request unless `-RunNetwork` is also passed.
+
+Minimum fields for first smoke:
+
+- `enabled=true`
+- `baseUrl`
+- `endpointPath` when the official path is not already encoded by the smoke harness
+- `authHeader`
+- `authValue`
 
 ## Conservative Mapping Policy
 
@@ -178,6 +186,35 @@ With Schema v1, `officialProviders.<capability>` can also make the corresponding
 - `RequestSchemaMissing`: endpoint may exist, but request body is not ready.
 - `FAIL_TIMEOUT`: request exceeded `-TimeoutSeconds`.
 - `FAIL_HTTP_404_ENDPOINT_SUSPECT`: HTTP 404 from a suspect generic/provider-default mapping.
+
+## How To Interpret `-ExplainConfig -UseLocalConfig`
+
+Run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -ExplainConfig -UseLocalConfig
+```
+
+Read each target capability:
+
+- `endpointMapping=READY`: the script can form a capability-specific endpoint from explicit env or `officialProviders.<capability>`.
+- `authMapping=READY`: an auth field exists, but the value is not printed.
+- `requestSchema=READY`: the smoke request shape is mapped.
+- `requestSent=False`: explain mode never sends network requests.
+
+If output says `officialProviders missing`, add the `officialProviders` block to local `config.local.json`. If output says `topLevel.bluelm only configures cloud model`, do not copy that value into OCR/Retrieval/TTS by assumption; use official capability endpoint values.
+
+To run only OCR after configuration and explicit authorization:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -RunNetwork -Capability OCR -UseLocalConfig -TimeoutSeconds 20
+```
+
+Smoke outputs under `.codex_work/official_provider_smoke/` are local artifacts. Confirm they remain untracked with:
+
+```powershell
+git ls-files .codex_work
+```
 
 ## Recommended Real Smoke Order
 

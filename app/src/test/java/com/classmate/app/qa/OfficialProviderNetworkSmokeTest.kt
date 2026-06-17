@@ -279,10 +279,92 @@ class OfficialProviderNetworkSmokeTest {
         assertTrue(script.contains("CLASSMATE_PROVIDER_SMOKE_AUTH_VALUE=<your-value>"))
         assertTrue(script.contains("CLASSMATE_PROVIDER_SMOKE_QUERY_REWRITE_URL"))
         assertTrue(script.contains("officialProviders"))
-        assertTrue(script.contains("\"ocr\": { \"enabled\": true, \"baseUrl\": \"<your-value>\""))
+        assertTrue(script.contains("\"ocr\": { \"enabled\": true, \"baseUrl\": \"<your-value>\", \"endpointPath\": \"<your-value>\""))
         assertTrue(script.contains("\"queryRewrite\""))
         assertTrue(script.contains("-TimeoutSeconds <seconds>"))
         assertFalse(script.contains("CLASSMATE_PROVIDER_SMOKE_AUTH_VALUE=sk-"))
+    }
+
+    @Test
+    fun configTemplateUsesPlaceholdersAndDocumentsOfficialProviderGroups() {
+        val template = readWorkspace("docs/current/official_provider_config_template.md")
+
+        listOf(
+            "\"officialProviders\"",
+            "\"ocr\"",
+            "\"queryRewrite\"",
+            "\"textSimilarity\"",
+            "\"embedding\"",
+            "\"translation\"",
+            "\"tts\"",
+            "\"functionCalling\"",
+            "\"asrLong\"",
+            "\"endpointPath\"",
+            "<official-ocr-base-url>",
+            "<official-query-rewrite-endpoint-path>",
+            "<your-auth-value>",
+            "不要提交 `config.local.json`",
+            "不要把 key 发给任何 AI",
+            "OCR",
+            "QUERY_REWRITE",
+            "TEXT_SIMILARITY",
+            "EMBEDDING",
+        ).forEach {
+            assertTrue("template missing: $it", template.contains(it))
+        }
+
+        assertFalse(
+            "template contains real-looking OpenAI-style key",
+            Regex("""sk-[A-Za-z0-9]{8,}""").containsMatchIn(template),
+        )
+        listOf("secret-auth", "api-ai.vivo.com.cn/v1", "id12345", "key67890").forEach {
+            assertFalse("template contains real-looking value: $it", template.contains(it))
+        }
+    }
+
+    @Test
+    fun setupDocExplainsConfigReadinessAndLocalArtifactPolicy() {
+        val setup = readWorkspace("docs/current/official_provider_smoke_setup.md")
+
+        listOf(
+            "official_provider_config_template.md",
+            "officialProviders missing",
+            "topLevel.bluelm only configures cloud model",
+            "endpointMapping=READY",
+            "authMapping=READY",
+            "requestSchema=READY",
+            "-RunNetwork -Capability OCR",
+            "git ls-files .codex_work",
+            "Do not commit `.codex_work`",
+        ).forEach {
+            assertTrue("setup doc missing: $it", setup.contains(it))
+        }
+    }
+
+    @Test
+    fun explainConfigGuidesOfficialProvidersWithoutLeakingValues() {
+        val temp = Files.createTempDirectory("classmate-smoke-guidance").toFile()
+        val config = File(temp, "config.local.json")
+        val outputDir = File(temp, "out")
+        config.writeText("""{"provider":"bluelm","appId":"id12345","appKey":"key67890","baseUrl":"https://api-ai.vivo.com.cn/v1"}""")
+
+        val output = runSmokeScript(
+            "-ExplainConfig",
+            "-UseLocalConfig",
+            "-Capability",
+            "OCR",
+            "-LocalConfigPath",
+            config.absolutePath,
+            "-OutputDir",
+            outputDir.absolutePath,
+        )
+
+        assertTrue(output.contains("officialProviders missing"))
+        assertTrue(output.contains("topLevel.bluelm only configures cloud model"))
+        assertTrue(output.contains("officialProviders.<capability>"))
+        listOf("id12345", "key67890", "api-ai.vivo.com.cn/v1").forEach {
+            assertFalse("config value leaked: $it", output.contains(it))
+        }
     }
 
     @Test

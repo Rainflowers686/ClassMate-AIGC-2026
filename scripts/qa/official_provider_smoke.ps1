@@ -270,13 +270,13 @@ function Print-SetupHelp {
     Write-Host ""
     Write-Host "Official provider config schema v1:"
     Write-Host '  "officialProviders": {'
-    Write-Host '    "ocr": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },'
-    Write-Host '    "queryRewrite": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },'
-    Write-Host '    "textSimilarity": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },'
-    Write-Host '    "embedding": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },'
-    Write-Host '    "translation": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },'
-    Write-Host '    "tts": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },'
-    Write-Host '    "functionCalling": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },'
+    Write-Host '    "ocr": { "enabled": true, "baseUrl": "<your-value>", "endpointPath": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },'
+    Write-Host '    "queryRewrite": { "enabled": true, "baseUrl": "<your-value>", "endpointPath": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },'
+    Write-Host '    "textSimilarity": { "enabled": true, "baseUrl": "<your-value>", "endpointPath": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },'
+    Write-Host '    "embedding": { "enabled": true, "baseUrl": "<your-value>", "endpointPath": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },'
+    Write-Host '    "translation": { "enabled": true, "baseUrl": "<your-value>", "endpointPath": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },'
+    Write-Host '    "tts": { "enabled": true, "baseUrl": "<your-value>", "endpointPath": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },'
+    Write-Host '    "functionCalling": { "enabled": true, "baseUrl": "<your-value>", "endpointPath": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" },'
     Write-Host '    "asrLong": { "enabled": true, "baseUrl": "<your-value>", "authHeader": "Authorization", "authValue": "<your-value>" }'
     Write-Host '  }'
     Write-Host ""
@@ -363,16 +363,19 @@ function Get-CredentialCandidate($Group, [string]$SourceName) {
     $appId = Get-ObjectPropertyValue $Group @("appId", "appID", "appid", "app_id", "AppID", "APP_ID")
     $appKey = Get-ObjectPropertyValue $Group @("appKey", "appKEY", "appkey", "app_key", "AppKey", "AppKEY", "APP_KEY", "authValue", "authorizationValue", "apiKey", "api_key", "token")
     $baseUrl = Get-ObjectPropertyValue $Group @("baseUrl", "baseURL", "base_url", "url", "endpoint", "domain", "host")
+    $endpointPath = Get-ObjectPropertyValue $Group @("endpointPath", "endpoint_path", "path", "requestPath", "request_path")
     $authHeader = Get-ObjectPropertyValue $Group @("authHeader", "authorizationHeader", "header")
     return [PSCustomObject]@{
         source = $SourceName
         appId = $appId
         appKey = $appKey
         baseUrl = $baseUrl
+        endpointPath = $endpointPath
         authHeader = $authHeader
         hasAppId = Test-RealValue $appId
         hasAppKey = Test-RealValue $appKey
         hasBaseUrl = Test-RealValue $baseUrl
+        hasEndpointPath = Test-RealValue $endpointPath
         hasAuthHeader = Test-RealValue $authHeader
     }
 }
@@ -581,8 +584,9 @@ function New-ConcreteUrl($Domain, $Path, $CapabilityName) {
 
 function New-OfficialProviderUrl($Candidate, $Path, $CapabilityName) {
     $domain = Normalize-Domain $Candidate.baseUrl
-    if (Test-RealValue $Path) {
-        return New-ConcreteUrl $domain $Path $CapabilityName
+    $effectivePath = if ($Candidate.hasEndpointPath) { $Candidate.endpointPath } else { $Path }
+    if (Test-RealValue $effectivePath) {
+        return New-ConcreteUrl $domain $effectivePath $CapabilityName
     }
     return "https://$domain"
 }
@@ -617,6 +621,7 @@ function Add-OfficialProviderMissingFields($CapabilityName, $LocalConfig, $Missi
         return
     }
     if (-not $candidate.hasBaseUrl) { [void]$MissingConfig.Add("$primary.baseUrl") }
+    if (-not $candidate.hasEndpointPath) { [void]$MissingConfig.Add("$primary.endpointPath") }
     if (-not $candidate.hasAppKey) { [void]$MissingConfig.Add("$primary.authValue or $primary.appKey") }
 }
 
@@ -943,6 +948,12 @@ function Write-ExplainConfig($LocalConfig, $Selected) {
     Write-Host ("officialProviders exists: " + $LocalConfig.officialProvidersExists)
     $officialGroups = if ($LocalConfig.officialProviderGroupNames.Count -gt 0) { ($LocalConfig.officialProviderGroupNames | Select-Object -Unique) -join ", " } else { "None" }
     Write-Host ("officialProvider groups: " + $officialGroups)
+    if ($LocalConfig.read -and -not $LocalConfig.officialProvidersExists) {
+        Write-Host "officialProviders missing: specialized OCR/Retrieval/Translation/TTS/Function Calling/ASR smoke needs officialProviders.<capability> or explicit env config."
+    }
+    if ($LocalConfig.read -and $LocalConfig.topLevelBlueLmExists) {
+        Write-Host "topLevel.bluelm only configures cloud model; it is not reused as specialized provider endpoint mapping."
+    }
     foreach ($cap in $Selected) {
         if (-not $CapabilityCatalog.Contains($cap)) { continue }
         $cfg = Get-SmokeConfig $cap $LocalConfig
