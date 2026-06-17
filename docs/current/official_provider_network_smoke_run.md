@@ -2,17 +2,18 @@
 
 ## Date / Branch / Commit
 
-- Date: 2026-06-16
+- Date: 2026-06-17
 - Branch: `feature/product-review-compatible`
-- Commit: `d00bbdf`
-- Scope: Official provider smoke workflow v1
+- Commit: `f5f94b5`
+- Scope: Official provider smoke workflow v2
 
 ## Smoke Script Version
 
 - Script: `scripts/qa/official_provider_smoke.ps1`
-- Version intent: controlled provider smoke v1
+- Version intent: provider-aware controlled smoke v2
 - Default mode: dry-run
 - Network mode: requires explicit `-RunNetwork`
+- Local config mode: requires explicit `-UseLocalConfig`
 - Output directory: `.codex_work/official_provider_smoke/`
 
 ## DryRun Result
@@ -24,6 +25,18 @@ powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 
 ```
 
 Result: PASS.
+
+Dry-run capability result:
+
+| Capability | Status | Request sent | Local config read | Endpoint mapping | Auth mapping | Request schema |
+|---|---|---:|---:|---|---|---|
+| OCR | DRY_RUN_READY | false | false | MISSING | MISSING | READY |
+| QUERY_REWRITE | DRY_RUN_READY | false | false | MISSING | MISSING | READY |
+| TEXT_SIMILARITY | DRY_RUN_READY | false | false | MISSING | MISSING | READY |
+| TRANSLATION | DRY_RUN_READY | false | false | SEAM_ONLY | MISSING | GENERIC_ONLY |
+| TTS | DRY_RUN_READY | false | false | SEAM_ONLY | MISSING | GENERIC_ONLY |
+| FUNCTION_CALLING | DRY_RUN_READY | false | false | SEAM_ONLY | MISSING | GENERIC_ONLY |
+| EMBEDDING | DRY_RUN_READY | false | false | MISSING | MISSING | READY |
 
 Generated local-only files:
 
@@ -42,6 +55,37 @@ Reason:
 - The current task did not include explicit authorization to send real provider requests.
 - The script defaults to dry-run.
 - Real network smoke requires `-RunNetwork`, one explicit `-Capability`, valid environment configuration, and non-sensitive test inputs.
+- Reading `config.local.json` requires explicit `-UseLocalConfig`.
+
+## Setup Help Result
+
+Executed:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -PrintSetupHelp
+```
+
+Result: PASS.
+
+The output lists only variable names and `<your-value>` placeholders. It does not print any real local value.
+
+## Explain Config Result
+
+Executed:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -ExplainConfig
+```
+
+Result: PASS.
+
+Observed value-free status:
+
+- `config.local.json exists`: true
+- `local config read`: false
+- Each safe capability lists missing env names.
+- Translation / TTS / Function calling are marked `SEAM_ONLY` without explicit endpoint env.
+- No request was sent.
 
 ## Capability Table
 
@@ -61,13 +105,19 @@ Reason:
 
 None in dry-run mode. Configuration content was not read, so actual network configuration remains unknown.
 
-If `-RunNetwork` is used without endpoint/auth environment values, the script records `SKIPPED_CONFIG_MISSING` rather than failing the whole smoke run.
+If `-RunNetwork` is used without endpoint/auth environment values, the script records missing env names and one of:
+
+- `SKIPPED_CONFIG_MISSING`
+- `SKIPPED_ENDPOINT_MAPPING_MISSING`
+- `SKIPPED_SEAM_ONLY`
 
 ## Passed Items
 
 - Smoke script exists and defaults to dry-run.
 - Dry-run created result JSON, Markdown, log, test input, and output directories.
 - Safe capability list excludes long audio and dev-lab capabilities by default.
+- Setup help lists env names with placeholders only.
+- Explain config shows missing env names and mapping status without reading local config.
 - No request was sent.
 
 ## Failed Items
@@ -119,10 +169,24 @@ Confirmed for this dry-run:
 - No private config content was read.
 - No AAR content was read.
 - `.codex_work` output is untracked.
+- No credential value was printed into `smoke_result.md` or `smoke.log`.
 
 ## Next Recommended Smoke Order
 
-Run one capability at a time after explicit authorization:
+Run one capability at a time after explicit authorization. Prefer checking setup first:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -PrintSetupHelp
+powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -ExplainConfig
+```
+
+If the user explicitly allows reading local config:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -UseLocalConfig -ExplainConfig
+```
+
+Then run one network capability at a time:
 
 1. `scripts\qa\official_provider_smoke.ps1 -RunNetwork -Capability OCR`
 2. `scripts\qa\official_provider_smoke.ps1 -RunNetwork -Capability QUERY_REWRITE`
