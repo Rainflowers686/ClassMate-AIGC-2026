@@ -4,13 +4,13 @@
 
 - Date: 2026-06-17
 - Branch: `feature/product-review-compatible`
-- Commit: `f5f94b5`
-- Scope: Official provider smoke workflow v2
+- Commit at start: `767cc0b`
+- Scope: Official provider smoke workflow v3 mapping diagnostics
 
 ## Smoke Script Version
 
 - Script: `scripts/qa/official_provider_smoke.ps1`
-- Version intent: provider-aware controlled smoke v2
+- Version intent: provider-aware endpoint mapping diagnostics v3
 - Default mode: dry-run
 - Network mode: requires explicit `-RunNetwork`
 - Local config mode: requires explicit `-UseLocalConfig`
@@ -26,17 +26,17 @@ powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 
 
 Result: PASS.
 
-Dry-run capability result:
+Dry-run request summary:
 
-| Capability | Status | Request sent | Local config read | Endpoint mapping | Auth mapping | Request schema |
-|---|---|---:|---:|---|---|---|
-| OCR | DRY_RUN_READY | false | false | MISSING | MISSING | READY |
-| QUERY_REWRITE | DRY_RUN_READY | false | false | MISSING | MISSING | READY |
-| TEXT_SIMILARITY | DRY_RUN_READY | false | false | MISSING | MISSING | READY |
-| TRANSLATION | DRY_RUN_READY | false | false | SEAM_ONLY | MISSING | GENERIC_ONLY |
-| TTS | DRY_RUN_READY | false | false | SEAM_ONLY | MISSING | GENERIC_ONLY |
-| FUNCTION_CALLING | DRY_RUN_READY | false | false | SEAM_ONLY | MISSING | GENERIC_ONLY |
-| EMBEDDING | DRY_RUN_READY | false | false | MISSING | MISSING | READY |
+| Capability | Status | Request sent |
+|---|---|---:|
+| OCR | DRY_RUN_READY | false |
+| QUERY_REWRITE | DRY_RUN_READY | false |
+| TEXT_SIMILARITY | DRY_RUN_READY | false |
+| TRANSLATION | DRY_RUN_READY | false |
+| TTS | DRY_RUN_READY | false |
+| FUNCTION_CALLING | DRY_RUN_READY | false |
+| EMBEDDING | DRY_RUN_READY | false |
 
 Generated local-only files:
 
@@ -46,16 +46,72 @@ Generated local-only files:
 - `.codex_work/official_provider_smoke/test_inputs/`
 - `.codex_work/official_provider_smoke/outputs/`
 
+## Explain Config Without Local Read
+
+Executed:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -ExplainConfig
+```
+
+Observed value-free status:
+
+- `config.local.json exists`: true
+- `local config read`: false
+- detected local groups: none, because local config was not read
+- no request was sent
+
+| Capability | Endpoint mapping | Auth mapping | Request schema | Mapping source |
+|---|---|---|---|---|
+| OCR | READY | MISSING | READY | PROVIDER_CODE_DEFAULT |
+| QUERY_REWRITE | READY | MISSING | READY | PROVIDER_CODE_DEFAULT |
+| TEXT_SIMILARITY | READY | MISSING | READY | PROVIDER_CODE_DEFAULT |
+| TRANSLATION | SEAM_ONLY | MISSING | GENERIC_ONLY | NONE |
+| TTS | SEAM_ONLY | MISSING | GENERIC_ONLY | NONE |
+| FUNCTION_CALLING | SEAM_ONLY | MISSING | GENERIC_ONLY | NONE |
+| EMBEDDING | READY | MISSING | READY | PROVIDER_CODE_DEFAULT |
+
+## Explain Config With Local Read
+
+Executed only because this v3 diagnostic task explicitly required:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -ExplainConfig -UseLocalConfig
+```
+
+Observed value-free status:
+
+- `config.local.json exists`: true
+- `local config read`: true
+- detected group: `topLevel.bluelm`
+- no local value was printed
+- no request was sent
+
+| Capability | Endpoint mapping | Auth mapping | Request schema | Config source | Mapping source | Request sent |
+|---|---|---|---|---|---|---:|
+| OCR | READY | READY | READY | LOCAL_CONFIG_BLUELM | LOCAL_CONFIG_BLUELM | false |
+| QUERY_REWRITE | READY | READY | READY | LOCAL_CONFIG_BLUELM | LOCAL_CONFIG_BLUELM | false |
+| TEXT_SIMILARITY | READY | READY | READY | LOCAL_CONFIG_BLUELM | LOCAL_CONFIG_BLUELM | false |
+| TRANSLATION | SEAM_ONLY | READY | GENERIC_ONLY | LOCAL_CONFIG_BLUELM | NONE | false |
+| TTS | SEAM_ONLY | READY | GENERIC_ONLY | LOCAL_CONFIG_BLUELM | NONE | false |
+| FUNCTION_CALLING | SEAM_ONLY | READY | GENERIC_ONLY | LOCAL_CONFIG_BLUELM | NONE | false |
+| EMBEDDING | READY | READY | READY | LOCAL_CONFIG_BLUELM | LOCAL_CONFIG_BLUELM | false |
+
+Important correction from v2:
+
+- OCR is no longer `EndpointMappingMissing` under local-config opt-in.
+- OCR is `READY / READY / READY` from top-level BlueLM-compatible local config plus provider-code endpoint mapping.
+- Translation, TTS, and Function calling remain seam-only until a confirmed live endpoint mapping is added or explicit env endpoints are provided.
+
 ## Network Smoke Result
 
 Network smoke not executed.
 
 Reason:
 
-- The current task did not include explicit authorization to send real provider requests.
+- This task explicitly prohibited `-RunNetwork`.
 - The script defaults to dry-run.
-- Real network smoke requires `-RunNetwork`, one explicit `-Capability`, valid environment configuration, and non-sensitive test inputs.
-- Reading `config.local.json` requires explicit `-UseLocalConfig`.
+- Real network smoke requires `-RunNetwork`, one explicit `-Capability`, valid configuration, non-sensitive inputs, and explicit user authorization.
 
 ## Setup Help Result
 
@@ -67,132 +123,26 @@ powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 
 
 Result: PASS.
 
-The output lists only variable names and `<your-value>` placeholders. It does not print any real local value.
-
-## Explain Config Result
-
-Executed:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -ExplainConfig
-```
-
-Result: PASS.
-
-Observed value-free status:
-
-- `config.local.json exists`: true
-- `local config read`: false
-- Each safe capability lists missing env names.
-- Translation / TTS / Function calling are marked `SEAM_ONLY` without explicit endpoint env.
-- No request was sent.
-
-## Capability Table
-
-| Capability | Mode | Status | Request sent | Notes |
-|---|---|---|---:|---|
-| OCR | DRY_RUN | DRY_RUN_READY | false | Non-sensitive generated image prepared. |
-| QUERY_REWRITE | DRY_RUN | DRY_RUN_READY | false | Non-sensitive physics question prepared. |
-| TEXT_SIMILARITY | DRY_RUN | DRY_RUN_READY | false | Three synthetic course snippets prepared. |
-| TRANSLATION | DRY_RUN | DRY_RUN_READY | false | Short English course sentence prepared. |
-| TTS | DRY_RUN | DRY_RUN_READY | false | Short Chinese course-audio test sentence prepared. |
-| FUNCTION_CALLING | DRY_RUN | DRY_RUN_READY | false | Internal tool-call test payload prepared. |
-| EMBEDDING | DRY_RUN | DRY_RUN_READY | false | Synthetic classroom text prepared. |
-| ASR_LONG | Not run | Not in AllSafe | false | Requires explicit capability and non-sensitive audio. |
-| IMAGE_GEN / VIDEO_GEN / SHORT_ASR / DIALECT_ASR / SIMULTANEOUS_INTERPRETATION | Not run | Dev-lab only | false | Not part of default safe smoke. |
-
-## ConfigMissing Items
-
-None in dry-run mode. Configuration content was not read, so actual network configuration remains unknown.
-
-If `-RunNetwork` is used without endpoint/auth environment values, the script records missing env names and one of:
-
-- `SKIPPED_CONFIG_MISSING`
-- `SKIPPED_ENDPOINT_MAPPING_MISSING`
-- `SKIPPED_SEAM_ONLY`
-
-## Passed Items
-
-- Smoke script exists and defaults to dry-run.
-- Dry-run created result JSON, Markdown, log, test input, and output directories.
-- Safe capability list excludes long audio and dev-lab capabilities by default.
-- Setup help lists env names with placeholders only.
-- Explain config shows missing env names and mapping status without reading local config.
-- No request was sent.
-
-## Failed Items
-
-- None in dry-run mode.
-
-## Skipped Items
-
-- Real network provider calls: not authorized for this run.
-- Long audio smoke: no non-sensitive test audio was provided.
-- Dev-lab capabilities: intentionally excluded from `-AllSafe`.
-
-## Inputs Used
-
-All inputs are synthetic and stored under `.codex_work/official_provider_smoke/test_inputs/`:
-
-- `ocr_smoke.png`: generated white-background OCR image with simple test text.
-- `query_rewrite.txt`: non-sensitive physics query.
-- `similarity.json`: synthetic course snippets.
-- `translation_en.txt`: short English learning sentence.
-- `tts_zh.txt`: short Chinese course-audio test sentence.
-- `function_calling.json`: internal tool-call parse payload.
-- `embedding.json`: synthetic evidence texts.
-
-## Outputs Generated
-
-- `smoke_result.json`
-- `smoke_result.md`
-- `smoke.log`
-- `test_inputs/*`
-- Empty `outputs/` directory for future network response artifacts.
-
-These outputs stay under `.codex_work/` and are not intended for Git.
+The output lists only variable names and `<your-value>` placeholders. It does not print local values.
 
 ## Security Notes
 
-- `config.local.json` presence was checked only by `Test-Path`; content was not read.
-- The local AAR presence was checked only by `Test-Path`; content was not read.
-- No credential, app identifier, auth header value, cookie, or token is written to the result files.
-- Real network smoke must use synthetic inputs only.
-- The default safe list does not include long audio, generated media, real-time speech, dialect speech, or interpretation capabilities.
-- Excluded official capabilities remain outside this smoke workflow.
-
-## No-secret Confirmation
-
-Confirmed for this dry-run:
-
+- `config.local.json` was read only during the explicit `-UseLocalConfig` explanation command required by this task.
+- No config value, base URL value, credential value, cookie, token, or auth value was printed or written.
+- The local AAR presence was checked only by path existence; content was not read.
 - No network request was sent.
-- No private config content was read.
-- No AAR content was read.
-- `.codex_work` output is untracked.
-- No credential value was printed into `smoke_result.md` or `smoke.log`.
+- `.codex_work` output is local-only and not intended for Git.
+- Excluded capabilities remain outside this smoke workflow.
 
 ## Next Recommended Smoke Order
 
-Run one capability at a time after explicit authorization. Prefer checking setup first:
+After explicit user authorization, run one capability at a time:
 
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -PrintSetupHelp
-powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -ExplainConfig
-```
-
-If the user explicitly allows reading local config:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -UseLocalConfig -ExplainConfig
-```
-
-Then run one network capability at a time:
-
-1. `scripts\qa\official_provider_smoke.ps1 -RunNetwork -Capability OCR`
-2. `scripts\qa\official_provider_smoke.ps1 -RunNetwork -Capability QUERY_REWRITE`
-3. `scripts\qa\official_provider_smoke.ps1 -RunNetwork -Capability TEXT_SIMILARITY`
-4. `scripts\qa\official_provider_smoke.ps1 -RunNetwork -Capability TRANSLATION`
-5. `scripts\qa\official_provider_smoke.ps1 -RunNetwork -Capability TTS`
-6. `scripts\qa\official_provider_smoke.ps1 -RunNetwork -Capability FUNCTION_CALLING`
-7. `scripts\qa\official_provider_smoke.ps1 -RunNetwork -Capability EMBEDDING`
-8. `scripts\qa\official_provider_smoke.ps1 -RunNetwork -Capability ASR_LONG` only after a non-sensitive test audio file is prepared.
+1. `OCR`
+2. `QUERY_REWRITE`
+3. `TEXT_SIMILARITY`
+4. `TRANSLATION`, after endpoint mapping is confirmed or env endpoint is provided
+5. `TTS`, after endpoint mapping is confirmed or env endpoint is provided
+6. `FUNCTION_CALLING`, after endpoint mapping is confirmed or env endpoint is provided
+7. `EMBEDDING`
+8. `ASR_LONG`, only after a non-sensitive test audio file is prepared

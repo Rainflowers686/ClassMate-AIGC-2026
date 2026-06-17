@@ -1,6 +1,7 @@
 package com.classmate.app.qa
 
 import java.io.File
+import java.nio.file.Files
 import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -13,6 +14,28 @@ class OfficialProviderNetworkSmokeTest {
     private fun readWorkspace(path: String): String =
         firstExisting(path, "../$path").readText()
 
+    private fun repoRoot(): File = firstExisting(".git", "../.git").parentFile ?: File(".").absoluteFile
+
+    private fun runSmokeScript(vararg args: String, env: Map<String, String> = emptyMap()): String {
+        val script = File(repoRoot(), "scripts/qa/official_provider_smoke.ps1")
+        val command = listOf(
+            "powershell",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            script.absolutePath,
+        ) + args
+        val process = ProcessBuilder(command)
+            .directory(repoRoot())
+            .redirectErrorStream(true)
+            .apply { environment().putAll(env) }
+            .start()
+        assertTrue("official_provider_smoke.ps1 timed out", process.waitFor(30, TimeUnit.SECONDS))
+        val output = process.inputStream.bufferedReader().readText()
+        assertTrue("script failed with ${process.exitValue()}: $output", process.exitValue() == 0)
+        return output
+    }
+
     @Test
     fun smokeScriptDefaultsToDryRunAndRequiresExplicitNetworkFlag() {
         val script = readWorkspace("scripts/qa/official_provider_smoke.ps1")
@@ -22,6 +45,7 @@ class OfficialProviderNetworkSmokeTest {
         assertTrue(script.contains("[switch]\$UseLocalConfig"))
         assertTrue(script.contains("[switch]\$PrintSetupHelp"))
         assertTrue(script.contains("[switch]\$ExplainConfig"))
+        assertTrue(script.contains("[string]\$LocalConfigPath"))
         assertTrue(script.contains("if (-not \$RunNetwork)"))
         assertTrue(script.contains("\$DryRun = \$true"))
         assertTrue(script.contains("No network request was sent."))
@@ -33,9 +57,93 @@ class OfficialProviderNetworkSmokeTest {
         val localConfigBlock = script.substringAfter("function Read-LocalSmokeConfig").substringBefore("function New-OcrInput")
 
         assertTrue(localConfigBlock.contains("if (-not \$UseLocalConfig"))
-        assertTrue(localConfigBlock.contains("Get-Content -LiteralPath \$path -Raw"))
+        assertTrue(localConfigBlock.contains("Get-Content -LiteralPath \$LocalConfigPath -Raw"))
         assertTrue(script.contains("content read only with -UseLocalConfig"))
         assertTrue(script.contains("local config read"))
+    }
+
+    @Test
+    fun explainConfigWithMockedVivoCaptureCanMapOcrReadyWithoutLeakingValues() {
+        val temp = Files.createTempDirectory("classmate-smoke-vivo").toFile()
+        val config = File(temp, "config.local.json")
+        val outputDir = File(temp, "out")
+        config.writeText("""{"vivoCapture":{"appId":"id12345","appKey":"key67890","baseUrl":"https://api-ai.vivo.com.cn/"}}""")
+
+        val output = runSmokeScript(
+            "-ExplainConfig",
+            "-UseLocalConfig",
+            "-LocalConfigPath",
+            config.absolutePath,
+            "-OutputDir",
+            outputDir.absolutePath,
+        )
+
+        assertTrue(output.contains("local config read: True"))
+        assertTrue(output.contains("vivoCapture exists: True"))
+        assertTrue(output.contains("OCR: capability URL configured=True; auth configured=True"))
+        assertTrue(output.contains("source=LOCAL_CONFIG_VIVO_CAPTURE"))
+        assertTrue(output.contains("mappingSource=LOCAL_CONFIG_VIVO_CAPTURE"))
+        assertTrue(output.contains("endpointMapping=READY"))
+        assertTrue(output.contains("authMapping=READY"))
+        assertFalse(output.contains("id12345"))
+        assertFalse(output.contains("key67890"))
+        assertFalse(output.contains("api-ai.vivo.com.cn/"))
+    }
+
+    @Test
+    fun explainConfigReportsMissingLocalFieldNamesOnly() {
+        val temp = Files.createTempDirectory("classmate-smoke-missing").toFile()
+        val config = File(temp, "config.local.json")
+        val outputDir = File(temp, "out")
+        config.writeText("""{"vivoCapture":{"appId":"id12345"}}""")
+
+        val output = runSmokeScript(
+            "-ExplainConfig",
+            "-UseLocalConfig",
+            "-LocalConfigPath",
+            config.absolutePath,
+            "-OutputDir",
+            outputDir.absolutePath,
+        )
+
+        assertTrue(output.contains("missing config:"))
+        assertTrue(output.contains("appKey"))
+        assertTrue(output.contains("baseUrl"))
+        assertFalse(output.contains("id12345"))
+    }
+
+    @Test
+    fun envExplicitConfigOverridesLocalConfigAndDoesNotWriteValues() {
+        val temp = Files.createTempDirectory("classmate-smoke-env").toFile()
+        val config = File(temp, "config.local.json")
+        val outputDir = File(temp, "out")
+        config.writeText("""{"vivoCapture":{"appId":"local-id-12345","appKey":"local-key-67890","baseUrl":"https://local.example.invalid/"}}""")
+
+        val output = runSmokeScript(
+            "-DryRun",
+            "-UseLocalConfig",
+            "-LocalConfigPath",
+            config.absolutePath,
+            "-OutputDir",
+            outputDir.absolutePath,
+            env = mapOf(
+                "CLASSMATE_PROVIDER_SMOKE_OCR_URL" to "https://env.example.invalid/ocr",
+                "CLASSMATE_PROVIDER_SMOKE_OCR_AUTH_VALUE" to "env-secret-value",
+            ),
+        )
+
+        val resultJson = File(outputDir, "smoke_result.json").readText()
+        val resultMd = File(outputDir, "smoke_result.md").readText()
+        val log = File(outputDir, "smoke.log").readText()
+
+        assertTrue(output.contains("OCR: DRY_RUN_READY"))
+        assertTrue(resultJson.contains("ENV_EXPLICIT"))
+        assertTrue(resultMd.contains("ENV_EXPLICIT"))
+        listOf("env-secret-value", "local-key-67890", "local-id-12345", "env.example.invalid", "local.example.invalid").forEach {
+            assertFalse("secret/config value leaked: $it", resultJson.contains(it))
+            assertFalse("secret/config value leaked: $it", resultMd.contains(it))
+            assertFalse("secret/config value leaked: $it", log.contains(it))
+        }
     }
 
     @Test
@@ -108,6 +216,9 @@ class OfficialProviderNetworkSmokeTest {
         assertTrue(script.contains("SeamReadyButEndpointMappingMissing"))
         assertTrue(script.contains("endpointMappingStatus"))
         assertTrue(script.contains("requestSchemaStatus"))
+        assertTrue(script.contains("mappingSource"))
+        assertTrue(script.contains("missingConfigFields"))
+        assertTrue(script.contains("detectedConfigGroups"))
         assertTrue(script.contains("SEAM_ONLY"))
         assertTrue(script.contains("GENERIC_ONLY"))
     }

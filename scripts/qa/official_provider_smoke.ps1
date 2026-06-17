@@ -8,7 +8,8 @@ param(
     [switch]$VerboseLog,
     [switch]$PrintSetupHelp,
     [switch]$UseLocalConfig,
-    [switch]$ExplainConfig
+    [switch]$ExplainConfig,
+    [string]$LocalConfigPath
 )
 
 $ErrorActionPreference = "Continue"
@@ -16,6 +17,9 @@ $ErrorActionPreference = "Continue"
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 if (-not $OutputDir -or $OutputDir.Trim().Length -eq 0) {
     $OutputDir = Join-Path $RepoRoot ".codex_work\official_provider_smoke"
+}
+if (-not $LocalConfigPath -or $LocalConfigPath.Trim().Length -eq 0) {
+    $LocalConfigPath = Join-Path $RepoRoot "config.local.json"
 }
 
 $ResultJson = Join-Path $OutputDir "smoke_result.json"
@@ -30,6 +34,8 @@ $AppKeyName = ("app" + "Key")
 $AppIdName = ("app" + "Id")
 $ApiKeyName = ("api" + "Key")
 
+$DefaultOfficialDomain = "api-ai.vivo.com.cn"
+
 $SafeCapabilities = @(
     "OCR",
     "QUERY_REWRITE",
@@ -40,7 +46,7 @@ $SafeCapabilities = @(
     "EMBEDDING"
 )
 
-$CapabilityCatalog = @{
+$CapabilityCatalog = [ordered]@{
     "OCR" = @{
         docId = 1737
         tier = "product-facing"
@@ -48,8 +54,9 @@ $CapabilityCatalog = @{
         urlEnv = "CLASSMATE_PROVIDER_SMOKE_OCR_URL"
         authEnv = "CLASSMATE_PROVIDER_SMOKE_OCR_AUTH_VALUE"
         localPath = "/ocr/general_recognition"
-        localMapping = "READY"
+        providerMapping = "READY"
         requestSchema = "READY"
+        schemaNote = "form image,pos,businessid"
     }
     "QUERY_REWRITE" = @{
         docId = 2061
@@ -58,8 +65,9 @@ $CapabilityCatalog = @{
         urlEnv = "CLASSMATE_PROVIDER_SMOKE_QUERY_REWRITE_URL"
         authEnv = "CLASSMATE_PROVIDER_SMOKE_QUERY_REWRITE_AUTH_VALUE"
         localPath = "/query-rewrite-api/predict"
-        localMapping = "READY"
+        providerMapping = "READY"
         requestSchema = "READY"
+        schemaNote = "json query"
     }
     "TEXT_SIMILARITY" = @{
         docId = 2060
@@ -68,8 +76,9 @@ $CapabilityCatalog = @{
         urlEnv = "CLASSMATE_PROVIDER_SMOKE_TEXT_SIMILARITY_URL"
         authEnv = "CLASSMATE_PROVIDER_SMOKE_TEXT_SIMILARITY_AUTH_VALUE"
         localPath = "/similarity-model-api/predict"
-        localMapping = "READY"
+        providerMapping = "READY"
         requestSchema = "READY"
+        schemaNote = "json model_name,query,sentences"
     }
     "TRANSLATION" = @{
         docId = 1733
@@ -78,8 +87,9 @@ $CapabilityCatalog = @{
         urlEnv = "CLASSMATE_PROVIDER_SMOKE_TRANSLATION_URL"
         authEnv = "CLASSMATE_PROVIDER_SMOKE_TRANSLATION_AUTH_VALUE"
         localPath = ""
-        localMapping = "SEAM_ONLY"
+        providerMapping = "SEAM_ONLY"
         requestSchema = "GENERIC_ONLY"
+        schemaNote = "generic text/from/to seam"
     }
     "TTS" = @{
         docId = 1735
@@ -88,8 +98,9 @@ $CapabilityCatalog = @{
         urlEnv = "CLASSMATE_PROVIDER_SMOKE_TTS_URL"
         authEnv = "CLASSMATE_PROVIDER_SMOKE_TTS_AUTH_VALUE"
         localPath = ""
-        localMapping = "SEAM_ONLY"
+        providerMapping = "SEAM_ONLY"
         requestSchema = "GENERIC_ONLY"
+        schemaNote = "generic course-essence text seam"
     }
     "FUNCTION_CALLING" = @{
         docId = 1805
@@ -98,8 +109,9 @@ $CapabilityCatalog = @{
         urlEnv = "CLASSMATE_PROVIDER_SMOKE_FUNCTION_CALLING_URL"
         authEnv = "CLASSMATE_PROVIDER_SMOKE_FUNCTION_CALLING_AUTH_VALUE"
         localPath = ""
-        localMapping = "SEAM_ONLY"
+        providerMapping = "SEAM_ONLY"
         requestSchema = "GENERIC_ONLY"
+        schemaNote = "internal tool adapter seam"
     }
     "ASR_LONG" = @{
         docId = 1739
@@ -108,8 +120,9 @@ $CapabilityCatalog = @{
         urlEnv = "CLASSMATE_PROVIDER_SMOKE_ASR_LONG_URL"
         authEnv = "CLASSMATE_PROVIDER_SMOKE_ASR_LONG_AUTH_VALUE"
         localPath = "/lasr"
-        localMapping = "READY"
-        requestSchema = "MISSING"
+        providerMapping = "READY"
+        requestSchema = "READY"
+        schemaNote = "task flow create/upload/run/progress/result"
     }
     "EMBEDDING" = @{
         docId = 1734
@@ -118,8 +131,9 @@ $CapabilityCatalog = @{
         urlEnv = "CLASSMATE_PROVIDER_SMOKE_EMBEDDING_URL"
         authEnv = "CLASSMATE_PROVIDER_SMOKE_EMBEDDING_AUTH_VALUE"
         localPath = "/embedding-model-api/predict/batch"
-        localMapping = "READY"
+        providerMapping = "READY"
         requestSchema = "READY"
+        schemaNote = "json model_name,sentences"
     }
     "IMAGE_GEN" = @{
         docId = 1732
@@ -128,8 +142,9 @@ $CapabilityCatalog = @{
         urlEnv = "CLASSMATE_PROVIDER_SMOKE_IMAGE_GEN_URL"
         authEnv = "CLASSMATE_PROVIDER_SMOKE_IMAGE_GEN_AUTH_VALUE"
         localPath = ""
-        localMapping = "SEAM_ONLY"
+        providerMapping = "SEAM_ONLY"
         requestSchema = "GENERIC_ONLY"
+        schemaNote = "dev-lab only"
     }
     "VIDEO_GEN" = @{
         docId = 2201
@@ -138,8 +153,9 @@ $CapabilityCatalog = @{
         urlEnv = "CLASSMATE_PROVIDER_SMOKE_VIDEO_GEN_URL"
         authEnv = "CLASSMATE_PROVIDER_SMOKE_VIDEO_GEN_AUTH_VALUE"
         localPath = ""
-        localMapping = "SEAM_ONLY"
+        providerMapping = "SEAM_ONLY"
         requestSchema = "GENERIC_ONLY"
+        schemaNote = "dev-lab only"
     }
     "SHORT_ASR" = @{
         docId = 1738
@@ -148,8 +164,9 @@ $CapabilityCatalog = @{
         urlEnv = "CLASSMATE_PROVIDER_SMOKE_SHORT_ASR_URL"
         authEnv = "CLASSMATE_PROVIDER_SMOKE_SHORT_ASR_AUTH_VALUE"
         localPath = ""
-        localMapping = "SEAM_ONLY"
+        providerMapping = "SEAM_ONLY"
         requestSchema = "MISSING"
+        schemaNote = "evaluation only"
     }
     "DIALECT_ASR" = @{
         docId = 2065
@@ -158,8 +175,9 @@ $CapabilityCatalog = @{
         urlEnv = "CLASSMATE_PROVIDER_SMOKE_DIALECT_ASR_URL"
         authEnv = "CLASSMATE_PROVIDER_SMOKE_DIALECT_ASR_AUTH_VALUE"
         localPath = ""
-        localMapping = "SEAM_ONLY"
+        providerMapping = "SEAM_ONLY"
         requestSchema = "MISSING"
+        schemaNote = "evaluation only"
     }
     "SIMULTANEOUS_INTERPRETATION" = @{
         docId = 2068
@@ -168,8 +186,9 @@ $CapabilityCatalog = @{
         urlEnv = "CLASSMATE_PROVIDER_SMOKE_SIMULTANEOUS_INTERPRETATION_URL"
         authEnv = "CLASSMATE_PROVIDER_SMOKE_SIMULTANEOUS_INTERPRETATION_AUTH_VALUE"
         localPath = ""
-        localMapping = "SEAM_ONLY"
+        providerMapping = "SEAM_ONLY"
         requestSchema = "MISSING"
+        schemaNote = "evaluation only"
     }
 }
 
@@ -184,7 +203,8 @@ function Redact-Text($Text) {
     foreach ($name in $names) {
         $redacted = $redacted -replace "(?i)$([regex]::Escape($name))\s*[:=]\s*[^,\s;]+", "$name=<redacted>"
     }
-    foreach ($envName in @("CLASSMATE_PROVIDER_SMOKE_AUTH_VALUE")) {
+    $authEnvNames = @("CLASSMATE_PROVIDER_SMOKE_AUTH_VALUE") + ($CapabilityCatalog.Values | ForEach-Object { $_.authEnv })
+    foreach ($envName in ($authEnvNames | Select-Object -Unique)) {
         $value = [Environment]::GetEnvironmentVariable($envName)
         if ($value -and $value.Length -gt 0) {
             $redacted = $redacted.Replace($value, "<redacted>")
@@ -197,19 +217,33 @@ function Ensure-Directories {
     New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
     New-Item -ItemType Directory -Force -Path $InputDir | Out-Null
     New-Item -ItemType Directory -Force -Path $ProviderOutputDir | Out-Null
-    Set-Content -LiteralPath $LogPath -Value "Official provider smoke log $(Get-Date -Format o)"
+    try {
+        if (Test-Path -LiteralPath $LogPath) {
+            Remove-Item -LiteralPath $LogPath -Force -ErrorAction SilentlyContinue
+        }
+        New-Item -ItemType File -Force -Path $LogPath | Out-Null
+        Set-Content -LiteralPath $LogPath -Value "Official provider smoke log $(Get-Date -Format o)" -ErrorAction Stop
+    } catch {
+        Write-Host ("WARN unable to initialize smoke log: " + (Redact-Text $_.Exception.Message))
+    }
 }
 
 function Write-SmokeLog($Message) {
     $line = "$(Get-Date -Format o) $Message"
-    Add-Content -LiteralPath $LogPath -Value (Redact-Text $line)
+    try {
+        Add-Content -LiteralPath $LogPath -Value (Redact-Text $line) -ErrorAction Stop
+    } catch {
+        if ($VerboseLog) {
+            Write-Host ("WARN unable to write smoke log: " + (Redact-Text $_.Exception.Message))
+        }
+    }
     if ($VerboseLog) {
         Write-Host (Redact-Text $Message)
     }
 }
 
 function Print-SetupHelp {
-    Write-Host "Official provider smoke setup"
+    Write-Host "Official provider smoke setup v3"
     Write-Host ""
     Write-Host "Default mode is dry-run. Real requests require -RunNetwork and one explicit -Capability."
     Write-Host "config.local.json is not read unless -UseLocalConfig is passed."
@@ -228,62 +262,194 @@ function Print-SetupHelp {
     }
     Write-Host ""
     Write-Host "Local config opt-in:"
-    Write-Host "  -UseLocalConfig maps vivoCapture or providers.bluelm presence to smoke config."
+    Write-Host "  -UseLocalConfig maps value presence from vivoCapture, providers.bluelm, providers.qwen, or officialProviders."
     Write-Host "  Values are kept in memory only and are never printed or written."
+    Write-Host ""
+    Write-Host "Mapping states:"
+    Write-Host "  READY: endpoint/auth/schema can be derived."
+    Write-Host "  MISSING: required mapping or config is absent."
+    Write-Host "  SEAM_ONLY: a provider seam exists but no confirmed live endpoint mapping is available."
 }
 
 function Test-RealValue($Value) {
     if ($null -eq $Value) { return $false }
     $s = [string]$Value
     if ($s.Trim().Length -eq 0) { return $false }
-    if ($s -match "(?i)your_|your-|<your|placeholder") { return $false }
+    if ($s -match "(?i)your_|your-|<your|placeholder|changeme|todo") { return $false }
     return $true
 }
 
 function Normalize-Domain($Raw) {
     $value = [string]$Raw
-    if (-not (Test-RealValue $value)) { return "api-ai.vivo.com.cn" }
+    if (-not (Test-RealValue $value)) { return $DefaultOfficialDomain }
     return $value.Replace("https://", "").Replace("http://", "").TrimEnd("/")
 }
 
-function Read-LocalSmokeConfig {
-    $path = Join-Path $RepoRoot "config.local.json"
-    $state = [PSCustomObject]@{
-        exists = Test-Path -LiteralPath $path
+function Get-ObjectPropertyValue($Object, [string[]]$Names) {
+    if ($null -eq $Object) { return $null }
+    $props = $Object.PSObject.Properties
+    foreach ($name in $Names) {
+        $match = $props | Where-Object { $_.Name -ieq $name } | Select-Object -First 1
+        if ($match) { return $match.Value }
+    }
+    return $null
+}
+
+function Test-ObjectPropertyExists($Object, [string[]]$Names) {
+    if ($null -eq $Object) { return $false }
+    $props = $Object.PSObject.Properties
+    foreach ($name in $Names) {
+        if ($props | Where-Object { $_.Name -ieq $name } | Select-Object -First 1) {
+            return $true
+        }
+    }
+    return $false
+}
+
+function Get-ChildConfigGroup($Root, [string[]]$Names) {
+    return Get-ObjectPropertyValue $Root $Names
+}
+
+function New-LocalConfigState($Path) {
+    [PSCustomObject]@{
+        exists = Test-Path -LiteralPath $Path
         read = $false
         parseOk = $false
+        detectedConfigGroups = @()
+        vivoCaptureExists = $false
+        providersExists = $false
+        providersBluelmExists = $false
+        providersQwenExists = $false
+        topLevelBlueLmExists = $false
+        officialProvidersExists = $false
+        officialProvidersVivoCaptureExists = $false
+        credentialSource = "NONE"
+        domainSource = "PROVIDER_CODE_DEFAULT"
         hasAppId = $false
         hasAppKey = $false
         hasBaseUrl = $false
-        domain = ""
+        domain = $DefaultOfficialDomain
         appId = ""
         appKey = ""
+        missingConfigFields = @()
     }
+}
+
+function Add-DetectedGroup($State, [string]$GroupName) {
+    if (-not ($State.detectedConfigGroups -contains $GroupName)) {
+        $State.detectedConfigGroups = @($State.detectedConfigGroups + $GroupName)
+    }
+}
+
+function Get-CredentialCandidate($Group, [string]$SourceName) {
+    if ($null -eq $Group) { return $null }
+    $appId = Get-ObjectPropertyValue $Group @("appId", "appID", "appid", "app_id", "AppID", "APP_ID")
+    $appKey = Get-ObjectPropertyValue $Group @("appKey", "appKEY", "appkey", "app_key", "AppKey", "AppKEY", "APP_KEY", "token")
+    $baseUrl = Get-ObjectPropertyValue $Group @("baseUrl", "baseURL", "base_url", "url", "endpoint", "domain", "host")
+    return [PSCustomObject]@{
+        source = $SourceName
+        appId = $appId
+        appKey = $appKey
+        baseUrl = $baseUrl
+        hasAppId = Test-RealValue $appId
+        hasAppKey = Test-RealValue $appKey
+        hasBaseUrl = Test-RealValue $baseUrl
+    }
+}
+
+function Select-CredentialCandidate([object[]]$Candidates) {
+    foreach ($candidate in $Candidates) {
+        if ($candidate -and $candidate.hasAppId -and $candidate.hasAppKey) {
+            return $candidate
+        }
+    }
+    foreach ($candidate in $Candidates) {
+        if ($candidate -and ($candidate.hasAppId -or $candidate.hasAppKey -or $candidate.hasBaseUrl)) {
+            return $candidate
+        }
+    }
+    return $null
+}
+
+function Read-LocalSmokeConfig {
+    $state = New-LocalConfigState $LocalConfigPath
     if (-not $UseLocalConfig -or -not $state.exists) {
         return $state
     }
     try {
-        $jsonText = Get-Content -LiteralPath $path -Raw
+        $jsonText = Get-Content -LiteralPath $LocalConfigPath -Raw
         $state.read = $true
         $root = $jsonText | ConvertFrom-Json
-        $capture = $root.vivoCapture
-        $bluelm = $null
-        if ($root.providers) { $bluelm = $root.providers.bluelm }
 
-        $appId = if ($capture -and (Test-RealValue $capture.appId)) { [string]$capture.appId } elseif ($bluelm -and (Test-RealValue $bluelm.appId)) { [string]$bluelm.appId } else { "" }
-        $appKey = if ($capture -and (Test-RealValue $capture.appKey)) { [string]$capture.appKey } elseif ($bluelm -and (Test-RealValue $bluelm.appKey)) { [string]$bluelm.appKey } else { "" }
-        $baseUrl = if ($capture -and (Test-RealValue $capture.baseUrl)) { [string]$capture.baseUrl } elseif ($bluelm -and (Test-RealValue $bluelm.baseUrl)) { [string]$bluelm.baseUrl } else { "" }
+        $vivoCapture = Get-ChildConfigGroup $root @("vivoCapture", "capture", "vivo")
+        $providers = Get-ChildConfigGroup $root @("providers")
+        $bluelm = Get-ChildConfigGroup $providers @("bluelm", "blueLm", "blueLM")
+        $qwen = Get-ChildConfigGroup $providers @("qwen", "qwen35", "qwen3_5")
+        $officialProviders = Get-ChildConfigGroup $root @("officialProviders", "officialProvider", "official")
+        $officialVivoCapture = Get-ChildConfigGroup $officialProviders @("vivoCapture", "capture", "vivo")
+        $officialBlueLm = Get-ChildConfigGroup $officialProviders @("bluelm", "blueLm", "blueLM")
+        $officialQwen = Get-ChildConfigGroup $officialProviders @("qwen", "qwen35", "qwen3_5")
+        $providerName = Get-ObjectPropertyValue $root @("provider", "activeProvider")
+        $rootHasCredentialFields =
+            (Test-ObjectPropertyExists $root @("appId", "appID", "appid", "app_id", "AppID", "APP_ID")) -or
+            (Test-ObjectPropertyExists $root @("appKey", "appKEY", "appkey", "app_key", "AppKey", "AppKEY", "APP_KEY", "token")) -or
+            (Test-ObjectPropertyExists $root @("baseUrl", "baseURL", "base_url", "url", "endpoint", "domain", "host"))
+        $topLevelBlueLm = if ($rootHasCredentialFields -and (($null -eq $providerName) -or ([string]$providerName -match "(?i)blue|qwen|official"))) { $root } else { $null }
 
+        $state.vivoCaptureExists = $null -ne $vivoCapture
+        $state.providersExists = $null -ne $providers
+        $state.providersBluelmExists = $null -ne $bluelm
+        $state.providersQwenExists = $null -ne $qwen
+        $state.topLevelBlueLmExists = $null -ne $topLevelBlueLm
+        $state.officialProvidersExists = $null -ne $officialProviders
+        $state.officialProvidersVivoCaptureExists = $null -ne $officialVivoCapture
+
+        if ($state.vivoCaptureExists) { Add-DetectedGroup $state "vivoCapture" }
+        if ($state.providersExists) { Add-DetectedGroup $state "providers" }
+        if ($state.providersBluelmExists) { Add-DetectedGroup $state "providers.bluelm" }
+        if ($state.providersQwenExists) { Add-DetectedGroup $state "providers.qwen" }
+        if ($state.topLevelBlueLmExists) { Add-DetectedGroup $state "topLevel.bluelm" }
+        if ($state.officialProvidersExists) { Add-DetectedGroup $state "officialProviders" }
+        if ($state.officialProvidersVivoCaptureExists) { Add-DetectedGroup $state "officialProviders.vivoCapture" }
+        if ($null -ne $officialBlueLm) { Add-DetectedGroup $state "officialProviders.bluelm" }
+        if ($null -ne $officialQwen) { Add-DetectedGroup $state "officialProviders.qwen" }
+
+        $candidate = Select-CredentialCandidate @(
+            (Get-CredentialCandidate $vivoCapture "LOCAL_CONFIG_VIVO_CAPTURE"),
+            (Get-CredentialCandidate $officialVivoCapture "LOCAL_CONFIG_VIVO_CAPTURE"),
+            (Get-CredentialCandidate $bluelm "LOCAL_CONFIG_BLUELM"),
+            (Get-CredentialCandidate $officialBlueLm "LOCAL_CONFIG_BLUELM"),
+            (Get-CredentialCandidate $topLevelBlueLm "LOCAL_CONFIG_BLUELM"),
+            (Get-CredentialCandidate $qwen "LOCAL_CONFIG_QWEN"),
+            (Get-CredentialCandidate $officialQwen "LOCAL_CONFIG_QWEN")
+        )
+
+        if ($candidate) {
+            $state.credentialSource = $candidate.source
+            $state.hasAppId = [bool]$candidate.hasAppId
+            $state.hasAppKey = [bool]$candidate.hasAppKey
+            $state.hasBaseUrl = [bool]$candidate.hasBaseUrl
+            if ($candidate.hasBaseUrl) {
+                $state.domain = Normalize-Domain $candidate.baseUrl
+                $state.domainSource = $candidate.source
+            }
+            if ($candidate.hasAppId) { $state.appId = [string]$candidate.appId }
+            if ($candidate.hasAppKey) { $state.appKey = [string]$candidate.appKey }
+        }
+
+        $missingConfig = New-Object System.Collections.Generic.List[string]
+        if (-not ($state.vivoCaptureExists -or $state.providersBluelmExists -or $state.providersQwenExists -or $state.officialProvidersVivoCaptureExists -or $state.topLevelBlueLmExists)) {
+            [void]$missingConfig.Add("vivoCapture or providers.bluelm or providers.qwen or top-level BlueLM")
+        }
+        if (-not $state.hasAppId) { [void]$missingConfig.Add("appId") }
+        if (-not $state.hasAppKey) { [void]$missingConfig.Add("appKey") }
+        if (-not $state.hasBaseUrl) { [void]$missingConfig.Add("baseUrl (provider default domain will be used if auth is present)") }
+        $state.missingConfigFields = @($missingConfig | Select-Object -Unique)
         $state.parseOk = $true
-        $state.hasAppId = Test-RealValue $appId
-        $state.hasAppKey = Test-RealValue $appKey
-        $state.hasBaseUrl = Test-RealValue $baseUrl
-        $state.domain = Normalize-Domain $baseUrl
-        $state.appId = $appId
-        $state.appKey = $appKey
     } catch {
         $state.read = $true
         $state.parseOk = $false
+        $state.missingConfigFields = @("config parse failed")
     }
     return $state
 }
@@ -350,6 +516,14 @@ function Get-SelectedCapabilities {
     return @($SafeCapabilities)
 }
 
+function New-ConcreteUrl($Domain, $Path, $CapabilityName) {
+    if (-not (Test-RealValue $Path)) { return "" }
+    if ($CapabilityName -eq "OCR") {
+        return "https://$Domain$Path?requestId=classmate-smoke"
+    }
+    return "https://$Domain$Path"
+}
+
 function Get-SmokeConfig($CapabilityName, $LocalConfig) {
     $entry = $CapabilityCatalog[$CapabilityName]
     $url = Get-EnvOrEmpty $entry.urlEnv
@@ -359,43 +533,62 @@ function Get-SmokeConfig($CapabilityName, $LocalConfig) {
     if (-not $authHeader) { $authHeader = $AuthHeaderName }
 
     $configSource = "NONE"
+    $mappingSource = "NONE"
     $endpointMappingStatus = "MISSING"
     $authMappingStatus = "MISSING"
     $requestSchemaStatus = $entry.requestSchema
-    $missing = New-Object System.Collections.Generic.List[string]
+    $missingEnv = New-Object System.Collections.Generic.List[string]
+    $missingConfig = New-Object System.Collections.Generic.List[string]
 
     if (Test-RealValue $url) {
-        $configSource = "ENV"
+        $configSource = "ENV_EXPLICIT"
+        $mappingSource = "ENV_EXPLICIT"
         $endpointMappingStatus = "READY"
-    } elseif ($UseLocalConfig -and $LocalConfig.read -and $LocalConfig.hasAppId -and $LocalConfig.hasAppKey -and $entry.localMapping -eq "READY") {
-        $configSource = "LOCAL_CONFIG_OPT_IN"
+    } elseif ($entry.providerMapping -eq "READY") {
+        $mappingSource = if ($LocalConfig.read -and $LocalConfig.hasBaseUrl) { $LocalConfig.domainSource } else { "PROVIDER_CODE_DEFAULT" }
         $endpointMappingStatus = "READY"
-        if ($CapabilityName -eq "OCR") {
-            $url = "https://$($LocalConfig.domain)$($entry.localPath)?requestId=classmate-smoke"
-        } else {
-            $url = "https://$($LocalConfig.domain)$($entry.localPath)"
+        $url = New-ConcreteUrl $LocalConfig.domain $entry.localPath $CapabilityName
+        if (-not $LocalConfig.read -and -not (Test-RealValue $url)) {
+            [void]$missingEnv.Add($entry.urlEnv)
         }
-    } elseif ($entry.localMapping -eq "SEAM_ONLY") {
+    } elseif ($entry.providerMapping -eq "SEAM_ONLY") {
         $endpointMappingStatus = "SEAM_ONLY"
-        [void]$missing.Add($entry.urlEnv)
+        $mappingSource = "NONE"
+        [void]$missingEnv.Add($entry.urlEnv)
     } else {
-        [void]$missing.Add($entry.urlEnv)
+        [void]$missingEnv.Add($entry.urlEnv)
     }
 
     if (Test-RealValue $authValue) {
-        $configSource = "ENV"
+        $configSource = "ENV_EXPLICIT"
         $authMappingStatus = "READY"
     } elseif (Test-RealValue $globalAuth) {
-        if ($configSource -eq "NONE") { $configSource = "ENV" }
+        if ($configSource -eq "NONE") { $configSource = "ENV_EXPLICIT" }
         $authValue = $globalAuth
         $authMappingStatus = "READY"
-    } elseif ($UseLocalConfig -and $LocalConfig.read -and $LocalConfig.hasAppKey) {
-        if ($configSource -eq "NONE") { $configSource = "LOCAL_CONFIG_OPT_IN" }
+    } elseif ($LocalConfig.read -and $LocalConfig.hasAppKey) {
+        if ($configSource -eq "NONE") { $configSource = $LocalConfig.credentialSource }
         $authValue = $LocalConfig.appKey
         $authMappingStatus = "READY"
     } else {
-        [void]$missing.Add($entry.authEnv)
-        [void]$missing.Add("CLASSMATE_PROVIDER_SMOKE_AUTH_VALUE")
+        [void]$missingEnv.Add($entry.authEnv)
+        [void]$missingEnv.Add("CLASSMATE_PROVIDER_SMOKE_AUTH_VALUE")
+        if ($LocalConfig.read) {
+            foreach ($field in $LocalConfig.missingConfigFields) {
+                if ($field -eq "appKey" -or $field -like "vivoCapture*") {
+                    [void]$missingConfig.Add($field)
+                }
+            }
+        }
+    }
+
+    if ($LocalConfig.read) {
+        if (-not $LocalConfig.hasAppId) { [void]$missingConfig.Add("appId") }
+        if (-not $LocalConfig.hasAppKey) { [void]$missingConfig.Add("appKey") }
+        if (-not $LocalConfig.hasBaseUrl) { [void]$missingConfig.Add("baseUrl (provider default domain will be used if auth is present)") }
+        if (-not ($LocalConfig.vivoCaptureExists -or $LocalConfig.providersBluelmExists -or $LocalConfig.providersQwenExists -or $LocalConfig.officialProvidersVivoCaptureExists -or $LocalConfig.topLevelBlueLmExists)) {
+            [void]$missingConfig.Add("vivoCapture or providers.bluelm or providers.qwen or top-level BlueLM")
+        }
     }
 
     [PSCustomObject]@{
@@ -404,12 +597,16 @@ function Get-SmokeConfig($CapabilityName, $LocalConfig) {
         authValue = $authValue
         configSource = $configSource
         localConfigRead = [bool]$LocalConfig.read
+        detectedConfigGroups = @($LocalConfig.detectedConfigGroups)
         endpointMappingStatus = $endpointMappingStatus
         authMappingStatus = $authMappingStatus
         requestSchemaStatus = $requestSchemaStatus
-        missingEnvNames = @($missing | Select-Object -Unique)
+        missingEnvNames = @($missingEnv | Select-Object -Unique)
+        missingConfigFields = @($missingConfig | Select-Object -Unique)
+        mappingSource = $mappingSource
         allowNoAuth = ((Get-EnvOrEmpty "CLASSMATE_PROVIDER_SMOKE_ALLOW_NO_AUTH") -eq "1")
         appId = $LocalConfig.appId
+        schemaNote = $entry.schemaNote
     }
 }
 
@@ -446,6 +643,20 @@ function New-RequestPayload($CapabilityName) {
     }
 }
 
+function New-EmptySmokeConfig($LocalConfig) {
+    [PSCustomObject]@{
+        missingEnvNames = @()
+        missingConfigFields = @()
+        detectedConfigGroups = @($LocalConfig.detectedConfigGroups)
+        configSource = "NONE"
+        localConfigRead = [bool]$LocalConfig.read
+        endpointMappingStatus = "MISSING"
+        authMappingStatus = "MISSING"
+        requestSchemaStatus = "MISSING"
+        mappingSource = "NONE"
+    }
+}
+
 function New-SmokeResult {
     param(
         [string]$CapabilityName,
@@ -473,26 +684,22 @@ function New-SmokeResult {
         durationMs = $DurationMs
         timestamp = (Get-Date -Format o)
         missingEnvNames = @($SmokeConfig.missingEnvNames)
+        missingConfigFields = @($SmokeConfig.missingConfigFields)
+        detectedConfigGroups = @($SmokeConfig.detectedConfigGroups)
         configSource = $SmokeConfig.configSource
         localConfigRead = [bool]$SmokeConfig.localConfigRead
         endpointMappingStatus = $SmokeConfig.endpointMappingStatus
         authMappingStatus = $SmokeConfig.authMappingStatus
         requestSchemaStatus = $SmokeConfig.requestSchemaStatus
+        mappingSource = $SmokeConfig.mappingSource
     }
 }
 
 function Invoke-CapabilitySmoke($CapabilityName, $LocalConfig) {
     $started = Get-Date
     $mode = if ($RunNetwork) { "NETWORK" } else { "DRY_RUN" }
-    if (-not $CapabilityCatalog.ContainsKey($CapabilityName)) {
-        $emptyConfig = [PSCustomObject]@{
-            missingEnvNames = @()
-            configSource = "NONE"
-            localConfigRead = [bool]$LocalConfig.read
-            endpointMappingStatus = "MISSING"
-            authMappingStatus = "MISSING"
-            requestSchemaStatus = "MISSING"
-        }
+    if (-not $CapabilityCatalog.Contains($CapabilityName)) {
+        $emptyConfig = New-EmptySmokeConfig $LocalConfig
         return New-SmokeResult -CapabilityName $CapabilityName -Mode $mode -Status "SKIPPED_NOT_ALLOWED" -SmokeConfig $emptyConfig -RequestSent $false -SanitizedStatus "Capability is not in the allowed smoke catalog." -SanitizedError "" -OutputPath "" -DurationMs 0
     }
 
@@ -520,17 +727,17 @@ function Invoke-CapabilitySmoke($CapabilityName, $LocalConfig) {
     }
     if ($smokeConfig.authMappingStatus -ne "READY" -and -not $smokeConfig.allowNoAuth) {
         $elapsed = [int]((Get-Date) - $started).TotalMilliseconds
-        return New-SmokeResult -CapabilityName $CapabilityName -Mode "NETWORK" -Status "SKIPPED_CONFIG_MISSING" -SmokeConfig $smokeConfig -RequestSent $false -SanitizedStatus "ConfigMissing. Missing URL or auth environment variables are listed in missingEnvNames." -SanitizedError "" -OutputPath "" -DurationMs $elapsed
+        return New-SmokeResult -CapabilityName $CapabilityName -Mode "NETWORK" -Status "SKIPPED_CONFIG_MISSING" -SmokeConfig $smokeConfig -RequestSent $false -SanitizedStatus "ConfigMissing. Missing auth fields are listed without values." -SanitizedError "" -OutputPath "" -DurationMs $elapsed
     }
     if ($smokeConfig.requestSchemaStatus -ne "READY") {
         $elapsed = [int]((Get-Date) - $started).TotalMilliseconds
-        return New-SmokeResult -CapabilityName $CapabilityName -Mode "NETWORK" -Status "SKIPPED_ENDPOINT_MAPPING_MISSING" -SmokeConfig $smokeConfig -RequestSent $false -SanitizedStatus "RequestSchemaMissing." -SanitizedError "" -OutputPath "" -DurationMs $elapsed
+        return New-SmokeResult -CapabilityName $CapabilityName -Mode "NETWORK" -Status "SKIPPED_REQUEST_SCHEMA_MISSING" -SmokeConfig $smokeConfig -RequestSent $false -SanitizedStatus "RequestSchemaMissing." -SanitizedError "" -OutputPath "" -DurationMs $elapsed
     }
 
     try {
         $headers = @{}
         if (Test-RealValue $smokeConfig.authValue) {
-            $headers[$smokeConfig.authHeader] = "$BearerWord $($smokeConfig.authValue)"
+            $headers[$smokeConfig.authHeader] = $BearerWord + " " + $smokeConfig.authValue
         }
         $safeName = $CapabilityName.ToString().ToLowerInvariant()
         $outputPath = Join-Path $ProviderOutputDir "$($safeName)_response.txt"
@@ -559,12 +766,20 @@ function Write-ExplainConfig($LocalConfig, $Selected) {
     Write-Host "Official provider smoke config status"
     Write-Host ("config.local.json exists: " + $LocalConfig.exists)
     Write-Host ("local config read: " + $LocalConfig.read)
+    Write-Host ("vivoCapture exists: " + $LocalConfig.vivoCaptureExists)
+    Write-Host ("providers.bluelm exists: " + $LocalConfig.providersBluelmExists)
+    Write-Host ("providers.qwen exists: " + $LocalConfig.providersQwenExists)
+    Write-Host ("topLevel.bluelm exists: " + $LocalConfig.topLevelBlueLmExists)
+    Write-Host ("officialProviders exists: " + $LocalConfig.officialProvidersExists)
     foreach ($cap in $Selected) {
-        if (-not $CapabilityCatalog.ContainsKey($cap)) { continue }
+        if (-not $CapabilityCatalog.Contains($cap)) { continue }
         $cfg = Get-SmokeConfig $cap $LocalConfig
-        Write-Host ("- " + $cap + ": capability URL configured=" + ($cfg.endpointMappingStatus -eq "READY") + "; auth configured=" + ($cfg.authMappingStatus -eq "READY") + "; source=" + $cfg.configSource + "; endpointMapping=" + $cfg.endpointMappingStatus + "; requestSchema=" + $cfg.requestSchemaStatus)
+        Write-Host ("- " + $cap + ": capability URL configured=" + ($cfg.endpointMappingStatus -eq "READY") + "; auth configured=" + ($cfg.authMappingStatus -eq "READY") + "; source=" + $cfg.configSource + "; mappingSource=" + $cfg.mappingSource + "; endpointMapping=" + $cfg.endpointMappingStatus + "; authMapping=" + $cfg.authMappingStatus + "; requestSchema=" + $cfg.requestSchemaStatus + "; requestSent=False")
         if ($cfg.missingEnvNames.Count -gt 0) {
             Write-Host ("  missing env: " + (($cfg.missingEnvNames | Select-Object -Unique) -join ", "))
+        }
+        if ($cfg.missingConfigFields.Count -gt 0) {
+            Write-Host ("  missing config: " + (($cfg.missingConfigFields | Select-Object -Unique) -join ", "))
         }
     }
 }
@@ -577,6 +792,7 @@ function Write-Results {
         runNetwork = [bool]$RunNetwork
         configLocalExists = [bool]$LocalConfig.exists
         configLocalRead = [bool]$LocalConfig.read
+        detectedConfigGroups = @($LocalConfig.detectedConfigGroups)
         aarExists = Test-Path -LiteralPath (Join-Path $RepoRoot "app\libs\llm-sdk-release.aar")
         aarRead = $false
         resultCount = @($Results).Count
@@ -599,6 +815,7 @@ function Write-Results {
     $md += ("- RunNetwork: " + $summary.runNetwork)
     $md += ("- config.local.json exists: " + $summary.configLocalExists + " (content read only with -UseLocalConfig)")
     $md += ("- local config read: " + $summary.configLocalRead)
+    $md += ("- detected config groups: " + ($(if ($summary.detectedConfigGroups.Count -gt 0) { $summary.detectedConfigGroups -join ", " } else { "None" })))
     $md += ("- AAR exists: " + $summary.aarExists + " (content not read)")
     $md += ("- Passed: " + $passed.Count)
     $md += ("- Skipped: " + $skipped.Count)
@@ -607,11 +824,12 @@ function Write-Results {
     $md += ""
     $md += "## Capability Table"
     $md += ""
-    $md += "| Capability | mode | status | requestSent | configSource | localConfigRead | endpointMapping | authMapping | requestSchema | missingEnvNames |"
-    $md += "|---|---|---|---|---|---|---|---|---|---|"
+    $md += "| Capability | mode | status | requestSent | configSource | mappingSource | endpointMapping | authMapping | requestSchema | missingEnvNames | missingConfigFields |"
+    $md += "|---|---|---|---|---|---|---|---|---|---|---|"
     foreach ($r in $Results) {
-        $missing = if ($r.missingEnvNames.Count -gt 0) { ($r.missingEnvNames -join "<br>") } else { "" }
-        $md += ("| " + $r.capability + " | " + $r.mode + " | " + $r.status + " | " + $r.requestSent + " | " + $r.configSource + " | " + $r.localConfigRead + " | " + $r.endpointMappingStatus + " | " + $r.authMappingStatus + " | " + $r.requestSchemaStatus + " | " + $missing + " |")
+        $missingEnv = if ($r.missingEnvNames.Count -gt 0) { ($r.missingEnvNames -join "<br>") } else { "" }
+        $missingConfig = if ($r.missingConfigFields.Count -gt 0) { ($r.missingConfigFields -join "<br>") } else { "" }
+        $md += ("| " + $r.capability + " | " + $r.mode + " | " + $r.status + " | " + $r.requestSent + " | " + $r.configSource + " | " + $r.mappingSource + " | " + $r.endpointMappingStatus + " | " + $r.authMappingStatus + " | " + $r.requestSchemaStatus + " | " + $missingEnv + " | " + $missingConfig + " |")
     }
     $md += ""
     $md += "## Passed"
@@ -624,7 +842,7 @@ function Write-Results {
     if ($failed.Count -eq 0) { $md += "- None" } else { $failed | ForEach-Object { $md += ("- " + $_.capability + ": " + $_.sanitizedError) } }
     $md += ""
     $md += "## ConfigMissing"
-    if ($configMissing.Count -eq 0) { $md += "- None" } else { $configMissing | ForEach-Object { $md += ("- " + $_.capability + ": " + ($_.missingEnvNames -join ", ")) } }
+    if ($configMissing.Count -eq 0) { $md += "- None" } else { $configMissing | ForEach-Object { $md += ("- " + $_.capability + ": " + ($_.missingEnvNames -join ", ") + " / " + ($_.missingConfigFields -join ", ")) } }
     $md += ""
     $md += "## Next Action"
     if ($RunNetwork) {
