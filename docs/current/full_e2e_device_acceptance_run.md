@@ -1,6 +1,6 @@
 # Full P0-P2 End-to-End Device Acceptance Run
 
-> Current status note (2026-06-18): this document remains the historical record that device execution was not performed at that time. Since then, official provider smoke has advanced: OCR, TEXT_SIMILARITY, and EMBEDDING are real network `PASS`; QUERY_REWRITE is configured `READY` but live-smoke blocked with fallback available. The next mainline is App-level L3 cloud-device end-to-end validation.
+> Current status note (2026-06-18): this document remains the historical record that device execution was not performed at that time. Since then, official provider smoke has advanced: OCR, QUERY_REWRITE, TEXT_SIMILARITY, and EMBEDDING are real network `PASS`. Query Rewrite's earlier blocked state was traced by Claude to a smoke request body schema mismatch and fixed with the official docId 2061 `prompts` schema. The next mainline is App-level L3 cloud-device end-to-end validation.
 
 ## 1. Date / Branch / Commit
 

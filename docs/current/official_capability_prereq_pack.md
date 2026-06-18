@@ -16,15 +16,15 @@
 | Provider | Config status | Live smoke status | Notes |
 |---|---|---|---|
 | OCR | `READY` | `PASS` | 官方 product-facing OCR provider smoke 已真实通过。 |
+| QUERY_REWRITE | `READY` | `PASS` | 官方 query rewrite smoke 已真实通过；此前 blocked 根因为请求体 schema mismatch，已按 docId 2061 `prompts` schema 修复。 |
 | TEXT_SIMILARITY | `READY` | `PASS` | 官方 rerank / retrieval enhancement smoke 已真实通过。 |
 | EMBEDDING | `READY` | `PASS` | 官方 vector retrieval foundation smoke 已真实通过。 |
-| QUERY_REWRITE | `READY` | `BLOCKED` | live smoke/runtime path blocked；不是官方 provider 不可用证据，也不是 L3 blocker。 |
 | TRANSLATION | seam-only | not run | 后置。 |
 | TTS | seam-only | not run | 后置。 |
 | FUNCTION_CALLING | seam-only | not run | 后置。 |
 | ASR_LONG | deferred | not run | 单独用非敏感音频验证。 |
 
-下一主线：App-level L3 云真机/真机学习闭环验证。Query Rewrite 可由 Claude/provider diagnostics 专项继续尝试，但不阻塞 L3 主线；产品 fallback 为 qwen3.5-plus rewrite、local safe rewrite 或 direct retrieval。
+下一主线：App-level L3 云真机/真机学习闭环验证。Query Rewrite 已由 Claude/provider diagnostics 专项修复并真实 smoke `PASS`；产品 fallback 仍保留 qwen3.5-plus rewrite、local safe rewrite 或 direct retrieval。
 
 ## Official Docs Coverage Check
 
@@ -339,7 +339,7 @@ Non-capability reference docs:
 - Official title: 查询改写
 - docId: `2061`
 - Local captured path: `.codex_work/official_docs/vivo_aigc_docs/pages/018-2061-查询改写/`
-- Current ClassMate status: officialProviders.queryRewrite 已配置到 READY，但 live smoke/runtime path blocked；作为增强能力后置专项诊断，产品保留 qwen3.5-plus rewrite / local safe rewrite / direct retrieval fallback。
+- Current ClassMate status: officialProviders.queryRewrite 已配置到 READY 并通过真实 network smoke；此前 blocked 根因为 smoke 请求体 schema mismatch，Claude 已按官方 docId 2061 `prompts` schema 修复。产品仍保留 qwen3.5-plus rewrite / local safe rewrite / direct retrieval fallback。
 - Priority: P0
 - Decision: Build now as part of Retrieval Providers v1.
 - Why it matters for ClassMate: 把学生自然问题改写成更适合 evidence retrieval 的查询。

@@ -93,6 +93,8 @@ Do not commit `.codex_work` smoke outputs, `config.local.json`, or local backup 
 
 ## 2026-06-18 Query Rewrite Hard Hang Before Results
 
+Superseded by Claude provider-smoke fix: the live hang root cause was a Query Rewrite request body schema mismatch. The smoke harness previously sent `{ "query": "..." }`; official docId 2061 requires a `prompts` array schema. After that fix, Query Rewrite real network smoke is `PASS`.
+
 Observed operator behavior:
 
 - capability: `QUERY_REWRITE`
@@ -135,28 +137,33 @@ Expected timeout result:
 - `uriValidated=True`
 - `sanitizedError=Timed out after configured timeout`
 
-Current decision:
+Historical decision, superseded by the schema fix:
 
-- Query Rewrite explain/config status is `READY`, but live smoke remains `BLOCKED` because repeated live runs have left the final result at `RUNNING`.
-- The offline timeout self-test succeeds, so the hard-timeout self-test path is valid; the Query Rewrite live path still needs deeper runtime investigation later.
+- Query Rewrite explain/config status was `READY`, but live smoke remained `BLOCKED` because repeated live runs had left the final result at `RUNNING`.
+- The offline timeout self-test succeeded, so the hard-timeout self-test path was valid; the Query Rewrite live path still needed deeper runtime investigation at that point.
 - This is not proof that the official Query Rewrite provider is unavailable.
 - This is not a P0/P1/P2/L3 product blocker because query rewrite is an evidence retrieval enhancement.
 - Product fallback remains cloud large-model rewriting with qwen3.5-plus when available, then local safe rewrite or direct local retrieval.
 
-Do not keep retrying Query Rewrite live smoke in the current validation pass.
+Later resolution:
+
+- Claude diagnosed the root cause as the wrong Query Rewrite request body schema.
+- Old payload: `{ "query": "..." }`.
+- Official docId 2061 payload: `{ "prompts": [[q3,a3,q2,a2,q1,a1],[current_query]] }`.
+- Endpoint, method, and content type were already correct.
+- After the schema fix, Query Rewrite real network smoke is `PASS`.
 
 Updated 2026-06-18 provider smoke outcome:
 
 - OCR: `PASS`
+- QUERY_REWRITE: `PASS`
 - TEXT_SIMILARITY: `PASS`
 - EMBEDDING: `PASS`
-- QUERY_REWRITE: configured `READY`, live smoke `BLOCKED`, fallback available
 
 Next mainline:
 
 - Move to App-level L3 cloud-device end-to-end validation.
-- Do not treat Query Rewrite as a blocker for L3.
-- If Query Rewrite is revisited, handle it as a separate provider diagnostics task, not as the main readiness path.
+- Do not expand feature scope before L3; optimize from device findings.
 
 Any future provider smoke must still start with value-free readiness:
 

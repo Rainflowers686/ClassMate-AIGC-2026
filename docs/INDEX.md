@@ -6,12 +6,12 @@
 
 最新当前态以 `docs/current/` 为准：
 
-- `current/official_provider_network_smoke_run.md`：官方 provider smoke 当前矩阵，OCR / TEXT_SIMILARITY / EMBEDDING 已真实 network `PASS`；QUERY_REWRITE 为 `READY / live smoke BLOCKED / fallback available`。
-- `current/official_provider_smoke_setup.md`：provider smoke 安全运行方式、配置解释、timeout 与 Query Rewrite blocked 处理。
+- `current/official_provider_network_smoke_run.md`：官方 provider smoke 当前矩阵，OCR / QUERY_REWRITE / TEXT_SIMILARITY / EMBEDDING 已真实 network `PASS`。
+- `current/official_provider_smoke_setup.md`：provider smoke 安全运行方式、配置解释、timeout 与 Query Rewrite schema 修复记录。
 - `current/stage10_baseline.md`：当前产品基线和 L3 readiness 说明。
 - `current/full_e2e_device_acceptance_run.md`：历史端到端设备验收记录；下一主线是 App-level L3 云真机/真机闭环验证。
 
-旧 Stage / competition / testing 文档保留历史证据链，不一定代表最新状态。不要把 Query Rewrite live-smoke blocked 当作 L3 blocker；可单独交给 Claude/provider diagnostics 继续排查。
+旧 Stage / competition / testing 文档保留历史证据链，不一定代表最新状态。Query Rewrite live-smoke blocked 已由 Claude 专项定位为请求体 schema mismatch 并修复；最新状态以四项 provider `PASS` 矩阵为准。
 
 ## 1. 复赛 / 答辩材料
 

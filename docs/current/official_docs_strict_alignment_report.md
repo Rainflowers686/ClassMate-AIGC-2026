@@ -17,15 +17,15 @@ This report originally captured strict endpoint/schema alignment before live pro
 | Provider | Config status | Live smoke status | Sanitized request shape |
 |---|---|---|---|
 | OCR | `READY` | `PASS` | `POST`, `application/x-www-form-urlencoded`, `FORM`, path last segment `general_recognition`, query key `requestId` |
+| QUERY_REWRITE | `READY` | `PASS` | `POST`, `application/json`, `GENERIC_JSON`, path last segment `query_rewrite_base`; PASS after docId 2061 `prompts` request-body schema fix |
 | TEXT_SIMILARITY | `READY` | `PASS` | `POST`, `application/json`, `GENERIC_JSON`, path last segment `rerank`, query key `requestId` |
 | EMBEDDING | `READY` | `PASS` | `POST`, `application/json`, `GENERIC_JSON`, path last segment `batch`, query key `requestId` |
-| QUERY_REWRITE | `READY` | `BLOCKED` | `POST`, `application/json`, `GENERIC_JSON`, path last segment `query_rewrite_base`; live smoke/runtime path hangs and may leave final status `RUNNING` |
 
 Interpretation:
 
-- OCR, Text Similarity, and Embedding are the first three official product-facing providers with real network smoke `PASS`.
-- Query Rewrite remains configured `READY`, but the current live smoke/runtime path is blocked. This is not proof that the official provider is unavailable.
-- Query Rewrite is not an L3 blocker; product fallback is qwen3.5-plus rewrite when available, then local safe rewrite or direct retrieval.
+- OCR, Query Rewrite, Text Similarity, and Embedding are the first four official product-facing providers with real network smoke `PASS`.
+- Query Rewrite was previously blocked by a smoke request body schema mismatch: old payload `{ "query": "..." }`; official docId 2061 requires `{ "prompts": [[q3,a3,q2,a2,q1,a1],[current_query]] }`. Claude fixed the harness schema and verified `PASS`.
+- Query Rewrite product fallback remains qwen3.5-plus rewrite when available, then local safe rewrite or direct retrieval.
 - Translation, TTS, Function Calling, and ASR Long remain seam-only/deferred or separate validation items.
 - Next mainline is App-level L3 cloud-device end-to-end validation, not more feature expansion.
 
@@ -46,7 +46,7 @@ Excluded from product and smoke:
 | Translation | 1733 | 文本翻译 | `pages/003-1733-文本翻译/` | `POST https://api-ai.vivo.com.cn/translation/query/self` | `Bearer AppKey` | `requestId`, `from`, `to`, text/query | translated text/code/request id | language codes, `zh-CHS` target | code table in official page | `core/translation/TranslationAssistedLearning.kt` seam | `seam_only` |
 | Embedding | 1734 | 文本向量 | `pages/004-1734-文本向量/` | `POST https://api-ai.vivo.com.cn/embedding-model-api/predict/batch` | `Bearer AppKey` | `requestId`, `model_name`, `sentences` | embedding vectors | `m3e-base`, `bge-base-zh-v1.5` | code table / parser errors | `core/retrieval/RetrievalProviders.kt`; parser seam | `live_smoke_pass` |
 | Text similarity | 2060 | 文本相似度 | `pages/017-2060-文本相似度/` | `POST https://api-ai.vivo.com.cn/rerank` | `Bearer AppKey` | `requestId`, `model_name`, `query`, `sentences` | scores array matching candidate order | `bge-reranker-large` | code table / empty scores | `core/capture/VivoCaptureProviders.kt`, `core/retrieval` | `live_smoke_pass` |
-| Query rewrite | 2061 | 查询改写 | `pages/018-2061-查询改写/` | `POST https://api-ai.vivo.com.cn/query_rewrite_base` | `Bearer AppKey` | official docs describe history/query prompt body; current provider sends generic `query` | `result` array plus `code` | query length <= official limit; history q/a fields | negative code table | `VivoQueryRewriteProvider` | `ready_but_live_smoke_blocked` |
+| Query rewrite | 2061 | 查询改写 | `pages/018-2061-查询改写/` | `POST`, path last segment `query_rewrite_base` | `Bearer AppKey` | official docs require `prompts` array body; smoke harness now sends the documented schema | `result` array plus `code` | query length <= official limit; history q/a fields | negative code table | `VivoQueryRewriteProvider` / smoke harness | `live_smoke_pass` |
 | Short ASR | 1738 | 实时短语音识别 | `pages/008-1738-实时短语音识别/` | WebSocket short speech | `Bearer AppKey` | URL params + start frame + audio frames | `started`, `result`, `error` events | `engineid=shortasrinput`, `asr_info.audio_type` | websocket code table | Registry/dev-lab only | `smoke_only` |
 | Long ASR dictation | 1740 | 长语音听写 | `pages/010-1740-长语音听写/` | WebSocket long dictation | `Bearer AppKey` | URL params + audio frames | streaming result events | `engineid=longasrlisten` | websocket code table | Secondary ASR reference | `smoke_only` |
 | Long ASR transcription | 1739 | 长语音转写 | `pages/009-1739-长语音转写/` | HTTP task flow: `/lasr/create`, `/lasr/upload`, `/lasr/run`, `/lasr/progress`, `/lasr/result` | `Bearer AppKey` | create audio, multipart upload, run/progress/result | audio id, progress, transcript result | `engineid=fileasrrecorder`, `x-sessionId`, slices | task code table and polling failures | `VivoAsrProvider` in capture providers | `provider_ready`, needs non-sensitive audio smoke |
@@ -136,7 +136,7 @@ This is a mapping bug, not proof that the official OCR service is unavailable:
 
 ### Query Rewrite Hang
 
-The previous smoke path did not expose a request timeout parameter. Smoke v4 adds `-TimeoutSeconds` with default 20 seconds and classifies timeouts as `FAIL_TIMEOUT`. It also keeps query rewrite `MISSING` unless a doc-specific endpoint mapping is explicit, so generic qwen config cannot send retrieval smoke requests.
+Historical: the previous smoke path did not expose a request timeout parameter. Smoke v4 added `-TimeoutSeconds` with default 20 seconds and classified timeouts as `FAIL_TIMEOUT`. Later live Query Rewrite blocking was traced by Claude to a request-body schema mismatch, not endpoint/method/content-type. The fixed harness now uses the official docId 2061 `prompts` payload and Query Rewrite real network smoke is `PASS`.
 
 ## Smoke Harness v4 Mapping Rules
 
@@ -156,9 +156,9 @@ Current sanitized status after official provider schema configuration and real s
 | Capability | Endpoint mapping | Auth mapping | Request schema | Mapping source | Live smoke | Request sent in explain mode |
 |---|---|---|---|---|---|---:|
 | OCR | READY | READY | READY | LOCAL_CONFIG_OFFICIAL_PROVIDER | PASS | false |
+| QUERY_REWRITE | READY | READY | READY | LOCAL_CONFIG_OFFICIAL_PROVIDER | PASS | false |
 | TEXT_SIMILARITY | READY | READY | READY | LOCAL_CONFIG_OFFICIAL_PROVIDER | PASS | false |
 | EMBEDDING | READY | READY | READY | LOCAL_CONFIG_OFFICIAL_PROVIDER | PASS | false |
-| QUERY_REWRITE | READY | READY | READY | LOCAL_CONFIG_OFFICIAL_PROVIDER | BLOCKED | false |
 | TRANSLATION | SEAM_ONLY | MISSING | GENERIC_ONLY | NONE | not run | false |
 | TTS | SEAM_ONLY | MISSING | GENERIC_ONLY | NONE | not run | false |
 | FUNCTION_CALLING | SEAM_ONLY | MISSING | GENERIC_ONLY | NONE | not run | false |
@@ -168,7 +168,7 @@ No key, auth value, full endpoint, or `config.local.json` value is recorded in t
 ## Follow-up Work
 
 - Move next to App-level L3 cloud-device end-to-end validation.
-- Do not keep retrying Query Rewrite live smoke as the L3 readiness path. It can be handed to a separate provider diagnostics task; product fallback remains qwen3.5-plus rewrite, local safe rewrite, or direct retrieval.
+- Do not expand new feature scope before device validation; product fallback remains qwen3.5-plus rewrite, local safe rewrite, or direct retrieval.
 - Keep qwen on `qwen3.5-plus`; do not switch to doubao.
 - Keep Translation, TTS, Function Calling, and ASR Long as seam-only/deferred or separate validation items until L3 device findings require them.
 - Do not expand new feature scope before device validation. Optimization should be driven by App-level L3 acceptance blockers, warnings, and polish findings.

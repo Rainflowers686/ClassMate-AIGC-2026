@@ -24,15 +24,15 @@ Current status as of 2026-06-18:
 | Provider | Config status | Live smoke status | Notes |
 |---|---|---|---|
 | OCR | `READY` | `PASS` | Product-facing official OCR smoke passed. |
+| QUERY_REWRITE | `READY` | `PASS` | Live smoke PASS after request-body schema fix (docId 2061 `prompts` schema). Fallbacks retained. |
 | TEXT_SIMILARITY | `READY` | `PASS` | Product-facing official rerank smoke passed. |
 | EMBEDDING | `READY` | `PASS` | Product-facing official vector smoke passed. |
-| QUERY_REWRITE | `READY` | `BLOCKED` | Live smoke/runtime path blocked; fallback available and not an L3 blocker. |
 | TRANSLATION | seam-only | not run | Backlog / post-L3. |
 | TTS | seam-only | not run | Backlog / post-L3. |
 | FUNCTION_CALLING | seam-only | not run | Backlog / post-L3. |
 | ASR_LONG | deferred | not run | Separate non-sensitive audio validation later. |
 
-Next mainline: App-level L3 cloud-device end-to-end validation. Query Rewrite may be investigated separately, but it should not block L3.
+Next mainline: App-level L3 cloud-device end-to-end validation. Query Rewrite no longer blocks provider readiness; it is now part of the four product-facing provider PASS baseline.
 
 Historical dry-run and early ExplainConfig snapshots below are retained as evidence. Their `MISSING` rows are superseded by the latest matrix above and should not be read as the current provider state.
 
@@ -355,7 +355,9 @@ This PASS verifies the previous OCR 404 was resolved by the v5 URL composition f
 
 ## 2026-06-18 Query Rewrite Live Smoke Blocked
 
-Current Query Rewrite status:
+Superseded by Claude schema fix: this section records the historical blocked period. The latest Query Rewrite status is `PASS`; the root cause was a smoke request body schema mismatch (`query` payload instead of official docId 2061 `prompts` payload).
+
+Historical Query Rewrite status at that point:
 
 - configured: `READY`
 - `endpointMapping`: `READY`
@@ -368,15 +370,15 @@ Current Query Rewrite status:
 
 Interpretation:
 
-- This is not evidence that the official Query Rewrite provider is unavailable.
-- It is evidence that the current smoke/runtime live path for Query Rewrite is blocked in this local environment.
-- Query Rewrite is an enhancement provider; it is not a P0/P1/P2/L3 product blocker.
+- This was not evidence that the official Query Rewrite provider was unavailable.
+- It was evidence that the then-current smoke/runtime live path for Query Rewrite was blocked in this local environment.
+- Query Rewrite was treated as a non-blocking enhancement provider while the schema issue was unresolved.
 - ClassMate can continue to use cloud large model rewriting through qwen3.5-plus when cloud model access is available.
-- If Query Rewrite is unavailable or blocked, product retrieval should fall back to local safe rewrite or direct local evidence retrieval.
+- If Query Rewrite is unavailable, product retrieval should fall back to local safe rewrite or direct local evidence retrieval.
 
 Decision:
 
-- Do not continue spending the current validation pass on Query Rewrite live smoke.
+- Historical decision at that time: do not continue spending that validation pass on Query Rewrite live smoke.
 - Keep the local config for future diagnosis.
 - Move the next official provider smoke work to Text Similarity and Embedding.
 
@@ -417,11 +419,13 @@ Result summary:
 
 This PASS makes Text Similarity the second real network PASS among the official product-facing provider smoke targets, after OCR.
 
-Query Rewrite remains:
+Historical Query Rewrite state at that point:
 
 - configured: `READY`
 - live smoke: `BLOCKED`
 - blocker scope: not a product blocker; the product can continue through qwen3.5-plus query rewrite when available, or local safe rewrite/direct retrieval fallback otherwise.
+
+Superseded current state: Query Rewrite real network smoke is now `PASS` after Claude's request-body schema fix.
 
 Next recommended official provider smoke target:
 
@@ -466,9 +470,30 @@ Current provider smoke matrix:
 | OCR | `READY` | `PASS` | Product-facing capture path can use official OCR when configured. |
 | TEXT_SIMILARITY | `READY` | `PASS` | Product-facing retrieval/rerank enhancement is smoke-verified. |
 | EMBEDDING | `READY` | `PASS` | Product-facing vector retrieval foundation is smoke-verified. |
-| QUERY_REWRITE | `READY` | `BLOCKED` | Fallback available through qwen3.5-plus rewrite, local safe rewrite, or direct retrieval. |
+| QUERY_REWRITE | `READY` | `PASS` | Live smoke PASS; product-facing retrieval query-rewrite enhancement is smoke-verified. Fallbacks (qwen3.5-plus rewrite, local safe rewrite, direct retrieval) retained. |
 
 Recommendation:
 
-- Do not continue spending validation time on Query Rewrite live smoke in this pass.
+- Query Rewrite live smoke now PASSES; the four product-facing providers (OCR / Text Similarity / Embedding / Query Rewrite) are all smoke-verified.
 - Move next to App-level L3 cloud-device end-to-end validation, using the provider matrix above as the current official-provider readiness baseline.
+
+## 2026-06-18 Query Rewrite Smoke Root Cause + Fix (PASS)
+
+Root cause (request body schema mismatch):
+
+- `scripts/qa/official_provider_smoke.ps1` `New-RequestPayload QUERY_REWRITE` previously built `{ "query": <text> }`.
+- Official doc id=2061 (`query_rewrite_base`) requires `{ "prompts": [ [q3,a3,q2,a2,q1,a1], [current_query] ] }`.
+- The `{ "query": ... }` shape is not accepted by `query_rewrite_base`; the gateway held the connection without
+  responding, so the run stalled at the pre-request `RUNNING` result and never reached `PASS`/`FAIL`/`FAIL_TIMEOUT`.
+- Endpoint (`query_rewrite_base`), method (`POST`), and content type (`application/json`) were already correct;
+  only the body schema was wrong. OCR / Text Similarity / Embedding were unaffected (they load their own payloads).
+
+Fix (Query-Rewrite-specific, allowed harness file, rollback-able):
+
+- Changed only the `QUERY_REWRITE` branch of `New-RequestPayload` to emit the documented `prompts` schema.
+- Verified offline that `ConvertTo-Json -Depth 12` produces `{"prompts":[["","","","","",""],["<question>"]]}`.
+
+Live run (one attempt, `-TimeoutSeconds 15`):
+
+- `QUERY_REWRITE | NETWORK | PASS` — `smoke_result.json` written, no hang.
+- No secret leaked (config presence only; no AppKey/Authorization/full endpoint printed).

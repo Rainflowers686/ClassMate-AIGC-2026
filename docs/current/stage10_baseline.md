@@ -7,10 +7,10 @@
 当前状态已进入 L3 真机闭环验证前的 provider smoke readiness 阶段：
 
 - OCR official provider network smoke：`PASS`，`endpoint/auth/schema=READY`，形状为 `POST` / `application/x-www-form-urlencoded` / `FORM`，path last segment `general_recognition`，query key `requestId`。
+- QUERY_REWRITE official provider network smoke：`PASS`，`endpoint/auth/schema=READY`，形状为 `POST` / `application/json` / `GENERIC_JSON`，path last segment `query_rewrite_base`；此前 blocked 根因为 smoke 请求体 schema mismatch，Claude 已按 docId 2061 `prompts` schema 修复。
 - TEXT_SIMILARITY official provider network smoke：`PASS`，`endpoint/auth/schema=READY`，形状为 `POST` / `application/json` / `GENERIC_JSON`，path last segment `rerank`，query key `requestId`。
 - EMBEDDING official provider network smoke：`PASS`，`endpoint/auth/schema=READY`，形状为 `POST` / `application/json` / `GENERIC_JSON`，path last segment `batch`，query key `requestId`。
-- QUERY_REWRITE：configured `READY`，但 live smoke 在当前 runtime 中 blocked，最终多次停留 `RUNNING`；这不是官方 provider 不可用的证据，也不是 L3 blocker。
-- Query Rewrite 产品兜底：云端 qwen3.5-plus rewrite 可用时使用云端；否则使用 local safe rewrite / direct retrieval fallback。
+- Query Rewrite 产品兜底仍保留：云端 qwen3.5-plus rewrite 可用时使用云端；否则使用 local safe rewrite / direct retrieval fallback。
 - Translation、TTS、Function Calling 仍为 seam-only / 后置；ASR_LONG 后置或单独验证。
 - 下一主线：App-level L3 云真机/真机端到端学习闭环验证。不要继续盲目扩功能，优化应由真机验收问题驱动。
 

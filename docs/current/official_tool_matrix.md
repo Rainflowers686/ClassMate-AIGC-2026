@@ -15,9 +15,9 @@
 | Provider | Config status | Live smoke status | Current decision |
 |---|---|---|---|
 | OCR | `READY` | `PASS` | Product-facing official OCR provider smoke is verified. |
+| QUERY_REWRITE | `READY` | `PASS` | Product-facing official query rewrite smoke is verified after the docId 2061 `prompts` payload schema fix. |
 | TEXT_SIMILARITY | `READY` | `PASS` | Product-facing official rerank/evidence matching smoke is verified. |
 | EMBEDDING | `READY` | `PASS` | Product-facing official vector retrieval foundation smoke is verified. |
-| QUERY_REWRITE | `READY` | `BLOCKED` | Not an L3 blocker; fallback is qwen3.5-plus rewrite, local safe rewrite, or direct retrieval. |
 | TRANSLATION | seam-only | not run | Post-L3 or when device findings require it. |
 | TTS | seam-only | not run | Post-L3; keep course essence script-only fallback. |
 | FUNCTION_CALLING | seam-only | not run | Internal tool router remains source of truth. |
@@ -71,14 +71,14 @@ Current mainline: App-level L3 cloud-device end-to-end validation. Do not keep e
 
 ## Recommended Provider Work Order
 
-Previous provider work produced real smoke PASS for OCR, Text Similarity, and Embedding. Query Rewrite remains configured but live-smoke blocked, and is not a blocker for L3.
+Previous provider work now has real smoke PASS for OCR, Query Rewrite, Text Similarity, and Embedding. Query Rewrite had previously appeared live-smoke blocked, but Claude traced that to a smoke request body schema mismatch and fixed the `prompts` payload required by official docId 2061.
 
 Current order:
 
 1. Run App-level L3 cloud-device end-to-end validation.
 2. Use the current provider matrix as the official-provider readiness baseline.
 3. Let device findings drive fixes; do not add broad new features before L3 acceptance.
-4. Query Rewrite may be investigated separately by Claude/provider diagnostics, but the product should continue with qwen3.5-plus rewrite, local safe rewrite, or direct retrieval fallback.
+4. Keep Query Rewrite fallback paths in product behavior: qwen3.5-plus rewrite when available, then local safe rewrite or direct retrieval.
 5. Translation, TTS, Function Calling, and ASR Long remain post-L3 or separate validation items.
 6. Image generation / video generation / LBS / voice clone remain outside the current product mainline; voice clone and LBS/POI remain excluded.
 

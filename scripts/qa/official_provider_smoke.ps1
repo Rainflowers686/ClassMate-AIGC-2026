@@ -1115,7 +1115,14 @@ function Get-SmokeRouteDiagnosis($Status, $CapabilityName) {
 function New-RequestPayload($CapabilityName) {
     switch ($CapabilityName) {
         "QUERY_REWRITE" {
-            return @{ query = Get-Content -LiteralPath (Join-Path $InputDir "query_rewrite.txt") -Raw }
+            # Official doc id=2061 (query_rewrite_base): the body schema is
+            #   { "prompts": [ [q3,a3,q2,a2,q1,a1], [current_query] ] }
+            # a 2-element list: a 6-slot history turn (may be empty strings) plus the current question.
+            # The previous { "query": ... } shape is NOT accepted by query_rewrite_base; the gateway holds
+            # the connection without a response, so the smoke stalls at RUNNING (never PASS/FAIL/FAIL_TIMEOUT).
+            # Sending the documented prompts schema lets the provider respond (PASS or a fast HTTP error).
+            $q = (Get-Content -LiteralPath (Join-Path $InputDir "query_rewrite.txt") -Raw).Trim()
+            return @{ prompts = @(@("", "", "", "", "", ""), @($q)) }
         }
         "TEXT_SIMILARITY" {
             return Get-Content -LiteralPath (Join-Path $InputDir "similarity.json") -Raw | ConvertFrom-Json

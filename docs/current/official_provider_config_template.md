@@ -98,9 +98,9 @@ powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 
 - `textSimilarity`: `PASS`
 - `embedding`: `PASS`
 
-当前不建议继续在 L3 readiness 主线里死磕：
+当前不建议继续在 L3 readiness 主线里扩展新能力：
 
-- `queryRewrite`: configured `READY`，live smoke `BLOCKED`，产品有 qwen3.5-plus rewrite / local safe rewrite / direct retrieval fallback。
+- `queryRewrite`: configured `READY` 且真实 network smoke `PASS`；此前 blocked 根因为 smoke 请求体 schema mismatch，已按官方 docId 2061 `prompts` schema 修复。产品仍保留 qwen3.5-plus rewrite / local safe rewrite / direct retrieval fallback。
 
 后置或单独验证：
 
@@ -125,9 +125,9 @@ powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 
 | Provider | Config status | Live smoke status |
 |---|---|---|
 | OCR | `READY` | `PASS` |
+| QUERY_REWRITE | `READY` | `PASS` |
 | TEXT_SIMILARITY | `READY` | `PASS` |
 | EMBEDDING | `READY` | `PASS` |
-| QUERY_REWRITE | `READY` | `BLOCKED` |
 
 下一主线是 App-level L3 真机闭环验证。若继续 provider smoke，必须逐项显式配置、显式授权、单 capability 运行，并先确认 `-ExplainConfig -UseLocalConfig` 为 READY。
 

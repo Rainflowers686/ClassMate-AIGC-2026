@@ -1,6 +1,6 @@
 # P2 Integrated AI Learning Experience Acceptance Run
 
-> Current status note (2026-06-18): this file remains the historical P2 command-level acceptance record. Official provider smoke has since advanced beyond seam-only retrieval: OCR, TEXT_SIMILARITY, and EMBEDDING have real network `PASS`; QUERY_REWRITE is configured `READY` but live-smoke blocked and is not an L3 blocker because qwen3.5-plus rewrite, local safe rewrite, and direct retrieval fallback remain available.
+> Current status note (2026-06-18): this file remains the historical P2 command-level acceptance record. Official provider smoke has since advanced beyond seam-only retrieval: OCR, QUERY_REWRITE, TEXT_SIMILARITY, and EMBEDDING have real network `PASS`. Query Rewrite's earlier blocked state was traced by Claude to a smoke request body schema mismatch and fixed with the official docId 2061 `prompts` schema; qwen3.5-plus rewrite, local safe rewrite, and direct retrieval fallback remain available.
 
 ## 1. Run Metadata
 
