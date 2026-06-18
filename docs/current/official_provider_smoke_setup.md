@@ -179,7 +179,7 @@ The script output uses only variable names and `<your-value>` placeholders.
 |---|---|---|
 | OCR | `READY` only with explicit OCR env endpoint/auth or capture-specific local config. Generic BlueLM/qwen config is not enough. | First real network smoke candidate after endpoint is confirmed. |
 | ASR_LONG | `READY` only with capture-specific config and task-flow paths; requires non-sensitive test audio. | Run late; do not use private classroom recordings. |
-| QUERY_REWRITE | `MISSING` unless explicit endpoint/auth is supplied or a future retrieval-specific local config is added. | Review official `query_rewrite_base` schema before network smoke. |
+| QUERY_REWRITE | Can be `READY` with `officialProviders.queryRewrite`, but current live smoke is `BLOCKED` in the local runtime: repeated real runs have left final status at `RUNNING`. | Do not treat as provider unavailability; defer live smoke and use qwen3.5-plus / local safe rewrite fallback. |
 | TEXT_SIMILARITY | `MISSING` unless explicit endpoint/auth is supplied or a future retrieval-specific local config is added. | Review official `/rerank` endpoint before network smoke. |
 | EMBEDDING | `MISSING` unless explicit endpoint/auth is supplied or a future retrieval-specific local config is added. | Parser seam is safe; no vector DB is involved. |
 | TRANSLATION | `SEAM_ONLY` without explicit live endpoint mapping. | Add provider mapping or provide explicit env endpoint. |
@@ -258,16 +258,26 @@ git ls-files .codex_work
 
 ## Recommended Real Smoke Order
 
-1. OCR
-2. QUERY_REWRITE
-3. TEXT_SIMILARITY
-4. TRANSLATION
-5. TTS
-6. FUNCTION_CALLING
-7. EMBEDDING
-8. ASR_LONG
+Current status:
+
+- OCR: live smoke `PASS`.
+- Query Rewrite: configured `READY`, live smoke `BLOCKED`; not an L3 product blocker.
+
+Next provider focus:
+
+1. TEXT_SIMILARITY
+2. EMBEDDING
+3. TRANSLATION
+4. TTS
+5. FUNCTION_CALLING
+6. ASR_LONG
 
 `ASR_LONG` is later because it requires a non-sensitive audio file and task-flow polling.
+
+Product fallback while Query Rewrite live smoke is blocked:
+
+- Use cloud large model rewriting via qwen3.5-plus when available.
+- Otherwise use local safe rewrite or direct local evidence retrieval.
 
 ## Excluded Capabilities
 

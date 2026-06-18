@@ -135,13 +135,25 @@ Expected timeout result:
 - `uriValidated=True`
 - `sanitizedError=Timed out after configured timeout`
 
-Next step after this fix:
+Current decision:
 
-1. Run value-free readiness:
+- Query Rewrite explain/config status is `READY`, but live smoke remains `BLOCKED` because repeated live runs have left the final result at `RUNNING`.
+- The offline timeout self-test succeeds, so the hard-timeout self-test path is valid; the Query Rewrite live path still needs deeper runtime investigation later.
+- This is not proof that the official Query Rewrite provider is unavailable.
+- This is not a P0/P1/P2/L3 product blocker because query rewrite is an evidence retrieval enhancement.
+- Product fallback remains cloud large-model rewriting with qwen3.5-plus when available, then local safe rewrite or direct local retrieval.
+
+Do not keep retrying Query Rewrite live smoke in the current validation pass.
+
+Next provider smoke focus:
+
+1. `TEXT_SIMILARITY`
+2. `EMBEDDING`
+
+Before either provider is run live, use value-free readiness first:
 
    ```powershell
    powershell -NoProfile -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -ExplainConfig -UseLocalConfig
    ```
 
-2. Confirm `QUERY_REWRITE` remains `endpointMapping=READY`, `authMapping=READY`, and `requestSchema=READY`.
-3. Only after explicit authorization, rerun a single `QUERY_REWRITE` network smoke with a conservative timeout and inspect the generated local-only smoke result files.
+Confirm the target provider is `endpointMapping=READY`, `authMapping=READY`, and `requestSchema=READY` before any real network smoke.

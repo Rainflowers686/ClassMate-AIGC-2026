@@ -334,10 +334,36 @@ Result summary:
 
 This PASS verifies the previous OCR 404 was resolved by the v5 URL composition fix. The smoke harness now composes the OCR route with the correct public path suffix and appends `requestId` as a query key rather than as part of the path. OCR is now the first real network PASS among the official product-facing provider smoke targets.
 
+## 2026-06-18 Query Rewrite Live Smoke Blocked
+
+Current Query Rewrite status:
+
+- configured: `READY`
+- `endpointMapping`: `READY`
+- `authMapping`: `READY`
+- `requestSchema`: `READY`
+- live smoke: `BLOCKED`
+- latest observed live-smoke symptom: final local result remains `RUNNING`
+- request shape: `POST`, `application/json`, `GENERIC_JSON`, path last segment `query_rewrite_base`
+- secret leaked: no
+
+Interpretation:
+
+- This is not evidence that the official Query Rewrite provider is unavailable.
+- It is evidence that the current smoke/runtime live path for Query Rewrite is blocked in this local environment.
+- Query Rewrite is an enhancement provider; it is not a P0/P1/P2/L3 product blocker.
+- ClassMate can continue to use cloud large model rewriting through qwen3.5-plus when cloud model access is available.
+- If Query Rewrite is unavailable or blocked, product retrieval should fall back to local safe rewrite or direct local evidence retrieval.
+
+Decision:
+
+- Do not continue spending the current validation pass on Query Rewrite live smoke.
+- Keep the local config for future diagnosis.
+- Move the next official provider smoke work to Text Similarity and Embedding.
+
 Next recommended official provider smoke order:
 
-1. `QUERY_REWRITE`
-2. `TEXT_SIMILARITY`
-3. `EMBEDDING`
+1. `TEXT_SIMILARITY`
+2. `EMBEDDING`
 
 Before each real network smoke, add the corresponding `officialProviders.<capability>` local config group, run `-ExplainConfig -UseLocalConfig`, and confirm `endpointMapping=READY`, `authMapping=READY`, and `requestSchema=READY`. Do not reuse `topLevel.bluelm` as a specialized provider endpoint.
