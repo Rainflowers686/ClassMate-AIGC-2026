@@ -4,6 +4,13 @@
 
 ## 当前 issue 状态
 
+2026-06-18 当前主线：
+
+- 官方 provider smoke 当前矩阵：OCR `PASS`、TEXT_SIMILARITY `PASS`、EMBEDDING `PASS`、QUERY_REWRITE `READY / live smoke BLOCKED / fallback available`。
+- Query Rewrite 可交给 Claude/provider diagnostics 专项继续尝试修复，但不阻塞 L3 主线。
+- 当前不建议继续盲目扩功能；下一主线是 App-level L3 云真机/真机端到端学习闭环验证。
+- 后续 issue 应优先来自 L3 真机验收的 blocker / warning / polish，而不是新增大范围能力。
+
 已关闭：
 
 - `#10` completed：真实 vivo BlueLM request schema / endpoint / credential 安全接入已完成，并被后续云端与端侧链路覆盖。

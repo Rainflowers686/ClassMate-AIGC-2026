@@ -1,5 +1,7 @@
 # P2 Integrated AI Learning Experience Acceptance Run
 
+> Current status note (2026-06-18): this file remains the historical P2 command-level acceptance record. Official provider smoke has since advanced beyond seam-only retrieval: OCR, TEXT_SIMILARITY, and EMBEDDING have real network `PASS`; QUERY_REWRITE is configured `READY` but live-smoke blocked and is not an L3 blocker because qwen3.5-plus rewrite, local safe rewrite, and direct retrieval fallback remain available.
+
 ## 1. Run Metadata
 
 | Field | Value |
@@ -166,4 +168,3 @@ Suggested manual checks:
 2. Verify Ask add-to-review updates the visible Review page.
 3. Export a DOCX and HTML report from a real course and open both outside the app.
 4. If manual UX passes, prepare a release/proof commit for P2.
-

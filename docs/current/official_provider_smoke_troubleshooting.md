@@ -145,15 +145,23 @@ Current decision:
 
 Do not keep retrying Query Rewrite live smoke in the current validation pass.
 
-Next provider smoke focus:
+Updated 2026-06-18 provider smoke outcome:
 
-1. `TEXT_SIMILARITY`
-2. `EMBEDDING`
+- OCR: `PASS`
+- TEXT_SIMILARITY: `PASS`
+- EMBEDDING: `PASS`
+- QUERY_REWRITE: configured `READY`, live smoke `BLOCKED`, fallback available
 
-Before either provider is run live, use value-free readiness first:
+Next mainline:
 
-   ```powershell
-   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -ExplainConfig -UseLocalConfig
-   ```
+- Move to App-level L3 cloud-device end-to-end validation.
+- Do not treat Query Rewrite as a blocker for L3.
+- If Query Rewrite is revisited, handle it as a separate provider diagnostics task, not as the main readiness path.
+
+Any future provider smoke must still start with value-free readiness:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -ExplainConfig -UseLocalConfig
+```
 
 Confirm the target provider is `endpointMapping=READY`, `authMapping=READY`, and `requestSchema=READY` before any real network smoke.

@@ -1,5 +1,7 @@
 # Full P0-P2 End-to-End Device Acceptance Run
 
+> Current status note (2026-06-18): this document remains the historical record that device execution was not performed at that time. Since then, official provider smoke has advanced: OCR, TEXT_SIMILARITY, and EMBEDDING are real network `PASS`; QUERY_REWRITE is configured `READY` but live-smoke blocked with fallback available. The next mainline is App-level L3 cloud-device end-to-end validation.
+
 ## 1. Date / Branch / Commit
 
 | Field | Value |
@@ -247,4 +249,3 @@ Required next QA action:
 ## 17. Recommended Next Step
 
 Run a second acceptance pass with a connected device. Treat any crash, broken CourseAnalysis entry, broken export, key exposure, or severe forbidden-copy issue as a P0 blocker. Treat fallback-only but usable paths as P1 warnings, and visual/wording quality as P2 polish.
-

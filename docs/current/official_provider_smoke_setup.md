@@ -180,8 +180,8 @@ The script output uses only variable names and `<your-value>` placeholders.
 | OCR | `READY` only with explicit OCR env endpoint/auth or capture-specific local config. Generic BlueLM/qwen config is not enough. | First real network smoke candidate after endpoint is confirmed. |
 | ASR_LONG | `READY` only with capture-specific config and task-flow paths; requires non-sensitive test audio. | Run late; do not use private classroom recordings. |
 | QUERY_REWRITE | Can be `READY` with `officialProviders.queryRewrite`, but current live smoke is `BLOCKED` in the local runtime: repeated real runs have left final status at `RUNNING`. | Do not treat as provider unavailability; defer live smoke and use qwen3.5-plus / local safe rewrite fallback. |
-| TEXT_SIMILARITY | `MISSING` unless explicit endpoint/auth is supplied or a future retrieval-specific local config is added. | Review official `/rerank` endpoint before network smoke. |
-| EMBEDDING | `MISSING` unless explicit endpoint/auth is supplied or a future retrieval-specific local config is added. | Parser seam is safe; no vector DB is involved. |
+| TEXT_SIMILARITY | `READY` with `officialProviders.textSimilarity`; real network smoke is `PASS`. | Product-facing retrieval/rerank enhancement is smoke-verified. |
+| EMBEDDING | `READY` with `officialProviders.embedding`; real network smoke is `PASS`. | Product-facing vector retrieval foundation is smoke-verified. |
 | TRANSLATION | `SEAM_ONLY` without explicit live endpoint mapping. | Add provider mapping or provide explicit env endpoint. |
 | TTS | `SEAM_ONLY` without explicit live websocket mapping. | Keep course essence script-only fallback. |
 | FUNCTION_CALLING | `SEAM_ONLY`; internal function router remains source of truth. | Add official cloud tool adapter only when request schema is confirmed. |
@@ -262,17 +262,25 @@ Current status:
 
 - OCR: live smoke `PASS`.
 - Query Rewrite: configured `READY`, live smoke `BLOCKED`; not an L3 product blocker.
+- Text Similarity: live smoke `PASS`.
+- Embedding: live smoke `PASS`.
 
-Next provider focus:
+Current provider matrix:
 
-1. TEXT_SIMILARITY
-2. EMBEDDING
-3. TRANSLATION
-4. TTS
-5. FUNCTION_CALLING
-6. ASR_LONG
+| Provider | Config status | Live smoke status | Product impact |
+|---|---|---|---|
+| OCR | `READY` | `PASS` | Official OCR capture provider smoke is verified. |
+| TEXT_SIMILARITY | `READY` | `PASS` | Official rerank/retrieval enhancement smoke is verified. |
+| EMBEDDING | `READY` | `PASS` | Official vector retrieval foundation smoke is verified. |
+| QUERY_REWRITE | `READY` | `BLOCKED` | Fallback available through qwen3.5-plus rewrite, local safe rewrite, or direct retrieval. |
+| TRANSLATION | seam-only | not run | Backlog / post-L3. |
+| TTS | seam-only | not run | Backlog / post-L3. |
+| FUNCTION_CALLING | seam-only | not run | Backlog / post-L3. |
+| ASR_LONG | deferred | not run | Separate non-sensitive audio validation later. |
 
 `ASR_LONG` is later because it requires a non-sensitive audio file and task-flow polling.
+
+Next mainline: App-level L3 cloud-device end-to-end validation. Do not keep retrying Query Rewrite live smoke in the L3 readiness pass; it can be handed to a separate Claude/provider-diagnostics thread if needed.
 
 Product fallback while Query Rewrite live smoke is blocked:
 

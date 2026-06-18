@@ -92,16 +92,22 @@ powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 
 
 ## Recommended First Capabilities
 
-先配置短链路、低风险、非隐私输入能力：
+当前已完成真实 network smoke 的 product-facing provider：
 
-1. `ocr`
-2. `queryRewrite`
-3. `textSimilarity`
-4. `embedding`
-5. `translation`
-6. `tts`
-7. `functionCalling`
-8. `asrLong`
+- `ocr`: `PASS`
+- `textSimilarity`: `PASS`
+- `embedding`: `PASS`
+
+当前不建议继续在 L3 readiness 主线里死磕：
+
+- `queryRewrite`: configured `READY`，live smoke `BLOCKED`，产品有 qwen3.5-plus rewrite / local safe rewrite / direct retrieval fallback。
+
+后置或单独验证：
+
+- `translation`
+- `tts`
+- `functionCalling`
+- `asrLong`
 
 `asrLong` 后置，因为它需要非敏感测试音频、上传/轮询任务流和更长 timeout。
 
@@ -114,16 +120,16 @@ powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 
 powershell -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -RunNetwork -Capability OCR -UseLocalConfig -TimeoutSeconds 20
 ```
 
-推荐真实 smoke 顺序：
+当前真实 smoke 结论：
 
-1. OCR
-2. QUERY_REWRITE
-3. TEXT_SIMILARITY
-4. EMBEDDING
-5. TRANSLATION
-6. TTS
-7. FUNCTION_CALLING
-8. ASR_LONG
+| Provider | Config status | Live smoke status |
+|---|---|---|
+| OCR | `READY` | `PASS` |
+| TEXT_SIMILARITY | `READY` | `PASS` |
+| EMBEDDING | `READY` | `PASS` |
+| QUERY_REWRITE | `READY` | `BLOCKED` |
+
+下一主线是 App-level L3 真机闭环验证。若继续 provider smoke，必须逐项显式配置、显式授权、单 capability 运行，并先确认 `-ExplainConfig -UseLocalConfig` 为 READY。
 
 不要默认运行 `-AllSafe -RunNetwork`。不要运行声音复刻、LBS、POI、视频生成或实时语音能力。
 

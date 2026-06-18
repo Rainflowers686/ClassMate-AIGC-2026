@@ -2,6 +2,18 @@
 
 本文记录 ClassMate 在 Stage 10 之后的当前事实基线，供评委材料、后续开发和 issue 清理使用。
 
+## 2026-06-18 Provider Smoke / L3 Readiness Update
+
+当前状态已进入 L3 真机闭环验证前的 provider smoke readiness 阶段：
+
+- OCR official provider network smoke：`PASS`，`endpoint/auth/schema=READY`，形状为 `POST` / `application/x-www-form-urlencoded` / `FORM`，path last segment `general_recognition`，query key `requestId`。
+- TEXT_SIMILARITY official provider network smoke：`PASS`，`endpoint/auth/schema=READY`，形状为 `POST` / `application/json` / `GENERIC_JSON`，path last segment `rerank`，query key `requestId`。
+- EMBEDDING official provider network smoke：`PASS`，`endpoint/auth/schema=READY`，形状为 `POST` / `application/json` / `GENERIC_JSON`，path last segment `batch`，query key `requestId`。
+- QUERY_REWRITE：configured `READY`，但 live smoke 在当前 runtime 中 blocked，最终多次停留 `RUNNING`；这不是官方 provider 不可用的证据，也不是 L3 blocker。
+- Query Rewrite 产品兜底：云端 qwen3.5-plus rewrite 可用时使用云端；否则使用 local safe rewrite / direct retrieval fallback。
+- Translation、TTS、Function Calling 仍为 seam-only / 后置；ASR_LONG 后置或单独验证。
+- 下一主线：App-level L3 云真机/真机端到端学习闭环验证。不要继续盲目扩功能，优化应由真机验收问题驱动。
+
 ## Commit 状态
 
 - 当前同步基线 commit：`a4c38cc`
@@ -89,4 +101,4 @@ Stage 10 完成了当前 product UI baseline。主要页面已经重构到更接
 - CI 验证：JVM/unit tests、debug APK build、secrets scan。
 - 真机验证：端侧 SDK、模型目录、文本 generate、多模态 callVit、真实图片诊断、拍照/图片草稿。
 - 待验证：最终 UI 主观验收、release 权限隐私审计、复赛 proof 视频和截图完整性。
-- Deferred：vivo ASR provider、vivo OCR provider、云同步、团队协作、声纹身份识别、底噪处理。
+- Deferred：vivo ASR provider、云同步、团队协作、声纹身份识别、底噪处理。vivo OCR provider 已有真实 network smoke PASS；App-level 图片/拍照闭环仍需 L3 真机验证。

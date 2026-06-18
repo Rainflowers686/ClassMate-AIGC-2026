@@ -17,6 +17,25 @@
 - Timeout: `-TimeoutSeconds`, default 20 seconds
 - Output directory: `.codex_work/official_provider_smoke/`
 
+## Latest Provider Smoke Matrix
+
+Current status as of 2026-06-18:
+
+| Provider | Config status | Live smoke status | Notes |
+|---|---|---|---|
+| OCR | `READY` | `PASS` | Product-facing official OCR smoke passed. |
+| TEXT_SIMILARITY | `READY` | `PASS` | Product-facing official rerank smoke passed. |
+| EMBEDDING | `READY` | `PASS` | Product-facing official vector smoke passed. |
+| QUERY_REWRITE | `READY` | `BLOCKED` | Live smoke/runtime path blocked; fallback available and not an L3 blocker. |
+| TRANSLATION | seam-only | not run | Backlog / post-L3. |
+| TTS | seam-only | not run | Backlog / post-L3. |
+| FUNCTION_CALLING | seam-only | not run | Backlog / post-L3. |
+| ASR_LONG | deferred | not run | Separate non-sensitive audio validation later. |
+
+Next mainline: App-level L3 cloud-device end-to-end validation. Query Rewrite may be investigated separately, but it should not block L3.
+
+Historical dry-run and early ExplainConfig snapshots below are retained as evidence. Their `MISSING` rows are superseded by the latest matrix above and should not be read as the current provider state.
+
 ## DryRun Result
 
 Executed:

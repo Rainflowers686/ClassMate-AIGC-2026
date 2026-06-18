@@ -9,6 +9,23 @@
 - 已有基础：云端大模型链路、端侧 BlueLM 3B 文本/多模态基础、图片/拍照草稿、validators-gated persistence、Stage 10 product UI baseline。
 - 本准备包目标：把官方能力拆成可验证、可逐个落地的 Claude 工程任务。
 
+## 2026-06-18 Current Provider Smoke Status
+
+本文件保留前期任务拆分和能力准备信息；以下为当前事实状态：
+
+| Provider | Config status | Live smoke status | Notes |
+|---|---|---|---|
+| OCR | `READY` | `PASS` | 官方 product-facing OCR provider smoke 已真实通过。 |
+| TEXT_SIMILARITY | `READY` | `PASS` | 官方 rerank / retrieval enhancement smoke 已真实通过。 |
+| EMBEDDING | `READY` | `PASS` | 官方 vector retrieval foundation smoke 已真实通过。 |
+| QUERY_REWRITE | `READY` | `BLOCKED` | live smoke/runtime path blocked；不是官方 provider 不可用证据，也不是 L3 blocker。 |
+| TRANSLATION | seam-only | not run | 后置。 |
+| TTS | seam-only | not run | 后置。 |
+| FUNCTION_CALLING | seam-only | not run | 后置。 |
+| ASR_LONG | deferred | not run | 单独用非敏感音频验证。 |
+
+下一主线：App-level L3 云真机/真机学习闭环验证。Query Rewrite 可由 Claude/provider diagnostics 专项继续尝试，但不阻塞 L3 主线；产品 fallback 为 qwen3.5-plus rewrite、local safe rewrite 或 direct retrieval。
+
 ## Official Docs Coverage Check
 
 | Item | Result |
@@ -194,7 +211,7 @@ Non-capability reference docs:
 - Official title: 通用 OCR
 - docId: `1737`
 - Local captured path: `.codex_work/official_docs/vivo_aigc_docs/pages/007-1737-通用OCR/`
-- Current ClassMate status: 已有手动 OCR 资料流和端侧图片语义草稿；真实 vivo OCR provider 仍需落地。
+- Current ClassMate status: 已有手动 OCR 资料流和端侧图片语义草稿；真实 vivo OCR provider network smoke 已 PASS，App-level 图片/拍照闭环仍需 L3 真机验证。
 - Priority: P0
 - Decision: Build now.
 - Why it matters for ClassMate: 课件截图、板书、教材页、题目图片需要可引用文字证据。
@@ -258,7 +275,7 @@ Non-capability reference docs:
 - Official title: 文本向量
 - docId: `1734`
 - Local captured path: `.codex_work/official_docs/vivo_aigc_docs/pages/004-1734-文本向量/`
-- Current ClassMate status: 未作为 provider 接入。
+- Current ClassMate status: officialProviders.embedding 已配置并通过真实 network smoke；作为检索增强基础进入 L3 readiness baseline。
 - Priority: P0
 - Decision: Build now as part of Retrieval Providers v1.
 - Why it matters for ClassMate: 支持课程库搜索、知识点聚类、跨课程相似课、长期 evidence retrieval。
@@ -290,7 +307,7 @@ Non-capability reference docs:
 - Official title: 文本相似度
 - docId: `2060`
 - Local captured path: `.codex_work/official_docs/vivo_aigc_docs/pages/017-2060-文本相似度/`
-- Current ClassMate status: 未接入；适合先于向量做轻量 evidence matching。
+- Current ClassMate status: officialProviders.textSimilarity 已配置并通过真实 network smoke；可作为 evidence matching / rerank 增强进入 L3 readiness baseline。
 - Priority: P0
 - Decision: Build now as part of Retrieval Providers v1.
 - Why it matters for ClassMate: 快速判断问题与证据片段、错题与知识点、相似知识点之间的关联。
@@ -322,7 +339,7 @@ Non-capability reference docs:
 - Official title: 查询改写
 - docId: `2061`
 - Local captured path: `.codex_work/official_docs/vivo_aigc_docs/pages/018-2061-查询改写/`
-- Current ClassMate status: 未接入。
+- Current ClassMate status: officialProviders.queryRewrite 已配置到 READY，但 live smoke/runtime path blocked；作为增强能力后置专项诊断，产品保留 qwen3.5-plus rewrite / local safe rewrite / direct retrieval fallback。
 - Priority: P0
 - Decision: Build now as part of Retrieval Providers v1.
 - Why it matters for ClassMate: 把学生自然问题改写成更适合 evidence retrieval 的查询。
