@@ -47,6 +47,14 @@ Do not run `-RunNetwork` unless the user explicitly authorizes a real provider r
 
 In network mode, the harness prints its header before capability execution, creates the output directory before the request, and writes an initial `RUNNING` result before the provider call starts. This prevents a provider hang from leaving the operator without `smoke_result.md` / `smoke_result.json`.
 
+Offline timeout self-test:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -SelfTestTimeout -OutputDir .codex_work\official_provider_smoke\timeout_selftest -TimeoutSeconds 3
+```
+
+This mode does not read local config values and does not send a network request. It starts a child process that sleeps for 60 seconds, verifies that the parent kills it after `TimeoutSeconds`, and finalizes the result as `FAIL_TIMEOUT`.
+
 ## Why Config Is Not Read by Default
 
 `config.local.json` can contain local credentials. The script checks only file existence unless `-UseLocalConfig` is passed. With `-UseLocalConfig`, it reads structure and field presence only. It must not print or write credential values, base URL values, auth header values, cookie values, or tokens.
@@ -203,7 +211,7 @@ Smoke-only trace fields such as `requestId=classmate-smoke` are appended as quer
 
 ## Hard Timeout Behavior
 
-All live capability requests use the shared `Invoke-SmokeHttpRequestWithTimeout` path. The wrapper disables PowerShell progress output, launches a separate PowerShell child process for the HTTP call, polls the child every 200 ms, waits no longer than `-TimeoutSeconds`, and force-stops the child process on timeout.
+All live capability requests use the shared `Invoke-SmokeHttpRequestWithTimeout` path. The wrapper disables PowerShell progress output, launches a separate PowerShell child process for the HTTP call, redirects stdout/stderr to files, polls the child every 200 ms, waits no longer than `-TimeoutSeconds`, and force-stops the child process on timeout. The parent never uses `Start-Process -Wait`, `Wait-Process`, `Wait-Job`, `Receive-Job`, or synchronous stream `ReadToEnd`.
 
 Expected timeout result:
 

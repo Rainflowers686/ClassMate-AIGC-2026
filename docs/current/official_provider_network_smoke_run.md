@@ -266,6 +266,24 @@ v3 fix recorded:
 - If the child exits without a parseable result, the final status is `FAIL_NETWORK_CHILD_NO_RESULT`.
 
 No network request was run as part of this fix.
+
+Offline self-test result:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -SelfTestTimeout -TimeoutSeconds 3
+```
+
+Observed:
+
+- mode: `SELF_TEST`
+- capability: `TIMEOUT_SELF_TEST`
+- status: `FAIL_TIMEOUT`
+- elapsed: 4 seconds
+- request sent: false
+- local config read: false
+- final result did not remain `RUNNING`
+
+This validates the timeout finalization path without touching the real Query Rewrite endpoint.
 - method: `POST`
 - content type: `application/x-www-form-urlencoded`
 - payload kind: form body with base64 `image`, `pos`, and `businessid`

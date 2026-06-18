@@ -119,6 +119,14 @@ Fix:
 - If the child exits without a parseable result file, the final status is `FAIL_NETWORK_CHILD_NO_RESULT`.
 - A normal completed run must overwrite the pre-request `RUNNING` result with `PASS` or a final `FAIL_*` status.
 
+2026-06-18 v3 self-test:
+
+- Added `-SelfTestTimeout`.
+- The self-test does not read local config values and sends no network request.
+- It starts a child PowerShell process that sleeps for 60 seconds.
+- With `-TimeoutSeconds 3`, the parent returned in 4 seconds and finalized `TIMEOUT_SELF_TEST` as `FAIL_TIMEOUT`.
+- This proves the parent can overwrite the initial `RUNNING` result when the shared timeout wrapper fires.
+
 Expected timeout result:
 
 - `status=FAIL_TIMEOUT`

@@ -446,11 +446,13 @@ class OfficialProviderNetworkSmokeTest {
             "function Test-SmokeUri",
             "function Invoke-SmokeHttpRequestWithTimeout",
             "[System.Uri]::TryCreate",
-            "System.Diagnostics.ProcessStartInfo",
-            "CLASSMATE_SMOKE_CHILD_RESULT",
+            "[switch]\$SelfTestTimeout",
+            "Start-Process -FilePath \"powershell\"",
             "\$process.HasExited",
             "Stop-Process -Id \$process.Id -Force",
             "Start-Sleep -Milliseconds 200",
+            "RedirectStandardOutput",
+            "RedirectStandardError",
             "Invalid URI after endpoint composition",
             "FAIL_INVALID_URI",
             "FAIL_TIMEOUT",
@@ -470,6 +472,11 @@ class OfficialProviderNetworkSmokeTest {
         assertFalse(script.contains("https://\$Domain\$Path?requestId=classmate-smoke"))
         assertFalse(script.contains("https://api-ai.vivo.com.cn=classmate-smoke"))
         assertFalse(script.contains("general_recognition&requestId"))
+        assertFalse(script.contains("Start-Process -Wait"))
+        assertFalse(script.contains("Wait-Process"))
+        assertFalse(script.contains("Wait-Job"))
+        assertFalse(script.contains("Receive-Job"))
+        assertFalse(script.contains("ReadToEnd"))
     }
 
     @Test
@@ -512,15 +519,17 @@ class OfficialProviderNetworkSmokeTest {
         assertTrue(script.contains("[int]\$TimeoutSeconds"))
         assertTrue(script.contains("Timed out after configured timeout"))
         assertTrue(script.contains("Status \"FAIL_TIMEOUT\""))
-        assertTrue(script.contains("System.Diagnostics.ProcessStartInfo"))
-        assertTrue(script.contains("CLASSMATE_SMOKE_CHILD_RESULT"))
+        assertTrue(script.contains("Start-Process -FilePath \"powershell\""))
+        assertTrue(script.contains("RedirectStandardOutput"))
+        assertTrue(script.contains("RedirectStandardError"))
         assertTrue(script.contains("while (-not \$process.HasExited)"))
         assertTrue(script.contains("Stop-Process -Id \$process.Id -Force"))
         assertTrue(networkBlock.contains("Invoke-SmokeHttpRequestWithTimeout -Uri \$uriCheck.uri"))
         assertFalse(networkBlock.contains("Invoke-WebRequest -Uri \$uriCheck.uri"))
-        assertFalse(script.contains("Start-Job -ScriptBlock"))
-        assertFalse(script.contains("Wait-Job -Job"))
-        assertFalse(script.contains("Receive-Job -Job"))
+        assertFalse(script.contains("Start-Job"))
+        assertFalse(script.contains("Wait-Job"))
+        assertFalse(script.contains("Receive-Job"))
+        assertFalse(script.contains("ReadToEnd"))
     }
 
     @Test
@@ -544,6 +553,33 @@ class OfficialProviderNetworkSmokeTest {
         assertTrue(script.contains("Network child returned no result"))
         assertTrue(script.contains("Network child result could not be parsed"))
         assertTrue(script.contains("Remove-Item -LiteralPath \$childResultPath"))
+    }
+
+    @Test
+    fun offlineTimeoutSelfTestFinalizesAsFailTimeout() {
+        val temp = Files.createTempDirectory("classmate-smoke-timeout-selftest").toFile()
+        val outputDir = File(temp, "out")
+
+        val started = System.nanoTime()
+        val output = runSmokeScript(
+            "-SelfTestTimeout",
+            "-TimeoutSeconds",
+            "3",
+            "-OutputDir",
+            outputDir.absolutePath,
+        )
+        val elapsedSeconds = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - started)
+
+        val resultJson = File(outputDir, "smoke_result.json").readText()
+        val resultMd = File(outputDir, "smoke_result.md").readText()
+
+        assertTrue("self-test should return promptly, elapsed=$elapsedSeconds", elapsedSeconds in 2..8)
+        assertTrue(output.contains("Mode: SELF_TEST"))
+        assertTrue(output.contains("TIMEOUT_SELF_TEST: FAIL_TIMEOUT"))
+        assertTrue(resultJson.contains("\"status\":  \"FAIL_TIMEOUT\"") || resultJson.contains("\"status\": \"FAIL_TIMEOUT\""))
+        assertTrue(resultMd.contains("FAIL_TIMEOUT"))
+        assertFalse("final json must not remain RUNNING", resultJson.contains("\"status\":  \"RUNNING\"") || resultJson.contains("\"status\": \"RUNNING\""))
+        assertFalse("final md must not remain RUNNING", Regex("""\|\s*TIMEOUT_SELF_TEST\s*\|\s*SELF_TEST\s*\|\s*RUNNING\s*\|""").containsMatchIn(resultMd))
     }
 
     @Test

@@ -9,6 +9,7 @@ param(
     [switch]$PrintSetupHelp,
     [switch]$UseLocalConfig,
     [switch]$ExplainConfig,
+    [switch]$SelfTestTimeout,
     [string]$LocalConfigPath,
     [int]$TimeoutSeconds = 20
 )
@@ -194,7 +195,10 @@ $CapabilityCatalog = [ordered]@{
     }
 }
 
-if (-not $RunNetwork) {
+if ($SelfTestTimeout) {
+    $DryRun = $false
+    $RunNetwork = $false
+} elseif (-not $RunNetwork) {
     $DryRun = $true
 }
 
@@ -246,7 +250,7 @@ function Write-SmokeLog($Message) {
 
 function Write-HarnessHeader {
     Write-Host "Official provider smoke harness"
-    Write-Host "Mode: $(if ($RunNetwork) { 'NETWORK' } else { 'DRY_RUN' })"
+    Write-Host "Mode: $(if ($SelfTestTimeout) { 'SELF_TEST' } elseif ($RunNetwork) { 'NETWORK' } else { 'DRY_RUN' })"
     Write-Host "Output: $ResultJson"
 }
 
@@ -255,6 +259,10 @@ function Print-SetupHelp {
     Write-Host ""
     Write-Host "Default mode is dry-run. Real requests require -RunNetwork and one explicit -Capability."
     Write-Host "config.local.json is not read unless -UseLocalConfig is passed."
+    Write-Host ""
+    Write-Host "Offline timeout self-test:"
+    Write-Host "  powershell -NoProfile -ExecutionPolicy Bypass -File scripts\qa\official_provider_smoke.ps1 -SelfTestTimeout -TimeoutSeconds 3"
+    Write-Host "  This starts a sleeping child process, sends no network request, and should finish as FAIL_TIMEOUT."
     Write-Host ""
     Write-Host "Common environment variables:"
     Write-Host "  CLASSMATE_PROVIDER_SMOKE_AUTH_HEADER=<your-value>"
@@ -855,14 +863,21 @@ function Invoke-SmokeHttpRequestWithTimeout {
         [hashtable]$Headers,
         [string]$ContentType,
         [string]$Body,
-        [int]$TimeoutSeconds
+        [int]$TimeoutSeconds,
+        [int]$SelfTestSleepSeconds = 0
     )
     $effectiveTimeout = [Math]::Max(1, $TimeoutSeconds)
-    $childResultPath = Join-Path $OutputDir ("child_result_" + [Guid]::NewGuid().ToString("N") + ".json")
+    $childId = [Guid]::NewGuid().ToString("N")
+    $childScriptPath = Join-Path $OutputDir ("child_script_" + $childId + ".ps1")
+    $childRequestPath = Join-Path $OutputDir ("child_request_" + $childId + ".json")
+    $childResultPath = Join-Path $OutputDir ("child_result_" + $childId + ".json")
+    $childStdoutPath = Join-Path $OutputDir ("child_stdout_" + $childId + ".log")
+    $childStderrPath = Join-Path $OutputDir ("child_stderr_" + $childId + ".log")
     $childScript = @'
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
-$resultPath = [Environment]::GetEnvironmentVariable("CLASSMATE_SMOKE_CHILD_RESULT")
+$requestPath = $args[0]
+$resultPath = $args[1]
 function Write-ChildResult($Result) {
     $Result | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $resultPath -Encoding UTF8
 }
@@ -885,8 +900,20 @@ function Redact-ChildText($Text, $Request) {
     return $redacted
 }
 try {
-    $requestJson = [Console]::In.ReadToEnd()
+    $requestJson = Get-Content -LiteralPath $requestPath -Raw
     $request = $requestJson | ConvertFrom-Json
+    if ($request.selfTestSleepSeconds -and ([int]$request.selfTestSleepSeconds) -gt 0) {
+        Start-Sleep -Seconds ([int]$request.selfTestSleepSeconds)
+        Write-ChildResult ([PSCustomObject]@{
+            ok = $true
+            timedOut = $false
+            statusCode = 0
+            content = "self-test completed without timeout"
+            error = ""
+            status = ""
+        })
+        exit 0
+    }
     $headers = @{}
     if ($request.headers) {
         foreach ($prop in $request.headers.PSObject.Properties) {
@@ -921,7 +948,6 @@ try {
     })
 }
 '@
-    $encodedScript = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($childScript))
     $requestEnvelope = [PSCustomObject]@{
         uri = $Uri.AbsoluteUri
         method = $Method
@@ -929,24 +955,27 @@ try {
         contentType = $ContentType
         body = $Body
         timeoutSeconds = $effectiveTimeout
+        selfTestSleepSeconds = $SelfTestSleepSeconds
     } | ConvertTo-Json -Depth 12 -Compress
+    Set-Content -LiteralPath $childScriptPath -Value $childScript -Encoding UTF8
+    Set-Content -LiteralPath $childRequestPath -Value $requestEnvelope -Encoding UTF8
 
-    $psi = New-Object System.Diagnostics.ProcessStartInfo
-    $psi.FileName = "powershell"
-    $psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -EncodedCommand $encodedScript"
-    $psi.UseShellExecute = $false
-    $psi.RedirectStandardInput = $true
-    $psi.RedirectStandardOutput = $true
-    $psi.RedirectStandardError = $true
-    $psi.CreateNoWindow = $true
-    $psi.EnvironmentVariables["CLASSMATE_SMOKE_CHILD_RESULT"] = $childResultPath
-    $process = New-Object System.Diagnostics.Process
-    $process.StartInfo = $psi
+    $quotedScriptPath = '"' + $childScriptPath.Replace('"', '""') + '"'
+    $quotedRequestPath = '"' + $childRequestPath.Replace('"', '""') + '"'
+    $quotedResultPath = '"' + $childResultPath.Replace('"', '""') + '"'
+    $argumentList = @(
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        $quotedScriptPath,
+        $quotedRequestPath,
+        $quotedResultPath
+    )
+    $process = $null
     $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     try {
-        [void]$process.Start()
-        $process.StandardInput.Write($requestEnvelope)
-        $process.StandardInput.Close()
+        $process = Start-Process -FilePath "powershell" -ArgumentList $argumentList -RedirectStandardOutput $childStdoutPath -RedirectStandardError $childStderrPath -WindowStyle Hidden -PassThru
         while (-not $process.HasExited) {
             if ($stopwatch.Elapsed.TotalSeconds -ge $effectiveTimeout) {
                 try {
@@ -965,8 +994,6 @@ try {
             }
             Start-Sleep -Milliseconds 200
         }
-        $stdout = $process.StandardOutput.ReadToEnd()
-        $stderr = $process.StandardError.ReadToEnd()
         try {
             if (Test-Path -LiteralPath $childResultPath) {
                 $childResult = Get-Content -LiteralPath $childResultPath -Raw | ConvertFrom-Json
@@ -987,7 +1014,7 @@ try {
             timedOut = $false
             statusCode = $null
             content = ""
-            error = if ($stderr) { [string]$stderr } elseif ($stdout) { [string]$stdout } else { "Network child returned no result" }
+            error = if (Test-Path -LiteralPath $childStderrPath) { Get-Content -LiteralPath $childStderrPath -Raw } elseif (Test-Path -LiteralPath $childStdoutPath) { Get-Content -LiteralPath $childStdoutPath -Raw } else { "Network child returned no result" }
             status = "FAIL_NETWORK_CHILD_NO_RESULT"
         }
     } catch {
@@ -1008,6 +1035,26 @@ try {
         try {
             if (Test-Path -LiteralPath $childResultPath) {
                 Remove-Item -LiteralPath $childResultPath -Force -ErrorAction SilentlyContinue
+            }
+        } catch {}
+        try {
+            if (Test-Path -LiteralPath $childScriptPath) {
+                Remove-Item -LiteralPath $childScriptPath -Force -ErrorAction SilentlyContinue
+            }
+        } catch {}
+        try {
+            if (Test-Path -LiteralPath $childRequestPath) {
+                Remove-Item -LiteralPath $childRequestPath -Force -ErrorAction SilentlyContinue
+            }
+        } catch {}
+        try {
+            if (Test-Path -LiteralPath $childStdoutPath) {
+                Remove-Item -LiteralPath $childStdoutPath -Force -ErrorAction SilentlyContinue
+            }
+        } catch {}
+        try {
+            if (Test-Path -LiteralPath $childStderrPath) {
+                Remove-Item -LiteralPath $childStderrPath -Force -ErrorAction SilentlyContinue
             }
         } catch {}
     }
@@ -1117,6 +1164,38 @@ function New-EmptySmokeConfig($LocalConfig) {
     }
 }
 
+function New-SelfTestSmokeConfig($LocalConfig) {
+    [PSCustomObject]@{
+        missingEnvNames = @()
+        missingConfigFields = @()
+        detectedConfigGroups = @($LocalConfig.detectedConfigGroups)
+        configSource = "SELF_TEST"
+        localConfigRead = [bool]$LocalConfig.read
+        endpointMappingStatus = "READY"
+        authMappingStatus = "READY"
+        requestSchemaStatus = "READY"
+        mappingSource = "SELF_TEST"
+        providerPathSource = "SELF_TEST"
+        endpointShape = [PSCustomObject]@{
+            schemeConfigured = $false
+            hostConfigured = $false
+            pathSegmentCount = 1
+            pathLastSegment = "timeout_self_test"
+            queryKeys = @()
+        }
+        httpMethod = "SELF_TEST"
+        contentType = "none"
+        payloadKind = "SLEEP"
+        timeoutSeconds = $TimeoutSeconds
+        allowNoAuth = $true
+        appId = ""
+        schemaNote = "offline sleep child process"
+        url = "http://127.0.0.1/timeout_self_test"
+        authHeader = ""
+        authValue = ""
+    }
+}
+
 function Test-SmokeUri($Url) {
     $uri = $null
     $isValid = [System.Uri]::TryCreate([string]$Url, [System.UriKind]::Absolute, [ref]$uri)
@@ -1181,6 +1260,26 @@ function New-SmokeResult {
         routeDiagnosis = Get-SmokeRouteDiagnosis $Status $CapabilityName
         timeoutSeconds = $SmokeConfig.timeoutSeconds
     }
+}
+
+function Invoke-TimeoutSelfTest($LocalConfig) {
+    $started = Get-Date
+    $smokeConfig = New-SelfTestSmokeConfig $LocalConfig
+    $runningElapsed = [int]((Get-Date) - $started).TotalMilliseconds
+    $runningResult = New-SmokeResult -CapabilityName "TIMEOUT_SELF_TEST" -Mode "SELF_TEST" -Status "RUNNING" -SmokeConfig $smokeConfig -RequestSent $false -RequestAttempted $true -UriValidated $true -SanitizedStatus "Offline timeout self-test child process starting." -SanitizedError "" -OutputPath "" -DurationMs $runningElapsed
+    Write-Results -Results @($runningResult) -LocalConfig $LocalConfig
+
+    $uri = [System.Uri]"http://127.0.0.1/timeout_self_test"
+    $response = Invoke-SmokeHttpRequestWithTimeout -Uri $uri -Method "SELF_TEST" -Headers @{} -ContentType "none" -Body "" -TimeoutSeconds $TimeoutSeconds -SelfTestSleepSeconds 60
+    $elapsed = [int]((Get-Date) - $started).TotalMilliseconds
+    if ($response.timedOut -or $response.status -eq "FAIL_TIMEOUT") {
+        return New-SmokeResult -CapabilityName "TIMEOUT_SELF_TEST" -Mode "SELF_TEST" -Status "FAIL_TIMEOUT" -SmokeConfig $smokeConfig -RequestSent $false -RequestAttempted $true -UriValidated $true -SanitizedStatus "Offline timeout self-test timed out as expected." -SanitizedError "Timed out after configured timeout" -OutputPath "" -DurationMs $elapsed
+    }
+    if ($response.ok) {
+        return New-SmokeResult -CapabilityName "TIMEOUT_SELF_TEST" -Mode "SELF_TEST" -Status "FAIL_SELF_TEST_NO_TIMEOUT" -SmokeConfig $smokeConfig -RequestSent $false -RequestAttempted $true -UriValidated $true -SanitizedStatus "Self-test child completed before timeout." -SanitizedError "Timeout self-test did not time out." -OutputPath "" -DurationMs $elapsed
+    }
+    $status = if (Test-RealValue $response.status) { [string]$response.status } else { "FAIL_NETWORK_CHILD_NO_RESULT" }
+    return New-SmokeResult -CapabilityName "TIMEOUT_SELF_TEST" -Mode "SELF_TEST" -Status $status -SmokeConfig $smokeConfig -RequestSent $false -RequestAttempted $true -UriValidated $true -SanitizedStatus "Offline timeout self-test failed." -SanitizedError $response.error -OutputPath "" -DurationMs $elapsed
 }
 
 function Invoke-CapabilitySmoke($CapabilityName, $LocalConfig) {
@@ -1398,6 +1497,13 @@ Write-SmokeLog ("AAR exists: " + (Test-Path -LiteralPath (Join-Path $RepoRoot "a
 
 if ($ExplainConfig) {
     Write-ExplainConfig -LocalConfig $localConfig -Selected $selected
+    return
+}
+
+if ($SelfTestTimeout) {
+    $result = Invoke-TimeoutSelfTest -LocalConfig $localConfig
+    Write-Results -Results @($result) -LocalConfig $localConfig
+    Write-Host "$($result.capability): $($result.status)"
     return
 }
 
