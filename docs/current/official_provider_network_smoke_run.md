@@ -409,3 +409,47 @@ Next recommended official provider smoke target:
 1. `EMBEDDING`
 
 Before running Embedding network smoke, add `officialProviders.embedding`, run `-ExplainConfig -UseLocalConfig`, and confirm `endpointMapping=READY`, `authMapping=READY`, and `requestSchema=READY`.
+
+## 2026-06-18 Embedding Provider Network Smoke PASS
+
+Source: local smoke result under `.codex_work/official_provider_smoke/embedding_20260618_124315/` (local-only, not tracked).
+
+Result summary:
+
+- capability: `EMBEDDING`
+- tier: `product-facing`
+- network executed: true
+- mode: `NETWORK`
+- status: `PASS`
+- request sent: true
+- request attempted: true
+- URI validated: true
+- method: `POST`
+- content type: `application/json`
+- payload kind: `GENERIC_JSON`
+- path last segment: `batch`
+- query keys: `requestId`
+- config source: `LOCAL_CONFIG_OFFICIAL_PROVIDER`
+- mapping source: `LOCAL_CONFIG_OFFICIAL_PROVIDER`
+- provider path source: `CONFIG`
+- endpoint mapping: `READY`
+- auth mapping: `READY`
+- request schema: `READY`
+- missing env/config fields: none
+- secret leaked: no
+
+This PASS makes Embedding the third real network PASS among official product-facing provider smoke targets, after OCR and Text Similarity.
+
+Current provider smoke matrix:
+
+| Provider | Config status | Live smoke status | Product impact |
+|---|---|---|---|
+| OCR | `READY` | `PASS` | Product-facing capture path can use official OCR when configured. |
+| TEXT_SIMILARITY | `READY` | `PASS` | Product-facing retrieval/rerank enhancement is smoke-verified. |
+| EMBEDDING | `READY` | `PASS` | Product-facing vector retrieval foundation is smoke-verified. |
+| QUERY_REWRITE | `READY` | `BLOCKED` | Fallback available through qwen3.5-plus rewrite, local safe rewrite, or direct retrieval. |
+
+Recommendation:
+
+- Do not continue spending validation time on Query Rewrite live smoke in this pass.
+- Move next to App-level L3 cloud-device end-to-end validation, using the provider matrix above as the current official-provider readiness baseline.
