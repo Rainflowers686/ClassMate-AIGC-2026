@@ -367,3 +367,45 @@ Next recommended official provider smoke order:
 2. `EMBEDDING`
 
 Before each real network smoke, add the corresponding `officialProviders.<capability>` local config group, run `-ExplainConfig -UseLocalConfig`, and confirm `endpointMapping=READY`, `authMapping=READY`, and `requestSchema=READY`. Do not reuse `topLevel.bluelm` as a specialized provider endpoint.
+
+## 2026-06-18 Text Similarity Provider Network Smoke PASS
+
+Source: local smoke result under `.codex_work/official_provider_smoke/text_similarity_20260618_123444/` (local-only, not tracked).
+
+Result summary:
+
+- capability: `TEXT_SIMILARITY`
+- tier: `product-facing`
+- network executed: true
+- mode: `NETWORK`
+- status: `PASS`
+- request sent: true
+- request attempted: true
+- URI validated: true
+- method: `POST`
+- content type: `application/json`
+- payload kind: `GENERIC_JSON`
+- path last segment: `rerank`
+- query keys: `requestId`
+- config source: `LOCAL_CONFIG_OFFICIAL_PROVIDER`
+- mapping source: `LOCAL_CONFIG_OFFICIAL_PROVIDER`
+- provider path source: `CONFIG`
+- endpoint mapping: `READY`
+- auth mapping: `READY`
+- request schema: `READY`
+- missing env/config fields: none
+- secret leaked: no
+
+This PASS makes Text Similarity the second real network PASS among the official product-facing provider smoke targets, after OCR.
+
+Query Rewrite remains:
+
+- configured: `READY`
+- live smoke: `BLOCKED`
+- blocker scope: not a product blocker; the product can continue through qwen3.5-plus query rewrite when available, or local safe rewrite/direct retrieval fallback otherwise.
+
+Next recommended official provider smoke target:
+
+1. `EMBEDDING`
+
+Before running Embedding network smoke, add `officialProviders.embedding`, run `-ExplainConfig -UseLocalConfig`, and confirm `endpointMapping=READY`, `authMapping=READY`, and `requestSchema=READY`.
