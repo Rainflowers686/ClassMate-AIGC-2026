@@ -187,7 +187,7 @@ With Schema v1, `officialProviders.<capability>` can also make the corresponding
 - `SeamReadyButEndpointMappingMissing`: a project seam exists, but no confirmed provider request mapping exists.
 - `RequestSchemaMissing`: endpoint may exist, but request body is not ready.
 - `FAIL_INVALID_URI`: base URL plus endpoint path did not form a valid HTTP(S) URI. The request is treated as not sent.
-- `FAIL_TIMEOUT`: request exceeded `-TimeoutSeconds`. Network calls run through the shared hard-timeout wrapper, so a hung provider call must still write a sanitized timeout result.
+- `FAIL_TIMEOUT`: request exceeded `-TimeoutSeconds`. Network calls run through the shared parent-process hard-timeout wrapper, so a hung provider call must still write a sanitized timeout result.
 - `FAIL_HTTP_404_ENDPOINT_SUSPECT`: HTTP 404 after a request was attempted. Check route, path, method, and endpoint shape first; 404 is not proof of auth failure.
 
 ## URL Composition Rules
@@ -199,11 +199,11 @@ The smoke harness composes endpoint URLs in two steps:
 
 Smoke-only trace fields such as `requestId=classmate-smoke` are appended as query parameters with `?` or `&`. They must never be concatenated directly after the host. After composition, the script validates the final URL with `System.Uri.TryCreate`. Invalid URI results are reported as `FAIL_INVALID_URI` with `requestSent=False`.
 
-`requestSent=True` now means the network worker entered the provider request path. The following cases keep `requestSent=False`: dry-run, config missing, endpoint mapping missing, seam-only, request schema missing, missing input, invalid URI, and the pre-request `RUNNING` partial result.
+`requestSent=True` now means the child process entered the provider request path. The following cases keep `requestSent=False`: dry-run, config missing, endpoint mapping missing, seam-only, request schema missing, missing input, invalid URI, and the pre-request `RUNNING` partial result.
 
 ## Hard Timeout Behavior
 
-All live capability requests use the shared `Invoke-SmokeHttpRequestWithTimeout` path. The wrapper disables PowerShell progress output, runs the HTTP call in an isolated job, waits no longer than `-TimeoutSeconds`, and stops the worker on timeout.
+All live capability requests use the shared `Invoke-SmokeHttpRequestWithTimeout` path. The wrapper disables PowerShell progress output, launches a separate PowerShell child process for the HTTP call, polls the child every 200 ms, waits no longer than `-TimeoutSeconds`, and force-stops the child process on timeout.
 
 Expected timeout result:
 
@@ -214,6 +214,8 @@ Expected timeout result:
 - `sanitizedError=Timed out after configured timeout`
 
 `DryRun` and `ExplainConfig` never enter this network path.
+
+If a child process exits without a parseable result file, the final status is `FAIL_NETWORK_CHILD_NO_RESULT`. A normal completed run must not leave the final result as `RUNNING`; `RUNNING` is only the pre-request partial result used to make Ctrl+C interruptions diagnosable.
 
 Smoke results include only sanitized endpoint shape: scheme configured, host configured, path segment count, last path segment, query keys, method, content type, payload kind, and path source. They must not include the full endpoint, auth value, AppKey, cookie, or token.
 

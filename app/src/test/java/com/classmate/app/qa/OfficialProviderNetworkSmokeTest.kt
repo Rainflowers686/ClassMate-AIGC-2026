@@ -446,16 +446,19 @@ class OfficialProviderNetworkSmokeTest {
             "function Test-SmokeUri",
             "function Invoke-SmokeHttpRequestWithTimeout",
             "[System.Uri]::TryCreate",
-            "Start-Job",
-            "Wait-Job -Job \$job -Timeout \$effectiveTimeout",
-            "Stop-Job -Job \$job",
+            "System.Diagnostics.ProcessStartInfo",
+            "CLASSMATE_SMOKE_CHILD_RESULT",
+            "\$process.HasExited",
+            "Stop-Process -Id \$process.Id -Force",
+            "Start-Sleep -Milliseconds 200",
             "Invalid URI after endpoint composition",
             "FAIL_INVALID_URI",
             "FAIL_TIMEOUT",
+            "FAIL_NETWORK_CHILD_NO_RESULT",
             "requestAttempted",
             "uriValidated",
             "requestSent = if (\$failureStatus -eq \"FAIL_INVALID_URI\") { \$false } else { \$requestAttempted }",
-            "Invoke-WebRequest -Uri \$UriText",
+            "Invoke-WebRequest -Uri ([System.Uri][string]\$request.uri)",
         ).forEach {
             assertTrue("script missing URL-safety marker: $it", script.contains(it))
         }
@@ -509,8 +512,38 @@ class OfficialProviderNetworkSmokeTest {
         assertTrue(script.contains("[int]\$TimeoutSeconds"))
         assertTrue(script.contains("Timed out after configured timeout"))
         assertTrue(script.contains("Status \"FAIL_TIMEOUT\""))
+        assertTrue(script.contains("System.Diagnostics.ProcessStartInfo"))
+        assertTrue(script.contains("CLASSMATE_SMOKE_CHILD_RESULT"))
+        assertTrue(script.contains("while (-not \$process.HasExited)"))
+        assertTrue(script.contains("Stop-Process -Id \$process.Id -Force"))
         assertTrue(networkBlock.contains("Invoke-SmokeHttpRequestWithTimeout -Uri \$uriCheck.uri"))
         assertFalse(networkBlock.contains("Invoke-WebRequest -Uri \$uriCheck.uri"))
+        assertFalse(script.contains("Start-Job -ScriptBlock"))
+        assertFalse(script.contains("Wait-Job -Job"))
+        assertFalse(script.contains("Receive-Job -Job"))
+    }
+
+    @Test
+    fun timeoutFinalizationCannotLeaveNormalResultRunning() {
+        val script = readWorkspace("scripts/qa/official_provider_smoke.ps1")
+        val networkBlock = script.substringAfter("function Invoke-CapabilitySmoke").substringBefore("function Write-ExplainConfig")
+
+        assertTrue(networkBlock.contains("Status \"RUNNING\""))
+        assertTrue(networkBlock.contains("Write-Results -Results @(\$runningResult) -LocalConfig \$LocalConfig"))
+        assertTrue(networkBlock.contains("Status \"FAIL_TIMEOUT\""))
+        assertTrue(networkBlock.contains("return New-SmokeResult -CapabilityName \$CapabilityName -Mode \"NETWORK\" -Status \"FAIL_TIMEOUT\""))
+        assertTrue(networkBlock.indexOf("Status \"RUNNING\"") < networkBlock.indexOf("Invoke-SmokeHttpRequestWithTimeout"))
+        assertTrue(networkBlock.indexOf("Status \"FAIL_TIMEOUT\"") > networkBlock.indexOf("Invoke-SmokeHttpRequestWithTimeout"))
+    }
+
+    @Test
+    fun childProcessNoResultHasFinalFailureStatus() {
+        val script = readWorkspace("scripts/qa/official_provider_smoke.ps1")
+
+        assertTrue(script.contains("FAIL_NETWORK_CHILD_NO_RESULT"))
+        assertTrue(script.contains("Network child returned no result"))
+        assertTrue(script.contains("Network child result could not be parsed"))
+        assertTrue(script.contains("Remove-Item -LiteralPath \$childResultPath"))
     }
 
     @Test

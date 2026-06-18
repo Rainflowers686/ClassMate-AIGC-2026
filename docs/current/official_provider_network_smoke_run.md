@@ -242,6 +242,30 @@ Fix recorded:
 - Timeout is recorded as `FAIL_TIMEOUT` with sanitized status and no endpoint/key values.
 
 No network request was run as part of this documentation update.
+
+## 2026-06-18 Query Rewrite Timeout Finalization v3
+
+Follow-up observation:
+
+- The harness printed its header and wrote `smoke_result.md` / `smoke_result.json`.
+- After Ctrl+C, the latest result still showed `QUERY_REWRITE` as `RUNNING`.
+- This means the pre-request partial result worked, but final timeout overwrite did not complete.
+
+Root cause in the previous hardening:
+
+- The HTTP request still lived behind PowerShell job primitives.
+- In the affected environment, the parent script did not reliably regain control after `TimeoutSeconds`.
+- Because the parent did not regain control, it could not overwrite `RUNNING` with `FAIL_TIMEOUT`.
+
+v3 fix recorded:
+
+- The live request now runs in a separate PowerShell child process.
+- The parent script polls the child process every 200 ms.
+- When elapsed time reaches `TimeoutSeconds`, the parent force-stops the child process.
+- The parent then writes a final `FAIL_TIMEOUT` result over the pre-request `RUNNING` result.
+- If the child exits without a parseable result, the final status is `FAIL_NETWORK_CHILD_NO_RESULT`.
+
+No network request was run as part of this fix.
 - method: `POST`
 - content type: `application/x-www-form-urlencoded`
 - payload kind: form body with base64 `image`, `pos`, and `businessid`

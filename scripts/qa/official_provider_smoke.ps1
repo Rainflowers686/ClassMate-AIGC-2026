@@ -838,6 +838,16 @@ function Get-NetworkFailureStatusFromDetails($Message, $StatusCode) {
     return "FAIL_NETWORK"
 }
 
+function Redact-SmokeText($Text, $SmokeConfig) {
+    $redacted = Redact-Text $Text
+    foreach ($value in @($SmokeConfig.authValue, $SmokeConfig.url)) {
+        if (Test-RealValue $value) {
+            $redacted = $redacted.Replace([string]$value, "<redacted>")
+        }
+    }
+    return $redacted
+}
+
 function Invoke-SmokeHttpRequestWithTimeout {
     param(
         [System.Uri]$Uri,
@@ -848,67 +858,159 @@ function Invoke-SmokeHttpRequestWithTimeout {
         [int]$TimeoutSeconds
     )
     $effectiveTimeout = [Math]::Max(1, $TimeoutSeconds)
-    $job = Start-Job -ScriptBlock {
-        param($UriText, $Method, $Headers, $ContentType, $Body, $TimeoutSeconds)
-        $ErrorActionPreference = "Stop"
-        $ProgressPreference = "SilentlyContinue"
+    $childResultPath = Join-Path $OutputDir ("child_result_" + [Guid]::NewGuid().ToString("N") + ".json")
+    $childScript = @'
+$ErrorActionPreference = "Stop"
+$ProgressPreference = "SilentlyContinue"
+$resultPath = [Environment]::GetEnvironmentVariable("CLASSMATE_SMOKE_CHILD_RESULT")
+function Write-ChildResult($Result) {
+    $Result | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $resultPath -Encoding UTF8
+}
+function Redact-ChildText($Text, $Request) {
+    if ($null -eq $Text) { return "" }
+    $redacted = [string]$Text
+    foreach ($value in @($Request.uri)) {
+        if ($value -and ([string]$value).Length -gt 0) {
+            $redacted = $redacted.Replace([string]$value, "<redacted>")
+        }
+    }
+    if ($Request.headers) {
+        foreach ($prop in $Request.headers.PSObject.Properties) {
+            if ($prop.Value -and ([string]$prop.Value).Length -gt 0) {
+                $redacted = $redacted.Replace([string]$prop.Value, "<redacted>")
+            }
+        }
+    }
+    $redacted = $redacted -replace "(?i)(authorization|token|cookie|appkey|apikey)\s*[:=]\s*[^,\s;]+", '$1=<redacted>'
+    return $redacted
+}
+try {
+    $requestJson = [Console]::In.ReadToEnd()
+    $request = $requestJson | ConvertFrom-Json
+    $headers = @{}
+    if ($request.headers) {
+        foreach ($prop in $request.headers.PSObject.Properties) {
+            $headers[$prop.Name] = [string]$prop.Value
+        }
+    }
+    $response = Invoke-WebRequest -Uri ([System.Uri][string]$request.uri) -Method ([string]$request.method) -Headers $headers -ContentType ([string]$request.contentType) -Body ([string]$request.body) -TimeoutSec ([int]$request.timeoutSeconds) -UseBasicParsing
+    Write-ChildResult ([PSCustomObject]@{
+        ok = $true
+        timedOut = $false
+        statusCode = [int]$response.StatusCode
+        content = Redact-ChildText ([string]$response.Content) $request
+        error = ""
+        status = ""
+    })
+} catch {
+    $statusCode = $null
+    try {
+        if ($_.Exception.Response -and $_.Exception.Response.StatusCode) {
+            $statusCode = [int]$_.Exception.Response.StatusCode
+        }
+    } catch {
+        $statusCode = $null
+    }
+    Write-ChildResult ([PSCustomObject]@{
+        ok = $false
+        timedOut = $false
+        statusCode = $statusCode
+        content = ""
+        error = Redact-ChildText ([string]$_.Exception.Message) $request
+        status = ""
+    })
+}
+'@
+    $encodedScript = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($childScript))
+    $requestEnvelope = [PSCustomObject]@{
+        uri = $Uri.AbsoluteUri
+        method = $Method
+        headers = $Headers
+        contentType = $ContentType
+        body = $Body
+        timeoutSeconds = $effectiveTimeout
+    } | ConvertTo-Json -Depth 12 -Compress
+
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = "powershell"
+    $psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -EncodedCommand $encodedScript"
+    $psi.UseShellExecute = $false
+    $psi.RedirectStandardInput = $true
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $psi.CreateNoWindow = $true
+    $psi.EnvironmentVariables["CLASSMATE_SMOKE_CHILD_RESULT"] = $childResultPath
+    $process = New-Object System.Diagnostics.Process
+    $process.StartInfo = $psi
+    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    try {
+        [void]$process.Start()
+        $process.StandardInput.Write($requestEnvelope)
+        $process.StandardInput.Close()
+        while (-not $process.HasExited) {
+            if ($stopwatch.Elapsed.TotalSeconds -ge $effectiveTimeout) {
+                try {
+                    Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+                } catch {
+                    try { $process.Kill() } catch {}
+                }
+                return [PSCustomObject]@{
+                    ok = $false
+                    timedOut = $true
+                    statusCode = $null
+                    content = ""
+                    error = "Timed out after configured timeout"
+                    status = "FAIL_TIMEOUT"
+                }
+            }
+            Start-Sleep -Milliseconds 200
+        }
+        $stdout = $process.StandardOutput.ReadToEnd()
+        $stderr = $process.StandardError.ReadToEnd()
         try {
-            if ($null -eq $Headers) { $Headers = @{} }
-            $response = Invoke-WebRequest -Uri $UriText -Method $Method -Headers $Headers -ContentType $ContentType -Body $Body -TimeoutSec $TimeoutSeconds -UseBasicParsing
-            [PSCustomObject]@{
-                ok = $true
-                timedOut = $false
-                statusCode = [int]$response.StatusCode
-                content = [string]$response.Content
-                error = ""
+            if (Test-Path -LiteralPath $childResultPath) {
+                $childResult = Get-Content -LiteralPath $childResultPath -Raw | ConvertFrom-Json
+                return $childResult
             }
         } catch {
-            $statusCode = $null
-            try {
-                if ($_.Exception.Response -and $_.Exception.Response.StatusCode) {
-                    $statusCode = [int]$_.Exception.Response.StatusCode
-                }
-            } catch {
-                $statusCode = $null
-            }
-            [PSCustomObject]@{
+            return [PSCustomObject]@{
                 ok = $false
                 timedOut = $false
-                statusCode = $statusCode
+                statusCode = $null
                 content = ""
-                error = [string]$_.Exception.Message
+                error = "Network child result could not be parsed"
+                status = "FAIL_NETWORK_CHILD_NO_RESULT"
             }
         }
-    } -ArgumentList $Uri.AbsoluteUri, $Method, $Headers, $ContentType, $Body, $effectiveTimeout
-
-    $completed = Wait-Job -Job $job -Timeout $effectiveTimeout
-    if (-not $completed) {
-        Stop-Job -Job $job -ErrorAction SilentlyContinue | Out-Null
-        Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
-        return [PSCustomObject]@{
-            ok = $false
-            timedOut = $true
-            statusCode = $null
-            content = ""
-            error = "Timed out after configured timeout"
-        }
-    }
-
-    $result = Receive-Job -Job $job -ErrorAction SilentlyContinue
-    Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
-    if ($result -is [array]) {
-        $result = $result | Select-Object -Last 1
-    }
-    if ($null -eq $result) {
         return [PSCustomObject]@{
             ok = $false
             timedOut = $false
             statusCode = $null
             content = ""
-            error = "Network worker returned no result"
+            error = if ($stderr) { [string]$stderr } elseif ($stdout) { [string]$stdout } else { "Network child returned no result" }
+            status = "FAIL_NETWORK_CHILD_NO_RESULT"
         }
+    } catch {
+        return [PSCustomObject]@{
+            ok = $false
+            timedOut = $false
+            statusCode = $null
+            content = ""
+            error = [string]$_.Exception.Message
+            status = "FAIL_NETWORK_CHILD_NO_RESULT"
+        }
+    } finally {
+        try {
+            if ($process -and -not $process.HasExited) {
+                Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            }
+        } catch {}
+        try {
+            if (Test-Path -LiteralPath $childResultPath) {
+                Remove-Item -LiteralPath $childResultPath -Force -ErrorAction SilentlyContinue
+            }
+        } catch {}
     }
-    return $result
 }
 
 function Get-SmokeHttpMethod($CapabilityName) {
@@ -1156,20 +1258,20 @@ function Invoke-CapabilitySmoke($CapabilityName, $LocalConfig) {
             return New-SmokeResult -CapabilityName $CapabilityName -Mode "NETWORK" -Status "FAIL_TIMEOUT" -SmokeConfig $smokeConfig -RequestSent $true -RequestAttempted $true -UriValidated $true -SanitizedStatus "Network request timed out." -SanitizedError "Timed out after configured timeout" -OutputPath "" -DurationMs $elapsed
         }
         if ($response.ok) {
-            Set-Content -LiteralPath $outputPath -Value (Redact-Text ([string]$response.content))
+            Set-Content -LiteralPath $outputPath -Value (Redact-SmokeText ([string]$response.content) $smokeConfig)
             return New-SmokeResult -CapabilityName $CapabilityName -Mode "NETWORK" -Status "PASS" -SmokeConfig $smokeConfig -RequestSent $true -RequestAttempted $true -UriValidated $true -SanitizedStatus "HTTP $($response.statusCode)" -SanitizedError "" -OutputPath $outputPath -DurationMs $elapsed
         }
-        $failureStatus = Get-NetworkFailureStatusFromDetails $response.error $response.statusCode
+        $failureStatus = if (Test-RealValue $response.status) { [string]$response.status } else { Get-NetworkFailureStatusFromDetails $response.error $response.statusCode }
         $requestSent = if ($failureStatus -eq "FAIL_INVALID_URI") { $false } else { $true }
         $statusText = if ($failureStatus -eq "FAIL_INVALID_URI") { "Invalid URI after endpoint composition." } elseif ($failureStatus -eq "FAIL_TIMEOUT") { "Network request timed out." } else { "Network request failed." }
-        $errorText = if ($failureStatus -eq "FAIL_INVALID_URI") { "Invalid URI after endpoint composition; check baseUrl and endpointPath fields." } elseif ($failureStatus -eq "FAIL_TIMEOUT") { "Timed out after configured timeout" } else { $response.error }
+        $errorText = if ($failureStatus -eq "FAIL_INVALID_URI") { "Invalid URI after endpoint composition; check baseUrl and endpointPath fields." } elseif ($failureStatus -eq "FAIL_TIMEOUT") { "Timed out after configured timeout" } else { Redact-SmokeText $response.error $smokeConfig }
         return New-SmokeResult -CapabilityName $CapabilityName -Mode "NETWORK" -Status $failureStatus -SmokeConfig $smokeConfig -RequestSent $requestSent -RequestAttempted $true -UriValidated $uriCheck.isValid -SanitizedStatus $statusText -SanitizedError $errorText -OutputPath "" -DurationMs $elapsed
     } catch {
         $elapsed = [int]((Get-Date) - $started).TotalMilliseconds
         $failureStatus = Get-NetworkFailureStatus $_.Exception $smokeConfig
         $requestSent = if ($failureStatus -eq "FAIL_INVALID_URI") { $false } else { $requestAttempted }
         $statusText = if ($failureStatus -eq "FAIL_INVALID_URI") { "Invalid URI after endpoint composition." } elseif ($failureStatus -eq "FAIL_TIMEOUT") { "Network request timed out." } else { "Network request failed." }
-        $errorText = if ($failureStatus -eq "FAIL_INVALID_URI") { "Invalid URI after endpoint composition; check baseUrl and endpointPath fields." } elseif ($failureStatus -eq "FAIL_TIMEOUT") { "Timed out after configured timeout" } else { $_.Exception.Message }
+        $errorText = if ($failureStatus -eq "FAIL_INVALID_URI") { "Invalid URI after endpoint composition; check baseUrl and endpointPath fields." } elseif ($failureStatus -eq "FAIL_TIMEOUT") { "Timed out after configured timeout" } else { Redact-SmokeText $_.Exception.Message $smokeConfig }
         return New-SmokeResult -CapabilityName $CapabilityName -Mode "NETWORK" -Status $failureStatus -SmokeConfig $smokeConfig -RequestSent $requestSent -RequestAttempted $requestAttempted -UriValidated $uriCheck.isValid -SanitizedStatus $statusText -SanitizedError $errorText -OutputPath "" -DurationMs $elapsed
     }
 }

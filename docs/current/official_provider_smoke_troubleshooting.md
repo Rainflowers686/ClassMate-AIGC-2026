@@ -114,8 +114,10 @@ Fix:
 - The harness now prints `Official provider smoke harness` before capability execution.
 - Network mode writes an initial `RUNNING` result before calling the provider.
 - All live requests go through `Invoke-SmokeHttpRequestWithTimeout`.
-- The wrapper disables progress output, runs the HTTP call in a worker job, waits for `-TimeoutSeconds`, stops the worker on timeout, and records `FAIL_TIMEOUT`.
+- v2 finalization fix: the wrapper no longer relies on `Start-Job` / `Wait-Job` as the hard-timeout boundary. It launches a separate PowerShell child process, polls `HasExited` every 200 ms, force-stops the child after `-TimeoutSeconds`, and records `FAIL_TIMEOUT`.
 - Invalid URI still returns `FAIL_INVALID_URI` with `requestSent=False`.
+- If the child exits without a parseable result file, the final status is `FAIL_NETWORK_CHILD_NO_RESULT`.
+- A normal completed run must overwrite the pre-request `RUNNING` result with `PASS` or a final `FAIL_*` status.
 
 Expected timeout result:
 
