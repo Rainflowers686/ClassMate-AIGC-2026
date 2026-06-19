@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -33,6 +34,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.classmate.app.ui.design.Dimens
 import com.classmate.app.ui.theme.ClassMateTheme
@@ -260,7 +262,7 @@ fun ThemePreviewCard(
     val border = if (selected) BorderStroke(1.25.dp, cs.primary) else BorderStroke(0.75.dp, cs.outlineVariant)
     val base = modifier.fillMaxWidth()
     Surface(
-        modifier = if (onClick != null) base.clickable { onClick() } else base,
+        modifier = (if (onClick != null) base.clickable { onClick() } else base).defaultMinSize(minHeight = 104.dp),
         shape = MaterialTheme.shapes.large,
         color = cs.surface,
         border = border,
@@ -300,17 +302,14 @@ fun ThemePreviewCard(
             }
             Spacer(Modifier.width(Dimens.m))
             Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.width(8.dp))
-                    Text(tagline, style = MaterialTheme.typography.labelMedium, color = cs.primary)
-                }
+                Text(name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(tagline, style = MaterialTheme.typography.labelMedium, color = cs.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(2.dp))
-                Text(description, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+                Text(description, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             if (selected) {
                 Spacer(Modifier.width(8.dp))
-                Text("当前", style = MaterialTheme.typography.labelMedium, color = cs.primary)
+                Text("当前", style = MaterialTheme.typography.labelMedium, color = cs.primary, maxLines = 1)
             }
         }
     }

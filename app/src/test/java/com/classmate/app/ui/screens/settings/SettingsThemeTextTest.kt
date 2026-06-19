@@ -38,6 +38,57 @@ class SettingsThemeTextTest {
         assertFalse(source.contains("0xFFF3F4F7"))
     }
 
+    @Test
+    fun settingsIaUsesSinglePageStateWithoutDuplicateLayerCards() {
+        val source = source()
+        listOf(
+            "private enum class SettingsPage",
+            "SETTINGS_HOME",
+            "GENERAL_SETTINGS",
+            "APPEARANCE_THEME",
+            "AI_MODEL_CONFIG",
+            "PRIVACY_PERMISSIONS",
+            "LEARNING_EXPORT",
+            "AMBIENT_SOUND",
+            "DEVELOPER_SETTINGS",
+        ).forEach { assertTrue("missing Settings IA page state: $it", source.contains(it)) }
+
+        listOf(
+            "SettingsTopLevelNav(",
+            "GeneralSettingsNav(",
+            "SettingsHomeV2Card(",
+            "GeneralSettingsHomeCard(",
+            "SettingsLandingRow(",
+            "\"设置层级\"",
+            "\"设置首页\"",
+        ).forEach { assertFalse("old duplicated Settings UI remains: $it", source.contains(it)) }
+    }
+
+    @Test
+    fun generalAndDeveloperSettingsUseSeparatePages() {
+        val source = source()
+        listOf(
+            "SettingsHomeCard(",
+            "GeneralSettingsListCard(",
+            "DeveloperSettingsHomeCard(viewModel)",
+            "SettingsPage.DEVELOPER_SETTINGS",
+            "SettingsPage.GENERAL_SETTINGS",
+            "SettingsPageHeader(page = page",
+        ).forEach { assertTrue("missing Settings page separation hook: $it", source.contains(it)) }
+    }
+
+    @Test
+    fun settingsRowsConstrainTextAndCardHeights() {
+        val source = source()
+        listOf(
+            "defaultMinSize(minHeight = 72.dp)",
+            "defaultMinSize(minHeight = 104.dp)",
+            "maxLines = 1",
+            "maxLines = 2",
+            "TextOverflow.Ellipsis",
+        ).forEach { assertTrue("missing text wrapping or stable height guard: $it", source.contains(it)) }
+    }
+
     private fun source(): String =
         listOf(
             File("src/main/java/com/classmate/app/ui/screens/settings/SettingsScreen.kt"),

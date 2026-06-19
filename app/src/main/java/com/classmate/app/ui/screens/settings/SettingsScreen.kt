@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -45,6 +46,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -68,9 +71,7 @@ import com.classmate.core.provider.BlueLMDiagnosticStatus
 import com.classmate.core.provider.CloudModelQualityProfile
 import com.classmate.app.ui.components.CapabilityStatusPill
 import com.classmate.app.ui.components.ClassMateCard
-import com.classmate.app.ui.components.ClassMateScaffold
 import com.classmate.app.ui.components.DiagnosticDetailsCard
-import com.classmate.app.ui.components.PageHero
 import com.classmate.app.ui.product.ProductCanvas
 import com.classmate.app.ui.product.ProductHero
 import com.classmate.app.ui.product.ProductScaffold
@@ -89,19 +90,15 @@ import com.classmate.app.ui.i18n.appStrings
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 
-private enum class SettingsTopLevel(val title: String, val subtitle: String) {
-    HOME("设置首页", "通用设置与开发者设置"),
-    GENERAL("通用设置", "外观、AI 模型、隐私、学习导出和背景音"),
-    DEVELOPER("开发者设置", "诊断、smoke、端侧状态与脱敏日志"),
-}
-
-private enum class GeneralSettingsPage(val title: String, val subtitle: String) {
-    HOME("通用设置", "面向日常使用的设置入口"),
-    APPEARANCE("外观与主题", "默认学习、活力学习、沉浸学习与强调色"),
+private enum class SettingsPage(val title: String, val subtitle: String) {
+    SETTINGS_HOME("设置", "日常设置与诊断入口分开管理"),
+    GENERAL_SETTINGS("通用设置", "外观、AI 模型、隐私、学习导出和背景音"),
+    APPEARANCE_THEME("外观与主题", "默认学习、活力学习、沉浸学习与强调色"),
     AI_MODEL_CONFIG("AI 模型配置", "蓝心大模型与自有模型配置，保存后持续可用"),
-    PRIVACY("隐私与权限", "本地数据、导入权限和用户确认说明"),
+    PRIVACY_PERMISSIONS("隐私与权限", "本地数据、导入权限和用户确认说明"),
     LEARNING_EXPORT("学习与导出", "练习、复习和导出默认项"),
-    AMBIENT_AUDIO("沉浸式背景音", "授权循环背景音、音量和播放说明"),
+    AMBIENT_SOUND("沉浸式背景音", "授权循环背景音、音量和播放说明"),
+    DEVELOPER_SETTINGS("开发者设置", "诊断、smoke、端侧状态与脱敏日志"),
 }
 
 @Composable
@@ -110,13 +107,11 @@ fun SettingsScreen(viewModel: AppViewModel) {
     val s = appStrings(ui.language)
     var showDebug by remember { mutableStateOf(false) }
     var showLogs by remember { mutableStateOf(false) }
-    var topLevel by remember { mutableStateOf(SettingsTopLevel.HOME) }
-    var generalPage by remember { mutableStateOf(GeneralSettingsPage.HOME) }
+    var page by remember { mutableStateOf(SettingsPage.SETTINGS_HOME) }
 
     LaunchedEffect(ui.settingsDeepLink) {
         if (ui.settingsDeepLink == SettingsDeepLink.AI_MODEL_CONFIG_BLUELM) {
-            topLevel = SettingsTopLevel.GENERAL
-            generalPage = GeneralSettingsPage.AI_MODEL_CONFIG
+            page = SettingsPage.AI_MODEL_CONFIG
             viewModel.consumeSettingsDeepLink()
         }
     }
@@ -132,56 +127,62 @@ fun SettingsScreen(viewModel: AppViewModel) {
             verticalArrangement = Arrangement.spacedBy(Dimens.cardGap),
         ) {
             Spacer(Modifier.height(ProductSpace.tight))
-            ProductHero(
-                overline = "设置",
-                title = "ClassMate 设置",
-                subtitle = "通用设置面向日常学习；开发者设置只放诊断和 smoke。云端优先，端侧兜底，用户确认后再入库。",
-            )
-            CapabilityOverviewRow(viewModel)
-            Spacer(Modifier.height(Dimens.xxs))
-            SettingsTopLevelNav(topLevel = topLevel, onSelect = { selected ->
-                topLevel = selected
-                if (selected == SettingsTopLevel.GENERAL) generalPage = GeneralSettingsPage.HOME
-            })
-
-            when (topLevel) {
-                SettingsTopLevel.HOME -> SettingsHomeV2Card(
-                    onGeneral = {
-                        topLevel = SettingsTopLevel.GENERAL
-                        generalPage = GeneralSettingsPage.HOME
-                    },
-                    onDeveloper = { topLevel = SettingsTopLevel.DEVELOPER },
-                )
-
-                SettingsTopLevel.GENERAL -> {
-                    GeneralSettingsNav(page = generalPage, onSelect = { generalPage = it })
-                    when (generalPage) {
-                        GeneralSettingsPage.HOME -> GeneralSettingsHomeCard(
-                            onAppearance = { generalPage = GeneralSettingsPage.APPEARANCE },
-                            onAiModel = { generalPage = GeneralSettingsPage.AI_MODEL_CONFIG },
-                            onPrivacy = { generalPage = GeneralSettingsPage.PRIVACY },
-                            onLearningExport = { generalPage = GeneralSettingsPage.LEARNING_EXPORT },
-                            onAmbientAudio = { generalPage = GeneralSettingsPage.AMBIENT_AUDIO },
-                        )
-                        GeneralSettingsPage.APPEARANCE -> AppearanceAndThemeSettingsCard(viewModel)
-                        GeneralSettingsPage.AI_MODEL_CONFIG -> {
-                            AiModelConfigurationPage(viewModel)
-                            ModelAccessNotesCard()
-                            OfficialProviderReadinessCard(includeDevLab = false)
-                        }
-                        GeneralSettingsPage.PRIVACY -> {
-                            PrivacyAndPermissionsSettingsCard()
-                            PermissionCenterCard(viewModel)
-                        }
-                        GeneralSettingsPage.LEARNING_EXPORT -> {
-                            LearningExportSettingsCard(viewModel)
-                            LearningExportDocxPolicyCard(viewModel)
-                        }
-                        GeneralSettingsPage.AMBIENT_AUDIO -> BackgroundAudioPolicyCard()
-                    }
+            when (page) {
+                SettingsPage.SETTINGS_HOME -> {
+                    ProductHero(
+                        overline = "设置",
+                        title = "设置",
+                        subtitle = "常用设置和开发者诊断分开管理。云端优先，端侧兜底，用户确认后再入库。",
+                    )
+                    SettingsHomeStatusCards(viewModel)
+                    SettingsHomeCard(
+                        onGeneral = { page = SettingsPage.GENERAL_SETTINGS },
+                        onDeveloper = { page = SettingsPage.DEVELOPER_SETTINGS },
+                    )
                 }
 
-                SettingsTopLevel.DEVELOPER -> {
+                SettingsPage.GENERAL_SETTINGS -> {
+                    SettingsPageHeader(page = page, onBack = { page = SettingsPage.SETTINGS_HOME })
+                    GeneralSettingsListCard(
+                        onAppearance = { page = SettingsPage.APPEARANCE_THEME },
+                        onAiModel = { page = SettingsPage.AI_MODEL_CONFIG },
+                        onPrivacy = { page = SettingsPage.PRIVACY_PERMISSIONS },
+                        onLearningExport = { page = SettingsPage.LEARNING_EXPORT },
+                        onAmbientAudio = { page = SettingsPage.AMBIENT_SOUND },
+                    )
+                }
+
+                SettingsPage.APPEARANCE_THEME -> {
+                    SettingsPageHeader(page = page, onBack = { page = SettingsPage.GENERAL_SETTINGS })
+                    AppearanceAndThemeSettingsCard(viewModel)
+                }
+
+                SettingsPage.AI_MODEL_CONFIG -> {
+                    SettingsPageHeader(page = page, onBack = { page = SettingsPage.GENERAL_SETTINGS })
+                    AiModelConfigurationPage(viewModel)
+                    ModelAccessNotesCard()
+                    OfficialProviderReadinessCard(includeDevLab = false)
+                }
+
+                SettingsPage.PRIVACY_PERMISSIONS -> {
+                    SettingsPageHeader(page = page, onBack = { page = SettingsPage.GENERAL_SETTINGS })
+                    PrivacyAndPermissionsSettingsCard()
+                    PermissionCenterCard(viewModel)
+                }
+
+                SettingsPage.LEARNING_EXPORT -> {
+                    SettingsPageHeader(page = page, onBack = { page = SettingsPage.GENERAL_SETTINGS })
+                    LearningExportSettingsCard(viewModel)
+                    LearningExportDocxPolicyCard(viewModel)
+                }
+
+                SettingsPage.AMBIENT_SOUND -> {
+                    SettingsPageHeader(page = page, onBack = { page = SettingsPage.GENERAL_SETTINGS })
+                    BackgroundAudioPolicyCard()
+                }
+
+                SettingsPage.DEVELOPER_SETTINGS -> {
+                    SettingsPageHeader(page = page, onBack = { page = SettingsPage.SETTINGS_HOME })
                     DeveloperSettingsHomeCard(viewModel)
                     OnDeviceDiagnosticCard(viewModel)
                     OnDeviceMultimodalDiagnosticCard(viewModel)
@@ -223,64 +224,89 @@ fun SettingsScreen(viewModel: AppViewModel) {
 }
 
 @Composable
-private fun SettingsTopLevelNav(topLevel: SettingsTopLevel, onSelect: (SettingsTopLevel) -> Unit) {
+private fun SettingsPageHeader(page: SettingsPage, onBack: () -> Unit) {
     ClassMateCard {
-        Text("设置层级", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(Dimens.s))
-        Column(verticalArrangement = Arrangement.spacedBy(Dimens.xs)) {
-            SettingsTopLevel.entries.forEach { item ->
-                Surface(
-                    modifier = Modifier.fillMaxWidth().clickable { onSelect(item) },
-                    shape = RoundedCornerShape(12.dp),
-                    color = if (item == topLevel) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                ) {
-                    Column(Modifier.padding(Dimens.s)) {
-                        Text(item.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                        Text(item.subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+            TextButton(onClick = onBack) { Text("返回") }
+            Column(Modifier.weight(1f)) {
+                Text(
+                    page.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    page.subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }
 }
 
 @Composable
-private fun GeneralSettingsNav(page: GeneralSettingsPage, onSelect: (GeneralSettingsPage) -> Unit) {
-    ClassMateCard {
-        Text("通用设置", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(Dimens.s))
-        Column(verticalArrangement = Arrangement.spacedBy(Dimens.xs)) {
-            GeneralSettingsPage.entries.forEach { item ->
-                Surface(
-                    modifier = Modifier.fillMaxWidth().clickable { onSelect(item) },
-                    shape = RoundedCornerShape(12.dp),
-                    color = if (item == page) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                ) {
-                    Column(Modifier.padding(Dimens.s)) {
-                        Text(item.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                        Text(item.subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            }
+private fun SettingsHomeStatusCards(viewModel: AppViewModel) {
+    val ui = viewModel.ui
+    val multimodalReady = ui.onDeviceMultimodalDiagnostic?.callVitMethodPresent == true
+    val modelPermissionReady = ui.onDevicePermissions.allFilesAccess
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+        SettingsMiniStatusCard(
+            title = "多模态草稿",
+            status = if (multimodalReady) "可用" else "按配置启用",
+            detail = "图片学习输入会先生成可编辑草稿",
+            active = multimodalReady,
+            modifier = Modifier.weight(1f),
+        )
+        SettingsMiniStatusCard(
+            title = "模型目录权限",
+            status = if (modelPermissionReady) "已授权" else "待确认",
+            detail = "影响端侧 BlueLM 3B 模型读取",
+            active = modelPermissionReady,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+@Composable
+private fun SettingsMiniStatusCard(
+    title: String,
+    status: String,
+    detail: String,
+    active: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val colors = ClassMateTheme.colors
+    Surface(
+        modifier = modifier.defaultMinSize(minHeight = 104.dp),
+        shape = RoundedCornerShape(ClassMateTheme.shapes.cardRadius),
+        color = colors.surfaceContainerLow,
+        border = BorderStroke(1.dp, if (active) colors.primary.copy(alpha = 0.45f) else colors.outline),
+    ) {
+        Column(Modifier.padding(Dimens.s), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(status, style = MaterialTheme.typography.labelMedium, color = if (active) colors.primary else colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(detail, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
     }
 }
 
 @Composable
-private fun SettingsHomeV2Card(
+private fun SettingsHomeCard(
     onGeneral: () -> Unit,
     onDeveloper: () -> Unit,
 ) {
     ClassMateCard {
-        Text("设置首页", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(Dimens.s))
-        SettingsLandingRow("通用设置", "外观、AI 模型配置、隐私权限、学习导出与沉浸背景音", onGeneral)
-        SettingsLandingRow("开发者设置", "Provider 诊断、official smoke dry-run、端侧状态与脱敏日志", onDeveloper)
+        SettingsEntryRow("通用设置", "外观、AI 模型配置、隐私权限、学习导出与沉浸背景音", onGeneral)
+        SettingsEntryRow("开发者设置", "Provider 诊断、official smoke dry-run、端侧状态与脱敏日志", onDeveloper)
     }
 }
 
 @Composable
-private fun GeneralSettingsHomeCard(
+private fun GeneralSettingsListCard(
     onAppearance: () -> Unit,
     onAiModel: () -> Unit,
     onPrivacy: () -> Unit,
@@ -288,29 +314,58 @@ private fun GeneralSettingsHomeCard(
     onAmbientAudio: () -> Unit,
 ) {
     ClassMateCard {
-        Text("通用设置", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(Dimens.s))
-        SettingsLandingRow("外观与主题", "默认学习、活力学习、沉浸学习、强调色和阅读密度", onAppearance)
-        SettingsLandingRow("AI 模型配置", "蓝心大模型与自有模型配置，保存后持续可用", onAiModel)
-        SettingsLandingRow("隐私与权限", "本地数据、用户确认、导入内容和相机/文件/音频权限", onPrivacy)
-        SettingsLandingRow("学习与导出", "练习、复习和 PDF / DOCX / HTML / Markdown / Text / 音频脚本", onLearningExport)
-        SettingsLandingRow("沉浸式背景音", "6 种授权循环背景音、音量和播放说明", onAmbientAudio)
+        SettingsEntryRow("外观与主题", "默认学习、活力学习、沉浸学习、强调色和阅读密度", onAppearance)
+        SettingsEntryRow("AI 模型配置", "蓝心大模型与自有模型配置，保存后持续可用", onAiModel)
+        SettingsEntryRow("隐私与权限", "本地数据、用户确认、导入内容和相机 / 文件 / 音频权限", onPrivacy)
+        SettingsEntryRow("学习与导出", "练习、复习和 PDF / DOCX / HTML / Markdown / Text / 音频脚本", onLearningExport)
+        SettingsEntryRow("沉浸式背景音", "6 种授权循环背景音、音量和播放说明", onAmbientAudio)
     }
 }
 
 @Composable
-private fun SettingsLandingRow(title: String, subtitle: String, onClick: () -> Unit) {
+private fun SettingsEntryRow(title: String, subtitle: String, onClick: () -> Unit) {
+    val colors = ClassMateTheme.colors
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = Dimens.xxs)
+            .defaultMinSize(minHeight = 72.dp)
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(14.dp),
+        color = colors.surfaceContainerHigh,
     ) {
-        Column(Modifier.padding(Dimens.s)) {
-            Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(
+            Modifier.padding(horizontal = Dimens.s, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Dimens.s),
+        ) {
+            Box(
+                Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(colors.primary.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(title.take(1), style = MaterialTheme.typography.labelLarge, color = colors.primary, fontWeight = FontWeight.Bold)
+            }
+            Column(Modifier.weight(1f)) {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.textPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textSecondary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Text("›", style = MaterialTheme.typography.titleMedium, color = colors.textSecondary, maxLines = 1)
         }
     }
 }
@@ -1465,9 +1520,32 @@ private fun SelectableChip(text: String, selected: Boolean, onClick: () -> Unit)
 
 @Composable
 private fun ProviderStatusRow(name: String, status: String) {
-    Row(Modifier.fillMaxWidth().padding(vertical = Dimens.xxs), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(name, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
-        Text(status, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = 34.dp)
+            .padding(vertical = Dimens.xxs),
+        horizontalArrangement = Arrangement.spacedBy(Dimens.s),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            name,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(0.45f),
+        )
+        Text(
+            status,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(0.55f),
+        )
     }
 }
 
