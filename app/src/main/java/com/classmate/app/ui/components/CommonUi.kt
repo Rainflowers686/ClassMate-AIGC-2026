@@ -1,14 +1,21 @@
 package com.classmate.app.ui.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -23,8 +30,11 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -46,13 +56,34 @@ fun ClassMateCard(
 ) {
     val base = Modifier.fillMaxWidth().then(modifier)
     val tokens = ClassMateTheme.colors
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val surface by animateColorAsState(
+        targetValue = if (pressed) tokens.surfaceContainerHigh else tokens.surfaceContainerLow,
+        animationSpec = tween(durationMillis = 180),
+        label = "card-surface",
+    )
+    val elevation by animateDpAsState(
+        targetValue = if (pressed) 0.dp else if (tokens.isDark) 0.dp else 2.dp,
+        animationSpec = tween(durationMillis = 180),
+        label = "card-elevation",
+    )
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.985f else 1f,
+        animationSpec = tween(durationMillis = 160),
+        label = "card-press",
+    )
     Surface(
-        modifier = if (onClick != null) base.clickable { onClick() } else base,
+        modifier = if (onClick != null) {
+            base.scale(scale).clickable(interaction, indication = null) { onClick() }
+        } else {
+            base
+        },
         shape = RoundedCornerShape(ClassMateTheme.shapes.cardRadius),
-        color = tokens.surfaceContainerLow,
+        color = surface,
         contentColor = tokens.textPrimary,
-        border = BorderStroke(0.75.dp, tokens.outline),
-        shadowElevation = 1.dp,
+        border = BorderStroke(0.75.dp, tokens.outline.copy(alpha = if (tokens.isDark) 0.45f else 0.28f)),
+        shadowElevation = elevation,
     ) {
         Column(Modifier.padding(Dimens.cardPadding), content = content)
     }
@@ -80,9 +111,14 @@ fun PrimaryButton(
     val tokens = ClassMateTheme.colors
     Button(
         onClick = onClick,
-        modifier = modifier.height(52.dp),
+        modifier = modifier.height(52.dp).defaultMinSize(minHeight = 52.dp),
         enabled = enabled,
         shape = RoundedCornerShape(ClassMateTheme.shapes.buttonRadius),
+        elevation = ButtonDefaults.buttonElevation(
+            defaultElevation = if (tokens.isDark) 0.dp else 1.dp,
+            pressedElevation = 0.dp,
+            disabledElevation = 0.dp,
+        ),
         colors = ButtonDefaults.buttonColors(
             containerColor = tokens.primary,
             contentColor = MaterialTheme.colorScheme.onPrimary,
@@ -109,12 +145,14 @@ fun SecondaryButton(
     val tokens = ClassMateTheme.colors
     OutlinedButton(
         onClick = onClick,
-        modifier = modifier.height(52.dp),
+        modifier = modifier.height(52.dp).defaultMinSize(minHeight = 52.dp),
         enabled = enabled,
         shape = RoundedCornerShape(ClassMateTheme.shapes.buttonRadius),
-        border = BorderStroke(1.dp, tokens.outline),
+        border = BorderStroke(1.dp, tokens.primary.copy(alpha = 0.28f)),
         colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = tokens.surfaceContainerLow,
             contentColor = tokens.primary,
+            disabledContainerColor = tokens.surfaceVariant,
             disabledContentColor = tokens.textSecondary,
         ),
     ) {

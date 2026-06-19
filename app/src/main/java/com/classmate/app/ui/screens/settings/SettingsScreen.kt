@@ -7,10 +7,27 @@ import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,6 +46,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
@@ -43,6 +61,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -50,6 +69,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.classmate.app.BuildConfig
 import com.classmate.app.BuildInfo
@@ -99,6 +119,26 @@ private enum class SettingsPage(val title: String, val subtitle: String) {
     LEARNING_EXPORT("学习与导出", "练习、复习和导出默认项"),
     AMBIENT_SOUND("沉浸式背景音", "授权循环背景音、音量和播放说明"),
     DEVELOPER_SETTINGS("开发者设置", "诊断、smoke、端侧状态与脱敏日志"),
+}
+
+private enum class SettingsEntryIcon {
+    APPEARANCE_THEME,
+    AI_MODEL_CONFIG,
+    PRIVACY_PERMISSIONS,
+    LEARNING_EXPORT,
+    AMBIENT_SOUND,
+    GENERAL_SETTINGS,
+    DEVELOPER_SETTINGS,
+}
+
+private fun SettingsEntryIcon.imageVector(): ImageVector = when (this) {
+    SettingsEntryIcon.APPEARANCE_THEME -> Icons.Filled.Star
+    SettingsEntryIcon.AI_MODEL_CONFIG -> Icons.Filled.PlayArrow
+    SettingsEntryIcon.PRIVACY_PERMISSIONS -> Icons.Filled.CheckCircle
+    SettingsEntryIcon.LEARNING_EXPORT -> Icons.Filled.DateRange
+    SettingsEntryIcon.AMBIENT_SOUND -> Icons.Filled.Add
+    SettingsEntryIcon.GENERAL_SETTINGS -> Icons.Filled.Settings
+    SettingsEntryIcon.DEVELOPER_SETTINGS -> Icons.Filled.Edit
 }
 
 @Composable
@@ -280,11 +320,22 @@ private fun SettingsMiniStatusCard(
     modifier: Modifier = Modifier,
 ) {
     val colors = ClassMateTheme.colors
+    val container by animateColorAsState(
+        targetValue = if (active) colors.primary.copy(alpha = if (colors.isDark) 0.18f else 0.12f) else colors.surfaceContainerLow,
+        animationSpec = tween(durationMillis = 180),
+        label = "settings-mini-status-container",
+    )
+    val border by animateColorAsState(
+        targetValue = if (active) colors.primary.copy(alpha = 0.38f) else colors.outline.copy(alpha = 0.24f),
+        animationSpec = tween(durationMillis = 180),
+        label = "settings-mini-status-border",
+    )
     Surface(
         modifier = modifier.defaultMinSize(minHeight = 104.dp),
         shape = RoundedCornerShape(ClassMateTheme.shapes.cardRadius),
-        color = colors.surfaceContainerLow,
-        border = BorderStroke(1.dp, if (active) colors.primary.copy(alpha = 0.45f) else colors.outline),
+        color = container,
+        border = BorderStroke(0.75.dp, border),
+        shadowElevation = if (active && !colors.isDark) 1.dp else 0.dp,
     ) {
         Column(Modifier.padding(Dimens.s), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -300,8 +351,8 @@ private fun SettingsHomeCard(
     onDeveloper: () -> Unit,
 ) {
     ClassMateCard {
-        SettingsEntryRow("通用设置", "外观、AI 模型配置、隐私权限、学习导出与沉浸背景音", onGeneral)
-        SettingsEntryRow("开发者设置", "Provider 诊断、official smoke dry-run、端侧状态与脱敏日志", onDeveloper)
+        SettingsEntryRow("通用设置", "外观、AI 模型配置、隐私权限、学习导出与沉浸背景音", SettingsEntryIcon.GENERAL_SETTINGS, onGeneral)
+        SettingsEntryRow("开发者设置", "Provider 诊断、official smoke dry-run、端侧状态与脱敏日志", SettingsEntryIcon.DEVELOPER_SETTINGS, onDeveloper)
     }
 }
 
@@ -314,25 +365,50 @@ private fun GeneralSettingsListCard(
     onAmbientAudio: () -> Unit,
 ) {
     ClassMateCard {
-        SettingsEntryRow("外观与主题", "默认学习、活力学习、沉浸学习、强调色和阅读密度", onAppearance)
-        SettingsEntryRow("AI 模型配置", "蓝心大模型与自有模型配置，保存后持续可用", onAiModel)
-        SettingsEntryRow("隐私与权限", "本地数据、用户确认、导入内容和相机 / 文件 / 音频权限", onPrivacy)
-        SettingsEntryRow("学习与导出", "练习、复习和 PDF / DOCX / HTML / Markdown / Text / 音频脚本", onLearningExport)
-        SettingsEntryRow("沉浸式背景音", "6 种授权循环背景音、音量和播放说明", onAmbientAudio)
+        SettingsEntryRow("外观与主题", "默认学习、活力学习、沉浸学习、强调色和阅读密度", SettingsEntryIcon.APPEARANCE_THEME, onAppearance)
+        SettingsEntryRow("AI 模型配置", "蓝心大模型与自有模型配置，保存后持续可用", SettingsEntryIcon.AI_MODEL_CONFIG, onAiModel)
+        SettingsEntryRow("隐私与权限", "本地数据、用户确认、导入内容和相机 / 文件 / 音频权限", SettingsEntryIcon.PRIVACY_PERMISSIONS, onPrivacy)
+        SettingsEntryRow("学习与导出", "练习、复习和 PDF / DOCX / HTML / Markdown / Text / 音频脚本", SettingsEntryIcon.LEARNING_EXPORT, onLearningExport)
+        SettingsEntryRow("沉浸式背景音", "6 种授权循环背景音、音量和播放说明", SettingsEntryIcon.AMBIENT_SOUND, onAmbientAudio)
     }
 }
 
 @Composable
-private fun SettingsEntryRow(title: String, subtitle: String, onClick: () -> Unit) {
+private fun SettingsEntryRow(title: String, subtitle: String, icon: SettingsEntryIcon, onClick: () -> Unit) {
     val colors = ClassMateTheme.colors
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val container by animateColorAsState(
+        targetValue = if (pressed) colors.surfaceContainerLow else colors.surfaceContainerHigh,
+        animationSpec = tween(durationMillis = 170),
+        label = "settings-entry-container",
+    )
+    val iconContainer by animateColorAsState(
+        targetValue = if (pressed) colors.primary.copy(alpha = 0.22f) else colors.primary.copy(alpha = 0.14f),
+        animationSpec = tween(durationMillis = 170),
+        label = "settings-entry-icon-container",
+    )
+    val elevation by animateDpAsState(
+        targetValue = if (pressed || colors.isDark) 0.dp else 1.dp,
+        animationSpec = tween(durationMillis = 170),
+        label = "settings-entry-elevation",
+    )
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.988f else 1f,
+        animationSpec = tween(durationMillis = 150),
+        label = "settings-entry-scale",
+    )
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = Dimens.xxs)
             .defaultMinSize(minHeight = 72.dp)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(14.dp),
-        color = colors.surfaceContainerHigh,
+            .scale(scale)
+            .clickable(interaction, indication = null, onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        color = container,
+        border = BorderStroke(0.75.dp, colors.outline.copy(alpha = 0.24f)),
+        shadowElevation = elevation,
     ) {
         Row(
             Modifier.padding(horizontal = Dimens.s, vertical = 10.dp),
@@ -343,10 +419,10 @@ private fun SettingsEntryRow(title: String, subtitle: String, onClick: () -> Uni
                 Modifier
                     .size(36.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(colors.primary.copy(alpha = 0.14f)),
+                    .background(iconContainer),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(title.take(1), style = MaterialTheme.typography.labelLarge, color = colors.primary, fontWeight = FontWeight.Bold)
+                Icon(icon.imageVector(), contentDescription = null, tint = colors.primary, modifier = Modifier.size(20.dp))
             }
             Column(Modifier.weight(1f)) {
                 Text(
@@ -365,7 +441,7 @@ private fun SettingsEntryRow(title: String, subtitle: String, onClick: () -> Uni
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Text("›", style = MaterialTheme.typography.titleMedium, color = colors.textSecondary, maxLines = 1)
+            Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = colors.textSecondary, modifier = Modifier.size(20.dp))
         }
     }
 }
@@ -464,23 +540,44 @@ private fun AccentColorSwatch(
     modifier: Modifier = Modifier,
 ) {
     val preview = classMateColorScheme(themePreset, accent)
+    val tokens = ClassMateTheme.colors
+    val scale by animateFloatAsState(
+        targetValue = if (selected) 1.045f else 1f,
+        animationSpec = tween(durationMillis = 170),
+        label = "accent-swatch-scale",
+    )
+    val container by animateColorAsState(
+        targetValue = if (selected) preview.primaryContainer else tokens.surfaceContainerHigh,
+        animationSpec = tween(durationMillis = 170),
+        label = "accent-swatch-container",
+    )
+    val border by animateColorAsState(
+        targetValue = if (selected) preview.primary else tokens.outline.copy(alpha = 0.32f),
+        animationSpec = tween(durationMillis = 170),
+        label = "accent-swatch-border",
+    )
     Surface(
-        modifier = modifier.clickable { onClick() },
-        shape = RoundedCornerShape(14.dp),
-        color = if (selected) preview.primaryContainer else ClassMateTheme.colors.surfaceContainerHigh,
-        contentColor = ClassMateTheme.colors.textPrimary,
-        border = BorderStroke(1.dp, if (selected) preview.primary else ClassMateTheme.colors.outline),
+        modifier = modifier.scale(scale).clickable { onClick() },
+        shape = RoundedCornerShape(16.dp),
+        color = container,
+        contentColor = tokens.textPrimary,
+        border = BorderStroke(if (selected) 1.5.dp else 0.75.dp, border),
     ) {
         Column(Modifier.padding(horizontal = 10.dp, vertical = 9.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Box(
                 Modifier
-                    .size(24.dp)
+                    .size(28.dp)
                     .clip(RoundedCornerShape(50))
                     .background(preview.primary),
-            )
+                contentAlignment = Alignment.Center,
+            ) {
+                if (selected) {
+                    Icon(Icons.Filled.Check, contentDescription = null, tint = if (preview.isDark) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(15.dp))
+                }
+            }
             Spacer(Modifier.height(6.dp))
             Text(accent.displayName, style = MaterialTheme.typography.labelSmall, maxLines = 1)
-            Text(accent.englishName, style = MaterialTheme.typography.labelSmall, color = ClassMateTheme.colors.textSecondary, maxLines = 1)
+            Text(accent.englishName, style = MaterialTheme.typography.labelSmall, color = tokens.textSecondary, maxLines = 1)
             if (selected) {
                 Spacer(Modifier.height(3.dp))
                 Text("当前", style = MaterialTheme.typography.labelSmall, color = preview.primary, maxLines = 1)

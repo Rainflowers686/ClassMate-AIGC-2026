@@ -1,9 +1,13 @@
 package com.classmate.app
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
@@ -25,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -85,24 +90,35 @@ fun ClassMateApp() {
                 containerColor = MaterialTheme.colorScheme.background,
                 bottomBar = {
                     if (showBottomBar) {
-                        NavigationBar(
-                            containerColor = themeColors.surfaceContainerLow,
-                            tonalElevation = 0.dp,
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                            shape = RoundedCornerShape(999.dp),
+                            color = themeColors.surfaceContainerLow.copy(alpha = if (themeColors.isDark) 0.86f else 0.92f),
+                            border = BorderStroke(0.75.dp, themeColors.outline.copy(alpha = if (themeColors.isDark) 0.34f else 0.22f)),
+                            shadowElevation = if (themeColors.isDark) 0.dp else 3.dp,
                         ) {
-                            Tab.entries.forEach { tab ->
-                                NavigationBarItem(
-                                    selected = viewModel.currentTab == tab,
-                                    onClick = { viewModel.selectTab(tab) },
-                                    icon = { Icon(tabIcon(tab), contentDescription = tabLabel(tab, strings)) },
-                                    label = { Text(tabLabel(tab, strings)) },
-                                    colors = NavigationBarItemDefaults.colors(
-                                        selectedIconColor = themeColors.primary,
-                                        selectedTextColor = themeColors.primary,
-                                        indicatorColor = themeColors.primaryContainer,
-                                        unselectedIconColor = themeColors.textSecondary,
-                                        unselectedTextColor = themeColors.textSecondary,
-                                    ),
-                                )
+                            NavigationBar(
+                                modifier = Modifier.height(66.dp),
+                                containerColor = Color.Transparent,
+                                tonalElevation = 0.dp,
+                            ) {
+                                Tab.entries.forEach { tab ->
+                                    NavigationBarItem(
+                                        selected = viewModel.currentTab == tab,
+                                        onClick = { viewModel.selectTab(tab) },
+                                        icon = { Icon(tabIcon(tab), contentDescription = tabLabel(tab, strings)) },
+                                        label = { Text(tabLabel(tab, strings), maxLines = 1) },
+                                        colors = NavigationBarItemDefaults.colors(
+                                            selectedIconColor = themeColors.primary,
+                                            selectedTextColor = themeColors.primary,
+                                            indicatorColor = themeColors.primaryContainer.copy(alpha = if (themeColors.isDark) 0.42f else 0.72f),
+                                            unselectedIconColor = themeColors.textSecondary,
+                                            unselectedTextColor = themeColors.textSecondary,
+                                        ),
+                                    )
+                                }
                             }
                         }
                     }

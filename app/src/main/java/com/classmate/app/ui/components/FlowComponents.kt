@@ -1,7 +1,10 @@
 package com.classmate.app.ui.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -23,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -98,12 +102,33 @@ fun BreathingTimerRing(
 fun FlowSceneCard(scene: FlowScene, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val cs = MaterialTheme.colorScheme
     val tokens = ClassMateTheme.colors
+    val container by animateColorAsState(
+        targetValue = if (selected) tokens.primaryContainer else tokens.focusSurface,
+        animationSpec = tween(durationMillis = 220),
+        label = "flow-scene-container",
+    )
+    val border by animateColorAsState(
+        targetValue = if (selected) tokens.primary else tokens.outline.copy(alpha = 0.45f),
+        animationSpec = tween(durationMillis = 220),
+        label = "flow-scene-border",
+    )
+    val elevation by animateDpAsState(
+        targetValue = if (selected && !tokens.isDark) 2.dp else 0.dp,
+        animationSpec = tween(durationMillis = 220),
+        label = "flow-scene-elevation",
+    )
+    val scale by animateFloatAsState(
+        targetValue = if (selected) 1.015f else 1f,
+        animationSpec = tween(durationMillis = 220),
+        label = "flow-scene-scale",
+    )
     Surface(
-        modifier = modifier.width(150.dp).clickable { onClick() },
+        modifier = modifier.width(150.dp).scale(scale).clickable { onClick() },
         shape = Radii.cardShape,
-        color = if (selected) tokens.primaryContainer else tokens.focusSurface,
+        color = container,
         contentColor = cs.onSurface,
-        border = BorderStroke(1.dp, if (selected) tokens.primary else tokens.outline),
+        border = BorderStroke(1.dp, border),
+        shadowElevation = elevation,
     ) {
         Column(Modifier.padding(Dimens.m)) {
             Text(scene.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)

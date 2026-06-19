@@ -1,6 +1,10 @@
 package com.classmate.app.ui.components
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,6 +21,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -29,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -259,53 +266,80 @@ fun ThemePreviewCard(
     modifier: Modifier = Modifier,
 ) {
     val cs = MaterialTheme.colorScheme
-    val border = if (selected) BorderStroke(1.25.dp, cs.primary) else BorderStroke(0.75.dp, cs.outlineVariant)
+    val tokens = ClassMateTheme.colors
+    val container by animateColorAsState(
+        targetValue = if (selected) tokens.primaryContainer.copy(alpha = if (tokens.isDark) 0.28f else 0.72f) else tokens.surfaceContainerLow,
+        animationSpec = tween(durationMillis = 200),
+        label = "theme-preview-container",
+    )
+    val borderColor by animateColorAsState(
+        targetValue = if (selected) accentColor else tokens.outline.copy(alpha = 0.36f),
+        animationSpec = tween(durationMillis = 200),
+        label = "theme-preview-border",
+    )
+    val elevation by animateDpAsState(
+        targetValue = if (selected && !tokens.isDark) 3.dp else 0.dp,
+        animationSpec = tween(durationMillis = 200),
+        label = "theme-preview-elevation",
+    )
+    val scale by animateFloatAsState(
+        targetValue = if (selected) 1.012f else 1f,
+        animationSpec = tween(durationMillis = 180),
+        label = "theme-preview-scale",
+    )
+    val border = BorderStroke(if (selected) 1.4.dp else 0.75.dp, borderColor)
     val base = modifier.fillMaxWidth()
     Surface(
-        modifier = (if (onClick != null) base.clickable { onClick() } else base).defaultMinSize(minHeight = 104.dp),
+        modifier = (if (onClick != null) base.scale(scale).clickable { onClick() } else base).defaultMinSize(minHeight = 116.dp),
         shape = MaterialTheme.shapes.large,
-        color = cs.surface,
+        color = container,
         border = border,
-        shadowElevation = 1.dp,
+        shadowElevation = elevation,
     ) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier
-                    .size(width = 56.dp, height = 44.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .size(width = 64.dp, height = 52.dp)
+                    .clip(RoundedCornerShape(16.dp))
                     .background(backgroundColor),
             ) {
                 Box(
                     Modifier
                         .align(Alignment.Center)
-                        .size(width = 36.dp, height = 24.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                        .size(width = 40.dp, height = 28.dp)
+                        .clip(RoundedCornerShape(10.dp))
                         .background(surfaceColor),
                 )
                 Box(
                     Modifier
                         .align(Alignment.BottomStart)
-                        .height(5.dp)
+                        .height(6.dp)
                         .fillMaxWidth()
                         .background(accentColor),
                 )
                 if (selected) {
-                    Box(
+                    Surface(
                         Modifier
                             .align(Alignment.TopEnd)
-                            .padding(5.dp)
-                            .size(7.dp)
-                            .clip(androidx.compose.foundation.shape.CircleShape)
-                            .background(accentColor),
-                    )
+                            .padding(5.dp),
+                        shape = CircleShape,
+                        color = accentColor,
+                    ) {
+                        Icon(
+                            Icons.Filled.Check,
+                            contentDescription = null,
+                            tint = if (tokens.isDark) Color.Black else Color.White,
+                            modifier = Modifier.padding(2.dp).size(11.dp),
+                        )
+                    }
                 }
             }
             Spacer(Modifier.width(Dimens.m))
             Column(Modifier.weight(1f)) {
                 Text(name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(tagline, style = MaterialTheme.typography.labelMedium, color = cs.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(tagline, style = MaterialTheme.typography.labelMedium, color = tokens.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(2.dp))
-                Text(description, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(description, style = MaterialTheme.typography.bodySmall, color = tokens.textSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             if (selected) {
                 Spacer(Modifier.width(8.dp))
