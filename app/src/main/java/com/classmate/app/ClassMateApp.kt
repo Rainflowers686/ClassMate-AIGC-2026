@@ -163,18 +163,18 @@ private fun BottomNavigationDock(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 22.dp, vertical = 9.dp)
+            .padding(horizontal = 24.dp, vertical = 10.dp)
             .clip(dockShape),
         shape = dockShape,
-        color = themeColors.surfaceContainerLow.copy(alpha = if (themeColors.isDark) 0.8f else 0.92f),
-        border = BorderStroke(0.75.dp, themeColors.outline.copy(alpha = if (themeColors.isDark) 0.18f else 0.1f)),
-        shadowElevation = if (themeColors.isDark) 0.dp else 3.dp,
+        color = themeColors.surfaceContainerLow.copy(alpha = if (themeColors.isDark) 0.74f else 0.9f),
+        border = BorderStroke(0.75.dp, themeColors.outline.copy(alpha = if (themeColors.isDark) 0.16f else 0.09f)),
+        shadowElevation = if (themeColors.isDark) 0.dp else 2.dp,
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(54.dp)
-                .padding(horizontal = 12.dp, vertical = 5.dp),
+                .padding(horizontal = 14.dp, vertical = 3.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Tab.entries.forEach { tab ->
@@ -200,7 +200,7 @@ private fun BottomNavigationDockItem(
 ) {
     val themeColors = ClassMateTheme.colors
     val iconContainer by animateColorAsState(
-        targetValue = if (selected) themeColors.primary.copy(alpha = if (themeColors.isDark) 0.11f else 0.075f) else Color.Transparent,
+        targetValue = if (selected) themeColors.primary.copy(alpha = if (themeColors.isDark) 0.1f else 0.065f) else Color.Transparent,
         animationSpec = tween(durationMillis = 180),
         label = "bottom-nav-selected-icon-container",
     )
@@ -224,7 +224,7 @@ private fun BottomNavigationDockItem(
     ) {
         Box(
             Modifier
-                .size(28.dp)
+                .size(34.dp)
                 .clip(CircleShape)
                 .background(iconContainer),
             contentAlignment = Alignment.Center,

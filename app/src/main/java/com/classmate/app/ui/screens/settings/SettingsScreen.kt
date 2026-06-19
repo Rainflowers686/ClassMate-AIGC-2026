@@ -164,7 +164,7 @@ fun SettingsScreen(viewModel: AppViewModel) {
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = ProductSpace.gutter)
-                .padding(bottom = 208.dp),
+                .padding(bottom = 224.dp),
             verticalArrangement = Arrangement.spacedBy(Dimens.cardGap),
         ) {
             Spacer(Modifier.height(ProductSpace.tight))
@@ -276,19 +276,19 @@ private fun SettingsPageHeader(page: SettingsPage, onBack: () -> Unit) {
     ) {
         Surface(
             modifier = Modifier
-                .size(34.dp)
+                .size(32.dp)
                 .clip(RoundedCornerShape(999.dp))
                 .clickable(onClick = onBack),
             shape = RoundedCornerShape(999.dp),
-            color = colors.surfaceContainerLow.copy(alpha = if (colors.isDark) 0.72f else 0.82f),
-            border = BorderStroke(0.75.dp, colors.outline.copy(alpha = if (colors.isDark) 0.16f else 0.08f)),
+            color = colors.surface.copy(alpha = if (colors.isDark) 0.78f else 0.9f),
+            border = BorderStroke(0.75.dp, colors.outline.copy(alpha = if (colors.isDark) 0.12f else 0.06f)),
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
                     Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "返回",
                     tint = colors.textSecondary,
-                    modifier = Modifier.size(17.dp),
+                    modifier = Modifier.size(16.dp),
                 )
             }
         }
@@ -404,18 +404,18 @@ private fun SettingsEntryRow(title: String, subtitle: String, icon: SettingsEntr
     val pressed by interaction.collectIsPressedAsState()
     val container by animateColorAsState(
         targetValue = when {
-            pressed -> colors.surfaceContainerHigh
-            emphasized -> colors.surfaceContainerLow
-            else -> colors.surfaceContainerLow
+            pressed -> colors.surfaceContainerHigh.copy(alpha = if (colors.isDark) 0.78f else 0.86f)
+            emphasized -> colors.surface.copy(alpha = if (colors.isDark) 0.92f else 0.98f)
+            else -> colors.surface.copy(alpha = if (colors.isDark) 0.88f else 0.96f)
         },
         animationSpec = tween(durationMillis = 170),
         label = "settings-entry-container",
     )
     val iconContainer by animateColorAsState(
         targetValue = when {
-            pressed -> colors.primary.copy(alpha = 0.14f)
-            emphasized -> colors.primary.copy(alpha = if (colors.isDark) 0.1f else 0.06f)
-            else -> colors.surfaceContainerHigh.copy(alpha = if (colors.isDark) 0.78f else 0.88f)
+            pressed -> colors.primary.copy(alpha = 0.12f)
+            emphasized -> colors.primary.copy(alpha = if (colors.isDark) 0.08f else 0.045f)
+            else -> colors.surfaceContainerHigh.copy(alpha = if (colors.isDark) 0.64f else 0.74f)
         },
         animationSpec = tween(durationMillis = 170),
         label = "settings-entry-icon-container",
@@ -434,12 +434,12 @@ private fun SettingsEntryRow(title: String, subtitle: String, icon: SettingsEntr
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = Dimens.xxs)
-            .defaultMinSize(minHeight = 74.dp)
+            .defaultMinSize(minHeight = 72.dp)
             .scale(scale)
             .clickable(interaction, indication = null, onClick = onClick),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(17.dp),
         color = container,
-        border = BorderStroke(0.75.dp, if (emphasized) colors.primary.copy(alpha = if (colors.isDark) 0.16f else 0.1f) else colors.outline.copy(alpha = if (colors.isDark) 0.22f else 0.1f)),
+        border = BorderStroke(0.75.dp, if (emphasized) colors.primary.copy(alpha = if (colors.isDark) 0.12f else 0.075f) else colors.outline.copy(alpha = if (colors.isDark) 0.18f else 0.085f)),
         shadowElevation = elevation,
     ) {
         Row(
@@ -450,7 +450,7 @@ private fun SettingsEntryRow(title: String, subtitle: String, icon: SettingsEntr
             Box(
                 Modifier
                     .size(38.dp)
-                    .clip(RoundedCornerShape(13.dp))
+                    .clip(RoundedCornerShape(12.dp))
                     .background(iconContainer),
                 contentAlignment = Alignment.Center,
             ) {
@@ -591,17 +591,17 @@ private fun AccentColorSwatch(
     val preview = classMateColorScheme(themePreset, accent)
     val tokens = ClassMateTheme.colors
     val scale by animateFloatAsState(
-        targetValue = if (selected) 1.004f else 1f,
+        targetValue = if (selected) 1.002f else 1f,
         animationSpec = tween(durationMillis = 170),
         label = "accent-swatch-scale",
     )
     val container by animateColorAsState(
-        targetValue = if (selected) preview.primary.copy(alpha = if (tokens.isDark) 0.07f else 0.04f) else tokens.surfaceContainerHigh,
+        targetValue = if (selected) preview.primary.copy(alpha = if (tokens.isDark) 0.055f else 0.032f) else tokens.surfaceContainerHigh.copy(alpha = if (tokens.isDark) 0.72f else 0.82f),
         animationSpec = tween(durationMillis = 170),
         label = "accent-swatch-container",
     )
     val border by animateColorAsState(
-        targetValue = if (selected) preview.primary.copy(alpha = if (tokens.isDark) 0.38f else 0.34f) else tokens.outline.copy(alpha = 0.24f),
+        targetValue = if (selected) preview.primary.copy(alpha = if (tokens.isDark) 0.3f else 0.28f) else tokens.outline.copy(alpha = 0.2f),
         animationSpec = tween(durationMillis = 170),
         label = "accent-swatch-border",
     )
@@ -615,8 +615,8 @@ private fun AccentColorSwatch(
         Column(Modifier.padding(horizontal = 10.dp, vertical = 9.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Surface(
                 shape = RoundedCornerShape(999.dp),
-                color = preview.primary.copy(alpha = if (selected) 0.1f else 0.09f),
-                border = BorderStroke(0.75.dp, preview.primary.copy(alpha = if (selected) 0.32f else 0.28f)),
+                color = preview.primary.copy(alpha = if (selected) 0.09f else 0.075f),
+                border = BorderStroke(0.75.dp, preview.primary.copy(alpha = if (selected) 0.28f else 0.22f)),
             ) {
                 Box(
                     Modifier
@@ -627,7 +627,7 @@ private fun AccentColorSwatch(
                     contentAlignment = Alignment.Center,
                 ) {
                     if (selected) {
-                        Icon(Icons.Filled.Check, contentDescription = null, tint = if (preview.isDark) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(15.dp))
+                        Icon(Icons.Filled.Check, contentDescription = null, tint = if (preview.isDark) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(14.dp))
                     }
                 }
             }

@@ -267,12 +267,12 @@ fun ThemePreviewCard(
 ) {
     val tokens = ClassMateTheme.colors
     val container by animateColorAsState(
-        targetValue = tokens.surfaceContainerLow,
+        targetValue = tokens.surface.copy(alpha = if (tokens.isDark) 0.94f else 0.98f),
         animationSpec = tween(durationMillis = 200),
         label = "theme-preview-container",
     )
     val borderColor by animateColorAsState(
-        targetValue = if (selected) accentColor.copy(alpha = 0.42f) else tokens.outline.copy(alpha = 0.24f),
+        targetValue = if (selected) accentColor.copy(alpha = 0.32f) else tokens.outline.copy(alpha = 0.18f),
         animationSpec = tween(durationMillis = 200),
         label = "theme-preview-border",
     )
@@ -282,11 +282,11 @@ fun ThemePreviewCard(
         label = "theme-preview-elevation",
     )
     val scale by animateFloatAsState(
-        targetValue = if (selected) 1.002f else 1f,
+        targetValue = if (selected) 1.001f else 1f,
         animationSpec = tween(durationMillis = 180),
         label = "theme-preview-scale",
     )
-    val border = BorderStroke(0.75.dp, borderColor)
+    val border = BorderStroke(if (selected) 1.dp else 0.75.dp, borderColor)
     val base = modifier.fillMaxWidth()
     Surface(
         modifier = (if (onClick != null) base.scale(scale).clickable { onClick() } else base).defaultMinSize(minHeight = 100.dp),
@@ -298,7 +298,7 @@ fun ThemePreviewCard(
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier
-                    .size(width = 46.dp, height = 36.dp)
+                    .size(width = 42.dp, height = 32.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(backgroundColor),
             ) {
@@ -306,31 +306,31 @@ fun ThemePreviewCard(
                     Modifier
                         .align(Alignment.CenterStart)
                         .padding(start = 8.dp)
-                        .size(width = 22.dp, height = 18.dp)
+                        .size(width = 16.dp, height = 14.dp)
                         .clip(RoundedCornerShape(7.dp))
-                        .background(surfaceColor),
+                        .background(surfaceColor.copy(alpha = 0.62f)),
                 )
                 Box(
                     Modifier
                         .align(Alignment.Center)
-                        .size(width = 18.dp, height = 3.dp)
+                        .size(width = 16.dp, height = 3.dp)
                         .clip(RoundedCornerShape(999.dp))
-                        .background(accentColor.copy(alpha = 0.28f)),
+                        .background(accentColor.copy(alpha = 0.22f)),
                 )
                 Box(
                     Modifier
                         .align(Alignment.CenterEnd)
                         .padding(end = 8.dp)
-                        .size(width = 7.dp, height = 7.dp)
+                        .size(width = 6.dp, height = 6.dp)
                         .clip(CircleShape)
-                        .background(accentColor.copy(alpha = 0.74f)),
+                        .background(accentColor.copy(alpha = 0.58f)),
                 )
                 Box(
                     Modifier
                         .align(Alignment.BottomStart)
                         .height(2.dp)
                         .fillMaxWidth()
-                        .background(accentColor.copy(alpha = 0.58f)),
+                        .background(accentColor.copy(alpha = 0.44f)),
                 )
                 if (selected) {
                     Surface(
@@ -338,13 +338,13 @@ fun ThemePreviewCard(
                             .align(Alignment.TopEnd)
                             .padding(5.dp),
                         shape = CircleShape,
-                        color = accentColor,
+                        color = accentColor.copy(alpha = 0.92f),
                     ) {
                         Icon(
                             Icons.Filled.Check,
                             contentDescription = null,
                             tint = if (tokens.isDark) Color.Black else Color.White,
-                            modifier = Modifier.padding(2.dp).size(11.dp),
+                            modifier = Modifier.padding(2.dp).size(10.dp),
                         )
                     }
                 }

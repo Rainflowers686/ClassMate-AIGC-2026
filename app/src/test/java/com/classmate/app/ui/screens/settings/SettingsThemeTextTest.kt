@@ -81,7 +81,7 @@ class SettingsThemeTextTest {
     fun settingsRowsConstrainTextAndCardHeights() {
         val source = source()
         listOf(
-            "defaultMinSize(minHeight = 74.dp)",
+            "defaultMinSize(minHeight = 72.dp)",
             "defaultMinSize(minHeight = 104.dp)",
             "maxLines = 1",
             "maxLines = 2",
@@ -113,11 +113,11 @@ class SettingsThemeTextTest {
             "animateFloatAsState",
             "accent-swatch-scale",
             "Icons.Filled.Check",
-            ".padding(bottom = 208.dp)",
+            ".padding(bottom = 224.dp)",
             "themeSelectorDescription",
             "defaultMinSize(minHeight = 76.dp)",
-            "1.004f",
-            "0.38f",
+            "1.002f",
+            "0.3f",
         ).forEach { assertTrue("missing animated accent swatch hook: $it", settings.contains(it)) }
         assertFalse("accent swatch selected outline should stay subtle", settings.contains("1.1.dp"))
         listOf(
@@ -125,11 +125,13 @@ class SettingsThemeTextTest {
             "theme-preview-scale",
             "Icons.Filled.Check",
             "defaultMinSize(minHeight = 100.dp)",
-            "1.002f",
-            "0.42f",
+            "1.001f",
+            "0.32f",
+            "tokens.surface.copy(alpha",
         ).forEach { assertTrue("missing animated theme preview hook: $it", focusComponents.contains(it)) }
         assertFalse("theme selected card should not use a heavy selected border", focusComponents.contains("BorderStroke(if (selected) 0.9.dp"))
         assertFalse("theme selected card should not use a whole-card selected overlay", focusComponents.contains("targetValue = if (selected) accentColor.copy(alpha = if (tokens.isDark)"))
+        assertFalse("theme selected card should not use a persistent grey selected panel", focusComponents.contains("targetValue = tokens.surfaceContainerLow"))
     }
 
     @Test
@@ -158,11 +160,11 @@ class SettingsThemeTextTest {
             "BottomNavigationDockItem(",
             "RoundedCornerShape(999.dp)",
             ".clip(dockShape)",
-            ".padding(horizontal = 12.dp, vertical = 5.dp)",
+            ".padding(horizontal = 14.dp, vertical = 3.dp)",
             "height(54.dp)",
             "modifier = Modifier.weight(1f)",
             "bottom-nav-selected-icon-container",
-            ".size(28.dp)",
+            ".size(34.dp)",
             "CircleShape",
             "Color.Transparent",
         ).forEach {
@@ -186,9 +188,9 @@ class SettingsThemeTextTest {
             "title = \"端侧模型\"",
             "SettingsPageHeader(page = page",
             "Icons.AutoMirrored.Filled.ArrowBack",
-            ".size(34.dp)",
+            ".size(32.dp)",
             "emphasized = true",
-            "emphasized -> colors.surfaceContainerLow",
+            "emphasized -> colors.surface.copy",
         ).forEach { assertTrue("missing V3.2 settings polish hook: $it", source.contains(it)) }
 
         assertFalse(source.contains("\"设置层级\""))
