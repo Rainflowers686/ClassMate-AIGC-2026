@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>CineSwipe - Feed</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Inter:wght@300;400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0e0e0e;
+            color: #e2e2e2;
+            margin: 0;
+            overflow: hidden;
+        }
+        .font-headline {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+        .glass-panel {
+            background: rgba(31, 31, 31, 0.6);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+        }
+        .neon-glow {
+            box-shadow: 0 0 20px rgba(255, 177, 195, 0.2);
+        }
+        .vertical-gradient-overlay {
+            background: linear-gradient(to top, #0e0e0e 0%, rgba(14, 14, 14, 0.8) 30%, transparent 100%);
+        }
+        .side-gradient-overlay {
+            background: linear-gradient(to left, rgba(14, 14, 14, 0.4) 0%, transparent 100%);
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "surface-container": "#1f1f1f",
+                        "secondary-fixed-dim": "#c8c6c5",
+                        "error": "#ffb4ab",
+                        "tertiary": "#00dbe9",
+                        "surface-container-lowest": "#0e0e0e",
+                        "surface-container-high": "#2a2a2a",
+                        "on-surface": "#e2e2e2",
+                        "inverse-primary": "#bb0058",
+                        "outline-variant": "#5c3f45",
+                        "surface-container-highest": "#353535",
+                        "on-secondary": "#313030",
+                        "primary-fixed": "#ffd9e0",
+                        "on-secondary-container": "#bab8b7",
+                        "on-tertiary-fixed-variant": "#004f54",
+                        "on-secondary-fixed": "#1c1b1b",
+                        "primary": "#ffb1c3",
+                        "inverse-on-surface": "#303030",
+                        "inverse-surface": "#e2e2e2",
+                        "on-surface-variant": "#e5bcc4",
+                        "on-background": "#e2e2e2",
+                        "on-error-container": "#ffdad6",
+                        "tertiary-fixed-dim": "#00dbe9",
+                        "tertiary-fixed": "#7df4ff",
+                        "surface-tint": "#ffb1c3",
+                        "surface-variant": "#353535",
+                        "on-primary-container": "#590026",
+                        "error-container": "#93000a",
+                        "surface": "#131313",
+                        "primary-fixed-dim": "#ffb1c3",
+                        "on-tertiary-container": "#002f33",
+                        "secondary-container": "#4a4949",
+                        "outline": "#ac878f",
+                        "on-tertiary-fixed": "#002022",
+                        "surface-container-low": "#1b1b1b",
+                        "secondary": "#c8c6c5",
+                        "surface-bright": "#393939",
+                        "background": "#131313",
+                        "tertiary-container": "#00a0aa",
+                        "on-error": "#690005",
+                        "primary-container": "#ff4b89",
+                        "on-tertiary": "#00363a",
+                        "on-primary-fixed": "#3f0019",
+                        "on-primary": "#66002c",
+                        "secondary-fixed": "#e5e2e1",
+                        "on-secondary-fixed-variant": "#474646",
+                        "on-primary-fixed-variant": "#8f0041",
+                        "surface-dim": "#131313"
+                    },
+                    fontFamily: {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface-container-lowest text-on-surface font-body overflow-hidden">
+<!-- Cinematic Background (Full Screen Video Trailer Mock) -->
+<div class="fixed inset-0 z-0 overflow-hidden">
+<img alt="Cinematic movie trailer frame with dramatic lighting" class="w-full h-full object-cover" data-alt="Dramatic cinematic movie trailer still with dark atmosphere" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDJo5kFl-F9sshg3j98peSjCuXus1ODOk32llARHSb4ZbV3WDDAlRO4zJ9opsMUWuagdzrcBhGlAsv2ep7sPqvM4N5IjxeSWIEDiTA3ri7vWDc-fZS90E2R67bydx7eO7r412LUneQHJSvifJH-7taVYvScB80Jozl-eOBsUCmQ2m81XkY9NvJuo383R5loOOdz2YH__f9MGWTVVsoNda1lxfHkIXccEeWA9_CuKMnN0PYSud1wDDSFHw5h_2lzaiaFIehJ4g39Lkk"/>
+<!-- Overlays for Readability -->
+<div class="absolute inset-0 vertical-gradient-overlay opacity-90"></div>
+<div class="absolute inset-y-0 right-0 w-32 side-gradient-overlay opacity-60"></div>
+</div>
+<!-- Main Content Canvas -->
+<main class="relative z-10 h-screen flex flex-col justify-end px-6 pb-32">
+<!-- Interaction Side Bar (ReactionBar) -->
+<div class="absolute right-4 bottom-48 flex flex-col items-center gap-6 z-20">
+<!-- Like -->
+<div class="flex flex-col items-center gap-1">
+<div class="glass-panel w-14 h-14 rounded-full flex items-center justify-center border border-outline-variant/20">
+<span class="material-symbols-outlined text-on-surface text-3xl" data-icon="favorite">favorite</span>
+</div>
+<span class="text-[11px] font-medium tracking-wider text-on-surface-variant">Like</span>
+</div>
+<!-- Save -->
+<div class="flex flex-col items-center gap-1">
+<div class="glass-panel w-14 h-14 rounded-full flex items-center justify-center border border-outline-variant/20">
+<span class="material-symbols-outlined text-on-surface text-3xl" data-icon="add_to_photos">add_to_photos</span>
+</div>
+<span class="text-[11px] font-medium tracking-wider text-on-surface-variant">Save</span>
+</div>
+<!-- Share -->
+<div class="flex flex-col items-center gap-1">
+<div class="glass-panel w-14 h-14 rounded-full flex items-center justify-center border border-outline-variant/20">
+<span class="material-symbols-outlined text-on-surface text-3xl" data-icon="share">share</span>
+</div>
+<span class="text-[11px] font-medium tracking-wider text-on-surface-variant">Share</span>
+</div>
+</div>
+<!-- Film Metadata & CTA Section -->
+<div class="max-w-md space-y-4">
+<!-- Genre Badge -->
+<div class="inline-flex items-center px-3 py-1 rounded-full bg-tertiary-container/30 border border-tertiary/20">
+<span class="text-[10px] font-bold tracking-widest text-tertiary uppercase">Sci-Fi Thriller</span>
+</div>
+<!-- Title -->
+<h1 class="font-headline text-5xl md:text-6xl font-bold leading-none tracking-tight text-on-surface">
+                NEON<br/>DREAMS
+            </h1>
+<!-- Logline -->
+<p class="text-on-surface-variant text-base leading-relaxed max-w-[85%]">
+                In a city that never sleeps, memories are the only currency left. One man discovers a secret that could bankrupt the soul.
+            </p>
+<!-- Actions -->
+<div class="pt-4 flex items-center gap-4">
+<button class="bg-gradient-to-br from-primary to-primary-container text-on-primary font-bold px-8 py-4 rounded-full neon-glow transition-transform active:scale-95 flex items-center gap-2">
+<span class="material-symbols-outlined text-xl" data-icon="play_arrow" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+                    Watch Now
+                </button>
+<button class="glass-panel text-on-surface border border-outline-variant/30 px-6 py-4 rounded-full font-medium transition-transform active:scale-95">
+                    More Info
+                </button>
+</div>
+</div>
+</main>
+<!-- Floating Bottom Navigation Bar -->
+<div class="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-md z-30">
+<nav class="glass-panel rounded-full px-8 py-4 border border-outline-variant/20 flex justify-between items-center shadow-2xl">
+<!-- Feed (Active) -->
+<a class="flex flex-col items-center gap-1 group" href="#">
+<div class="relative">
+<!-- Active Indicator Glow -->
+<div class="absolute inset-0 bg-primary/20 blur-md rounded-full scale-150"></div>
+<span class="material-symbols-outlined text-primary relative z-10" data-icon="play_circle" style="font-variation-settings: 'FILL' 1;">play_circle</span>
+</div>
+<span class="text-[10px] font-bold tracking-wide text-primary">Feed</span>
+</a>
+<!-- Discover -->
+<a class="flex flex-col items-center gap-1 group opacity-60 hover:opacity-100 transition-opacity" href="#">
+<span class="material-symbols-outlined text-on-surface" data-icon="explore">explore</span>
+<span class="text-[10px] font-bold tracking-wide">Discover</span>
+</a>
+<!-- Profile -->
+<a class="flex flex-col items-center gap-1 group opacity-60 hover:opacity-100 transition-opacity" href="#">
+<span class="material-symbols-outlined text-on-surface" data-icon="person">person</span>
+<span class="text-[10px] font-bold tracking-wide">Profile</span>
+</a>
+</nav>
+</div>
+<!-- Status Bar Simulation -->
+<div class="fixed top-0 inset-x-0 h-12 flex justify-between items-center px-8 z-40 opacity-80 pointer-events-none">
+<span class="text-sm font-medium">9:41</span>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-lg" data-icon="signal_cellular_4_bar">signal_cellular_4_bar</span>
+<span class="material-symbols-outlined text-lg" data-icon="wifi">wifi</span>
+<span class="material-symbols-outlined text-lg" data-icon="battery_full">battery_full</span>
+</div>
+</div>
+</body></html>
