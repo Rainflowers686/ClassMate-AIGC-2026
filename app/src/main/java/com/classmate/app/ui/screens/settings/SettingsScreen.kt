@@ -163,7 +163,7 @@ fun SettingsScreen(viewModel: AppViewModel) {
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = ProductSpace.gutter)
-                .padding(bottom = 40.dp),
+                .padding(bottom = 128.dp),
             verticalArrangement = Arrangement.spacedBy(Dimens.cardGap),
         ) {
             Spacer(Modifier.height(ProductSpace.tight))
@@ -497,8 +497,8 @@ private fun AppearanceAndThemeSettingsCard(viewModel: AppViewModel) {
             val preview = classMateColorScheme(option, ui.accentColor)
             ThemePreviewCard(
                 name = option.displayName,
-                tagline = option.tagline,
-                description = option.description,
+                tagline = themeSelectorTagline(option),
+                description = themeSelectorDescription(option),
                 backgroundColor = preview.background,
                 surfaceColor = preview.surfaceContainerLow,
                 accentColor = preview.primary,
@@ -528,6 +528,18 @@ private fun AppearanceAndThemeSettingsCard(viewModel: AppViewModel) {
         Spacer(Modifier.height(Dimens.s))
         ProviderStatusRow("字号 / 阅读密度", "当前使用系统字号与紧凑学习密度")
     }
+}
+
+private fun themeSelectorTagline(theme: ThemePreset): String = when (theme) {
+    ThemePreset.STANDARD_STUDY -> "日常阅读与复习"
+    ThemePreset.ACTIVE_STUDY -> "练习与进度反馈"
+    ThemePreset.FOCUS_IMMERSION -> "专注学习"
+}
+
+private fun themeSelectorDescription(theme: ThemePreset): String = when (theme) {
+    ThemePreset.STANDARD_STUDY -> "安静留白，适合日常阅读与复习"
+    ThemePreset.ACTIVE_STUDY -> "更明快，适合练习与进度反馈"
+    ThemePreset.FOCUS_IMMERSION -> "深色低干扰，适合专注学习"
 }
 
 @Composable
@@ -564,12 +576,12 @@ private fun AccentColorSwatch(
     val preview = classMateColorScheme(themePreset, accent)
     val tokens = ClassMateTheme.colors
     val scale by animateFloatAsState(
-        targetValue = if (selected) 1.045f else 1f,
+        targetValue = if (selected) 1.025f else 1f,
         animationSpec = tween(durationMillis = 170),
         label = "accent-swatch-scale",
     )
     val container by animateColorAsState(
-        targetValue = if (selected) preview.primaryContainer else tokens.surfaceContainerHigh,
+        targetValue = if (selected) preview.primary.copy(alpha = if (tokens.isDark) 0.16f else 0.09f) else tokens.surfaceContainerHigh,
         animationSpec = tween(durationMillis = 170),
         label = "accent-swatch-container",
     )
@@ -579,17 +591,17 @@ private fun AccentColorSwatch(
         label = "accent-swatch-border",
     )
     Surface(
-        modifier = modifier.defaultMinSize(minHeight = 82.dp).scale(scale).clickable { onClick() },
+        modifier = modifier.defaultMinSize(minHeight = 76.dp).scale(scale).clickable { onClick() },
         shape = RoundedCornerShape(18.dp),
         color = container,
         contentColor = tokens.textPrimary,
-        border = BorderStroke(if (selected) 1.5.dp else 0.75.dp, border),
+        border = BorderStroke(if (selected) 1.1.dp else 0.75.dp, border),
     ) {
         Column(Modifier.padding(horizontal = 10.dp, vertical = 9.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Surface(
                 shape = RoundedCornerShape(999.dp),
                 color = preview.primary.copy(alpha = if (selected) 0.18f else 0.1f),
-                border = BorderStroke(if (selected) 1.2.dp else 0.75.dp, preview.primary.copy(alpha = if (selected) 0.72f else 0.3f)),
+                border = BorderStroke(if (selected) 1.dp else 0.75.dp, preview.primary.copy(alpha = if (selected) 0.62f else 0.3f)),
             ) {
                 Box(
                     Modifier

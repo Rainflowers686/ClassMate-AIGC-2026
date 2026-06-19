@@ -23,6 +23,7 @@ class HomeOnboardingSourceTest {
     @Test
     fun homeKeepsLearningCockpitAndPrimaryImportAction() {
         val source = readHomeSource()
+        val product = readProductSource()
 
         assertTrue(source.contains("StudyCockpitCard"))
         assertTrue(source.contains("今日学习驾驶舱"))
@@ -31,6 +32,20 @@ class HomeOnboardingSourceTest {
         assertTrue(source.contains("viewModel.navigateTo(Screen.IMPORT)"))
         assertTrue(source.contains("StatStrip("))
         assertTrue(source.contains("LearningPathStep"))
+        assertTrue(product.contains("color = tokens.primary"))
+        assertTrue(product.contains("actionContent.copy(alpha = 0.92f)"))
+        assertFalse(product.contains("cs.onPrimary.copy(alpha = 0.84f)"))
+        assertFalse(product.contains("disabled", ignoreCase = true))
+    }
+
+    @Test
+    fun homeLearningPathUsesVerticalGuideAndBottomSafePadding() {
+        val source = readHomeSource()
+
+        assertTrue(source.contains("isLast: Boolean"))
+        assertTrue(source.contains("height(24.dp)"))
+        assertTrue(source.contains("maxLines = 1"))
+        assertTrue(source.contains(".padding(bottom = 128.dpv())"))
     }
 
     @Test
@@ -45,5 +60,11 @@ class HomeOnboardingSourceTest {
         listOf(
             File("src/main/java/com/classmate/app/ui/screens/home/HomeScreen.kt"),
             File("app/src/main/java/com/classmate/app/ui/screens/home/HomeScreen.kt"),
+        ).first { it.exists() }.readText()
+
+    private fun readProductSource(): String =
+        listOf(
+            File("src/main/java/com/classmate/app/ui/product/ProductUi.kt"),
+            File("app/src/main/java/com/classmate/app/ui/product/ProductUi.kt"),
         ).first { it.exists() }.readText()
 }

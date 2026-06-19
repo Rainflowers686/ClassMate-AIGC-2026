@@ -209,9 +209,8 @@ fun PrimaryCommand(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val cs = MaterialTheme.colorScheme
     val tokens = ClassMateTheme.colors
-    val ext = ClassMateTheme.extended
+    val actionContent = if (tokens.isDark) Color(0xFF0B0B0B) else MaterialTheme.colorScheme.onPrimary
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val elevation by animateDpAsState(
@@ -222,27 +221,27 @@ fun PrimaryCommand(
     Surface(
         modifier = modifier.fillMaxWidth().productPress(interaction).clickable(interaction, indication = null) { onClick() },
         shape = RoundedCornerShape(22.dp),
-        color = Color.Transparent,
-        contentColor = cs.onPrimary,
+        color = tokens.primary,
+        contentColor = actionContent,
         shadowElevation = elevation,
     ) {
         Box(
             Modifier.background(
                 Brush.linearGradient(
-                    ext.heroGradient.ifEmpty { listOf(tokens.primary, tokens.primaryContainer) },
+                    listOf(tokens.primary, tokens.primary, tokens.primaryContainer),
                 ),
             ),
         ) {
             Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(cs.onPrimary.copy(alpha = 0.18f)),
+                    Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(actionContent.copy(alpha = 0.18f)),
                     contentAlignment = Alignment.Center,
-                ) { Icon(icon, contentDescription = null, tint = cs.onPrimary, modifier = Modifier.size(24.dp)) }
+                ) { Icon(icon, contentDescription = null, tint = actionContent, modifier = Modifier.size(24.dp)) }
                 Spacer(Modifier.width(16.dp))
                 Column(Modifier.weight(1f)) {
                     Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Spacer(Modifier.height(3.dp))
-                    Text(subtitle, style = MaterialTheme.typography.bodySmall, color = cs.onPrimary.copy(alpha = 0.84f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(subtitle, style = MaterialTheme.typography.bodySmall, color = actionContent.copy(alpha = 0.92f), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
                 Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, modifier = Modifier.size(24.dp))
             }

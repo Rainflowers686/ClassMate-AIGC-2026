@@ -113,13 +113,26 @@ class SettingsThemeTextTest {
             "animateFloatAsState",
             "accent-swatch-scale",
             "Icons.Filled.Check",
+            ".padding(bottom = 128.dp)",
+            "themeSelectorDescription",
+            "defaultMinSize(minHeight = 76.dp)",
         ).forEach { assertTrue("missing animated accent swatch hook: $it", settings.contains(it)) }
         listOf(
             "theme-preview-container",
             "theme-preview-scale",
             "Icons.Filled.Check",
-            "defaultMinSize(minHeight = 128.dp)",
+            "defaultMinSize(minHeight = 118.dp)",
         ).forEach { assertTrue("missing animated theme preview hook: $it", focusComponents.contains(it)) }
+    }
+
+    @Test
+    fun appearanceThemeCopyIsShortEnoughForPhoneCards() {
+        val source = source()
+        listOf(
+            "安静留白，适合日常阅读与复习",
+            "更明快，适合练习与进度反馈",
+            "深色低干扰，适合专注学习",
+        ).forEach { assertTrue("missing short theme selector copy: $it", source.contains(it)) }
     }
 
     @Test

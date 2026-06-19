@@ -46,4 +46,14 @@ class ThemeOptionTest {
         assertEquals(AccentColorPreset.ROSE.resolveFor(ThemePreset.FOCUS_IMMERSION, dark = true), focusRose.primary)
         assertTrue(focusBlue.primary != androidx.compose.ui.graphics.Color(0xFFFFB1C3))
     }
+
+    @Test
+    fun focusImmersionUsesReadableGraphiteDepth() {
+        val focus = classMateColorScheme(ThemePreset.FOCUS_IMMERSION, AccentColorPreset.OCEAN)
+
+        assertTrue(focus.background != androidx.compose.ui.graphics.Color(0xFF000000))
+        assertTrue(focus.background != androidx.compose.ui.graphics.Color(0xFF0E0E0E))
+        assertTrue(focus.outline != androidx.compose.ui.graphics.Color(0xFF5C3F45))
+        assertEquals(AccentColorPreset.OCEAN.resolveFor(ThemePreset.FOCUS_IMMERSION, dark = true), focus.primary)
+    }
 }

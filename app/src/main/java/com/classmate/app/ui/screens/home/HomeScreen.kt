@@ -76,7 +76,7 @@ fun HomeScreen(viewModel: AppViewModel) {
                     .padding(padding)
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = ProductSpace.gutter)
-                    .padding(bottom = 40.dpv()),
+                    .padding(bottom = 128.dpv()),
                 verticalArrangement = Arrangement.spacedBy(ProductSpace.block),
             ) {
                 Spacer(Modifier.height(ProductSpace.tight))
@@ -253,9 +253,9 @@ private fun FirstRunGuideCard(
         }
         Spacer(Modifier.height(ProductSpace.block))
         Column(verticalArrangement = Arrangement.spacedBy(8.dpv())) {
-            LearningPathStep("1", "导入课堂资料", "图片、拍照、文本或转写稿都可以先进入草稿确认。")
-            LearningPathStep("2", "生成知识时间线", "把重点、证据和来源整理成可追问的学习结构。")
-            LearningPathStep("3", "开始复习与练习", "用微测发现薄弱点，再生成今日复习动作。")
+            LearningPathStep("1", "导入课堂资料", "图片、拍照、文本或转写稿先进入草稿确认。", isLast = false)
+            LearningPathStep("2", "生成知识时间线", "重点、证据和来源整理成可追问结构。", isLast = false)
+            LearningPathStep("3", "开始复习与练习", "用微测发现薄弱点，再生成复习动作。", isLast = true)
         }
         Spacer(Modifier.height(ProductSpace.block))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dpv())) {
@@ -271,22 +271,33 @@ private fun FirstRunGuideCard(
 }
 
 @Composable
-private fun LearningPathStep(index: String, title: String, caption: String) {
+private fun LearningPathStep(index: String, title: String, caption: String, isLast: Boolean) {
     val colors = ClassMateTheme.colors
-    Row(Modifier.fillMaxWidth().defaultMinSize(minHeight = 52.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            Modifier
-                .size(34.dp)
-                .clip(CircleShape)
-                .background(colors.primary.copy(alpha = if (colors.isDark) 0.24f else 0.12f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(index, style = MaterialTheme.typography.labelLarge, color = colors.primary, fontWeight = FontWeight.Bold)
+    Row(Modifier.fillMaxWidth().defaultMinSize(minHeight = 58.dp), verticalAlignment = Alignment.Top) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(
+                Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(colors.primary.copy(alpha = if (colors.isDark) 0.22f else 0.11f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(index, style = MaterialTheme.typography.labelLarge, color = colors.primary, fontWeight = FontWeight.Bold)
+            }
+            if (!isLast) {
+                Box(
+                    Modifier
+                        .width(2.dp)
+                        .height(24.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(colors.primary.copy(alpha = if (colors.isDark) 0.18f else 0.12f)),
+                )
+            }
         }
         Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
+        Column(Modifier.weight(1f).padding(top = 1.dp)) {
             Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(caption, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(caption, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
