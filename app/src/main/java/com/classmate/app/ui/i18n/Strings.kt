@@ -13,12 +13,17 @@ import java.util.Locale
 enum class AppLanguage(val displayName: String) {
     ZH("中文"),
     EN("English"),
-    SYSTEM("跟随系统 / System");
+    SYSTEM("跟随系统");
 
     /** Resolve to a concrete pack (ZH or EN); SYSTEM follows the device locale. */
     fun resolve(): AppLanguage = when (this) {
         SYSTEM -> if (Locale.getDefault().language.equals("zh", ignoreCase = true)) ZH else EN
         else -> this
+    }
+
+    fun displayNameFor(current: AppLanguage): String = when (this) {
+        SYSTEM -> if (current.resolve() == EN) "System" else "跟随系统"
+        else -> displayName
     }
 }
 

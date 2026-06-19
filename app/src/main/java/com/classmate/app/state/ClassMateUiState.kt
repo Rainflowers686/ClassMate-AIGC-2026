@@ -14,7 +14,9 @@ import com.classmate.core.ondevice.OnDeviceLlmDiagnostic
 import com.classmate.app.platform.ProviderConfigSummary
 import com.classmate.app.ui.i18n.AppLanguage
 import com.classmate.app.ui.theme.AccentColorPreset
+import com.classmate.app.ui.theme.CustomPalette
 import com.classmate.app.ui.theme.ThemePreset
+import com.classmate.app.ui.theme.TypographyPreset
 import com.classmate.core.ask.LessonAnswer
 import com.classmate.core.audio.CourseEssenceAudioResult
 import com.classmate.core.audio.CourseEssenceScript
@@ -64,6 +66,8 @@ data class ClassMateUiState(
     // appearance
     val theme: ThemePreset = ThemePreset.Default,
     val accentColor: AccentColorPreset = AccentColorPreset.Default,
+    val customPalette: CustomPalette = CustomPalette.Default,
+    val typographyPreset: TypographyPreset = TypographyPreset.Default,
     val darkMode: Boolean? = null, // null = follow system
 
     // import inputs

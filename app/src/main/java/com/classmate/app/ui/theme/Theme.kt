@@ -19,10 +19,12 @@ import androidx.core.view.WindowCompat
 fun ClassMateTheme(
     themePreset: ThemePreset = ThemePreset.Default,
     accentColor: AccentColorPreset = AccentColorPreset.Default,
+    customPalette: CustomPalette = CustomPalette.Default,
+    typographyPreset: TypographyPreset = TypographyPreset.Default,
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
-    val colors = themeColors(themePreset, accentColor, darkTheme)
+    val colors = themeColors(themePreset, accentColor, darkTheme, customPalette)
 
     val view = LocalView.current
     if (!view.isInEditMode) {
@@ -38,12 +40,14 @@ fun ClassMateTheme(
         LocalClassMateExtendedColors provides colors.extended,
         LocalThemePreset provides themePreset,
         LocalAccentColorPreset provides accentColor,
+        LocalCustomPalette provides customPalette,
+        LocalTypographyPreset provides typographyPreset,
         LocalClassMateShapeScheme provides classMateShapeScheme(themePreset),
         LocalClassMateSpacing provides ClassMateSpacing(),
     ) {
         MaterialTheme(
             colorScheme = colors.scheme,
-            typography = ClassMateTypography,
+            typography = classMateTypographyFor(typographyPreset),
             shapes = materialShapesFor(themePreset),
             content = content,
         )

@@ -1,6 +1,8 @@
 package com.classmate.app.ui.theme
 
+import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -35,6 +37,59 @@ class ThemeOptionTest {
             ),
             AccentColorPreset.entries.toList(),
         )
+    }
+
+    @Test
+    fun typographyPresetsAreAvailableWithoutAddingThemePresets() {
+        assertEquals(3, ThemePreset.entries.size)
+        assertEquals(TypographyPreset.SYSTEM_DEFAULT, TypographyPreset.Default)
+        assertEquals(
+            listOf(
+                TypographyPreset.SYSTEM_DEFAULT,
+                TypographyPreset.ACADEMIC,
+                TypographyPreset.MODERN_ROUNDED,
+                TypographyPreset.CLEAN_SANS,
+                TypographyPreset.TITLE_PERSONALITY,
+            ),
+            TypographyPreset.entries.toList(),
+        )
+    }
+
+    @Test
+    fun typographyPresetsDoNotRequireBundledFontFiles() {
+        val fontDirs = listOf(File("src/main/res/font"), File("app/src/main/res/font"))
+        val fontFiles = fontDirs.filter { it.exists() }.flatMap { it.walkTopDown().filter { f -> f.isFile }.toList() }
+        assertTrue("advanced typography should use system font families only", fontFiles.isEmpty())
+    }
+
+    @Test
+    fun customPaletteSupportsPrimarySecondaryTertiaryAndSafeOnColor() {
+        val palette = CustomPalette(
+            enabled = true,
+            primaryHex = "#F7F7F7",
+            secondaryHex = "#111111",
+            tertiaryHex = "#006D32",
+        )
+        val scheme = themeColors(ThemePreset.STANDARD_STUDY, AccentColorPreset.GREEN, customPalette = palette)
+
+        assertEquals(parseHexColorOrNull("#F7F7F7"), scheme.classMate.primary)
+        assertEquals(parseHexColorOrNull("#111111"), scheme.classMate.secondary)
+        assertEquals(parseHexColorOrNull("#006D32"), scheme.classMate.tertiary)
+        assertEquals(androidx.compose.ui.graphics.Color(0xFF111111), bestOnColorFor(parseHexColorOrNull("#F7F7F7")!!))
+        assertEquals(androidx.compose.ui.graphics.Color.White, bestOnColorFor(parseHexColorOrNull("#111111")!!))
+    }
+
+    @Test
+    fun customPaletteWarnsForInvalidOrLowContrastValues() {
+        val warnings = validateCustomPalette(
+            CustomPalette(enabled = true, primaryHex = "#F8FAF3", secondaryHex = "bad", tertiaryHex = "#111111"),
+            background = androidx.compose.ui.graphics.Color(0xFFF8FAF3),
+            text = androidx.compose.ui.graphics.Color(0xFF191C18),
+        )
+
+        assertTrue(warnings.any { it.contains("Primary") })
+        assertTrue(warnings.any { it.contains("Secondary") })
+        assertFalse(warnings.any { it.contains("AppKey") })
     }
 
     @Test

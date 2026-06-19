@@ -15,6 +15,12 @@ class SettingsThemeTextTest {
             "活力学习",
             "沉浸学习",
             "强调色 / Accent Color",
+            "高级自定义色彩",
+            "Primary",
+            "Secondary",
+            "Tertiary",
+            "字体与阅读",
+            "TypographyPreset.entries",
             "AccentColorGrid",
             "ThemePreset.entries",
             "AccentColorPreset.entries",
@@ -83,10 +89,53 @@ class SettingsThemeTextTest {
         listOf(
             "defaultMinSize(minHeight = 72.dp)",
             "defaultMinSize(minHeight = 88.dp)",
+            "defaultMinSize(minHeight = 36.dp)",
             "maxLines = 1",
             "maxLines = 2",
             "TextOverflow.Ellipsis",
+            "ClassMateChipText",
+            "ClassMateTwoLineDescription",
         ).forEach { assertTrue("missing text wrapping or stable height guard: $it", source.contains(it)) }
+    }
+
+    @Test
+    fun advancedAppearanceHasCustomColorsTypographyAndTextFitGuards() {
+        val settings = source()
+        val common = componentSource("CommonUi.kt")
+        val product = productSource()
+        val app = appSource()
+        val strings = stringsSource()
+        val themeOptions = themeOptionSource()
+
+        listOf(
+            "CustomPalette(",
+            "normalizeHexColorOrNull",
+            "validateCustomPalette",
+            "onPrimaryChange",
+            "onSecondaryChange",
+            "onTertiaryChange",
+            "bestOnColorFor",
+            "resetAdvancedAppearance",
+        ).forEach { assertTrue("missing custom color UI hook: $it", settings.contains(it)) }
+        listOf(
+            "SYSTEM_DEFAULT",
+            "ACADEMIC",
+            "MODERN_ROUNDED",
+            "CLEAN_SANS",
+            "TITLE_PERSONALITY",
+        ).forEach { assertTrue("missing typography preset: $it", themeOptions.contains(it)) }
+        listOf(
+            "ClassMateSingleLineText",
+            "ClassMateTwoLineDescription",
+            "ClassMateChipText",
+            "softWrap = false",
+            "overflow = TextOverflow.Ellipsis",
+        ).forEach { assertTrue("missing shared text fit guard: $it", common.contains(it)) }
+        assertTrue("settings chips should use ClassMateChipText", settings.contains("ClassMateChipText(text"))
+        assertTrue("product pill should use chip text guard", product.contains("ClassMateChipText(label"))
+        assertTrue("bottom nav label should be single-line", app.contains("softWrap = false"))
+        assertFalse("small chips must not mix Chinese and English with slash", strings.contains("跟随系统 / System"))
+        assertFalse("settings should not hard-code bilingual system chip", settings.contains("跟随系统 / System"))
     }
 
     @Test
@@ -279,5 +328,17 @@ class SettingsThemeTextTest {
         listOf(
             File("src/main/java/com/classmate/app/ui/screens/importcourse/ImportCourseScreen.kt"),
             File("app/src/main/java/com/classmate/app/ui/screens/importcourse/ImportCourseScreen.kt"),
+        ).first { it.exists() }.readText()
+
+    private fun stringsSource(): String =
+        listOf(
+            File("src/main/java/com/classmate/app/ui/i18n/Strings.kt"),
+            File("app/src/main/java/com/classmate/app/ui/i18n/Strings.kt"),
+        ).first { it.exists() }.readText()
+
+    private fun themeOptionSource(): String =
+        listOf(
+            File("src/main/java/com/classmate/app/ui/theme/ThemeOption.kt"),
+            File("app/src/main/java/com/classmate/app/ui/theme/ThemeOption.kt"),
         ).first { it.exists() }.readText()
 }

@@ -30,6 +30,8 @@ val LocalClassMateColors = staticCompositionLocalOf {
 }
 val LocalThemePreset = staticCompositionLocalOf { ThemePreset.Default }
 val LocalAccentColorPreset = staticCompositionLocalOf { AccentColorPreset.Default }
+val LocalCustomPalette = staticCompositionLocalOf { CustomPalette.Default }
+val LocalTypographyPreset = staticCompositionLocalOf { TypographyPreset.Default }
 val LocalClassMateShapeScheme = staticCompositionLocalOf { classMateShapeScheme(ThemePreset.Default) }
 val LocalClassMateSpacing = staticCompositionLocalOf { ClassMateSpacing() }
 
@@ -49,6 +51,12 @@ object ClassMateTheme {
 
     val accent: AccentColorPreset
         @Composable @ReadOnlyComposable get() = LocalAccentColorPreset.current
+
+    val customPalette: CustomPalette
+        @Composable @ReadOnlyComposable get() = LocalCustomPalette.current
+
+    val typographyPreset: TypographyPreset
+        @Composable @ReadOnlyComposable get() = LocalTypographyPreset.current
 
     val shapes: ClassMateShapeScheme
         @Composable @ReadOnlyComposable get() = LocalClassMateShapeScheme.current

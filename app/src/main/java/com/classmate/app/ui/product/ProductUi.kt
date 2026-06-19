@@ -60,6 +60,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.classmate.app.ui.components.ClassMateChipText
 import com.classmate.app.ui.theme.ClassMateTheme
 
 /**
@@ -416,7 +417,7 @@ fun ProductPill(label: String, modifier: Modifier = Modifier) {
         Row(Modifier.padding(horizontal = 10.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(6.dp).clip(CircleShape).background(dot))
             Spacer(Modifier.width(6.dp))
-            Text(label, style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant, maxLines = 1)
+            ClassMateChipText(label, color = cs.onSurfaceVariant)
         }
     }
 }

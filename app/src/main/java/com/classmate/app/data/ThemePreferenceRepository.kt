@@ -1,7 +1,9 @@
 package com.classmate.app.data
 
 import com.classmate.app.ui.theme.AccentColorPreset
+import com.classmate.app.ui.theme.CustomPalette
 import com.classmate.app.ui.theme.ThemePreset
+import com.classmate.app.ui.theme.TypographyPreset
 import java.io.File
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -13,6 +15,8 @@ import kotlinx.serialization.json.put
 data class ThemePreference(
     val themePreset: ThemePreset = ThemePreset.Default,
     val accentColorPreset: AccentColorPreset = AccentColorPreset.Default,
+    val customPalette: CustomPalette = CustomPalette.Default,
+    val typographyPreset: TypographyPreset = TypographyPreset.Default,
 )
 
 class ThemePreferenceRepository(private val file: File?) {
@@ -26,6 +30,13 @@ class ThemePreferenceRepository(private val file: File?) {
         return ThemePreference(
             themePreset = obj.str("themePreset")?.let(::themePresetOrNull) ?: ThemePreset.Default,
             accentColorPreset = obj.str("accentColorPreset")?.let(::accentPresetOrNull) ?: AccentColorPreset.Default,
+            customPalette = CustomPalette(
+                enabled = obj.bool("customColorEnabled") ?: false,
+                primaryHex = obj.str("customPrimaryHex") ?: CustomPalette.DEFAULT_PRIMARY,
+                secondaryHex = obj.str("customSecondaryHex") ?: CustomPalette.DEFAULT_SECONDARY,
+                tertiaryHex = obj.str("customTertiaryHex") ?: CustomPalette.DEFAULT_TERTIARY,
+            ),
+            typographyPreset = obj.str("typographyPreset")?.let(::typographyPresetOrNull) ?: TypographyPreset.Default,
         )
     }
 
@@ -37,6 +48,11 @@ class ThemePreferenceRepository(private val file: File?) {
                 buildJsonObject {
                     put("themePreset", preference.themePreset.name)
                     put("accentColorPreset", preference.accentColorPreset.name)
+                    put("customColorEnabled", preference.customPalette.enabled)
+                    put("customPrimaryHex", preference.customPalette.primaryHex)
+                    put("customSecondaryHex", preference.customPalette.secondaryHex)
+                    put("customTertiaryHex", preference.customPalette.tertiaryHex)
+                    put("typographyPreset", preference.typographyPreset.name)
                 }.toString(),
             )
             true
@@ -57,6 +73,24 @@ class ThemePreferenceRepository(private val file: File?) {
         return next
     }
 
+    fun saveCustomPalette(customPalette: CustomPalette): ThemePreference {
+        val next = load().copy(customPalette = customPalette)
+        save(next)
+        return next
+    }
+
+    fun saveTypographyPreset(preset: TypographyPreset): ThemePreference {
+        val next = load().copy(typographyPreset = preset)
+        save(next)
+        return next
+    }
+
+    fun resetAdvancedAppearance(): ThemePreference {
+        val next = load().copy(customPalette = CustomPalette.Default, typographyPreset = TypographyPreset.Default)
+        save(next)
+        return next
+    }
+
     companion object {
         fun disabled(): ThemePreferenceRepository = ThemePreferenceRepository(null)
 
@@ -70,5 +104,17 @@ private fun themePresetOrNull(value: String): ThemePreset? =
 private fun accentPresetOrNull(value: String): AccentColorPreset? =
     AccentColorPreset.entries.firstOrNull { it.name.equals(value.trim(), ignoreCase = true) }
 
+private fun typographyPresetOrNull(value: String): TypographyPreset? =
+    TypographyPreset.entries.firstOrNull { it.name.equals(value.trim(), ignoreCase = true) }
+
 private fun JsonObject.str(key: String): String? =
     (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.content?.takeIf { it.isNotBlank() }
+
+private fun JsonObject.bool(key: String): Boolean? =
+    (this[key] as? JsonPrimitive)?.content?.let { value ->
+        when {
+            value.equals("true", ignoreCase = true) -> true
+            value.equals("false", ignoreCase = true) -> false
+            else -> null
+        }
+    }

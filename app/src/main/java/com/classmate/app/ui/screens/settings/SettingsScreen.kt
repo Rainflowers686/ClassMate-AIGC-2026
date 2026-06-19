@@ -93,7 +93,10 @@ import com.classmate.core.official.VivoOfficialProviderRegistry
 import com.classmate.core.provider.BlueLMDiagnosticStatus
 import com.classmate.core.provider.CloudModelQualityProfile
 import com.classmate.app.ui.components.CapabilityStatusPill
+import com.classmate.app.ui.components.ClassMateChipText
 import com.classmate.app.ui.components.ClassMateCard
+import com.classmate.app.ui.components.ClassMateSingleLineText
+import com.classmate.app.ui.components.ClassMateTwoLineDescription
 import com.classmate.app.ui.components.DiagnosticDetailsCard
 import com.classmate.app.ui.product.ProductCanvas
 import com.classmate.app.ui.product.ProductHero
@@ -106,8 +109,13 @@ import com.classmate.app.ui.design.Dimens
 import com.classmate.app.ui.flow.AmbientSoundCatalog
 import com.classmate.app.ui.theme.AccentColorPreset
 import com.classmate.app.ui.theme.ClassMateTheme
+import com.classmate.app.ui.theme.CustomPalette
 import com.classmate.app.ui.theme.ThemePreset
+import com.classmate.app.ui.theme.TypographyPreset
+import com.classmate.app.ui.theme.bestOnColorFor
 import com.classmate.app.ui.theme.classMateColorScheme
+import com.classmate.app.ui.theme.normalizeHexColorOrNull
+import com.classmate.app.ui.theme.validateCustomPalette
 import com.classmate.app.ui.i18n.AppLanguage
 import com.classmate.app.ui.i18n.appStrings
 import kotlinx.serialization.json.Json
@@ -521,22 +529,33 @@ private fun SettingsEntryRow(title: String, subtitle: String, icon: SettingsEntr
 private fun AppearanceAndThemeSettingsCard(viewModel: AppViewModel) {
     val ui = viewModel.ui
     val s = appStrings(ui.language)
+    val colors = ClassMateTheme.colors
+    val systemLabel = AppLanguage.SYSTEM.displayNameFor(ui.language)
+    var customEnabled by remember(ui.customPalette) { mutableStateOf(ui.customPalette.enabled) }
+    var primaryHex by remember(ui.customPalette) { mutableStateOf(ui.customPalette.primaryHex) }
+    var secondaryHex by remember(ui.customPalette) { mutableStateOf(ui.customPalette.secondaryHex) }
+    var tertiaryHex by remember(ui.customPalette) { mutableStateOf(ui.customPalette.tertiaryHex) }
+    val draftPalette = CustomPalette(
+        enabled = customEnabled,
+        primaryHex = primaryHex,
+        secondaryHex = secondaryHex,
+        tertiaryHex = tertiaryHex,
+    )
+    val customWarnings = validateCustomPalette(draftPalette, colors.background, colors.textPrimary)
     ClassMateCard {
         Text("外观与主题", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.xs))
-        Text(
+        ClassMateTwoLineDescription(
             "选择适合当前学习节奏的界面氛围。主题决定背景、卡片层级和圆角；强调色 / Accent Color 只影响按钮、选中态和重点状态。",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(Dimens.s))
         Text(s.settingsLanguage, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.xxs))
-        Text(s.settingsLanguageDesc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        ClassMateTwoLineDescription(s.settingsLanguageDesc)
         Spacer(Modifier.height(Dimens.s))
         Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
             AppLanguage.entries.forEach { lang ->
-                SelectableChip(lang.displayName, ui.language == lang) { viewModel.setLanguage(lang) }
+                SelectableChip(lang.displayNameFor(ui.language), ui.language == lang) { viewModel.setLanguage(lang) }
             }
         }
         Spacer(Modifier.height(Dimens.m))
@@ -559,7 +578,7 @@ private fun AppearanceAndThemeSettingsCard(viewModel: AppViewModel) {
         Spacer(Modifier.height(Dimens.m))
         Text("强调色 / Accent Color", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.xs))
-        Text("强调色会跟随三套主题调整亮度和可读性，不会覆盖每套主题自己的 surface 层级。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        ClassMateTwoLineDescription("强调色会跟随三套主题调整亮度和可读性，不会覆盖每套主题自己的 surface 层级。")
         Spacer(Modifier.height(Dimens.s))
         AccentColorGrid(
             selected = ui.accentColor,
@@ -567,15 +586,49 @@ private fun AppearanceAndThemeSettingsCard(viewModel: AppViewModel) {
             onSelect = { viewModel.setAccentColor(it) },
         )
         Spacer(Modifier.height(Dimens.m))
+        AdvancedColorSection(
+            enabled = customEnabled,
+            primaryHex = primaryHex,
+            secondaryHex = secondaryHex,
+            tertiaryHex = tertiaryHex,
+            warnings = customWarnings,
+            onEnabledChange = { customEnabled = it },
+            onPrimaryChange = { primaryHex = it },
+            onSecondaryChange = { secondaryHex = it },
+            onTertiaryChange = { tertiaryHex = it },
+            onApply = {
+                viewModel.setCustomPalette(
+                    CustomPalette(
+                        enabled = customEnabled,
+                        primaryHex = normalizeHexColorOrNull(primaryHex) ?: CustomPalette.DEFAULT_PRIMARY,
+                        secondaryHex = normalizeHexColorOrNull(secondaryHex) ?: CustomPalette.DEFAULT_SECONDARY,
+                        tertiaryHex = normalizeHexColorOrNull(tertiaryHex) ?: CustomPalette.DEFAULT_TERTIARY,
+                    ),
+                )
+            },
+            onReset = {
+                customEnabled = false
+                primaryHex = CustomPalette.DEFAULT_PRIMARY
+                secondaryHex = CustomPalette.DEFAULT_SECONDARY
+                tertiaryHex = CustomPalette.DEFAULT_TERTIARY
+                viewModel.resetAdvancedAppearance()
+            },
+        )
+        Spacer(Modifier.height(Dimens.m))
+        TypographyPresetSection(
+            selected = ui.typographyPreset,
+            onSelect = { viewModel.setTypographyPreset(it) },
+        )
+        Spacer(Modifier.height(Dimens.m))
         Text("显示", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.xs))
         Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
-            SelectableChip("跟随系统", ui.darkMode == null) { viewModel.setDarkMode(null) }
+            SelectableChip(systemLabel, ui.darkMode == null) { viewModel.setDarkMode(null) }
             SelectableChip("浅色", ui.darkMode == false) { viewModel.setDarkMode(false) }
             SelectableChip("深色", ui.darkMode == true) { viewModel.setDarkMode(true) }
         }
         Spacer(Modifier.height(Dimens.s))
-        ProviderStatusRow("字号 / 阅读密度", "当前使用系统字号与紧凑学习密度")
+        ProviderStatusRow("文字适配", "标题单行、说明两行、chip 与按钮单行显示")
     }
 }
 
@@ -589,6 +642,159 @@ private fun themeSelectorDescription(theme: ThemePreset): String = when (theme) 
     ThemePreset.STANDARD_STUDY -> "安静留白，适合日常阅读与复习"
     ThemePreset.ACTIVE_STUDY -> "更明快，适合练习与进度反馈"
     ThemePreset.FOCUS_IMMERSION -> "深色低干扰，适合专注学习"
+}
+
+@Composable
+private fun AdvancedColorSection(
+    enabled: Boolean,
+    primaryHex: String,
+    secondaryHex: String,
+    tertiaryHex: String,
+    warnings: List<String>,
+    onEnabledChange: (Boolean) -> Unit,
+    onPrimaryChange: (String) -> Unit,
+    onSecondaryChange: (String) -> Unit,
+    onTertiaryChange: (String) -> Unit,
+    onApply: () -> Unit,
+    onReset: () -> Unit,
+) {
+    Text("高级自定义色彩", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+    Spacer(Modifier.height(Dimens.xs))
+    ClassMateTwoLineDescription("自定义色只影响按钮、强调态和选中态；正文背景和阅读文字会继续由主题保护。")
+    Spacer(Modifier.height(Dimens.s))
+    Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+        SelectableChip("启用", enabled) { onEnabledChange(true) }
+        SelectableChip("关闭", !enabled) { onEnabledChange(false) }
+    }
+    Spacer(Modifier.height(Dimens.s))
+    CustomColorEditor("Primary", primaryHex, onPrimaryChange)
+    Spacer(Modifier.height(Dimens.xs))
+    CustomColorEditor("Secondary", secondaryHex, onSecondaryChange)
+    Spacer(Modifier.height(Dimens.xs))
+    CustomColorEditor("Tertiary", tertiaryHex, onTertiaryChange)
+    Spacer(Modifier.height(Dimens.s))
+    val status = if (!enabled) {
+        "未启用；当前使用预设强调色"
+    } else if (warnings.isEmpty()) {
+        "对比度检查通过；文字色会自动选择深色或浅色"
+    } else {
+        warnings.take(2).joinToString("；")
+    }
+    ProviderStatusRow("对比度检查", status)
+    Spacer(Modifier.height(Dimens.s))
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+        PrimaryButton("应用自定义色", onClick = onApply, modifier = Modifier.weight(1f))
+        SecondaryButton("恢复默认", onClick = onReset, modifier = Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun CustomColorEditor(label: String, value: String, onValueChange: (String) -> Unit) {
+    val normalized = normalizeHexColorOrNull(value)
+    val preview = normalized?.let { com.classmate.app.ui.theme.parseHexColorOrNull(it) } ?: ClassMateTheme.colors.outline
+    Column(verticalArrangement = Arrangement.spacedBy(Dimens.xxs)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = preview,
+                contentColor = bestOnColorFor(preview),
+                border = BorderStroke(0.75.dp, ClassMateTheme.colors.outline.copy(alpha = 0.24f)),
+                modifier = Modifier.size(42.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text("Aa", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+                }
+            }
+            OutlinedTextField(
+                value = value,
+                onValueChange = onValueChange,
+                label = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                placeholder = { Text("#RRGGBB", maxLines = 1, softWrap = false) },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                shape = MaterialTheme.shapes.medium,
+                supportingText = {
+                    Text(
+                        normalized ?: "请输入 6 位 HEX，例如 #55624D",
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                },
+            )
+        }
+        CustomColorPresetSwatches(onPick = onValueChange)
+    }
+}
+
+@Composable
+private fun CustomColorPresetSwatches(onPick: (String) -> Unit) {
+    val presets = listOf(
+        CustomPalette.DEFAULT_PRIMARY,
+        CustomPalette.DEFAULT_SECONDARY,
+        CustomPalette.DEFAULT_TERTIARY,
+        AccentColorPreset.BLUE.tokenHex,
+        AccentColorPreset.CYAN.tokenHex,
+        AccentColorPreset.GREEN.tokenHex,
+        AccentColorPreset.PURPLE.tokenHex,
+        AccentColorPreset.AMBER.tokenHex,
+        AccentColorPreset.ROSE.tokenHex,
+        AccentColorPreset.GRAPHITE.tokenHex,
+        AccentColorPreset.OCEAN.tokenHex,
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        presets.take(8).forEach { hex ->
+            val color = com.classmate.app.ui.theme.parseHexColorOrNull(hex) ?: ClassMateTheme.colors.outline
+            Box(
+                Modifier
+                    .size(24.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(color)
+                    .clickable { onPick(hex) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun TypographyPresetSection(
+    selected: TypographyPreset,
+    onSelect: (TypographyPreset) -> Unit,
+) {
+    Text("字体与阅读", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+    Spacer(Modifier.height(Dimens.xs))
+    ClassMateTwoLineDescription("不引入外部字体文件；正文始终优先可读，个性风格只加强标题层级。")
+    Spacer(Modifier.height(Dimens.s))
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        TypographyPreset.entries.forEach { preset ->
+            TypographyPresetRow(preset, selected == preset, onClick = { onSelect(preset) })
+        }
+    }
+}
+
+@Composable
+private fun TypographyPresetRow(preset: TypographyPreset, selected: Boolean, onClick: () -> Unit) {
+    val colors = ClassMateTheme.colors
+    val container by animateColorAsState(
+        targetValue = if (selected) colors.primary.copy(alpha = if (colors.isDark) 0.1f else 0.06f) else Color.Transparent,
+        animationSpec = tween(durationMillis = 160),
+        label = "typography-preset-row",
+    )
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = 58.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(container)
+            .clickable { onClick() }
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            ClassMateSingleLineText(preset.displayName, style = MaterialTheme.typography.bodyMedium, color = colors.textPrimary, fontWeight = FontWeight.SemiBold)
+            ClassMateTwoLineDescription(preset.description, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+        }
+        if (selected) Icon(Icons.Filled.Check, contentDescription = null, tint = colors.primary, modifier = Modifier.size(18.dp))
+    }
 }
 
 @Composable
@@ -666,8 +872,8 @@ private fun AccentColorSwatch(
                 }
             }
             Spacer(Modifier.height(6.dp))
-            Text(accent.displayName, style = MaterialTheme.typography.labelSmall, maxLines = 1)
-            Text(accent.englishName, style = MaterialTheme.typography.labelSmall, color = tokens.textSecondary, maxLines = 1)
+            Text(accent.displayName, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
+            Text(accent.englishName, style = MaterialTheme.typography.labelSmall, color = tokens.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
         }
     }
 }
@@ -1695,9 +1901,9 @@ private fun SelectableChip(text: String, selected: Boolean, onClick: () -> Unit)
         shape = RoundedCornerShape(50),
         color = if (selected) cs.primaryContainer else cs.surfaceVariant,
         contentColor = if (selected) cs.onPrimaryContainer else cs.onSurfaceVariant,
-        modifier = Modifier.clickable { onClick() },
+        modifier = Modifier.defaultMinSize(minHeight = 36.dp).clickable { onClick() },
     ) {
-        Text(text, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp))
+        ClassMateChipText(text, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp))
     }
 }
 

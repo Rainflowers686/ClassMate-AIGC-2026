@@ -61,5 +61,20 @@ enum class AccentColorPreset(
     }
 }
 
+enum class TypographyPreset(
+    val displayName: String,
+    val description: String,
+) {
+    SYSTEM_DEFAULT("系统默认", "跟随设备默认字形，正文优先稳定可读"),
+    ACADEMIC("端正阅读", "标题更稳重，适合长文复习与导出前预览"),
+    MODERN_ROUNDED("现代圆润", "标题更柔和，适合日常学习驾驶舱"),
+    CLEAN_SANS("清爽无衬线", "更紧凑清晰，适合高密度设置和资料列表"),
+    TITLE_PERSONALITY("个性标题", "仅强化大标题气质，正文保持清晰无衬线");
+
+    companion object {
+        val Default = SYSTEM_DEFAULT
+    }
+}
+
 @Deprecated("Use ThemePreset. Kept temporarily so older tests and call sites fail less noisily.")
 typealias ThemeOption = ThemePreset

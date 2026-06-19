@@ -75,7 +75,9 @@ import com.classmate.app.platform.ModelConfigRepository
 import com.classmate.app.platform.ProviderConfigSummary
 import com.classmate.app.ui.i18n.AppLanguage
 import com.classmate.app.ui.theme.AccentColorPreset
+import com.classmate.app.ui.theme.CustomPalette
 import com.classmate.app.ui.theme.ThemePreset
+import com.classmate.app.ui.theme.TypographyPreset
 import com.classmate.core.ask.GroundedAskLessonEngine
 import com.classmate.core.ask.LocalAskLessonEngine
 import com.classmate.core.ai.AiCapability
@@ -231,6 +233,8 @@ class AppViewModel(
         ClassMateUiState(
             theme = initialThemePreference.themePreset,
             accentColor = initialThemePreference.accentColorPreset,
+            customPalette = initialThemePreference.customPalette,
+            typographyPreset = initialThemePreference.typographyPreset,
             providerConfigSummary = providerSummary(initialConfigSource),
             onDeviceDiagnostic = onDeviceController.diagnostic(),
             onDeviceModelPath = onDeviceController.diagnostic().modelDir,
@@ -291,12 +295,24 @@ class AppViewModel(
     // --- appearance ---
     fun setTheme(option: ThemePreset) {
         val next = themePreferenceRepository.saveThemePreset(option)
-        ui = ui.copy(theme = next.themePreset, accentColor = next.accentColorPreset)
+        ui = ui.copy(theme = next.themePreset, accentColor = next.accentColorPreset, customPalette = next.customPalette, typographyPreset = next.typographyPreset)
     }
 
     fun setAccentColor(accent: AccentColorPreset) {
         val next = themePreferenceRepository.saveAccentColorPreset(accent)
-        ui = ui.copy(theme = next.themePreset, accentColor = next.accentColorPreset)
+        ui = ui.copy(theme = next.themePreset, accentColor = next.accentColorPreset, customPalette = next.customPalette, typographyPreset = next.typographyPreset)
+    }
+    fun setCustomPalette(customPalette: CustomPalette) {
+        val next = themePreferenceRepository.saveCustomPalette(customPalette)
+        ui = ui.copy(theme = next.themePreset, accentColor = next.accentColorPreset, customPalette = next.customPalette, typographyPreset = next.typographyPreset)
+    }
+    fun setTypographyPreset(preset: TypographyPreset) {
+        val next = themePreferenceRepository.saveTypographyPreset(preset)
+        ui = ui.copy(theme = next.themePreset, accentColor = next.accentColorPreset, customPalette = next.customPalette, typographyPreset = next.typographyPreset)
+    }
+    fun resetAdvancedAppearance() {
+        val next = themePreferenceRepository.resetAdvancedAppearance()
+        ui = ui.copy(theme = next.themePreset, accentColor = next.accentColorPreset, customPalette = next.customPalette, typographyPreset = next.typographyPreset)
     }
     fun setDarkMode(dark: Boolean?) { ui = ui.copy(darkMode = dark) }
     fun setLanguage(language: AppLanguage) { ui = ui.copy(language = language) }

@@ -4,6 +4,9 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.pow
 
 data class ClassMateColorScheme(
     val background: Color,
@@ -37,24 +40,40 @@ data class ThemeColors(
     val classMate: ClassMateColorScheme,
 )
 
+data class CustomPalette(
+    val enabled: Boolean = false,
+    val primaryHex: String = DEFAULT_PRIMARY,
+    val secondaryHex: String = DEFAULT_SECONDARY,
+    val tertiaryHex: String = DEFAULT_TERTIARY,
+    val validationWarnings: List<String> = emptyList(),
+) {
+    companion object {
+        const val DEFAULT_PRIMARY = "#55624D"
+        const val DEFAULT_SECONDARY = "#755754"
+        const val DEFAULT_TERTIARY = "#605F56"
+        val Default = CustomPalette()
+    }
+}
+
 fun themeColors(
     preset: ThemePreset,
     accent: AccentColorPreset = AccentColorPreset.Default,
     dark: Boolean = false,
+    customPalette: CustomPalette = CustomPalette.Default,
 ): ThemeColors {
-    val tokens = classMateColorScheme(preset, accent, dark)
+    val tokens = classMateColorScheme(preset, accent, dark).withCustomPalette(customPalette)
     val material = if (tokens.isDark) {
         darkColorScheme(
             primary = tokens.primary,
-            onPrimary = Color(0xFF0B0B0B),
+            onPrimary = bestOnColorFor(tokens.primary),
             primaryContainer = tokens.primaryContainer,
             onPrimaryContainer = tokens.textPrimary,
             secondary = tokens.secondary,
-            onSecondary = Color(0xFF0B0B0B),
+            onSecondary = bestOnColorFor(tokens.secondary),
             secondaryContainer = tokens.secondaryContainer,
             onSecondaryContainer = tokens.textPrimary,
             tertiary = tokens.tertiary,
-            onTertiary = Color(0xFF0B0B0B),
+            onTertiary = bestOnColorFor(tokens.tertiary),
             tertiaryContainer = tokens.surfaceContainerHigh,
             onTertiaryContainer = tokens.textPrimary,
             background = tokens.background,
@@ -73,15 +92,15 @@ fun themeColors(
     } else {
         lightColorScheme(
             primary = tokens.primary,
-            onPrimary = Color.White,
+            onPrimary = bestOnColorFor(tokens.primary),
             primaryContainer = tokens.primaryContainer,
             onPrimaryContainer = tokens.textPrimary,
             secondary = tokens.secondary,
-            onSecondary = Color.White,
+            onSecondary = bestOnColorFor(tokens.secondary),
             secondaryContainer = tokens.secondaryContainer,
             onSecondaryContainer = tokens.textPrimary,
             tertiary = tokens.tertiary,
-            onTertiary = Color.White,
+            onTertiary = bestOnColorFor(tokens.tertiary),
             tertiaryContainer = blend(tokens.tertiary, tokens.surface, 0.14f),
             onTertiaryContainer = tokens.textPrimary,
             background = tokens.background,
@@ -259,6 +278,83 @@ private fun extendedColors(tokens: ClassMateColorScheme): ClassMateExtendedColor
         info = tokens.info,
         heroGradient = listOf(tokens.surfaceContainerLow, tokens.surfaceContainerHigh),
     )
+
+fun normalizeHexColorOrNull(value: String): String? {
+    val cleaned = value.trim().removePrefix("#")
+    if (cleaned.length != 6) return null
+    if (cleaned.any { it !in '0'..'9' && it !in 'a'..'f' && it !in 'A'..'F' }) return null
+    return "#${cleaned.uppercase()}"
+}
+
+fun parseHexColorOrNull(value: String): Color? {
+    val normalized = normalizeHexColorOrNull(value) ?: return null
+    val rgb = normalized.removePrefix("#").toIntOrNull(16) ?: return null
+    return Color(
+        red = ((rgb shr 16) and 0xFF) / 255f,
+        green = ((rgb shr 8) and 0xFF) / 255f,
+        blue = (rgb and 0xFF) / 255f,
+        alpha = 1f,
+    )
+}
+
+fun relativeLuminance(color: Color): Double {
+    fun channel(v: Float): Double {
+        val c = v.toDouble()
+        return if (c <= 0.03928) c / 12.92 else ((c + 0.055) / 1.055).pow(2.4)
+    }
+    return 0.2126 * channel(color.red) + 0.7152 * channel(color.green) + 0.0722 * channel(color.blue)
+}
+
+fun contrastRatio(a: Color, b: Color): Double {
+    val lighter = max(relativeLuminance(a), relativeLuminance(b))
+    val darker = min(relativeLuminance(a), relativeLuminance(b))
+    return (lighter + 0.05) / (darker + 0.05)
+}
+
+fun bestOnColorFor(background: Color): Color {
+    val dark = Color(0xFF111111)
+    val light = Color(0xFFFFFFFF)
+    return if (contrastRatio(background, dark) >= contrastRatio(background, light)) dark else light
+}
+
+fun isReadable(background: Color, foreground: Color, minRatio: Double = 4.5): Boolean =
+    contrastRatio(background, foreground) >= minRatio
+
+fun validateCustomPalette(palette: CustomPalette, background: Color, text: Color): List<String> {
+    if (!palette.enabled) return emptyList()
+    val warnings = mutableListOf<String>()
+    listOf(
+        "Primary" to palette.primaryHex,
+        "Secondary" to palette.secondaryHex,
+        "Tertiary" to palette.tertiaryHex,
+    ).forEach { (name, hex) ->
+        val color = parseHexColorOrNull(hex)
+        if (color == null) {
+            warnings += "$name HEX 格式无效"
+        } else {
+            if (!isReadable(color, bestOnColorFor(color))) warnings += "$name 与自动文字色对比不足"
+            if (contrastRatio(color, background) < 1.35) warnings += "$name 与当前背景过近"
+            if (contrastRatio(color, text) < 2.0) warnings += "$name 与正文色过近，仅用于强调态"
+        }
+    }
+    return warnings
+}
+
+fun ClassMateColorScheme.withCustomPalette(palette: CustomPalette): ClassMateColorScheme {
+    if (!palette.enabled) return this
+    val customPrimary = parseHexColorOrNull(palette.primaryHex) ?: primary
+    val customSecondary = parseHexColorOrNull(palette.secondaryHex) ?: secondary
+    val customTertiary = parseHexColorOrNull(palette.tertiaryHex) ?: tertiary
+    return copy(
+        primary = customPrimary,
+        primaryContainer = blend(customPrimary, surface, if (isDark) 0.24f else 0.16f),
+        secondary = customSecondary,
+        secondaryContainer = blend(customSecondary, surface, if (isDark) 0.22f else 0.13f),
+        tertiary = customTertiary,
+        accent = customPrimary,
+        info = customTertiary,
+    )
+}
 
 fun AccentColorPreset.resolveFor(preset: ThemePreset, dark: Boolean = false): Color = when (this) {
     AccentColorPreset.BLUE -> if (dark) Color(0xFF8FB6FF) else Color(0xFF2563EB)

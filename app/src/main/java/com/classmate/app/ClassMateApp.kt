@@ -94,7 +94,13 @@ fun ClassMateApp() {
     val darkTheme = ui.darkMode ?: isSystemInDarkTheme()
     val showBottomBar = viewModel.currentScreen in TAB_ROOTS
 
-    ClassMateTheme(themePreset = ui.theme, accentColor = ui.accentColor, darkTheme = darkTheme) {
+    ClassMateTheme(
+        themePreset = ui.theme,
+        accentColor = ui.accentColor,
+        customPalette = ui.customPalette,
+        typographyPreset = ui.typographyPreset,
+        darkTheme = darkTheme,
+    ) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Scaffold(
                 containerColor = MaterialTheme.colorScheme.background,
@@ -238,6 +244,7 @@ private fun BottomNavigationDockItem(
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+            softWrap = false,
         )
         Box(
             Modifier
