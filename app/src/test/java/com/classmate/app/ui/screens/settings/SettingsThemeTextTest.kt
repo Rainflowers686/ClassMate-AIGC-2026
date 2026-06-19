@@ -81,7 +81,7 @@ class SettingsThemeTextTest {
     fun settingsRowsConstrainTextAndCardHeights() {
         val source = source()
         listOf(
-            "defaultMinSize(minHeight = 72.dp)",
+            "defaultMinSize(minHeight = 84.dp)",
             "defaultMinSize(minHeight = 104.dp)",
             "maxLines = 1",
             "maxLines = 2",
@@ -118,7 +118,7 @@ class SettingsThemeTextTest {
             "theme-preview-container",
             "theme-preview-scale",
             "Icons.Filled.Check",
-            "defaultMinSize(minHeight = 116.dp)",
+            "defaultMinSize(minHeight = 128.dp)",
         ).forEach { assertTrue("missing animated theme preview hook: $it", focusComponents.contains(it)) }
     }
 
@@ -133,11 +133,26 @@ class SettingsThemeTextTest {
         listOf("status-chip-container", "CircleShape", "content.copy(alpha").forEach {
             assertTrue("missing status chip polish hook: $it", product.contains(it))
         }
-        listOf("RoundedCornerShape(999.dp)", "Color.Transparent", "indicatorColor = themeColors.primaryContainer.copy").forEach {
+        listOf("RoundedCornerShape(999.dp)", "Color.Transparent", "height(72.dp)", "indicatorColor = themeColors.primary.copy").forEach {
             assertTrue("missing floating bottom nav polish hook: $it", app.contains(it))
         }
         listOf("0xFF2196F3", "0xFF1976D2", "0xFF6200EE").forEach {
             assertFalse("default Material blue/purple hardcode should not be introduced: $it", common.contains(it) || product.contains(it) || app.contains(it))
+        }
+    }
+
+    @Test
+    fun bottomNavigationKeepsMainEntries() {
+        val app = appSource()
+        val strings = listOf(
+            File("src/main/java/com/classmate/app/ui/i18n/Strings.kt"),
+            File("app/src/main/java/com/classmate/app/ui/i18n/Strings.kt"),
+        ).first { it.exists() }.readText()
+
+        assertTrue(app.contains("Tab.entries.forEach"))
+        assertTrue(app.contains("viewModel.selectTab(tab)"))
+        listOf("首页", "资料", "复习", "历史", "设置").forEach {
+            assertTrue("missing bottom nav label: $it", strings.contains(it))
         }
     }
 

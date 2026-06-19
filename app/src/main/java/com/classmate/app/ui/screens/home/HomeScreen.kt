@@ -1,13 +1,21 @@
 package com.classmate.app.ui.screens.home
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -15,14 +23,20 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import com.classmate.app.state.AppViewModel
 import com.classmate.app.state.Screen
 import com.classmate.app.state.Tab
@@ -31,7 +45,6 @@ import com.classmate.app.ui.components.SecondaryButton
 import com.classmate.app.ui.product.GroupedList
 import com.classmate.app.ui.product.PrimaryCommand
 import com.classmate.app.ui.product.ProductCanvas
-import com.classmate.app.ui.product.ProductHero
 import com.classmate.app.ui.product.ProductPill
 import com.classmate.app.ui.product.ProductRow
 import com.classmate.app.ui.product.ProductScaffold
@@ -41,6 +54,7 @@ import com.classmate.app.ui.product.ProviderPathStrip
 import com.classmate.app.ui.product.QuietCard
 import com.classmate.app.ui.product.StatStrip
 import com.classmate.app.ui.i18n.appStrings
+import com.classmate.app.ui.theme.ClassMateTheme
 import com.classmate.core.learning.ReviewEngine
 import com.classmate.core.ondevice.ProviderPathNode
 
@@ -66,18 +80,22 @@ fun HomeScreen(viewModel: AppViewModel) {
                 verticalArrangement = Arrangement.spacedBy(ProductSpace.block),
             ) {
                 Spacer(Modifier.height(ProductSpace.tight))
-                ProductHero(
-                    overline = "今天",
+                StudyCockpitCard(
+                    overline = if (recent != null) "继续学习" else "今日学习驾驶舱",
                     title = "想把哪节课变清楚？",
-                    trailing = { ProductPill(if (onDeviceReady) "端侧蓝心 就绪" else "端侧蓝心 待命") },
+                    subtitle = if (recent != null) "上次资料已经整理好，继续从证据、练习和复习接上。" else "导入课堂资料后，ClassMate 会把内容整理成知识地图、证据和下一步学习动作。",
+                    providerLabel = if (onDeviceReady) "端侧蓝心 就绪" else "端侧蓝心 待命",
+                    actionTitle = if (recent != null) "继续上次学习" else "整理一份新资料",
+                    actionSubtitle = if (recent != null) recent.title.ifBlank { "未命名课程" } else "图片 / 拍照 / 文本，确认后生成知识地图",
+                    actionIcon = if (recent != null) Icons.Filled.PlayArrow else Icons.Filled.Add,
+                    onAction = {
+                        if (recent != null) {
+                            viewModel.openHistory(recent)
+                        } else {
+                            viewModel.navigateTo(Screen.IMPORT)
+                        }
+                    },
                 )
-
-                // ONE dominant action.
-                if (recent != null) {
-                    PrimaryCommand("继续上次学习", recent.title.ifBlank { "未命名课程" }, Icons.Filled.PlayArrow, onClick = { viewModel.openHistory(recent) })
-                } else {
-                    PrimaryCommand("整理一份新资料", "图片 / 拍照 / 文本，确认后生成知识地图", Icons.Filled.Add, onClick = { viewModel.navigateTo(Screen.IMPORT) })
-                }
 
                 StatStrip(
                     items = listOf("$dueCount" to "待复习", "${ui.history.size}" to "课堂记录", "${recent?.knowledgePointCount ?: 0}" to "知识点"),
@@ -150,18 +168,95 @@ fun HomeScreen(viewModel: AppViewModel) {
 }
 
 @Composable
+private fun StudyCockpitCard(
+    overline: String,
+    title: String,
+    subtitle: String,
+    providerLabel: String,
+    actionTitle: String,
+    actionSubtitle: String,
+    actionIcon: androidx.compose.ui.graphics.vector.ImageVector,
+    onAction: () -> Unit,
+) {
+    val colors = ClassMateTheme.colors
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        color = colors.surfaceContainerLow,
+        contentColor = colors.textPrimary,
+        border = BorderStroke(0.75.dp, colors.outline.copy(alpha = if (colors.isDark) 0.34f else 0.2f)),
+        shadowElevation = if (colors.isDark) 0.dp else 5.dp,
+    ) {
+        Column(
+            Modifier
+                .background(
+                    Brush.linearGradient(
+                        listOf(
+                            colors.primary.copy(alpha = if (colors.isDark) 0.16f else 0.08f),
+                            colors.surfaceContainerLow,
+                            ClassMateTheme.extended.evidenceHighlight.copy(alpha = if (colors.isDark) 0.06f else 0.12f),
+                        ),
+                    ),
+                )
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    overline.uppercase(),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = colors.primary,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                ProductPill(providerLabel)
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.displaySmall,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.textPrimary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.textSecondary,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            PrimaryCommand(actionTitle, actionSubtitle, actionIcon, onClick = onAction)
+            ProviderPathStrip(activeIndex = if (providerLabel.contains("就绪")) 1 else 0)
+        }
+    }
+}
+
+@Composable
 private fun FirstRunGuideCard(
     onImport: () -> Unit,
     onSample: () -> Unit,
     onDemo: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    QuietCard {
-        Text("三步开始", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(ProductSpace.tight))
-        Text("1 · 导入课堂资料", style = MaterialTheme.typography.bodyMedium)
-        Text("2 · 生成知识时间线", style = MaterialTheme.typography.bodyMedium)
-        Text("3 · 开始复习与练习", style = MaterialTheme.typography.bodyMedium)
+    QuietCard(padding = 16.dp) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("三步开始", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Text("像路径一样推进，不需要先学会工具。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            ProductPill("学习路径")
+        }
+        Spacer(Modifier.height(ProductSpace.block))
+        Column(verticalArrangement = Arrangement.spacedBy(8.dpv())) {
+            LearningPathStep("1", "导入课堂资料", "图片、拍照、文本或转写稿都可以先进入草稿确认。")
+            LearningPathStep("2", "生成知识时间线", "把重点、证据和来源整理成可追问的学习结构。")
+            LearningPathStep("3", "开始复习与练习", "用微测发现薄弱点，再生成今日复习动作。")
+        }
         Spacer(Modifier.height(ProductSpace.block))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dpv())) {
             PrimaryButton("导入资料", onClick = onImport, modifier = Modifier.weight(1f))
@@ -171,6 +266,27 @@ private fun FirstRunGuideCard(
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dpv())) {
             SecondaryButton("查看学习流程", onClick = onDemo, modifier = Modifier.weight(1f))
             SecondaryButton("暂时关闭", onClick = onDismiss, modifier = Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun LearningPathStep(index: String, title: String, caption: String) {
+    val colors = ClassMateTheme.colors
+    Row(Modifier.fillMaxWidth().defaultMinSize(minHeight = 52.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier
+                .size(34.dp)
+                .clip(CircleShape)
+                .background(colors.primary.copy(alpha = if (colors.isDark) 0.24f else 0.12f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(index, style = MaterialTheme.typography.labelLarge, color = colors.primary, fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(caption, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
     }
 }

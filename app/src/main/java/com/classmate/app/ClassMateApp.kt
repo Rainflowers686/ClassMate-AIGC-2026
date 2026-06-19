@@ -93,14 +93,14 @@ fun ClassMateApp() {
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                                .padding(horizontal = 18.dp, vertical = 12.dp),
                             shape = RoundedCornerShape(999.dp),
-                            color = themeColors.surfaceContainerLow.copy(alpha = if (themeColors.isDark) 0.86f else 0.92f),
-                            border = BorderStroke(0.75.dp, themeColors.outline.copy(alpha = if (themeColors.isDark) 0.34f else 0.22f)),
-                            shadowElevation = if (themeColors.isDark) 0.dp else 3.dp,
+                            color = themeColors.surfaceContainerLow.copy(alpha = if (themeColors.isDark) 0.88f else 0.96f),
+                            border = BorderStroke(1.dp, themeColors.outline.copy(alpha = if (themeColors.isDark) 0.32f else 0.16f)),
+                            shadowElevation = if (themeColors.isDark) 0.dp else 8.dp,
                         ) {
                             NavigationBar(
-                                modifier = Modifier.height(66.dp),
+                                modifier = Modifier.height(72.dp),
                                 containerColor = Color.Transparent,
                                 tonalElevation = 0.dp,
                             ) {
@@ -113,7 +113,7 @@ fun ClassMateApp() {
                                         colors = NavigationBarItemDefaults.colors(
                                             selectedIconColor = themeColors.primary,
                                             selectedTextColor = themeColors.primary,
-                                            indicatorColor = themeColors.primaryContainer.copy(alpha = if (themeColors.isDark) 0.42f else 0.72f),
+                                            indicatorColor = themeColors.primary.copy(alpha = if (themeColors.isDark) 0.18f else 0.12f),
                                             unselectedIconColor = themeColors.textSecondary,
                                             unselectedTextColor = themeColors.textSecondary,
                                         ),

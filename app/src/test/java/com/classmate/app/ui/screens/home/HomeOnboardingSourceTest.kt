@@ -21,6 +21,19 @@ class HomeOnboardingSourceTest {
     }
 
     @Test
+    fun homeKeepsLearningCockpitAndPrimaryImportAction() {
+        val source = readHomeSource()
+
+        assertTrue(source.contains("StudyCockpitCard"))
+        assertTrue(source.contains("今日学习驾驶舱"))
+        assertTrue(source.contains("想把哪节课变清楚？"))
+        assertTrue(source.contains("整理一份新资料"))
+        assertTrue(source.contains("viewModel.navigateTo(Screen.IMPORT)"))
+        assertTrue(source.contains("StatStrip("))
+        assertTrue(source.contains("LearningPathStep"))
+    }
+
+    @Test
     fun homeDoesNotExposeDebugImportCopy() {
         val source = readHomeSource()
 

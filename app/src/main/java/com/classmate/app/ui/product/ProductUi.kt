@@ -2,6 +2,7 @@ package com.classmate.app.ui.product
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.expandVertically
@@ -80,15 +81,29 @@ object ProductSpace {
 @Composable
 fun ProductCanvas(content: @Composable () -> Unit) {
     val cs = MaterialTheme.colorScheme
+    val tokens = ClassMateTheme.colors
     Box(
         Modifier.fillMaxSize().background(
             Brush.verticalGradient(
-                0f to cs.surfaceVariant.copy(alpha = 0.7f),
-                0.22f to cs.background,
+                0f to tokens.surfaceContainerHigh.copy(alpha = if (tokens.isDark) 0.72f else 0.9f),
+                0.28f to tokens.background,
                 1f to cs.background,
             ),
         ),
-    ) { content() }
+    ) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.linearGradient(
+                        0f to tokens.primary.copy(alpha = if (tokens.isDark) 0.08f else 0.06f),
+                        0.48f to Color.Transparent,
+                        1f to ClassMateTheme.extended.evidenceHighlight.copy(alpha = if (tokens.isDark) 0.06f else 0.1f),
+                    ),
+                ),
+        )
+        content()
+    }
 }
 
 /** Slim transparent top bar — the big title lives in content ([ProductHero]). */
@@ -195,26 +210,42 @@ fun PrimaryCommand(
     modifier: Modifier = Modifier,
 ) {
     val cs = MaterialTheme.colorScheme
+    val tokens = ClassMateTheme.colors
+    val ext = ClassMateTheme.extended
     val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val elevation by animateDpAsState(
+        targetValue = if (pressed || tokens.isDark) 0.dp else 7.dp,
+        animationSpec = spring(stiffness = Spring.StiffnessMedium),
+        label = "primary-command-elevation",
+    )
     Surface(
         modifier = modifier.fillMaxWidth().productPress(interaction).clickable(interaction, indication = null) { onClick() },
         shape = RoundedCornerShape(22.dp),
-        color = cs.primary,
+        color = Color.Transparent,
         contentColor = cs.onPrimary,
-        shadowElevation = 6.dp,
+        shadowElevation = elevation,
     ) {
-        Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(cs.onPrimary.copy(alpha = 0.18f)),
-                contentAlignment = Alignment.Center,
-            ) { Icon(icon, contentDescription = null, tint = cs.onPrimary, modifier = Modifier.size(24.dp)) }
-            Spacer(Modifier.width(16.dp))
-            Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(2.dp))
-                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = cs.onPrimary.copy(alpha = 0.82f))
+        Box(
+            Modifier.background(
+                Brush.linearGradient(
+                    ext.heroGradient.ifEmpty { listOf(tokens.primary, tokens.primaryContainer) },
+                ),
+            ),
+        ) {
+            Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(cs.onPrimary.copy(alpha = 0.18f)),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(icon, contentDescription = null, tint = cs.onPrimary, modifier = Modifier.size(24.dp)) }
+                Spacer(Modifier.width(16.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Spacer(Modifier.height(3.dp))
+                    Text(subtitle, style = MaterialTheme.typography.bodySmall, color = cs.onPrimary.copy(alpha = 0.84f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+                Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, modifier = Modifier.size(24.dp))
             }
-            Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, modifier = Modifier.size(24.dp))
         }
     }
 }
@@ -228,14 +259,15 @@ fun QuietCard(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val cs = MaterialTheme.colorScheme
+    val tokens = ClassMateTheme.colors
     val interaction = remember { MutableInteractionSource() }
     val base = Modifier.fillMaxWidth().then(if (onClick != null) Modifier.productPress(interaction) else Modifier).then(modifier)
     Surface(
         modifier = if (onClick != null) base.clickable(interaction, indication = null) { onClick() } else base,
         shape = RoundedCornerShape(20.dp),
-        color = cs.surface,
+        color = if (tokens.isDark) tokens.surfaceContainerLow else cs.surface,
         contentColor = cs.onSurface,
-        shadowElevation = 2.dp,
+        shadowElevation = if (tokens.isDark) 0.dp else 2.dp,
     ) { Column(Modifier.padding(padding), content = content) }
 }
 
@@ -262,7 +294,13 @@ data class ProductRow(
 @Composable
 fun GroupedList(rows: List<ProductRow>, modifier: Modifier = Modifier) {
     val cs = MaterialTheme.colorScheme
-    Surface(modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), color = cs.surface, shadowElevation = 1.dp) {
+    val tokens = ClassMateTheme.colors
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        color = if (tokens.isDark) tokens.surfaceContainerLow else cs.surface,
+        shadowElevation = if (tokens.isDark) 0.dp else 1.dp,
+    ) {
         Column {
             rows.forEachIndexed { i, r ->
                 if (i > 0) RowHairline(inset = if (r.icon != null) 56.dp else 18.dp)
@@ -312,18 +350,27 @@ private fun GroupedRow(r: ProductRow) {
 @Composable
 fun StatStrip(items: List<Pair<String, String>>, modifier: Modifier = Modifier, accentFirst: Boolean = false) {
     val cs = MaterialTheme.colorScheme
-    QuietCard(modifier = modifier) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    val tokens = ClassMateTheme.colors
+    QuietCard(modifier = modifier, padding = 10.dp) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items.forEachIndexed { i, (value, label) ->
-                if (i > 0) Box(Modifier.width(0.75.dp).height(34.dp).background(cs.outlineVariant))
-                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        value,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = if (i == 0 && accentFirst) cs.primary else cs.onSurface,
-                    )
-                    Text(label, style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant)
+                val selected = i == 0 && accentFirst
+                Surface(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(16.dp),
+                    color = if (selected) tokens.primary.copy(alpha = if (tokens.isDark) 0.2f else 0.12f) else tokens.surfaceContainerHigh.copy(alpha = if (tokens.isDark) 0.62f else 0.68f),
+                ) {
+                    Column(Modifier.padding(vertical = 12.dp, horizontal = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            value,
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = if (selected) cs.primary else cs.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(label, style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
                 }
             }
         }

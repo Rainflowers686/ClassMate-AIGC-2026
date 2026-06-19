@@ -265,9 +265,21 @@ fun SettingsScreen(viewModel: AppViewModel) {
 
 @Composable
 private fun SettingsPageHeader(page: SettingsPage, onBack: () -> Unit) {
-    ClassMateCard {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
-            TextButton(onClick = onBack) { Text("返回") }
+    val colors = ClassMateTheme.colors
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        color = colors.surfaceContainerLow,
+        contentColor = colors.textPrimary,
+        border = BorderStroke(0.75.dp, colors.outline.copy(alpha = if (colors.isDark) 0.32f else 0.18f)),
+        shadowElevation = if (colors.isDark) 0.dp else 1.dp,
+    ) {
+        Row(
+            Modifier.padding(end = Dimens.s, top = Dimens.xs, bottom = Dimens.xs),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Dimens.s),
+        ) {
+            TextButton(onClick = onBack, modifier = Modifier.padding(start = Dimens.xs)) { Text("返回") }
             Column(Modifier.weight(1f)) {
                 Text(
                     page.title,
@@ -350,7 +362,7 @@ private fun SettingsHomeCard(
     onGeneral: () -> Unit,
     onDeveloper: () -> Unit,
 ) {
-    ClassMateCard {
+    Column(verticalArrangement = Arrangement.spacedBy(Dimens.s)) {
         SettingsEntryRow("通用设置", "外观、AI 模型配置、隐私权限、学习导出与沉浸背景音", SettingsEntryIcon.GENERAL_SETTINGS, onGeneral)
         SettingsEntryRow("开发者设置", "Provider 诊断、official smoke dry-run、端侧状态与脱敏日志", SettingsEntryIcon.DEVELOPER_SETTINGS, onDeveloper)
     }
@@ -364,7 +376,7 @@ private fun GeneralSettingsListCard(
     onLearningExport: () -> Unit,
     onAmbientAudio: () -> Unit,
 ) {
-    ClassMateCard {
+    Column(verticalArrangement = Arrangement.spacedBy(Dimens.s)) {
         SettingsEntryRow("外观与主题", "默认学习、活力学习、沉浸学习、强调色和阅读密度", SettingsEntryIcon.APPEARANCE_THEME, onAppearance)
         SettingsEntryRow("AI 模型配置", "蓝心大模型与自有模型配置，保存后持续可用", SettingsEntryIcon.AI_MODEL_CONFIG, onAiModel)
         SettingsEntryRow("隐私与权限", "本地数据、用户确认、导入内容和相机 / 文件 / 音频权限", SettingsEntryIcon.PRIVACY_PERMISSIONS, onPrivacy)
@@ -379,12 +391,12 @@ private fun SettingsEntryRow(title: String, subtitle: String, icon: SettingsEntr
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val container by animateColorAsState(
-        targetValue = if (pressed) colors.surfaceContainerLow else colors.surfaceContainerHigh,
+        targetValue = if (pressed) colors.surfaceContainerHigh else colors.surfaceContainerLow,
         animationSpec = tween(durationMillis = 170),
         label = "settings-entry-container",
     )
     val iconContainer by animateColorAsState(
-        targetValue = if (pressed) colors.primary.copy(alpha = 0.22f) else colors.primary.copy(alpha = 0.14f),
+        targetValue = if (pressed) colors.primary.copy(alpha = 0.24f) else colors.primary.copy(alpha = if (colors.isDark) 0.18f else 0.11f),
         animationSpec = tween(durationMillis = 170),
         label = "settings-entry-icon-container",
     )
@@ -402,32 +414,32 @@ private fun SettingsEntryRow(title: String, subtitle: String, icon: SettingsEntr
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = Dimens.xxs)
-            .defaultMinSize(minHeight = 72.dp)
+            .defaultMinSize(minHeight = 84.dp)
             .scale(scale)
             .clickable(interaction, indication = null, onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(22.dp),
         color = container,
-        border = BorderStroke(0.75.dp, colors.outline.copy(alpha = 0.24f)),
+        border = BorderStroke(0.75.dp, colors.outline.copy(alpha = if (colors.isDark) 0.34f else 0.18f)),
         shadowElevation = elevation,
     ) {
         Row(
-            Modifier.padding(horizontal = Dimens.s, vertical = 10.dp),
+            Modifier.padding(horizontal = Dimens.m, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Dimens.s),
         ) {
             Box(
                 Modifier
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(16.dp))
                     .background(iconContainer),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(icon.imageVector(), contentDescription = null, tint = colors.primary, modifier = Modifier.size(20.dp))
+                Icon(icon.imageVector(), contentDescription = null, tint = colors.primary, modifier = Modifier.size(22.dp))
             }
             Column(Modifier.weight(1f)) {
                 Text(
                     title,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = colors.textPrimary,
                     maxLines = 1,
@@ -441,7 +453,17 @@ private fun SettingsEntryRow(title: String, subtitle: String, icon: SettingsEntr
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = colors.textSecondary, modifier = Modifier.size(20.dp))
+            Surface(
+                shape = RoundedCornerShape(999.dp),
+                color = colors.surfaceContainerHigh.copy(alpha = if (colors.isDark) 0.7f else 0.82f),
+            ) {
+                Icon(
+                    Icons.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = colors.textSecondary,
+                    modifier = Modifier.padding(5.dp).size(18.dp),
+                )
+            }
         }
     }
 }
@@ -557,22 +579,29 @@ private fun AccentColorSwatch(
         label = "accent-swatch-border",
     )
     Surface(
-        modifier = modifier.scale(scale).clickable { onClick() },
-        shape = RoundedCornerShape(16.dp),
+        modifier = modifier.defaultMinSize(minHeight = 82.dp).scale(scale).clickable { onClick() },
+        shape = RoundedCornerShape(18.dp),
         color = container,
         contentColor = tokens.textPrimary,
         border = BorderStroke(if (selected) 1.5.dp else 0.75.dp, border),
     ) {
         Column(Modifier.padding(horizontal = 10.dp, vertical = 9.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(
-                Modifier
-                    .size(28.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(preview.primary),
-                contentAlignment = Alignment.Center,
+            Surface(
+                shape = RoundedCornerShape(999.dp),
+                color = preview.primary.copy(alpha = if (selected) 0.18f else 0.1f),
+                border = BorderStroke(if (selected) 1.2.dp else 0.75.dp, preview.primary.copy(alpha = if (selected) 0.72f else 0.3f)),
             ) {
-                if (selected) {
-                    Icon(Icons.Filled.Check, contentDescription = null, tint = if (preview.isDark) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(15.dp))
+                Box(
+                    Modifier
+                        .padding(4.dp)
+                        .size(28.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(preview.primary),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (selected) {
+                        Icon(Icons.Filled.Check, contentDescription = null, tint = if (preview.isDark) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(15.dp))
+                    }
                 }
             }
             Spacer(Modifier.height(6.dp))

@@ -290,25 +290,41 @@ fun ThemePreviewCard(
     val border = BorderStroke(if (selected) 1.4.dp else 0.75.dp, borderColor)
     val base = modifier.fillMaxWidth()
     Surface(
-        modifier = (if (onClick != null) base.scale(scale).clickable { onClick() } else base).defaultMinSize(minHeight = 116.dp),
-        shape = MaterialTheme.shapes.large,
+        modifier = (if (onClick != null) base.scale(scale).clickable { onClick() } else base).defaultMinSize(minHeight = 128.dp),
+        shape = RoundedCornerShape(24.dp),
         color = container,
         border = border,
         shadowElevation = elevation,
     ) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier
-                    .size(width = 64.dp, height = 52.dp)
-                    .clip(RoundedCornerShape(16.dp))
+                    .size(width = 74.dp, height = 60.dp)
+                    .clip(RoundedCornerShape(18.dp))
                     .background(backgroundColor),
             ) {
                 Box(
                     Modifier
                         .align(Alignment.Center)
-                        .size(width = 40.dp, height = 28.dp)
-                        .clip(RoundedCornerShape(10.dp))
+                        .size(width = 48.dp, height = 34.dp)
+                        .clip(RoundedCornerShape(12.dp))
                         .background(surfaceColor),
+                )
+                Box(
+                    Modifier
+                        .align(Alignment.CenterStart)
+                        .padding(start = 13.dp)
+                        .size(width = 18.dp, height = 6.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(accentColor.copy(alpha = 0.42f)),
+                )
+                Box(
+                    Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 13.dp)
+                        .size(width = 12.dp, height = 12.dp)
+                        .clip(CircleShape)
+                        .background(accentColor),
                 )
                 Box(
                     Modifier
@@ -343,7 +359,9 @@ fun ThemePreviewCard(
             }
             if (selected) {
                 Spacer(Modifier.width(8.dp))
-                Text("当前", style = MaterialTheme.typography.labelMedium, color = cs.primary, maxLines = 1)
+                Surface(shape = CircleShape, color = accentColor.copy(alpha = if (tokens.isDark) 0.28f else 0.16f)) {
+                    Text("当前", style = MaterialTheme.typography.labelMedium, color = cs.primary, maxLines = 1, modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp))
+                }
             }
         }
     }

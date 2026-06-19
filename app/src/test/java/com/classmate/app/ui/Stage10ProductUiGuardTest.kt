@@ -11,7 +11,8 @@ import org.junit.Test
  * big-title hero + grouped-inset rows + one dominant command + folded secondary), not the rejected
  * 9A/9B/9C card stacks. This proves, structurally:
  *   1. the product layer (ProductUi.kt) exists with its core building blocks;
- *   2. every rebuilt P0 page is wrapped in ProductCanvas + ProductScaffold + ProductHero;
+ *   2. every rebuilt P0 page is wrapped in ProductCanvas + ProductScaffold, with Home using the
+ *      V3 StudyCockpitCard and the other roots keeping ProductHero;
  *   3. the old surgery / premium skeletons (CommandHero, PrimaryActionDock, SubtleBackgroundLayer,
  *      ExpandableSection, PageHero, ClassMatePageScaffold) no longer appear on the rebuilt pages;
  *   4. the honest 云端蓝心 / 端侧蓝心 / 安全占位 vocabulary still holds and no over-claim copy leaks.
@@ -64,7 +65,11 @@ class Stage10ProductUiGuardTest {
             val s = screen(rel)
             assertTrue("$rel missing ProductCanvas", s.contains("ProductCanvas"))
             assertTrue("$rel missing ProductScaffold", s.contains("ProductScaffold"))
-            assertTrue("$rel missing ProductHero", s.contains("ProductHero"))
+            if (rel == "home/HomeScreen.kt") {
+                assertTrue("$rel missing StudyCockpitCard", s.contains("StudyCockpitCard"))
+            } else {
+                assertTrue("$rel missing ProductHero", s.contains("ProductHero"))
+            }
         }
     }
 
