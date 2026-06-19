@@ -1,6 +1,7 @@
 package com.classmate.app.ui.product
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -66,7 +67,7 @@ import com.classmate.app.ui.theme.ClassMateTheme
  * dropping the "stack of bordered white cards" for an Apple/Notion/Linear vocabulary:
  *  - a faint tinted CANVAS for depth,
  *  - a big-title scaffold with a slim transparent bar,
- *  - GROUPED-INSET ROWS (one rounded container, hairline-divided rows) instead of N stacked cards,
+ *  - GROUPED-INSET ROWS (one rounded container, softly spaced rows) instead of N stacked cards,
  *  - exactly one dominant PrimaryCommand per screen.
  * Colors come from the existing Focus theme; this is a layout/hierarchy rebuild, not a recolor.
  */
@@ -270,12 +271,6 @@ fun QuietCard(
     ) { Column(Modifier.padding(padding), content = content) }
 }
 
-/** Inset hairline used between grouped rows. */
-@Composable
-fun RowHairline(inset: Dp = 56.dp) {
-    Box(Modifier.fillMaxWidth().padding(start = inset).height(0.75.dp).background(MaterialTheme.colorScheme.outlineVariant))
-}
-
 /** One row in a [GroupedList]: optional accent glyph, title, subtitle, optional trailing value + chevron. */
 data class ProductRow(
     val title: String,
@@ -287,7 +282,7 @@ data class ProductRow(
 )
 
 /**
- * Grouped-inset list — ONE rounded container holding hairline-divided rows. This is the core
+ * Grouped-inset list — ONE rounded container holding softly spaced rows. This is the core
  * "not a stack of cards" surface. Replaces N separate bordered cards across the app.
  */
 @Composable
@@ -300,9 +295,11 @@ fun GroupedList(rows: List<ProductRow>, modifier: Modifier = Modifier) {
         color = if (tokens.isDark) tokens.surfaceContainerLow else cs.surface,
         shadowElevation = if (tokens.isDark) 0.dp else 1.dp,
     ) {
-        Column {
-            rows.forEachIndexed { i, r ->
-                if (i > 0) RowHairline(inset = if (r.icon != null) 56.dp else 18.dp)
+        Column(
+            Modifier.padding(5.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            rows.forEach { r ->
                 GroupedRow(r)
             }
         }
@@ -312,11 +309,19 @@ fun GroupedList(rows: List<ProductRow>, modifier: Modifier = Modifier) {
 @Composable
 private fun GroupedRow(r: ProductRow) {
     val cs = MaterialTheme.colorScheme
+    val tokens = ClassMateTheme.colors
     val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
     val accent = r.accent ?: cs.primary
+    val rowColor by animateColorAsState(
+        targetValue = if (pressed) tokens.primary.copy(alpha = if (tokens.isDark) 0.08f else 0.045f) else Color.Transparent,
+        label = "grouped-row-container",
+    )
     Row(
         Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(rowColor)
             .then(if (r.onClick != null) Modifier.clickable(interaction, indication = null) { r.onClick.invoke() } else Modifier)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,

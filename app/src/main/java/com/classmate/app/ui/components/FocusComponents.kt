@@ -267,7 +267,7 @@ fun ThemePreviewCard(
 ) {
     val tokens = ClassMateTheme.colors
     val container by animateColorAsState(
-        targetValue = tokens.surface.copy(alpha = if (tokens.isDark) 0.94f else 0.98f),
+        targetValue = if (selected) accentColor.copy(alpha = if (tokens.isDark) 0.09f else 0.08f) else tokens.surface.copy(alpha = if (tokens.isDark) 0.94f else 0.98f),
         animationSpec = tween(durationMillis = 200),
         label = "theme-preview-container",
     )

@@ -32,6 +32,7 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
@@ -270,7 +271,8 @@ private fun SettingsPageHeader(page: SettingsPage, onBack: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 2.dp, vertical = 2.dp),
+            .padding(horizontal = 2.dp, vertical = 4.dp)
+            .padding(bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Dimens.s),
     ) {
@@ -388,23 +390,42 @@ private fun GeneralSettingsListCard(
     onLearningExport: () -> Unit,
     onAmbientAudio: () -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(Dimens.s)) {
-        SettingsEntryRow("外观与主题", "默认学习、活力学习、沉浸学习、强调色和阅读密度", SettingsEntryIcon.APPEARANCE_THEME, onAppearance)
-        SettingsEntryRow("AI 模型配置", "蓝心大模型与自有模型配置，保存后持续可用", SettingsEntryIcon.AI_MODEL_CONFIG, onAiModel)
-        SettingsEntryRow("隐私与权限", "本地数据、用户确认、导入内容和相机 / 文件 / 音频权限", SettingsEntryIcon.PRIVACY_PERMISSIONS, onPrivacy)
-        SettingsEntryRow("学习与导出", "练习、复习和 PDF / DOCX / HTML / Markdown / Text / 音频脚本", SettingsEntryIcon.LEARNING_EXPORT, onLearningExport)
-        SettingsEntryRow("沉浸式背景音", "6 种授权循环背景音、音量和播放说明", SettingsEntryIcon.AMBIENT_SOUND, onAmbientAudio)
+    SettingsGroupedListCard {
+        SettingsEntryRow("外观与主题", "默认学习、活力学习、沉浸学习、强调色和阅读密度", SettingsEntryIcon.APPEARANCE_THEME, onAppearance, grouped = true)
+        SettingsEntryRow("AI 模型配置", "蓝心大模型与自有模型配置，保存后持续可用", SettingsEntryIcon.AI_MODEL_CONFIG, onAiModel, grouped = true)
+        SettingsEntryRow("隐私与权限", "本地数据、用户确认、导入内容和相机 / 文件 / 音频权限", SettingsEntryIcon.PRIVACY_PERMISSIONS, onPrivacy, grouped = true)
+        SettingsEntryRow("学习与导出", "练习、复习和 PDF / DOCX / HTML / Markdown / Text / 音频脚本", SettingsEntryIcon.LEARNING_EXPORT, onLearningExport, grouped = true)
+        SettingsEntryRow("沉浸式背景音", "6 种授权循环背景音、音量和播放说明", SettingsEntryIcon.AMBIENT_SOUND, onAmbientAudio, grouped = true)
     }
 }
 
 @Composable
-private fun SettingsEntryRow(title: String, subtitle: String, icon: SettingsEntryIcon, onClick: () -> Unit, emphasized: Boolean = false) {
+private fun SettingsGroupedListCard(content: @Composable ColumnScope.() -> Unit) {
+    val colors = ClassMateTheme.colors
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        color = if (colors.isDark) colors.surfaceContainerLow.copy(alpha = 0.82f) else colors.surface.copy(alpha = 0.96f),
+        border = BorderStroke(0.75.dp, colors.outline.copy(alpha = if (colors.isDark) 0.14f else 0.07f)),
+        shadowElevation = if (colors.isDark) 0.dp else 1.dp,
+    ) {
+        Column(
+            Modifier.padding(5.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+            content = content,
+        )
+    }
+}
+
+@Composable
+private fun SettingsEntryRow(title: String, subtitle: String, icon: SettingsEntryIcon, onClick: () -> Unit, emphasized: Boolean = false, grouped: Boolean = false) {
     val colors = ClassMateTheme.colors
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val container by animateColorAsState(
         targetValue = when {
             pressed -> colors.surfaceContainerHigh.copy(alpha = if (colors.isDark) 0.78f else 0.86f)
+            grouped -> androidx.compose.ui.graphics.Color.Transparent
             emphasized -> colors.surface.copy(alpha = if (colors.isDark) 0.92f else 0.98f)
             else -> colors.surface.copy(alpha = if (colors.isDark) 0.88f else 0.96f)
         },
@@ -433,14 +454,14 @@ private fun SettingsEntryRow(title: String, subtitle: String, icon: SettingsEntr
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = Dimens.xxs)
+            .padding(vertical = if (grouped) 0.dp else Dimens.xxs)
             .defaultMinSize(minHeight = 72.dp)
             .scale(scale)
             .clickable(interaction, indication = null, onClick = onClick),
-        shape = RoundedCornerShape(17.dp),
+        shape = RoundedCornerShape(if (grouped) 16.dp else 17.dp),
         color = container,
-        border = BorderStroke(0.75.dp, if (emphasized) colors.primary.copy(alpha = if (colors.isDark) 0.12f else 0.075f) else colors.outline.copy(alpha = if (colors.isDark) 0.18f else 0.085f)),
-        shadowElevation = elevation,
+        border = if (grouped) null else BorderStroke(0.75.dp, if (emphasized) colors.primary.copy(alpha = if (colors.isDark) 0.12f else 0.075f) else colors.outline.copy(alpha = if (colors.isDark) 0.18f else 0.085f)),
+        shadowElevation = if (grouped) 0.dp else elevation,
     ) {
         Row(
             Modifier.padding(horizontal = Dimens.m, vertical = 10.dp),

@@ -173,7 +173,7 @@ private fun BottomNavigationDock(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(54.dp)
+                .height(52.dp)
                 .padding(horizontal = 14.dp, vertical = 3.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -210,7 +210,7 @@ private fun BottomNavigationDockItem(
         label = "bottom-nav-selected-content",
     )
     val scale by animateFloatAsState(
-        targetValue = if (selected) 1.015f else 1f,
+        targetValue = if (selected) 1.006f else 1f,
         animationSpec = tween(durationMillis = 160),
         label = "bottom-nav-selected-scale",
     )
@@ -224,7 +224,7 @@ private fun BottomNavigationDockItem(
     ) {
         Box(
             Modifier
-                .size(34.dp)
+                .size(32.dp)
                 .clip(CircleShape)
                 .background(iconContainer),
             contentAlignment = Alignment.Center,

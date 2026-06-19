@@ -127,11 +127,13 @@ class SettingsThemeTextTest {
             "defaultMinSize(minHeight = 100.dp)",
             "1.001f",
             "0.32f",
-            "tokens.surface.copy(alpha",
+            "if (selected) accentColor.copy(alpha = if (tokens.isDark) 0.09f else 0.08f)",
         ).forEach { assertTrue("missing animated theme preview hook: $it", focusComponents.contains(it)) }
         assertFalse("theme selected card should not use a heavy selected border", focusComponents.contains("BorderStroke(if (selected) 0.9.dp"))
-        assertFalse("theme selected card should not use a whole-card selected overlay", focusComponents.contains("targetValue = if (selected) accentColor.copy(alpha = if (tokens.isDark)"))
         assertFalse("theme selected card should not use a persistent grey selected panel", focusComponents.contains("targetValue = tokens.surfaceContainerLow"))
+        listOf("Color.Gray", "Color.LightGray", "Color.DarkGray").forEach {
+            assertFalse("theme selected card should not use gray overlay token: $it", focusComponents.contains(it))
+        }
     }
 
     @Test
@@ -161,10 +163,10 @@ class SettingsThemeTextTest {
             "RoundedCornerShape(999.dp)",
             ".clip(dockShape)",
             ".padding(horizontal = 14.dp, vertical = 3.dp)",
-            "height(54.dp)",
+            "height(52.dp)",
             "modifier = Modifier.weight(1f)",
             "bottom-nav-selected-icon-container",
-            ".size(34.dp)",
+            ".size(32.dp)",
             "CircleShape",
             "Color.Transparent",
         ).forEach {
@@ -189,6 +191,8 @@ class SettingsThemeTextTest {
             "SettingsPageHeader(page = page",
             "Icons.AutoMirrored.Filled.ArrowBack",
             ".size(32.dp)",
+            ".padding(horizontal = 2.dp, vertical = 4.dp)",
+            ".padding(bottom = 8.dp)",
             "emphasized = true",
             "emphasized -> colors.surface.copy",
         ).forEach { assertTrue("missing V3.2 settings polish hook: $it", source.contains(it)) }
@@ -196,6 +200,33 @@ class SettingsThemeTextTest {
         assertFalse(source.contains("\"设置层级\""))
         assertFalse(source.contains("\"设置首页\""))
         assertFalse("home settings entry should not use a heavy whole-card selected tint", source.contains("emphasized -> colors.primary.copy(alpha = if (colors.isDark) 0.14f else 0.07f)"))
+    }
+
+    @Test
+    fun generalSettingsUseGroupedContainerInsteadOfScatteredCards() {
+        val source = source()
+        listOf(
+            "SettingsGroupedListCard",
+            "SettingsEntryRow(\"外观与主题\"",
+            "grouped = true",
+            "verticalArrangement = Arrangement.spacedBy(3.dp)",
+            "border = if (grouped) null else BorderStroke",
+        ).forEach { assertTrue("missing grouped settings list guard: $it", source.contains(it)) }
+    }
+
+    @Test
+    fun importInputListAvoidsHardDividersInsideGroupedInputs() {
+        val product = productSource()
+        val importScreen = importSource()
+        listOf(
+            "GroupedList(",
+            "softly spaced rows",
+            "verticalArrangement = Arrangement.spacedBy(3.dp)",
+            "label = \"grouped-row-container\"",
+        ).forEach { assertTrue("missing grouped input list polish: $it", product.contains(it) || importScreen.contains(it)) }
+        assertFalse("grouped input list should not call hard row hairlines", product.contains("RowHairline("))
+        assertFalse("import input list should not use a visible Material divider", importScreen.contains("HorizontalDivider"))
+        assertFalse("import input list should not use a visible Material divider", importScreen.contains("Divider("))
     }
 
     @Test
@@ -230,5 +261,17 @@ class SettingsThemeTextTest {
         listOf(
             File("src/main/java/com/classmate/app/ClassMateApp.kt"),
             File("app/src/main/java/com/classmate/app/ClassMateApp.kt"),
+        ).first { it.exists() }.readText()
+
+    private fun productSource(): String =
+        listOf(
+            File("src/main/java/com/classmate/app/ui/product/ProductUi.kt"),
+            File("app/src/main/java/com/classmate/app/ui/product/ProductUi.kt"),
+        ).first { it.exists() }.readText()
+
+    private fun importSource(): String =
+        listOf(
+            File("src/main/java/com/classmate/app/ui/screens/importcourse/ImportCourseScreen.kt"),
+            File("app/src/main/java/com/classmate/app/ui/screens/importcourse/ImportCourseScreen.kt"),
         ).first { it.exists() }.readText()
 }
