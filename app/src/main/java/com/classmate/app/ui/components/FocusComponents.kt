@@ -267,7 +267,7 @@ fun ThemePreviewCard(
 ) {
     val tokens = ClassMateTheme.colors
     val container by animateColorAsState(
-        targetValue = if (selected) accentColor.copy(alpha = if (tokens.isDark) 0.08f else 0.045f) else tokens.surfaceContainerLow,
+        targetValue = tokens.surfaceContainerLow,
         animationSpec = tween(durationMillis = 200),
         label = "theme-preview-container",
     )
@@ -277,20 +277,20 @@ fun ThemePreviewCard(
         label = "theme-preview-border",
     )
     val elevation by animateDpAsState(
-        targetValue = if (selected && !tokens.isDark) 1.dp else 0.dp,
+        targetValue = 0.dp,
         animationSpec = tween(durationMillis = 200),
         label = "theme-preview-elevation",
     )
     val scale by animateFloatAsState(
-        targetValue = if (selected) 1.004f else 1f,
+        targetValue = if (selected) 1.002f else 1f,
         animationSpec = tween(durationMillis = 180),
         label = "theme-preview-scale",
     )
     val border = BorderStroke(0.75.dp, borderColor)
     val base = modifier.fillMaxWidth()
     Surface(
-        modifier = (if (onClick != null) base.scale(scale).clickable { onClick() } else base).defaultMinSize(minHeight = 104.dp),
-        shape = RoundedCornerShape(20.dp),
+        modifier = (if (onClick != null) base.scale(scale).clickable { onClick() } else base).defaultMinSize(minHeight = 100.dp),
+        shape = RoundedCornerShape(19.dp),
         color = container,
         border = border,
         shadowElevation = elevation,
@@ -298,39 +298,39 @@ fun ThemePreviewCard(
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier
-                    .size(width = 52.dp, height = 42.dp)
-                    .clip(RoundedCornerShape(14.dp))
+                    .size(width = 46.dp, height = 36.dp)
+                    .clip(RoundedCornerShape(12.dp))
                     .background(backgroundColor),
             ) {
                 Box(
                     Modifier
                         .align(Alignment.CenterStart)
-                        .padding(start = 9.dp)
-                        .size(width = 26.dp, height = 22.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                        .padding(start = 8.dp)
+                        .size(width = 22.dp, height = 18.dp)
+                        .clip(RoundedCornerShape(7.dp))
                         .background(surfaceColor),
                 )
                 Box(
                     Modifier
                         .align(Alignment.Center)
-                        .size(width = 22.dp, height = 4.dp)
+                        .size(width = 18.dp, height = 3.dp)
                         .clip(RoundedCornerShape(999.dp))
-                        .background(accentColor.copy(alpha = 0.34f)),
+                        .background(accentColor.copy(alpha = 0.28f)),
                 )
                 Box(
                     Modifier
                         .align(Alignment.CenterEnd)
-                        .padding(end = 9.dp)
-                        .size(width = 8.dp, height = 8.dp)
+                        .padding(end = 8.dp)
+                        .size(width = 7.dp, height = 7.dp)
                         .clip(CircleShape)
-                        .background(accentColor.copy(alpha = 0.86f)),
+                        .background(accentColor.copy(alpha = 0.74f)),
                 )
                 Box(
                     Modifier
                         .align(Alignment.BottomStart)
-                        .height(3.dp)
+                        .height(2.dp)
                         .fillMaxWidth()
-                        .background(accentColor.copy(alpha = 0.74f)),
+                        .background(accentColor.copy(alpha = 0.58f)),
                 )
                 if (selected) {
                     Surface(

@@ -164,7 +164,7 @@ fun SettingsScreen(viewModel: AppViewModel) {
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = ProductSpace.gutter)
-                .padding(bottom = 176.dp),
+                .padding(bottom = 208.dp),
             verticalArrangement = Arrangement.spacedBy(Dimens.cardGap),
         ) {
             Spacer(Modifier.height(ProductSpace.tight))
@@ -276,26 +276,26 @@ private fun SettingsPageHeader(page: SettingsPage, onBack: () -> Unit) {
     ) {
         Surface(
             modifier = Modifier
-                .size(36.dp)
+                .size(34.dp)
                 .clip(RoundedCornerShape(999.dp))
                 .clickable(onClick = onBack),
             shape = RoundedCornerShape(999.dp),
-            color = colors.surfaceContainerLow,
-            border = BorderStroke(0.75.dp, colors.outline.copy(alpha = if (colors.isDark) 0.22f else 0.12f)),
+            color = colors.surfaceContainerLow.copy(alpha = if (colors.isDark) 0.72f else 0.82f),
+            border = BorderStroke(0.75.dp, colors.outline.copy(alpha = if (colors.isDark) 0.16f else 0.08f)),
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
                     Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "返回",
                     tint = colors.textSecondary,
-                    modifier = Modifier.size(18.dp),
+                    modifier = Modifier.size(17.dp),
                 )
             }
         }
         Column(Modifier.weight(1f)) {
             Text(
                 page.title,
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = colors.textPrimary,
                 maxLines = 1,
@@ -413,8 +413,8 @@ private fun SettingsEntryRow(title: String, subtitle: String, icon: SettingsEntr
     )
     val iconContainer by animateColorAsState(
         targetValue = when {
-            pressed -> colors.primary.copy(alpha = 0.18f)
-            emphasized -> colors.primary.copy(alpha = if (colors.isDark) 0.13f else 0.08f)
+            pressed -> colors.primary.copy(alpha = 0.14f)
+            emphasized -> colors.primary.copy(alpha = if (colors.isDark) 0.1f else 0.06f)
             else -> colors.surfaceContainerHigh.copy(alpha = if (colors.isDark) 0.78f else 0.88f)
         },
         animationSpec = tween(durationMillis = 170),
@@ -434,27 +434,27 @@ private fun SettingsEntryRow(title: String, subtitle: String, icon: SettingsEntr
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = Dimens.xxs)
-            .defaultMinSize(minHeight = 78.dp)
+            .defaultMinSize(minHeight = 74.dp)
             .scale(scale)
             .clickable(interaction, indication = null, onClick = onClick),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(18.dp),
         color = container,
-        border = BorderStroke(0.75.dp, if (emphasized) colors.primary.copy(alpha = if (colors.isDark) 0.22f else 0.14f) else colors.outline.copy(alpha = if (colors.isDark) 0.24f else 0.12f)),
+        border = BorderStroke(0.75.dp, if (emphasized) colors.primary.copy(alpha = if (colors.isDark) 0.16f else 0.1f) else colors.outline.copy(alpha = if (colors.isDark) 0.22f else 0.1f)),
         shadowElevation = elevation,
     ) {
         Row(
-            Modifier.padding(horizontal = Dimens.m, vertical = 12.dp),
+            Modifier.padding(horizontal = Dimens.m, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Dimens.s),
         ) {
             Box(
                 Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(14.dp))
+                    .size(38.dp)
+                    .clip(RoundedCornerShape(13.dp))
                     .background(iconContainer),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(icon.imageVector(), contentDescription = null, tint = if (emphasized) colors.primary else colors.textSecondary, modifier = Modifier.size(20.dp))
+                Icon(icon.imageVector(), contentDescription = null, tint = if (emphasized) colors.primary else colors.textSecondary, modifier = Modifier.size(19.dp))
             }
             Column(Modifier.weight(1f)) {
                 Text(
@@ -591,17 +591,17 @@ private fun AccentColorSwatch(
     val preview = classMateColorScheme(themePreset, accent)
     val tokens = ClassMateTheme.colors
     val scale by animateFloatAsState(
-        targetValue = if (selected) 1.008f else 1f,
+        targetValue = if (selected) 1.004f else 1f,
         animationSpec = tween(durationMillis = 170),
         label = "accent-swatch-scale",
     )
     val container by animateColorAsState(
-        targetValue = if (selected) preview.primary.copy(alpha = if (tokens.isDark) 0.09f else 0.055f) else tokens.surfaceContainerHigh,
+        targetValue = if (selected) preview.primary.copy(alpha = if (tokens.isDark) 0.07f else 0.04f) else tokens.surfaceContainerHigh,
         animationSpec = tween(durationMillis = 170),
         label = "accent-swatch-container",
     )
     val border by animateColorAsState(
-        targetValue = if (selected) preview.primary.copy(alpha = if (tokens.isDark) 0.46f else 0.42f) else tokens.outline.copy(alpha = 0.24f),
+        targetValue = if (selected) preview.primary.copy(alpha = if (tokens.isDark) 0.38f else 0.34f) else tokens.outline.copy(alpha = 0.24f),
         animationSpec = tween(durationMillis = 170),
         label = "accent-swatch-border",
     )
@@ -615,8 +615,8 @@ private fun AccentColorSwatch(
         Column(Modifier.padding(horizontal = 10.dp, vertical = 9.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Surface(
                 shape = RoundedCornerShape(999.dp),
-                color = preview.primary.copy(alpha = if (selected) 0.12f else 0.09f),
-                border = BorderStroke(0.75.dp, preview.primary.copy(alpha = if (selected) 0.38f else 0.28f)),
+                color = preview.primary.copy(alpha = if (selected) 0.1f else 0.09f),
+                border = BorderStroke(0.75.dp, preview.primary.copy(alpha = if (selected) 0.32f else 0.28f)),
             ) {
                 Box(
                     Modifier

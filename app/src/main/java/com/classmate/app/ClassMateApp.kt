@@ -163,18 +163,18 @@ private fun BottomNavigationDock(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 10.dp)
+            .padding(horizontal = 22.dp, vertical = 9.dp)
             .clip(dockShape),
         shape = dockShape,
-        color = themeColors.surfaceContainerLow.copy(alpha = if (themeColors.isDark) 0.86f else 0.94f),
-        border = BorderStroke(0.75.dp, themeColors.outline.copy(alpha = if (themeColors.isDark) 0.24f else 0.12f)),
-        shadowElevation = if (themeColors.isDark) 0.dp else 4.dp,
+        color = themeColors.surfaceContainerLow.copy(alpha = if (themeColors.isDark) 0.8f else 0.92f),
+        border = BorderStroke(0.75.dp, themeColors.outline.copy(alpha = if (themeColors.isDark) 0.18f else 0.1f)),
+        shadowElevation = if (themeColors.isDark) 0.dp else 3.dp,
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(58.dp)
-                .padding(horizontal = 10.dp, vertical = 6.dp),
+                .height(54.dp)
+                .padding(horizontal = 12.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Tab.entries.forEach { tab ->
@@ -200,7 +200,7 @@ private fun BottomNavigationDockItem(
 ) {
     val themeColors = ClassMateTheme.colors
     val iconContainer by animateColorAsState(
-        targetValue = if (selected) themeColors.primary.copy(alpha = if (themeColors.isDark) 0.14f else 0.09f) else Color.Transparent,
+        targetValue = if (selected) themeColors.primary.copy(alpha = if (themeColors.isDark) 0.11f else 0.075f) else Color.Transparent,
         animationSpec = tween(durationMillis = 180),
         label = "bottom-nav-selected-icon-container",
     )
@@ -224,12 +224,12 @@ private fun BottomNavigationDockItem(
     ) {
         Box(
             Modifier
-                .size(30.dp)
+                .size(28.dp)
                 .clip(CircleShape)
                 .background(iconContainer),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(icon, contentDescription = label, tint = content, modifier = Modifier.size(19.dp))
+            Icon(icon, contentDescription = label, tint = content, modifier = Modifier.size(18.dp))
         }
         Text(
             label,
