@@ -1,17 +1,49 @@
 package com.classmate.app.ui.theme
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ThemeOptionTest {
 
     @Test
-    fun defaultThemeIsFocus() {
-        assertEquals(ThemeOption.FOCUS, ThemeOption.Default)
+    fun defaultThemeIsStandardStudy() {
+        assertEquals(ThemePreset.STANDARD_STUDY, ThemePreset.Default)
     }
 
     @Test
     fun threeThemesAreAvailable() {
-        assertEquals(3, ThemeOption.entries.size)
+        assertEquals(3, ThemePreset.entries.size)
+        assertEquals(
+            listOf(ThemePreset.STANDARD_STUDY, ThemePreset.ACTIVE_STUDY, ThemePreset.FOCUS_IMMERSION),
+            ThemePreset.entries.toList(),
+        )
+    }
+
+    @Test
+    fun accentColorPresetsAreAvailable() {
+        assertEquals(
+            listOf(
+                AccentColorPreset.BLUE,
+                AccentColorPreset.CYAN,
+                AccentColorPreset.GREEN,
+                AccentColorPreset.PURPLE,
+                AccentColorPreset.AMBER,
+                AccentColorPreset.ROSE,
+                AccentColorPreset.GRAPHITE,
+                AccentColorPreset.OCEAN,
+            ),
+            AccentColorPreset.entries.toList(),
+        )
+    }
+
+    @Test
+    fun focusImmersionUsesAccentPresetNotFixedSourcePink() {
+        val focusBlue = classMateColorScheme(ThemePreset.FOCUS_IMMERSION, AccentColorPreset.BLUE)
+        val focusRose = classMateColorScheme(ThemePreset.FOCUS_IMMERSION, AccentColorPreset.ROSE)
+
+        assertEquals(AccentColorPreset.BLUE.resolveFor(ThemePreset.FOCUS_IMMERSION, dark = true), focusBlue.primary)
+        assertEquals(AccentColorPreset.ROSE.resolveFor(ThemePreset.FOCUS_IMMERSION, dark = true), focusRose.primary)
+        assertTrue(focusBlue.primary != androidx.compose.ui.graphics.Color(0xFFFFB1C3))
     }
 }

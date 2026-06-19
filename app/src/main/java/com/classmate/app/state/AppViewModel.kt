@@ -20,6 +20,7 @@ import com.classmate.app.data.HistoryRecord
 import com.classmate.app.data.HistoryStore
 import com.classmate.app.data.InMemoryExportStore
 import com.classmate.app.data.InMemoryHistoryStore
+import com.classmate.app.data.ThemePreferenceRepository
 import com.classmate.app.exporting.ExportArtifact
 import com.classmate.app.exporting.ExportCenter
 import com.classmate.app.exporting.ExportFileFormat
@@ -73,7 +74,8 @@ import com.classmate.app.platform.ModelApiProfile
 import com.classmate.app.platform.ModelConfigRepository
 import com.classmate.app.platform.ProviderConfigSummary
 import com.classmate.app.ui.i18n.AppLanguage
-import com.classmate.app.ui.theme.ThemeOption
+import com.classmate.app.ui.theme.AccentColorPreset
+import com.classmate.app.ui.theme.ThemePreset
 import com.classmate.core.ask.GroundedAskLessonEngine
 import com.classmate.core.ask.LocalAskLessonEngine
 import com.classmate.core.ai.AiCapability
@@ -169,6 +171,8 @@ class AppViewModel(
     // Persistent official-model config (survives restart). Disabled no-op by default so existing
     // call sites/tests see no change; the composition root opts in with a filesDir-backed file.
     private val modelConfigRepository: ModelConfigRepository = ModelConfigRepository.disabled(),
+    // Persistent appearance config. Separate from AI config and contains no secrets.
+    private val themePreferenceRepository: ThemePreferenceRepository = ThemePreferenceRepository.disabled(),
     // On-device BlueLM 3B owner. Defaults to the honest missing-SDK bridge until the AAR is bundled.
     private val onDeviceController: OnDeviceLlmController = OnDeviceLlmController(),
     // Lazy so constructing the VM never reads capture credentials; OCR/ASR config is loaded only when
@@ -200,6 +204,7 @@ class AppViewModel(
     private var configBundle: ProviderConfigBundle = applyPersistedModelProfile(initialConfig.bundle)
     private val initialConfigSource: String =
         if (modelConfigRepository.hasUsableProfile()) "saved model config" else initialConfig.summary.source
+    private val initialThemePreference = themePreferenceRepository.load()
 
     /** The active bundle that both the analyzer and the diagnostic run against (also for tests). */
     internal fun activeConfigBundle(): ProviderConfigBundle = configBundle
@@ -224,6 +229,8 @@ class AppViewModel(
 
     var ui by mutableStateOf(
         ClassMateUiState(
+            theme = initialThemePreference.themePreset,
+            accentColor = initialThemePreference.accentColorPreset,
             providerConfigSummary = providerSummary(initialConfigSource),
             onDeviceDiagnostic = onDeviceController.diagnostic(),
             onDeviceModelPath = onDeviceController.diagnostic().modelDir,
@@ -282,7 +289,15 @@ class AppViewModel(
     }
 
     // --- appearance ---
-    fun setTheme(option: ThemeOption) { ui = ui.copy(theme = option) }
+    fun setTheme(option: ThemePreset) {
+        val next = themePreferenceRepository.saveThemePreset(option)
+        ui = ui.copy(theme = next.themePreset, accentColor = next.accentColorPreset)
+    }
+
+    fun setAccentColor(accent: AccentColorPreset) {
+        val next = themePreferenceRepository.saveAccentColorPreset(accent)
+        ui = ui.copy(theme = next.themePreset, accentColor = next.accentColorPreset)
+    }
     fun setDarkMode(dark: Boolean?) { ui = ui.copy(darkMode = dark) }
     fun setLanguage(language: AppLanguage) { ui = ui.copy(language = language) }
 

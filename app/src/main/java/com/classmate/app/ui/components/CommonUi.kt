@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -44,12 +45,13 @@ fun ClassMateCard(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val base = Modifier.fillMaxWidth().then(modifier)
+    val tokens = ClassMateTheme.colors
     Surface(
         modifier = if (onClick != null) base.clickable { onClick() } else base,
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surface,
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        border = BorderStroke(0.75.dp, MaterialTheme.colorScheme.outlineVariant),
+        shape = RoundedCornerShape(ClassMateTheme.shapes.cardRadius),
+        color = tokens.surfaceContainerLow,
+        contentColor = tokens.textPrimary,
+        border = BorderStroke(0.75.dp, tokens.outline),
         shadowElevation = 1.dp,
     ) {
         Column(Modifier.padding(Dimens.cardPadding), content = content)
@@ -75,11 +77,18 @@ fun PrimaryButton(
     enabled: Boolean = true,
     leadingIcon: ImageVector? = null,
 ) {
+    val tokens = ClassMateTheme.colors
     Button(
         onClick = onClick,
         modifier = modifier.height(52.dp),
         enabled = enabled,
-        shape = MaterialTheme.shapes.medium,
+        shape = RoundedCornerShape(ClassMateTheme.shapes.buttonRadius),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = tokens.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            disabledContainerColor = tokens.surfaceVariant,
+            disabledContentColor = tokens.textSecondary,
+        ),
     ) {
         if (leadingIcon != null) {
             Icon(leadingIcon, contentDescription = null, modifier = Modifier.size(20.dp))
@@ -97,11 +106,17 @@ fun SecondaryButton(
     enabled: Boolean = true,
     leadingIcon: ImageVector? = null,
 ) {
+    val tokens = ClassMateTheme.colors
     OutlinedButton(
         onClick = onClick,
         modifier = modifier.height(52.dp),
         enabled = enabled,
-        shape = MaterialTheme.shapes.medium,
+        shape = RoundedCornerShape(ClassMateTheme.shapes.buttonRadius),
+        border = BorderStroke(1.dp, tokens.outline),
+        colors = ButtonDefaults.outlinedButtonColors(
+            contentColor = tokens.primary,
+            disabledContentColor = tokens.textSecondary,
+        ),
     ) {
         if (leadingIcon != null) {
             Icon(leadingIcon, contentDescription = null, modifier = Modifier.size(20.dp))

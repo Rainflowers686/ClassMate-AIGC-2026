@@ -249,7 +249,9 @@ fun ThemePreviewCard(
     name: String,
     tagline: String,
     description: String,
-    swatches: List<Color>,
+    backgroundColor: Color,
+    surfaceColor: Color,
+    accentColor: Color,
     selected: Boolean,
     onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
@@ -267,10 +269,35 @@ fun ThemePreviewCard(
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier
-                    .size(44.dp)
+                    .size(width = 56.dp, height = 44.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Brush.linearGradient(swatches.ifEmpty { listOf(cs.surfaceVariant, cs.surface) })),
-            )
+                    .background(backgroundColor),
+            ) {
+                Box(
+                    Modifier
+                        .align(Alignment.Center)
+                        .size(width = 36.dp, height = 24.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(surfaceColor),
+                )
+                Box(
+                    Modifier
+                        .align(Alignment.BottomStart)
+                        .height(5.dp)
+                        .fillMaxWidth()
+                        .background(accentColor),
+                )
+                if (selected) {
+                    Box(
+                        Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(5.dp)
+                            .size(7.dp)
+                            .clip(androidx.compose.foundation.shape.CircleShape)
+                            .background(accentColor),
+                    )
+                }
+            }
             Spacer(Modifier.width(Dimens.m))
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

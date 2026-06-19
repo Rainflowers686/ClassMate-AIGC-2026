@@ -1,6 +1,6 @@
 package com.classmate.app.ui
 
-import com.classmate.app.ui.theme.ThemeOption
+import com.classmate.app.ui.theme.ThemePreset
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -102,8 +102,8 @@ class FlowCompanionUiGuardTest {
             assertTrue("$rel must not adopt FlowBreathingTimer", !s.contains("FlowBreathingTimer"))
             // The task pages keep their Stage 10 product shell.
         }
-        // Focus stays the global default; Flow is not promoted.
-        assertEquals(ThemeOption.FOCUS, ThemeOption.Default)
+        // Standard Study stays the global default; the companion layout is still a scoped page.
+        assertEquals(ThemePreset.STANDARD_STUDY, ThemePreset.Default)
     }
 
     @Test

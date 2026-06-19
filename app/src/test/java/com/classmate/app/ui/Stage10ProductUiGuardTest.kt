@@ -1,6 +1,6 @@
 package com.classmate.app.ui
 
-import com.classmate.app.ui.theme.ThemeOption
+import com.classmate.app.ui.theme.ThemePreset
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -114,9 +114,9 @@ class Stage10ProductUiGuardTest {
     // ---- honest positioning + vocabulary --------------------------------------------------------
 
     @Test
-    fun focusStaysDefaultThemeAfterRebuild() {
-        assertEquals(ThemeOption.FOCUS, ThemeOption.Default)
-        assertEquals(3, ThemeOption.entries.size)
+    fun standardStudyStaysDefaultThemeAfterRebuild() {
+        assertEquals(ThemePreset.STANDARD_STUDY, ThemePreset.Default)
+        assertEquals(3, ThemePreset.entries.size)
     }
 
     @Test

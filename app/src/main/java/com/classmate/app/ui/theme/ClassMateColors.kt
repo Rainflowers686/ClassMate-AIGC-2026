@@ -22,14 +22,41 @@ data class ClassMateExtendedColors(
     val heroGradient: List<Color>,
 )
 
-val LocalClassMateExtendedColors = staticCompositionLocalOf { focusExtendedLight }
-val LocalThemeOption = staticCompositionLocalOf { ThemeOption.FOCUS }
+val LocalClassMateExtendedColors = staticCompositionLocalOf {
+    themeColors(ThemePreset.Default, AccentColorPreset.Default).extended
+}
+val LocalClassMateColors = staticCompositionLocalOf {
+    classMateColorScheme(ThemePreset.Default, AccentColorPreset.Default)
+}
+val LocalThemePreset = staticCompositionLocalOf { ThemePreset.Default }
+val LocalAccentColorPreset = staticCompositionLocalOf { AccentColorPreset.Default }
+val LocalClassMateShapeScheme = staticCompositionLocalOf { classMateShapeScheme(ThemePreset.Default) }
+val LocalClassMateSpacing = staticCompositionLocalOf { ClassMateSpacing() }
+
+@Deprecated("Use LocalThemePreset.")
+val LocalThemeOption = LocalThemePreset
 
 /** Accessor for ClassMate-specific theme values, mirroring `MaterialTheme.*`. */
 object ClassMateTheme {
+    val colors: ClassMateColorScheme
+        @Composable @ReadOnlyComposable get() = LocalClassMateColors.current
+
     val extended: ClassMateExtendedColors
         @Composable @ReadOnlyComposable get() = LocalClassMateExtendedColors.current
 
-    val option: ThemeOption
-        @Composable @ReadOnlyComposable get() = LocalThemeOption.current
+    val preset: ThemePreset
+        @Composable @ReadOnlyComposable get() = LocalThemePreset.current
+
+    val accent: AccentColorPreset
+        @Composable @ReadOnlyComposable get() = LocalAccentColorPreset.current
+
+    val shapes: ClassMateShapeScheme
+        @Composable @ReadOnlyComposable get() = LocalClassMateShapeScheme.current
+
+    val spacing: ClassMateSpacing
+        @Composable @ReadOnlyComposable get() = LocalClassMateSpacing.current
+
+    @Deprecated("Use preset.")
+    val option: ThemePreset
+        @Composable @ReadOnlyComposable get() = preset
 }

@@ -1,6 +1,6 @@
 package com.classmate.app.ui
 
-import com.classmate.app.ui.theme.ThemeOption
+import com.classmate.app.ui.theme.ThemePreset
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -29,21 +29,21 @@ class Stage9aFocusUiGuardTest {
     // ---- theme positioning ----------------------------------------------------------------------
 
     @Test
-    fun focusIsTheDefaultThemeAndFlowVitalityAreNot() {
-        assertEquals(ThemeOption.FOCUS, ThemeOption.Default)
-        assertEquals(3, ThemeOption.entries.size)
-        // Focus reads as the default baseline; Flow/Vitality describe their scoped roles honestly.
-        assertTrue(ThemeOption.FOCUS.tagline.contains("默认"))
-        assertTrue(ThemeOption.FLOW.tagline.contains("陪学") || ThemeOption.FLOW.description.contains("局部"))
-        assertTrue(ThemeOption.VITALITY.tagline.contains("预留") || ThemeOption.VITALITY.description.contains("不作为默认"))
+    fun standardStudyIsTheDefaultThemeAndThreePresetMappingHolds() {
+        assertEquals(ThemePreset.STANDARD_STUDY, ThemePreset.Default)
+        assertEquals(3, ThemePreset.entries.size)
+        assertTrue(ThemePreset.STANDARD_STUDY.sourceLabel.contains("Dashboard"))
+        assertTrue(ThemePreset.ACTIVE_STUDY.sourceLabel.contains("Main Dashboard"))
+        assertTrue(ThemePreset.FOCUS_IMMERSION.sourceLabel.contains("Vertical Feed"))
     }
 
     @Test
-    fun settingsExplainsThreeThemesButKeepsFocusDefault() {
+    fun settingsExplainsThreeThemePresetsAndAccentColors() {
         val s = read("java/com/classmate/app/ui/screens/settings/SettingsScreen.kt")
-        assertTrue(s.contains("默认 Focus") || s.contains("默认 专注"))
-        assertTrue(s.contains("Flow"))
-        assertTrue(s.contains("Vitality"))
+        assertTrue(s.contains("默认学习"))
+        assertTrue(s.contains("活力学习"))
+        assertTrue(s.contains("沉浸学习"))
+        assertTrue(s.contains("强调色 / Accent Color"))
         assertTrue(s.contains("ThemePreviewCard"))
     }
 

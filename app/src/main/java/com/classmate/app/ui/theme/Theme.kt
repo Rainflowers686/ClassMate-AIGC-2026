@@ -11,36 +11,51 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 /**
- * Root theme. Pick one of [ThemeOption] (FOCUS by default) and an optional dark override.
+ * Root theme. Pick one of [ThemePreset] and an optional accent color.
  * Provides the Material color scheme plus ClassMate's extended brand colors, and keeps the
  * system status bar in sync with the chosen background.
  */
 @Composable
 fun ClassMateTheme(
-    themeOption: ThemeOption = ThemeOption.Default,
+    themePreset: ThemePreset = ThemePreset.Default,
+    accentColor: AccentColorPreset = AccentColorPreset.Default,
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
-    val colors = themeColors(themeOption, darkTheme)
+    val colors = themeColors(themePreset, accentColor, darkTheme)
 
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
             window.statusBarColor = colors.scheme.background.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !colors.classMate.isDark
         }
     }
 
     CompositionLocalProvider(
+        LocalClassMateColors provides colors.classMate,
         LocalClassMateExtendedColors provides colors.extended,
-        LocalThemeOption provides themeOption,
+        LocalThemePreset provides themePreset,
+        LocalAccentColorPreset provides accentColor,
+        LocalClassMateShapeScheme provides classMateShapeScheme(themePreset),
+        LocalClassMateSpacing provides ClassMateSpacing(),
     ) {
         MaterialTheme(
             colorScheme = colors.scheme,
             typography = ClassMateTypography,
-            shapes = ClassMateShapes,
+            shapes = materialShapesFor(themePreset),
             content = content,
         )
     }
+}
+
+@Deprecated("Use themePreset and accentColor.")
+@Composable
+fun ClassMateTheme(
+    themeOption: ThemeOption,
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    content: @Composable () -> Unit,
+) {
+    ClassMateTheme(themePreset = themeOption, accentColor = AccentColorPreset.Default, darkTheme = darkTheme, content = content)
 }

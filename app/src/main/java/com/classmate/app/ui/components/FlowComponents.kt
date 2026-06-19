@@ -32,6 +32,7 @@ import com.classmate.app.ui.design.Dimens
 import com.classmate.app.ui.design.Motion
 import com.classmate.app.ui.design.Radii
 import com.classmate.app.ui.flow.FlowScene
+import com.classmate.app.ui.theme.ClassMateTheme
 
 /**
  * Fixed Flow accent (cool blue → teal). Used to give the Live Companion a calm "Flow" mood without
@@ -96,12 +97,13 @@ fun BreathingTimerRing(
 @Composable
 fun FlowSceneCard(scene: FlowScene, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val cs = MaterialTheme.colorScheme
+    val tokens = ClassMateTheme.colors
     Surface(
         modifier = modifier.width(150.dp).clickable { onClick() },
         shape = Radii.cardShape,
-        color = if (selected) FlowAccent.primary.copy(alpha = 0.14f) else cs.surface,
+        color = if (selected) tokens.primaryContainer else tokens.focusSurface,
         contentColor = cs.onSurface,
-        border = BorderStroke(1.dp, if (selected) FlowAccent.primary.copy(alpha = 0.5f) else cs.outlineVariant),
+        border = BorderStroke(1.dp, if (selected) tokens.primary else tokens.outline),
     ) {
         Column(Modifier.padding(Dimens.m)) {
             Text(scene.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)

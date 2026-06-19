@@ -26,11 +26,11 @@ enum class ChipTone { NEUTRAL, PRIMARY, SUCCESS, WARNING, INFO, EVIDENCE }
 /** Small rounded status label. Soft tinted fill + faint border — reads calm, not loud. */
 @Composable
 fun StatusChip(text: String, tone: ChipTone = ChipTone.NEUTRAL, modifier: Modifier = Modifier) {
-    val cs = MaterialTheme.colorScheme
     val ext = ClassMateTheme.extended
+    val tokens = ClassMateTheme.colors
     val content: Color = when (tone) {
-        ChipTone.NEUTRAL -> cs.onSurfaceVariant
-        ChipTone.PRIMARY -> cs.primary
+        ChipTone.NEUTRAL -> tokens.textSecondary
+        ChipTone.PRIMARY -> tokens.primary
         ChipTone.SUCCESS -> ext.success
         ChipTone.WARNING -> ext.warning
         ChipTone.INFO -> ext.info
@@ -38,7 +38,7 @@ fun StatusChip(text: String, tone: ChipTone = ChipTone.NEUTRAL, modifier: Modifi
     }
     Surface(
         modifier = modifier,
-        shape = Radii.chipShape,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(ClassMateTheme.shapes.pillRadius),
         color = content.copy(alpha = 0.12f),
         contentColor = content,
         border = BorderStroke(1.dp, content.copy(alpha = 0.30f)),

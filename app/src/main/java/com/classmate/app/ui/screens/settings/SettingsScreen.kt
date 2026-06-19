@@ -12,16 +12,20 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
@@ -37,6 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -75,8 +80,10 @@ import com.classmate.app.ui.components.SecondaryButton
 import com.classmate.app.ui.components.ThemePreviewCard
 import com.classmate.app.ui.design.Dimens
 import com.classmate.app.ui.flow.AmbientSoundCatalog
+import com.classmate.app.ui.theme.AccentColorPreset
 import com.classmate.app.ui.theme.ClassMateTheme
-import com.classmate.app.ui.theme.ThemeOption
+import com.classmate.app.ui.theme.ThemePreset
+import com.classmate.app.ui.theme.classMateColorScheme
 import com.classmate.app.ui.i18n.AppLanguage
 import com.classmate.app.ui.i18n.appStrings
 import kotlinx.serialization.json.Json
@@ -90,7 +97,7 @@ private enum class SettingsTopLevel(val title: String, val subtitle: String) {
 
 private enum class GeneralSettingsPage(val title: String, val subtitle: String) {
     HOME("通用设置", "面向日常使用的设置入口"),
-    APPEARANCE("外观与主题", "Focus / Flow / Vitality、主题色、字号与阅读密度"),
+    APPEARANCE("外观与主题", "默认学习、活力学习、沉浸学习与强调色"),
     AI_MODEL_CONFIG("AI 模型配置", "蓝心大模型与自有模型配置，保存后持续可用"),
     PRIVACY("隐私与权限", "本地数据、导入权限和用户确认说明"),
     LEARNING_EXPORT("学习与导出", "练习、复习和导出默认项"),
@@ -283,7 +290,7 @@ private fun GeneralSettingsHomeCard(
     ClassMateCard {
         Text("通用设置", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.s))
-        SettingsLandingRow("外观与主题", "Focus / Flow / Vitality、主题色、字号与阅读密度", onAppearance)
+        SettingsLandingRow("外观与主题", "默认学习、活力学习、沉浸学习、强调色和阅读密度", onAppearance)
         SettingsLandingRow("AI 模型配置", "蓝心大模型与自有模型配置，保存后持续可用", onAiModel)
         SettingsLandingRow("隐私与权限", "本地数据、用户确认、导入内容和相机/文件/音频权限", onPrivacy)
         SettingsLandingRow("学习与导出", "练习、复习和 PDF / DOCX / HTML / Markdown / Text / 音频脚本", onLearningExport)
@@ -315,7 +322,11 @@ private fun AppearanceAndThemeSettingsCard(viewModel: AppViewModel) {
     ClassMateCard {
         Text("外观与主题", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.xs))
-        Text("默认 Focus 适合日常学习，Flow 适合沉浸学习，Vitality 适合轻量复习。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            "选择适合当前学习节奏的界面氛围。主题决定背景、卡片层级和圆角；强调色 / Accent Color 只影响按钮、选中态和重点状态。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         Spacer(Modifier.height(Dimens.s))
         Text(s.settingsLanguage, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.xxs))
@@ -327,17 +338,32 @@ private fun AppearanceAndThemeSettingsCard(viewModel: AppViewModel) {
             }
         }
         Spacer(Modifier.height(Dimens.m))
-        ThemeOption.entries.forEach { option ->
+        Text("学习主题", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(Dimens.xs))
+        ThemePreset.entries.forEach { option ->
+            val preview = classMateColorScheme(option, ui.accentColor)
             ThemePreviewCard(
                 name = option.displayName,
                 tagline = option.tagline,
                 description = option.description,
-                swatches = themeSwatches(option),
+                backgroundColor = preview.background,
+                surfaceColor = preview.surfaceContainerLow,
+                accentColor = preview.primary,
                 selected = ui.theme == option,
                 onClick = { viewModel.setTheme(option) },
                 modifier = Modifier.padding(top = Dimens.xs),
             )
         }
+        Spacer(Modifier.height(Dimens.m))
+        Text("强调色 / Accent Color", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(Dimens.xs))
+        Text("强调色会跟随三套主题调整亮度和可读性，不会覆盖每套主题自己的 surface 层级。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(Dimens.s))
+        AccentColorGrid(
+            selected = ui.accentColor,
+            themePreset = ui.theme,
+            onSelect = { viewModel.setAccentColor(it) },
+        )
         Spacer(Modifier.height(Dimens.m))
         Text("显示", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.xs))
@@ -348,6 +374,63 @@ private fun AppearanceAndThemeSettingsCard(viewModel: AppViewModel) {
         }
         Spacer(Modifier.height(Dimens.s))
         ProviderStatusRow("字号 / 阅读密度", "当前使用系统字号与紧凑学习密度")
+    }
+}
+
+@Composable
+private fun AccentColorGrid(
+    selected: AccentColorPreset,
+    themePreset: ThemePreset,
+    onSelect: (AccentColorPreset) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(Dimens.xs)) {
+        AccentColorPreset.entries.chunked(4).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(Dimens.xs), modifier = Modifier.fillMaxWidth()) {
+                row.forEach { accent ->
+                    AccentColorSwatch(
+                        accent = accent,
+                        themePreset = themePreset,
+                        selected = accent == selected,
+                        onClick = { onSelect(accent) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AccentColorSwatch(
+    accent: AccentColorPreset,
+    themePreset: ThemePreset,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val preview = classMateColorScheme(themePreset, accent)
+    Surface(
+        modifier = modifier.clickable { onClick() },
+        shape = RoundedCornerShape(14.dp),
+        color = if (selected) preview.primaryContainer else ClassMateTheme.colors.surfaceContainerHigh,
+        contentColor = ClassMateTheme.colors.textPrimary,
+        border = BorderStroke(1.dp, if (selected) preview.primary else ClassMateTheme.colors.outline),
+    ) {
+        Column(Modifier.padding(horizontal = 10.dp, vertical = 9.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(
+                Modifier
+                    .size(24.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(preview.primary),
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(accent.displayName, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+            Text(accent.englishName, style = MaterialTheme.typography.labelSmall, color = ClassMateTheme.colors.textSecondary, maxLines = 1)
+            if (selected) {
+                Spacer(Modifier.height(3.dp))
+                Text("当前", style = MaterialTheme.typography.labelSmall, color = preview.primary, maxLines = 1)
+            }
+        }
     }
 }
 
@@ -697,7 +780,7 @@ private fun BackgroundAudioPolicyCard() {
     ClassMateCard {
         Text("沉浸背景音", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.xs))
-        Text("Flow / 沉浸学习已内置 ${AmbientSoundCatalog.all.size} 种授权循环背景音，进入心流学习后可选择、暂停、循环播放并调节音量。背景音只在本地播放，不录音、不上传。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("沉浸学习已内置 ${AmbientSoundCatalog.all.size} 种授权循环背景音，进入心流学习后可选择、暂停、循环播放并调节音量。背景音只在本地播放，不录音、不上传。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(Dimens.s))
         AmbientSoundCatalog.all.forEach { sound ->
             ProviderStatusRow(sound.displayName, "${sound.sceneName} · ${if (sound.attributionRequired) "需署名" else "免署名"} · ${sound.licenseName}")
@@ -1468,13 +1551,6 @@ private fun ProviderPreviewRow(summary: ProviderSummary) {
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-}
-
-/** Small swatch strip per theme for the Settings preview — illustrative, not the live scheme. */
-private fun themeSwatches(option: ThemeOption): List<androidx.compose.ui.graphics.Color> = when (option) {
-    ThemeOption.FOCUS -> listOf(androidx.compose.ui.graphics.Color(0xFFF3F4F7), androidx.compose.ui.graphics.Color(0xFF3A64D8))
-    ThemeOption.VITALITY -> listOf(androidx.compose.ui.graphics.Color(0xFFEEF1F6), androidx.compose.ui.graphics.Color(0xFF515ED0))
-    ThemeOption.FLOW -> listOf(androidx.compose.ui.graphics.Color(0xFF1B1A22), androidx.compose.ui.graphics.Color(0xFFE0A86A))
 }
 
 /** Software-allocator bitmap decode (hardware bitmaps cannot getPixels). Never throws. */

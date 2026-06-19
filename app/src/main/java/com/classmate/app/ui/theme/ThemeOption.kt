@@ -1,35 +1,65 @@
 package com.classmate.app.ui.theme
 
 /**
- * The three product themes (Stage 9A positioning).
+ * ClassMate Theme Engine v1 presets extracted from the three Stitch references.
  *
- * FOCUS is the default and the competition-proof baseline: a calm, warm-white study tool with a
- * restrained blue accent — every task page (Home / Import / Course / Review / Settings) uses it.
- * FLOW is an ambient companion skin scoped to Live Companion / focus-timer scenes only.
- * VITALITY is the reserved opt-in growth/encouragement skin; never the default.
+ * Fixed mapping:
+ * - Dashboard -> STANDARD_STUDY / 默认学习
+ * - Main Dashboard -> ACTIVE_STUDY / 活力学习
+ * - Vertical Feed -> FOCUS_IMMERSION / 沉浸学习
  */
-enum class ThemeOption(
+enum class ThemePreset(
     val displayName: String,
+    val shortName: String,
+    val sourceLabel: String,
     val tagline: String,
     val description: String,
 ) {
-    FOCUS(
-        displayName = "专注 Focus",
-        tagline = "默认主题 · 白静 · 克制 · 高级",
-        description = "暖白灰底色与克制蓝主色，细线条、弱阴影、大留白。课程、证据、复习与导出全部使用 Focus。",
+    STANDARD_STUDY(
+        displayName = "默认学习",
+        shortName = "Standard Study",
+        sourceLabel = "Dashboard",
+        tagline = "日常学习 · 柔和留白 · 稳定阅读",
+        description = "来自 Dashboard 的 off-white / sage 语言，适合主页、课程、问答、复习、导出和设置。",
     ),
-    VITALITY(
-        displayName = "活力 Vitality",
-        tagline = "预留主题 · 成长 · 鼓励",
-        description = "轻快的靛蓝与成长绿，为成就与学习成长场景预留的可选增强主题，不作为默认。",
+    ACTIVE_STUDY(
+        displayName = "活力学习",
+        shortName = "Active Study",
+        sourceLabel = "Main Dashboard",
+        tagline = "练习推进 · 进度反馈 · 清爽行动",
+        description = "来自 Main Dashboard 的 green-blue 进度语言，适合练习、反馈、薄弱点和今日复习。",
     ),
-    FLOW(
-        displayName = "心流 Flow",
-        tagline = "陪学场景 · 夜间书桌 · 呼吸感",
-        description = "深色暖琥珀的沉浸陪学氛围，仅用于课堂伴学与专注计时等局部场景，不接管任务页面。",
+    FOCUS_IMMERSION(
+        displayName = "沉浸学习",
+        shortName = "Focus Immersion",
+        sourceLabel = "Vertical Feed",
+        tagline = "深度专注 · 暗色层次 · 减少干扰",
+        description = "来自 Vertical Feed 的暗色层次，但不带入媒体内容；强调色由 ClassMate 色卡控制。",
     );
 
     companion object {
-        val Default = FOCUS
+        val Default = STANDARD_STUDY
     }
 }
+
+enum class AccentColorPreset(
+    val displayName: String,
+    val englishName: String,
+    val tokenHex: String,
+) {
+    BLUE("蓝色", "Blue", "#2563eb"),
+    CYAN("青色", "Cyan", "#00a0aa"),
+    GREEN("绿色", "Green", "#006d32"),
+    PURPLE("紫色", "Purple", "#7c3aed"),
+    AMBER("琥珀", "Amber", "#b26a00"),
+    ROSE("玫瑰", "Rose", "#ff4b89"),
+    GRAPHITE("石墨", "Graphite", "#353535"),
+    OCEAN("海蓝", "Ocean", "#0059bb");
+
+    companion object {
+        val Default = GREEN
+    }
+}
+
+@Deprecated("Use ThemePreset. Kept temporarily so older tests and call sites fail less noisily.")
+typealias ThemeOption = ThemePreset

@@ -5,254 +5,281 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
 
-/** Resolved scheme + extended colors for one (theme, dark) combination. */
-data class ThemeColors(val scheme: ColorScheme, val extended: ClassMateExtendedColors)
+data class ClassMateColorScheme(
+    val background: Color,
+    val surface: Color,
+    val surfaceVariant: Color,
+    val surfaceContainerLow: Color,
+    val surfaceContainerHigh: Color,
+    val primary: Color,
+    val primaryContainer: Color,
+    val secondary: Color,
+    val secondaryContainer: Color,
+    val tertiary: Color,
+    val textPrimary: Color,
+    val textSecondary: Color,
+    val border: Color,
+    val outline: Color,
+    val success: Color,
+    val warning: Color,
+    val error: Color,
+    val info: Color,
+    val focusSurface: Color,
+    val evidenceSurface: Color,
+    val accent: Color,
+    val isDark: Boolean,
+)
 
-fun themeColors(option: ThemeOption, dark: Boolean): ThemeColors = when (option) {
-    ThemeOption.FOCUS ->
-        if (dark) ThemeColors(focusDarkScheme, focusExtendedDark) else ThemeColors(focusLightScheme, focusExtendedLight)
-    ThemeOption.VITALITY ->
-        if (dark) ThemeColors(vitalityDarkScheme, vitalityExtendedDark) else ThemeColors(vitalityLightScheme, vitalityExtendedLight)
-    ThemeOption.FLOW ->
-        if (dark) ThemeColors(flowDarkScheme, flowExtendedDark) else ThemeColors(flowLightScheme, flowExtendedLight)
+/** Resolved scheme + extended colors for one theme preset and accent combination. */
+data class ThemeColors(
+    val scheme: ColorScheme,
+    val extended: ClassMateExtendedColors,
+    val classMate: ClassMateColorScheme,
+)
+
+fun themeColors(
+    preset: ThemePreset,
+    accent: AccentColorPreset = AccentColorPreset.Default,
+    dark: Boolean = false,
+): ThemeColors {
+    val tokens = classMateColorScheme(preset, accent, dark)
+    val material = if (tokens.isDark) {
+        darkColorScheme(
+            primary = tokens.primary,
+            onPrimary = Color(0xFF0B0B0B),
+            primaryContainer = tokens.primaryContainer,
+            onPrimaryContainer = tokens.textPrimary,
+            secondary = tokens.secondary,
+            onSecondary = Color(0xFF0B0B0B),
+            secondaryContainer = tokens.secondaryContainer,
+            onSecondaryContainer = tokens.textPrimary,
+            tertiary = tokens.tertiary,
+            onTertiary = Color(0xFF0B0B0B),
+            tertiaryContainer = tokens.surfaceContainerHigh,
+            onTertiaryContainer = tokens.textPrimary,
+            background = tokens.background,
+            onBackground = tokens.textPrimary,
+            surface = tokens.surface,
+            onSurface = tokens.textPrimary,
+            surfaceVariant = tokens.surfaceVariant,
+            onSurfaceVariant = tokens.textSecondary,
+            outline = tokens.border,
+            outlineVariant = tokens.outline,
+            error = tokens.error,
+            onError = Color(0xFF330B08),
+            errorContainer = blend(tokens.error, tokens.surface, 0.22f),
+            onErrorContainer = tokens.error,
+        )
+    } else {
+        lightColorScheme(
+            primary = tokens.primary,
+            onPrimary = Color.White,
+            primaryContainer = tokens.primaryContainer,
+            onPrimaryContainer = tokens.textPrimary,
+            secondary = tokens.secondary,
+            onSecondary = Color.White,
+            secondaryContainer = tokens.secondaryContainer,
+            onSecondaryContainer = tokens.textPrimary,
+            tertiary = tokens.tertiary,
+            onTertiary = Color.White,
+            tertiaryContainer = blend(tokens.tertiary, tokens.surface, 0.14f),
+            onTertiaryContainer = tokens.textPrimary,
+            background = tokens.background,
+            onBackground = tokens.textPrimary,
+            surface = tokens.surface,
+            onSurface = tokens.textPrimary,
+            surfaceVariant = tokens.surfaceVariant,
+            onSurfaceVariant = tokens.textSecondary,
+            outline = tokens.border,
+            outlineVariant = tokens.outline,
+            error = tokens.error,
+            onError = Color.White,
+            errorContainer = blend(tokens.error, tokens.surface, 0.12f),
+            onErrorContainer = tokens.error,
+        )
+    }
+    return ThemeColors(material, extendedColors(tokens), tokens)
 }
 
-// ---------------------------------------------------------------------------
-// FOCUS — the DEFAULT theme. Warm white-grey paper, restrained blue, hairline
-// borders, calm ink. Tokens follow the Stage 9A design handoff (§3):
-// bg #F3F4F7 / surface #FFFFFF / primary #3A64D8 / primarySoft #EAEEFB /
-// ink #1C1C1E · #5F6168 · #8E9099 / hairline ≈ #3C3C43 @ 10%.
-// ---------------------------------------------------------------------------
-private val FocusBlue = Color(0xFF3A64D8)
-private val FocusBlueSoft = Color(0xFFEAEEFB)
-private val FocusInk = Color(0xFF1C1C1E)
-private val FocusInk2 = Color(0xFF5F6168)
-private val FocusInk3 = Color(0xFF8E9099)
-private val FocusHairline = Color(0xFFE4E5EA) // #3C3C43 at ~10% over white, pre-multiplied
+fun classMateColorScheme(
+    preset: ThemePreset,
+    accent: AccentColorPreset = AccentColorPreset.Default,
+    dark: Boolean = false,
+): ClassMateColorScheme = when (preset) {
+    ThemePreset.STANDARD_STUDY -> standardStudyScheme(accent, dark)
+    ThemePreset.ACTIVE_STUDY -> activeStudyScheme(accent, dark)
+    ThemePreset.FOCUS_IMMERSION -> focusImmersionScheme(accent)
+}
 
-val focusLightScheme = lightColorScheme(
-    primary = FocusBlue,
-    onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = FocusBlueSoft,
-    onPrimaryContainer = Color(0xFF1F3A8F),
-    secondary = Color(0xFF3F8F86),
-    onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = Color(0xFFE2F0EE),
-    onSecondaryContainer = Color(0xFF1F4A45),
-    tertiary = Color(0xFF7A6BBF),
-    onTertiary = Color(0xFFFFFFFF),
-    tertiaryContainer = Color(0xFFECE9F8),
-    onTertiaryContainer = Color(0xFF3E3470),
-    background = Color(0xFFF3F4F7),
-    onBackground = FocusInk,
-    surface = Color(0xFFFFFFFF),
-    onSurface = FocusInk,
-    surfaceVariant = Color(0xFFF7F8FA),
-    onSurfaceVariant = FocusInk2,
-    outline = FocusInk3,
-    outlineVariant = FocusHairline,
-    error = Color(0xFFB0503F),
-    onError = Color(0xFFFFFFFF),
-    errorContainer = Color(0xFFF7E6E2),
-    onErrorContainer = Color(0xFF6E2A1E),
-)
+private fun standardStudyScheme(accent: AccentColorPreset, dark: Boolean): ClassMateColorScheme {
+    if (dark) {
+        val resolvedAccent = accent.resolveFor(ThemePreset.STANDARD_STUDY, dark = true)
+        return ClassMateColorScheme(
+            background = Color(0xFF11130F),
+            surface = Color(0xFF171A15),
+            surfaceVariant = Color(0xFF2B3028),
+            surfaceContainerLow = Color(0xFF1E231B),
+            surfaceContainerHigh = Color(0xFF30382D),
+            primary = resolvedAccent,
+            primaryContainer = blend(resolvedAccent, Color(0xFF171A15), 0.28f),
+            secondary = Color(0xFFE2C0BA),
+            secondaryContainer = Color(0xFF4A3330),
+            tertiary = Color(0xFFC8C5B8),
+            textPrimary = Color(0xFFE9ECE2),
+            textSecondary = Color(0xFFC0C6B8),
+            border = Color(0xFF8B9285),
+            outline = Color(0xFF3A4235),
+            success = Color(0xFF9CB68E),
+            warning = Color(0xFFE2C0BA),
+            error = Color(0xFFFFB4AB),
+            info = Color(0xFFC8C5B8),
+            focusSurface = Color(0xFF1B2018),
+            evidenceSurface = Color(0xFF322B1E),
+            accent = resolvedAccent,
+            isDark = true,
+        )
+    }
+    val resolvedAccent = accent.resolveFor(ThemePreset.STANDARD_STUDY)
+    return ClassMateColorScheme(
+        background = Color(0xFFF8FAF3),
+        surface = Color(0xFFF8FAF3),
+        surfaceVariant = Color(0xFFE1E3DC),
+        surfaceContainerLow = Color(0xFFF2F4ED),
+        surfaceContainerHigh = Color(0xFFE7E9E2),
+        primary = resolvedAccent,
+        primaryContainer = blend(resolvedAccent, Color(0xFFF8FAF3), 0.22f),
+        secondary = Color(0xFF755754),
+        secondaryContainer = Color(0xFFFED7D2),
+        tertiary = Color(0xFF605F56),
+        textPrimary = Color(0xFF191C18),
+        textSecondary = Color(0xFF444841),
+        border = Color(0xFF757870),
+        outline = Color(0xFFC5C8BE),
+        success = Color(0xFF55624D),
+        warning = Color(0xFF755754),
+        error = Color(0xFFBA1A1A),
+        info = Color(0xFF605F56),
+        focusSurface = Color(0xFFFFFFFF),
+        evidenceSurface = Color(0xFFFBF3DD),
+        accent = resolvedAccent,
+        isDark = false,
+    )
+}
 
-val focusDarkScheme = darkColorScheme(
-    primary = Color(0xFF93ACF2),
-    onPrimary = Color(0xFF12245E),
-    primaryContainer = Color(0xFF243A7E),
-    onPrimaryContainer = Color(0xFFDDE5FB),
-    secondary = Color(0xFF8CC6BF),
-    onSecondary = Color(0xFF0F3833),
-    secondaryContainer = Color(0xFF24504A),
-    onSecondaryContainer = Color(0xFFD8EEEA),
-    tertiary = Color(0xFFBCB1E8),
-    onTertiary = Color(0xFF2E2556),
-    tertiaryContainer = Color(0xFF453B78),
-    onTertiaryContainer = Color(0xFFE8E4F8),
-    background = Color(0xFF141417),
-    onBackground = Color(0xFFEAEAEC),
-    surface = Color(0xFF1C1C20),
-    onSurface = Color(0xFFEAEAEC),
-    surfaceVariant = Color(0xFF222228),
-    onSurfaceVariant = Color(0xFFB9BAC2),
-    outline = Color(0xFF8A8B94),
-    outlineVariant = Color(0xFF2C2C33),
-    error = Color(0xFFEFA294),
-    onError = Color(0xFF551F14),
-    errorContainer = Color(0xFF6E2A1E),
-    onErrorContainer = Color(0xFFF7DDD7),
-)
+private fun activeStudyScheme(accent: AccentColorPreset, dark: Boolean): ClassMateColorScheme {
+    if (dark) {
+        val resolvedAccent = accent.resolveFor(ThemePreset.ACTIVE_STUDY, dark = true)
+        return ClassMateColorScheme(
+            background = Color(0xFF0E1420),
+            surface = Color(0xFF141C2A),
+            surfaceVariant = Color(0xFF243247),
+            surfaceContainerLow = Color(0xFF192334),
+            surfaceContainerHigh = Color(0xFF263954),
+            primary = resolvedAccent,
+            primaryContainer = blend(resolvedAccent, Color(0xFF141C2A), 0.30f),
+            secondary = Color(0xFF8FC2FF),
+            secondaryContainer = Color(0xFF17385F),
+            tertiary = Color(0xFFC4CADB),
+            textPrimary = Color(0xFFE8EDF7),
+            textSecondary = Color(0xFFC0CAD8),
+            border = Color(0xFF8090A4),
+            outline = Color(0xFF2E405A),
+            success = Color(0xFF79D894),
+            warning = Color(0xFFFFC66D),
+            error = Color(0xFFFFB4AB),
+            info = Color(0xFF8FC2FF),
+            focusSurface = Color(0xFF192334),
+            evidenceSurface = Color(0xFF26344B),
+            accent = resolvedAccent,
+            isDark = true,
+        )
+    }
+    val resolvedAccent = accent.resolveFor(ThemePreset.ACTIVE_STUDY)
+    return ClassMateColorScheme(
+        background = Color(0xFFF8F9FF),
+        surface = Color(0xFFF8F9FF),
+        surfaceVariant = Color(0xFFD3E4FE),
+        surfaceContainerLow = Color(0xFFEFF4FF),
+        surfaceContainerHigh = Color(0xFFDCE9FF),
+        primary = resolvedAccent,
+        primaryContainer = blend(resolvedAccent, Color(0xFFF8F9FF), 0.20f),
+        secondary = Color(0xFF0059BB),
+        secondaryContainer = Color(0xFFD3E4FE),
+        tertiary = Color(0xFF565E74),
+        textPrimary = Color(0xFF0B1C30),
+        textSecondary = Color(0xFF3C4A3D),
+        border = Color(0xFF6C7B6C),
+        outline = Color(0xFFBBCBB9),
+        success = Color(0xFF006D32),
+        warning = Color(0xFFB26A00),
+        error = Color(0xFFBA1A1A),
+        info = Color(0xFF0059BB),
+        focusSurface = Color(0xFFFFFFFF),
+        evidenceSurface = Color(0xFFEFF4FF),
+        accent = resolvedAccent,
+        isDark = false,
+    )
+}
 
-val focusExtendedLight = ClassMateExtendedColors(
-    evidenceHighlight = Color(0xFFFBF3DD),
-    onEvidenceHighlight = Color(0xFF6B5320),
-    evidenceBorder = Color(0xFFD9BC7A),
-    success = Color(0xFF4A9B76),
-    warning = Color(0xFFB78A3E),
-    info = FocusBlue,
-    heroGradient = listOf(Color(0xFFF7F8FB), Color(0xFFEEF0F4)),
-)
+private fun focusImmersionScheme(accent: AccentColorPreset): ClassMateColorScheme {
+    val resolvedAccent = accent.resolveFor(ThemePreset.FOCUS_IMMERSION, dark = true)
+    return ClassMateColorScheme(
+        background = Color(0xFF0E0E0E),
+        surface = Color(0xFF131313),
+        surfaceVariant = Color(0xFF353535),
+        surfaceContainerLow = Color(0xFF1B1B1B),
+        surfaceContainerHigh = Color(0xFF2A2A2A),
+        primary = resolvedAccent,
+        primaryContainer = blend(resolvedAccent, Color(0xFF131313), 0.32f),
+        secondary = Color(0xFFC8C6C5),
+        secondaryContainer = Color(0xFF4A4949),
+        tertiary = Color(0xFF00DBE9),
+        textPrimary = Color(0xFFE2E2E2),
+        textSecondary = Color(0xFFCFCFCF),
+        border = Color(0xFFAC878F),
+        outline = Color(0xFF5C3F45),
+        success = Color(0xFF00DBE9),
+        warning = accent.resolveFor(ThemePreset.FOCUS_IMMERSION, dark = true),
+        error = Color(0xFFFFB4AB),
+        info = Color(0xFF00DBE9),
+        focusSurface = Color(0xFF1B1B1B),
+        evidenceSurface = Color(0xFF242424),
+        accent = resolvedAccent,
+        isDark = true,
+    )
+}
 
-val focusExtendedDark = ClassMateExtendedColors(
-    evidenceHighlight = Color(0xFF3C3420),
-    onEvidenceHighlight = Color(0xFFF0DFAE),
-    evidenceBorder = Color(0xFFB99F5E),
-    success = Color(0xFF85C8A8),
-    warning = Color(0xFFD9B06A),
-    info = Color(0xFF93ACF2),
-    heroGradient = listOf(Color(0xFF1C1C22), Color(0xFF141417)),
-)
+private fun extendedColors(tokens: ClassMateColorScheme): ClassMateExtendedColors =
+    ClassMateExtendedColors(
+        evidenceHighlight = tokens.evidenceSurface,
+        onEvidenceHighlight = tokens.textPrimary,
+        evidenceBorder = tokens.info,
+        success = tokens.success,
+        warning = tokens.warning,
+        info = tokens.info,
+        heroGradient = listOf(tokens.surfaceContainerLow, tokens.surfaceContainerHigh),
+    )
 
-// ---------------------------------------------------------------------------
-// VITALITY — opt-in growth/encouragement skin (NOT the default). Light cool
-// white #EEF1F6, indigo #515ED0, growth green + warm orange accents (handoff §3).
-// ---------------------------------------------------------------------------
-private val VitalityIndigo = Color(0xFF515ED0)
+fun AccentColorPreset.resolveFor(preset: ThemePreset, dark: Boolean = false): Color = when (this) {
+    AccentColorPreset.BLUE -> if (dark) Color(0xFF8FB6FF) else Color(0xFF2563EB)
+    AccentColorPreset.CYAN -> if (dark) Color(0xFF46DDE5) else Color(0xFF00A0AA)
+    AccentColorPreset.GREEN -> when {
+        preset == ThemePreset.STANDARD_STUDY && !dark -> Color(0xFF55624D)
+        preset == ThemePreset.STANDARD_STUDY -> Color(0xFFA9B99E)
+        dark -> Color(0xFF7BD899)
+        else -> Color(0xFF006D32)
+    }
+    AccentColorPreset.PURPLE -> if (dark) Color(0xFFC4B5FD) else Color(0xFF7C3AED)
+    AccentColorPreset.AMBER -> if (dark) Color(0xFFEAC16A) else Color(0xFFB26A00)
+    AccentColorPreset.ROSE -> if (dark) Color(0xFFFF8FB1) else Color(0xFFFF4B89)
+    AccentColorPreset.GRAPHITE -> if (dark) Color(0xFFE2E2E2) else Color(0xFF353535)
+    AccentColorPreset.OCEAN -> if (dark) Color(0xFF8FC2FF) else Color(0xFF0059BB)
+}
 
-val vitalityLightScheme = lightColorScheme(
-    primary = VitalityIndigo,
-    onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFFE8EAF8),
-    onPrimaryContainer = Color(0xFF2D3690),
-    secondary = Color(0xFF4D9B80),
-    onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = Color(0xFFE0F1EA),
-    onSecondaryContainer = Color(0xFF1F4A3B),
-    tertiary = Color(0xFFE0915C),
-    onTertiary = Color(0xFFFFFFFF),
-    tertiaryContainer = Color(0xFFF9E9DD),
-    onTertiaryContainer = Color(0xFF6E3C18),
-    background = Color(0xFFEEF1F6),
-    onBackground = Color(0xFF1A2030),
-    surface = Color(0xFFFFFFFF),
-    onSurface = Color(0xFF1A2030),
-    surfaceVariant = Color(0xFFF4F6FB),
-    onSurfaceVariant = Color(0xFF525C70),
-    outline = Color(0xFF8B93A6),
-    outlineVariant = Color(0xFFE3E7F0),
-    error = Color(0xFFB0503F),
-    onError = Color(0xFFFFFFFF),
-)
-
-val vitalityDarkScheme = darkColorScheme(
-    primary = Color(0xFFB9C0F5),
-    onPrimary = Color(0xFF1F2766),
-    primaryContainer = Color(0xFF3A4498),
-    onPrimaryContainer = Color(0xFFE5E8FB),
-    secondary = Color(0xFF93CDB6),
-    onSecondary = Color(0xFF10382A),
-    secondaryContainer = Color(0xFF255944),
-    onSecondaryContainer = Color(0xFFDCF2E8),
-    tertiary = Color(0xFFF0B98E),
-    onTertiary = Color(0xFF4A2B10),
-    tertiaryContainer = Color(0xFF6E3C18),
-    onTertiaryContainer = Color(0xFFFAE6D6),
-    background = Color(0xFF14161E),
-    onBackground = Color(0xFFE7E9F0),
-    surface = Color(0xFF1B1E28),
-    onSurface = Color(0xFFE7E9F0),
-    surfaceVariant = Color(0xFF232734),
-    onSurfaceVariant = Color(0xFFB7BCCB),
-    outline = Color(0xFF878DA0),
-    outlineVariant = Color(0xFF2D3140),
-    error = Color(0xFFEFA294),
-    onError = Color(0xFF551F14),
-)
-
-val vitalityExtendedLight = ClassMateExtendedColors(
-    evidenceHighlight = Color(0xFFFBF1DC),
-    onEvidenceHighlight = Color(0xFF6B5320),
-    evidenceBorder = Color(0xFFD9BC7A),
-    success = Color(0xFF4D9B80),
-    warning = Color(0xFFC79A4B),
-    info = VitalityIndigo,
-    heroGradient = listOf(Color(0xFFF3F5FB), Color(0xFFE7ECF6)),
-)
-
-val vitalityExtendedDark = ClassMateExtendedColors(
-    evidenceHighlight = Color(0xFF3C3420),
-    onEvidenceHighlight = Color(0xFFF0DFAE),
-    evidenceBorder = Color(0xFFB99F5E),
-    success = Color(0xFF93CDB6),
-    warning = Color(0xFFE0BC7E),
-    info = Color(0xFFB9C0F5),
-    heroGradient = listOf(Color(0xFF232734), Color(0xFF14161E)),
-)
-
-// ---------------------------------------------------------------------------
-// FLOW — ambient companion theme for Live Companion / focus sessions ONLY.
-// Night-desk palette (handoff §3): bg #111016, surface #16161D, warm amber
-// #E0A86A, rain blue #8FB6DD, grass green #8FC6A0. Never the default app skin.
-// ---------------------------------------------------------------------------
-private val FlowAmber = Color(0xFFE0A86A)
-
-val flowLightScheme = lightColorScheme(
-    primary = Color(0xFF8A6A3C),
-    onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFFF3E7D6),
-    onPrimaryContainer = Color(0xFF4A3712),
-    secondary = Color(0xFF4F7E9E),
-    onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = Color(0xFFDCEAF5),
-    onSecondaryContainer = Color(0xFF173A52),
-    tertiary = Color(0xFF4E8A63),
-    onTertiary = Color(0xFFFFFFFF),
-    tertiaryContainer = Color(0xFFDFF0E4),
-    onTertiaryContainer = Color(0xFF1C4A2D),
-    background = Color(0xFFF2F1EE),
-    onBackground = Color(0xFF222226),
-    surface = Color(0xFFFBFAF7),
-    onSurface = Color(0xFF222226),
-    surfaceVariant = Color(0xFFEDECE7),
-    onSurfaceVariant = Color(0xFF5C5C62),
-    outline = Color(0xFF8E8E94),
-    outlineVariant = Color(0xFFE0DFDA),
-    error = Color(0xFFB0503F),
-    onError = Color(0xFFFFFFFF),
-)
-
-val flowDarkScheme = darkColorScheme(
-    primary = FlowAmber,
-    onPrimary = Color(0xFF2B1F0E),
-    primaryContainer = Color(0xFF3A2E22),
-    onPrimaryContainer = Color(0xFFF2DDC0),
-    secondary = Color(0xFF8FB6DD),
-    onSecondary = Color(0xFF13283C),
-    secondaryContainer = Color(0xFF24394E),
-    onSecondaryContainer = Color(0xFFD6E6F5),
-    tertiary = Color(0xFF8FC6A0),
-    onTertiary = Color(0xFF11301C),
-    tertiaryContainer = Color(0xFF234534),
-    onTertiaryContainer = Color(0xFFD9EFE0),
-    background = Color(0xFF111016),
-    onBackground = Color(0xFFF2F2F3),
-    surface = Color(0xFF16161D),
-    onSurface = Color(0xFFF2F2F3),
-    surfaceVariant = Color(0xFF1C1C24),
-    onSurfaceVariant = Color(0xFFB6B7BC), // ≈ white @ 62% on the night-desk base
-    outline = Color(0xFF7E7F86),
-    outlineVariant = Color(0xFF2A2A30), // ≈ white @ 10%
-    error = Color(0xFFEFA294),
-    onError = Color(0xFF551F14),
-)
-
-val flowExtendedLight = ClassMateExtendedColors(
-    evidenceHighlight = Color(0xFFF3E7D6),
-    onEvidenceHighlight = Color(0xFF4A3712),
-    evidenceBorder = Color(0xFFC9A86A),
-    success = Color(0xFF4E8A63),
-    warning = Color(0xFFB78A3E),
-    info = Color(0xFF4F7E9E),
-    heroGradient = listOf(Color(0xFFF7F4EE), Color(0xFFEFEDE7)),
-)
-
-val flowExtendedDark = ClassMateExtendedColors(
-    evidenceHighlight = Color(0xFF3A2E22),
-    onEvidenceHighlight = Color(0xFFF2DDC0),
-    evidenceBorder = Color(0xFFB9905C),
-    success = Color(0xFF8FC6A0),
-    warning = Color(0xFFD8A86A),
-    info = Color(0xFF8FB6DD),
-    heroGradient = listOf(Color(0xFF2C2418), Color(0xFF111016)),
-)
+private fun blend(foreground: Color, background: Color, alpha: Float): Color =
+    Color(
+        red = foreground.red * alpha + background.red * (1f - alpha),
+        green = foreground.green * alpha + background.green * (1f - alpha),
+        blue = foreground.blue * alpha + background.blue * (1f - alpha),
+        alpha = 1f,
+    )

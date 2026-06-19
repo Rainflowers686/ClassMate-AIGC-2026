@@ -13,7 +13,8 @@ import com.classmate.core.learning.LearningSnapshot
 import com.classmate.core.ondevice.OnDeviceLlmDiagnostic
 import com.classmate.app.platform.ProviderConfigSummary
 import com.classmate.app.ui.i18n.AppLanguage
-import com.classmate.app.ui.theme.ThemeOption
+import com.classmate.app.ui.theme.AccentColorPreset
+import com.classmate.app.ui.theme.ThemePreset
 import com.classmate.core.ask.LessonAnswer
 import com.classmate.core.audio.CourseEssenceAudioResult
 import com.classmate.core.audio.CourseEssenceScript
@@ -61,7 +62,8 @@ data class AiConfigPromptUiState(
 /** All UI state in one immutable snapshot, updated via copy() from [AppViewModel]. */
 data class ClassMateUiState(
     // appearance
-    val theme: ThemeOption = ThemeOption.Default,
+    val theme: ThemePreset = ThemePreset.Default,
+    val accentColor: AccentColorPreset = AccentColorPreset.Default,
     val darkMode: Boolean? = null, // null = follow system
 
     // import inputs
