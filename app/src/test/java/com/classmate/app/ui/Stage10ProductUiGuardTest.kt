@@ -78,7 +78,7 @@ class Stage10ProductUiGuardTest {
         val s = screen("home/HomeScreen.kt")
         assertTrue(s.contains("PrimaryCommand"))   // single dominant CTA, not equal-weight entries
         assertTrue(s.contains("GroupedList"))       // grouped-inset quick-input rows, not stacked cards
-        assertTrue(s.contains("StatStrip"))         // lightweight stat band
+        assertTrue(s.contains("HomeMetricStrip"))   // grouped metric strip, not three floating stat cards
         assertTrue(s.contains("ProviderPathStrip")) // honest provider path, not a paragraph
     }
 

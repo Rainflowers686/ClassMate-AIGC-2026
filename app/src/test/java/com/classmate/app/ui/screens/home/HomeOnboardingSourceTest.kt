@@ -30,7 +30,8 @@ class HomeOnboardingSourceTest {
         assertTrue(source.contains("想把哪节课变清楚？"))
         assertTrue(source.contains("整理一份新资料"))
         assertTrue(source.contains("viewModel.navigateTo(Screen.IMPORT)"))
-        assertTrue(source.contains("StatStrip("))
+        assertTrue(source.contains("HomeMetricStrip("))
+        assertFalse(source.contains("StatStrip("))
         assertTrue(source.contains("LearningPathStep"))
         assertTrue(product.contains("color = tokens.primary"))
         assertTrue(product.contains("actionContent.copy(alpha = 0.92f)"))
@@ -39,13 +40,27 @@ class HomeOnboardingSourceTest {
     }
 
     @Test
-    fun homeLearningPathUsesVerticalGuideAndBottomSafePadding() {
+    fun homeMetricsUseGroupedStripInsteadOfStackedCards() {
         val source = readHomeSource()
 
-        assertTrue(source.contains("isLast: Boolean"))
-        assertTrue(source.contains("height(24.dp)"))
+        assertTrue(source.contains("private fun HomeMetricStrip"))
+        assertTrue(source.contains("items.forEachIndexed"))
+        assertTrue(source.contains("modifier = Modifier.weight(1f)"))
+        assertTrue(source.contains("width(0.75.dp)"))
+        assertFalse(source.contains("StatStrip("))
+    }
+
+    @Test
+    fun homeLearningPathIsLightweightAndKeepsBottomSafePadding() {
+        val source = readHomeSource()
+
+        assertTrue(source.contains("defaultMinSize(minHeight = 48.dp)"))
+        assertTrue(source.contains("size(20.dp)"))
         assertTrue(source.contains("maxLines = 1"))
         assertTrue(source.contains(".padding(bottom = 128.dpv())"))
+        assertFalse(source.contains("isLast: Boolean"))
+        assertFalse(source.contains("height(24.dp)"))
+        assertFalse(source.contains("width(2.dp)"))
     }
 
     @Test

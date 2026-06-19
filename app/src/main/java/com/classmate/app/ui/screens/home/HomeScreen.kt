@@ -52,7 +52,6 @@ import com.classmate.app.ui.product.ProductSectionTitle
 import com.classmate.app.ui.product.ProductSpace
 import com.classmate.app.ui.product.ProviderPathStrip
 import com.classmate.app.ui.product.QuietCard
-import com.classmate.app.ui.product.StatStrip
 import com.classmate.app.ui.i18n.appStrings
 import com.classmate.app.ui.theme.ClassMateTheme
 import com.classmate.core.learning.ReviewEngine
@@ -97,7 +96,7 @@ fun HomeScreen(viewModel: AppViewModel) {
                     },
                 )
 
-                StatStrip(
+                HomeMetricStrip(
                     items = listOf("$dueCount" to "待复习", "${ui.history.size}" to "课堂记录", "${recent?.knowledgePointCount ?: 0}" to "知识点"),
                     accentFirst = dueCount > 0,
                 )
@@ -237,6 +236,59 @@ private fun StudyCockpitCard(
 }
 
 @Composable
+private fun HomeMetricStrip(items: List<Pair<String, String>>, accentFirst: Boolean) {
+    val colors = ClassMateTheme.colors
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        color = colors.surface.copy(alpha = if (colors.isDark) 0.84f else 0.96f),
+        contentColor = colors.textPrimary,
+        border = BorderStroke(0.75.dp, colors.outline.copy(alpha = if (colors.isDark) 0.24f else 0.14f)),
+        shadowElevation = if (colors.isDark) 0.dp else 2.dp,
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            items.forEachIndexed { index, (value, label) ->
+                val emphasized = index == 0 && accentFirst
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Text(
+                        value,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = if (emphasized) colors.primary else colors.textPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        label,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = colors.textSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (index != items.lastIndex) {
+                    Box(
+                        Modifier
+                            .height(34.dp)
+                            .width(0.75.dp)
+                            .background(colors.outline.copy(alpha = if (colors.isDark) 0.16f else 0.11f)),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun FirstRunGuideCard(
     onImport: () -> Unit,
     onSample: () -> Unit,
@@ -253,9 +305,9 @@ private fun FirstRunGuideCard(
         }
         Spacer(Modifier.height(ProductSpace.block))
         Column(verticalArrangement = Arrangement.spacedBy(8.dpv())) {
-            LearningPathStep("1", "导入课堂资料", "图片、拍照、文本或转写稿先进入草稿确认。", isLast = false)
-            LearningPathStep("2", "生成知识时间线", "重点、证据和来源整理成可追问结构。", isLast = false)
-            LearningPathStep("3", "开始复习与练习", "用微测发现薄弱点，再生成复习动作。", isLast = true)
+            LearningPathStep("1", "导入课堂资料", "图片、拍照、文本或转写稿先进入草稿确认。")
+            LearningPathStep("2", "生成知识时间线", "重点、证据和来源整理成可追问结构。")
+            LearningPathStep("3", "开始复习与练习", "用微测发现薄弱点，再生成复习动作。")
         }
         Spacer(Modifier.height(ProductSpace.block))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dpv())) {
@@ -271,31 +323,28 @@ private fun FirstRunGuideCard(
 }
 
 @Composable
-private fun LearningPathStep(index: String, title: String, caption: String, isLast: Boolean) {
+private fun LearningPathStep(index: String, title: String, caption: String) {
     val colors = ClassMateTheme.colors
-    Row(Modifier.fillMaxWidth().defaultMinSize(minHeight = 58.dp), verticalAlignment = Alignment.Top) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(
-                Modifier
-                    .size(34.dp)
-                    .clip(CircleShape)
-                    .background(colors.primary.copy(alpha = if (colors.isDark) 0.22f else 0.11f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(index, style = MaterialTheme.typography.labelLarge, color = colors.primary, fontWeight = FontWeight.Bold)
-            }
-            if (!isLast) {
-                Box(
-                    Modifier
-                        .width(2.dp)
-                        .height(24.dp)
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(colors.primary.copy(alpha = if (colors.isDark) 0.18f else 0.12f)),
-                )
-            }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = 48.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(colors.surfaceContainerHigh.copy(alpha = if (colors.isDark) 0.24f else 0.28f))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Box(
+            Modifier
+                .size(20.dp)
+                .clip(CircleShape)
+                .background(colors.primary.copy(alpha = if (colors.isDark) 0.2f else 0.1f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(index, style = MaterialTheme.typography.labelSmall, color = colors.primary, fontWeight = FontWeight.Bold)
         }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f).padding(top = 1.dp)) {
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(caption, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
