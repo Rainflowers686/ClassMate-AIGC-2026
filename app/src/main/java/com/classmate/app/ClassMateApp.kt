@@ -15,6 +15,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Surface
@@ -33,6 +34,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.classmate.app.data.FileHistoryStore
 import com.classmate.app.data.FileExportStore
 import com.classmate.app.data.FileSnapshotIo
+import com.classmate.app.data.ThemePreferenceRepository
 import com.classmate.app.navigation.ClassMateNavHost
 import com.classmate.app.ondevice.OnDeviceLlmController
 import com.classmate.app.platform.ModelConfigRepository
@@ -63,6 +65,7 @@ fun ClassMateApp() {
                     // never committed — see .gitignore). On-device BlueLM 3B uses the honest
                     // missing-SDK bridge until app/libs/llm-sdk-release.aar is bundled.
                     modelConfigRepository = ModelConfigRepository(File(context.filesDir, "classmate_model_config.json")),
+                    themePreferenceRepository = ThemePreferenceRepository(File(context.filesDir, "classmate_theme_preferences.json")),
                     // Real reflection bridge: drives the vivo on-device SDK when app/libs/llm-sdk-release.aar
                     // is bundled, and honestly reports SDK_MISSING (no crash) when it is absent.
                     onDeviceController = OnDeviceLlmController.real(),
@@ -75,19 +78,30 @@ fun ClassMateApp() {
     val darkTheme = ui.darkMode ?: isSystemInDarkTheme()
     val showBottomBar = viewModel.currentScreen in TAB_ROOTS
 
-    ClassMateTheme(themeOption = ui.theme, darkTheme = darkTheme) {
+    ClassMateTheme(themePreset = ui.theme, accentColor = ui.accentColor, darkTheme = darkTheme) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            val themeColors = ClassMateTheme.colors
             Scaffold(
                 containerColor = MaterialTheme.colorScheme.background,
                 bottomBar = {
                     if (showBottomBar) {
-                        NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                        NavigationBar(
+                            containerColor = themeColors.surfaceContainerLow,
+                            tonalElevation = 0.dp,
+                        ) {
                             Tab.entries.forEach { tab ->
                                 NavigationBarItem(
                                     selected = viewModel.currentTab == tab,
                                     onClick = { viewModel.selectTab(tab) },
                                     icon = { Icon(tabIcon(tab), contentDescription = tabLabel(tab, strings)) },
                                     label = { Text(tabLabel(tab, strings)) },
+                                    colors = NavigationBarItemDefaults.colors(
+                                        selectedIconColor = themeColors.primary,
+                                        selectedTextColor = themeColors.primary,
+                                        indicatorColor = themeColors.primaryContainer,
+                                        unselectedIconColor = themeColors.textSecondary,
+                                        unselectedTextColor = themeColors.textSecondary,
+                                    ),
                                 )
                             }
                         }
