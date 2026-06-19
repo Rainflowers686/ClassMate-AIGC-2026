@@ -1,12 +1,17 @@
 package com.classmate.app
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -17,21 +22,26 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
@@ -85,42 +95,15 @@ fun ClassMateApp() {
 
     ClassMateTheme(themePreset = ui.theme, accentColor = ui.accentColor, darkTheme = darkTheme) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            val themeColors = ClassMateTheme.colors
             Scaffold(
                 containerColor = MaterialTheme.colorScheme.background,
                 bottomBar = {
                     if (showBottomBar) {
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 18.dp, vertical = 12.dp),
-                            shape = RoundedCornerShape(999.dp),
-                            color = themeColors.surfaceContainerLow.copy(alpha = if (themeColors.isDark) 0.88f else 0.96f),
-                            border = BorderStroke(1.dp, themeColors.outline.copy(alpha = if (themeColors.isDark) 0.32f else 0.16f)),
-                            shadowElevation = if (themeColors.isDark) 0.dp else 8.dp,
-                        ) {
-                            NavigationBar(
-                                modifier = Modifier.height(72.dp),
-                                containerColor = Color.Transparent,
-                                tonalElevation = 0.dp,
-                            ) {
-                                Tab.entries.forEach { tab ->
-                                    NavigationBarItem(
-                                        selected = viewModel.currentTab == tab,
-                                        onClick = { viewModel.selectTab(tab) },
-                                        icon = { Icon(tabIcon(tab), contentDescription = tabLabel(tab, strings)) },
-                                        label = { Text(tabLabel(tab, strings), maxLines = 1) },
-                                        colors = NavigationBarItemDefaults.colors(
-                                            selectedIconColor = themeColors.primary,
-                                            selectedTextColor = themeColors.primary,
-                                            indicatorColor = themeColors.primary.copy(alpha = if (themeColors.isDark) 0.18f else 0.12f),
-                                            unselectedIconColor = themeColors.textSecondary,
-                                            unselectedTextColor = themeColors.textSecondary,
-                                        ),
-                                    )
-                                }
-                            }
-                        }
+                        BottomNavigationDock(
+                            currentTab = viewModel.currentTab,
+                            strings = strings,
+                            onSelect = { viewModel.selectTab(it) },
+                        )
                     }
                 },
             ) { padding ->
@@ -164,6 +147,96 @@ fun ClassMateApp() {
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun BottomNavigationDock(
+    currentTab: Tab,
+    strings: Strings,
+    onSelect: (Tab) -> Unit,
+) {
+    val themeColors = ClassMateTheme.colors
+    val dockShape = RoundedCornerShape(999.dp)
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 18.dp, vertical = 12.dp)
+            .clip(dockShape),
+        shape = dockShape,
+        color = themeColors.surfaceContainerLow.copy(alpha = if (themeColors.isDark) 0.9f else 0.96f),
+        border = BorderStroke(1.dp, themeColors.outline.copy(alpha = if (themeColors.isDark) 0.28f else 0.14f)),
+        shadowElevation = if (themeColors.isDark) 0.dp else 7.dp,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(66.dp)
+                .padding(horizontal = 8.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Tab.entries.forEach { tab ->
+                BottomNavigationDockItem(
+                    selected = currentTab == tab,
+                    icon = tabIcon(tab),
+                    label = tabLabel(tab, strings),
+                    onClick = { onSelect(tab) },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BottomNavigationDockItem(
+    selected: Boolean,
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val themeColors = ClassMateTheme.colors
+    val container by animateColorAsState(
+        targetValue = if (selected) themeColors.primary.copy(alpha = if (themeColors.isDark) 0.16f else 0.1f) else Color.Transparent,
+        animationSpec = tween(durationMillis = 180),
+        label = "bottom-nav-selected-container",
+    )
+    val content by animateColorAsState(
+        targetValue = if (selected) themeColors.primary else themeColors.textSecondary,
+        animationSpec = tween(durationMillis = 180),
+        label = "bottom-nav-selected-content",
+    )
+    val scale by animateFloatAsState(
+        targetValue = if (selected) 1.02f else 1f,
+        animationSpec = tween(durationMillis = 160),
+        label = "bottom-nav-selected-scale",
+    )
+    Surface(
+        modifier = modifier
+            .padding(horizontal = 2.dp)
+            .defaultMinSize(minHeight = 48.dp)
+            .scale(scale)
+            .clip(RoundedCornerShape(24.dp))
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(24.dp),
+        color = container,
+        contentColor = content,
+    ) {
+        Column(
+            Modifier.padding(horizontal = 4.dp, vertical = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Icon(icon, contentDescription = label, tint = content, modifier = Modifier.size(20.dp))
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall,
+                color = content,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }

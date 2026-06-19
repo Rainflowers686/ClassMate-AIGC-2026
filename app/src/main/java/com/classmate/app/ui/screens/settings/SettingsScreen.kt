@@ -163,16 +163,16 @@ fun SettingsScreen(viewModel: AppViewModel) {
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = ProductSpace.gutter)
-                .padding(bottom = 128.dp),
+                .padding(bottom = 176.dp),
             verticalArrangement = Arrangement.spacedBy(Dimens.cardGap),
         ) {
             Spacer(Modifier.height(ProductSpace.tight))
             when (page) {
                 SettingsPage.SETTINGS_HOME -> {
                     ProductHero(
-                        overline = "设置",
+                        overline = "偏好",
                         title = "设置",
-                        subtitle = "常用设置和开发者诊断分开管理。云端优先，端侧兜底，用户确认后再入库。",
+                        subtitle = "学习体验、模型配置和诊断入口分开管理。",
                     )
                     SettingsHomeStatusCards(viewModel)
                     SettingsHomeCard(
@@ -266,36 +266,36 @@ fun SettingsScreen(viewModel: AppViewModel) {
 @Composable
 private fun SettingsPageHeader(page: SettingsPage, onBack: () -> Unit) {
     val colors = ClassMateTheme.colors
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        color = colors.surfaceContainerLow,
-        contentColor = colors.textPrimary,
-        border = BorderStroke(0.75.dp, colors.outline.copy(alpha = if (colors.isDark) 0.32f else 0.18f)),
-        shadowElevation = if (colors.isDark) 0.dp else 1.dp,
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 2.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Dimens.s),
     ) {
-        Row(
-            Modifier.padding(end = Dimens.s, top = Dimens.xs, bottom = Dimens.xs),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Dimens.s),
+        Surface(
+            shape = RoundedCornerShape(999.dp),
+            color = colors.surfaceContainerLow,
+            border = BorderStroke(0.75.dp, colors.outline.copy(alpha = if (colors.isDark) 0.28f else 0.14f)),
         ) {
-            TextButton(onClick = onBack, modifier = Modifier.padding(start = Dimens.xs)) { Text("返回") }
-            Column(Modifier.weight(1f)) {
-                Text(
-                    page.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    page.subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+            TextButton(onClick = onBack, modifier = Modifier.defaultMinSize(minHeight = 36.dp)) { Text("返回") }
+        }
+        Column(Modifier.weight(1f)) {
+            Text(
+                page.title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.textPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                page.subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textSecondary,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
@@ -307,16 +307,16 @@ private fun SettingsHomeStatusCards(viewModel: AppViewModel) {
     val modelPermissionReady = ui.onDevicePermissions.allFilesAccess
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
         SettingsMiniStatusCard(
-            title = "多模态草稿",
-            status = if (multimodalReady) "可用" else "按配置启用",
-            detail = "图片学习输入会先生成可编辑草稿",
+            title = "导入草稿",
+            status = if (multimodalReady) "可编辑" else "按配置启用",
+            detail = "图片资料先进入确认草稿",
             active = multimodalReady,
             modifier = Modifier.weight(1f),
         )
         SettingsMiniStatusCard(
-            title = "模型目录权限",
+            title = "端侧模型",
             status = if (modelPermissionReady) "已授权" else "待确认",
-            detail = "影响端侧 BlueLM 3B 模型读取",
+            detail = "影响本机处理和离线兜底",
             active = modelPermissionReady,
             modifier = Modifier.weight(1f),
         )
@@ -363,8 +363,8 @@ private fun SettingsHomeCard(
     onDeveloper: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(Dimens.s)) {
-        SettingsEntryRow("通用设置", "外观、AI 模型配置、隐私权限、学习导出与沉浸背景音", SettingsEntryIcon.GENERAL_SETTINGS, onGeneral)
-        SettingsEntryRow("开发者设置", "Provider 诊断、official smoke dry-run、端侧状态与脱敏日志", SettingsEntryIcon.DEVELOPER_SETTINGS, onDeveloper)
+        SettingsEntryRow("通用设置", "外观、AI 模型配置、隐私权限、学习导出与沉浸背景音", SettingsEntryIcon.GENERAL_SETTINGS, onGeneral, emphasized = true)
+        SettingsEntryRow("开发者设置", "Provider 诊断、smoke dry-run、端侧状态与脱敏日志", SettingsEntryIcon.DEVELOPER_SETTINGS, onDeveloper)
     }
 }
 
@@ -386,12 +386,16 @@ private fun GeneralSettingsListCard(
 }
 
 @Composable
-private fun SettingsEntryRow(title: String, subtitle: String, icon: SettingsEntryIcon, onClick: () -> Unit) {
+private fun SettingsEntryRow(title: String, subtitle: String, icon: SettingsEntryIcon, onClick: () -> Unit, emphasized: Boolean = false) {
     val colors = ClassMateTheme.colors
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val container by animateColorAsState(
-        targetValue = if (pressed) colors.surfaceContainerHigh else colors.surfaceContainerLow,
+        targetValue = when {
+            pressed -> colors.surfaceContainerHigh
+            emphasized -> colors.primary.copy(alpha = if (colors.isDark) 0.14f else 0.07f)
+            else -> colors.surfaceContainerLow
+        },
         animationSpec = tween(durationMillis = 170),
         label = "settings-entry-container",
     )
@@ -419,7 +423,7 @@ private fun SettingsEntryRow(title: String, subtitle: String, icon: SettingsEntr
             .clickable(interaction, indication = null, onClick = onClick),
         shape = RoundedCornerShape(22.dp),
         color = container,
-        border = BorderStroke(0.75.dp, colors.outline.copy(alpha = if (colors.isDark) 0.34f else 0.18f)),
+        border = BorderStroke(0.75.dp, if (emphasized) colors.primary.copy(alpha = if (colors.isDark) 0.32f else 0.2f) else colors.outline.copy(alpha = if (colors.isDark) 0.3f else 0.14f)),
         shadowElevation = elevation,
     ) {
         Row(
@@ -576,17 +580,17 @@ private fun AccentColorSwatch(
     val preview = classMateColorScheme(themePreset, accent)
     val tokens = ClassMateTheme.colors
     val scale by animateFloatAsState(
-        targetValue = if (selected) 1.025f else 1f,
+        targetValue = if (selected) 1.015f else 1f,
         animationSpec = tween(durationMillis = 170),
         label = "accent-swatch-scale",
     )
     val container by animateColorAsState(
-        targetValue = if (selected) preview.primary.copy(alpha = if (tokens.isDark) 0.16f else 0.09f) else tokens.surfaceContainerHigh,
+        targetValue = if (selected) preview.primary.copy(alpha = if (tokens.isDark) 0.12f else 0.07f) else tokens.surfaceContainerHigh,
         animationSpec = tween(durationMillis = 170),
         label = "accent-swatch-container",
     )
     val border by animateColorAsState(
-        targetValue = if (selected) preview.primary else tokens.outline.copy(alpha = 0.32f),
+        targetValue = if (selected) preview.primary.copy(alpha = if (tokens.isDark) 0.58f else 0.5f) else tokens.outline.copy(alpha = 0.28f),
         animationSpec = tween(durationMillis = 170),
         label = "accent-swatch-border",
     )
@@ -595,13 +599,13 @@ private fun AccentColorSwatch(
         shape = RoundedCornerShape(18.dp),
         color = container,
         contentColor = tokens.textPrimary,
-        border = BorderStroke(if (selected) 1.1.dp else 0.75.dp, border),
+        border = BorderStroke(if (selected) 0.85.dp else 0.75.dp, border),
     ) {
         Column(Modifier.padding(horizontal = 10.dp, vertical = 9.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Surface(
                 shape = RoundedCornerShape(999.dp),
-                color = preview.primary.copy(alpha = if (selected) 0.18f else 0.1f),
-                border = BorderStroke(if (selected) 1.dp else 0.75.dp, preview.primary.copy(alpha = if (selected) 0.62f else 0.3f)),
+                color = preview.primary.copy(alpha = if (selected) 0.14f else 0.1f),
+                border = BorderStroke(0.75.dp, preview.primary.copy(alpha = if (selected) 0.46f else 0.3f)),
             ) {
                 Box(
                     Modifier
@@ -619,10 +623,6 @@ private fun AccentColorSwatch(
             Spacer(Modifier.height(6.dp))
             Text(accent.displayName, style = MaterialTheme.typography.labelSmall, maxLines = 1)
             Text(accent.englishName, style = MaterialTheme.typography.labelSmall, color = tokens.textSecondary, maxLines = 1)
-            if (selected) {
-                Spacer(Modifier.height(3.dp))
-                Text("当前", style = MaterialTheme.typography.labelSmall, color = preview.primary, maxLines = 1)
-            }
         }
     }
 }

@@ -113,15 +113,18 @@ class SettingsThemeTextTest {
             "animateFloatAsState",
             "accent-swatch-scale",
             "Icons.Filled.Check",
-            ".padding(bottom = 128.dp)",
+            ".padding(bottom = 176.dp)",
             "themeSelectorDescription",
             "defaultMinSize(minHeight = 76.dp)",
+            "0.85.dp",
+            "0.58f",
         ).forEach { assertTrue("missing animated accent swatch hook: $it", settings.contains(it)) }
+        assertFalse("accent swatch selected outline should stay subtle", settings.contains("1.1.dp"))
         listOf(
             "theme-preview-container",
             "theme-preview-scale",
             "Icons.Filled.Check",
-            "defaultMinSize(minHeight = 118.dp)",
+            "defaultMinSize(minHeight = 108.dp)",
         ).forEach { assertTrue("missing animated theme preview hook: $it", focusComponents.contains(it)) }
     }
 
@@ -146,12 +149,41 @@ class SettingsThemeTextTest {
         listOf("status-chip-container", "CircleShape", "content.copy(alpha").forEach {
             assertTrue("missing status chip polish hook: $it", product.contains(it))
         }
-        listOf("RoundedCornerShape(999.dp)", "Color.Transparent", "height(72.dp)", "indicatorColor = themeColors.primary.copy").forEach {
+        listOf(
+            "BottomNavigationDock(",
+            "BottomNavigationDockItem(",
+            "RoundedCornerShape(999.dp)",
+            ".clip(dockShape)",
+            ".padding(horizontal = 8.dp, vertical = 7.dp)",
+            "height(66.dp)",
+            "modifier = Modifier.weight(1f)",
+            "bottom-nav-selected-container",
+            "Color.Transparent",
+        ).forEach {
             assertTrue("missing floating bottom nav polish hook: $it", app.contains(it))
         }
+        assertFalse("bottom nav should not use the old oversized fixed selected width", app.contains(".width(64.dp)"))
+        assertFalse("bottom nav should not use Material NavigationBarItem indicator overflow", app.contains("NavigationBarItem("))
+        assertFalse("bottom nav should not use Material indicatorColor", app.contains("indicatorColor ="))
         listOf("0xFF2196F3", "0xFF1976D2", "0xFF6200EE").forEach {
             assertFalse("default Material blue/purple hardcode should not be introduced: $it", common.contains(it) || product.contains(it) || app.contains(it))
         }
+    }
+
+    @Test
+    fun settingsV32KeepsStudentCopyAndLightweightHeaders() {
+        val source = source()
+        listOf(
+            "overline = \"偏好\"",
+            "title = \"导入草稿\"",
+            "title = \"端侧模型\"",
+            "SettingsPageHeader(page = page",
+            "defaultMinSize(minHeight = 36.dp)",
+            "emphasized = true",
+        ).forEach { assertTrue("missing V3.2 settings polish hook: $it", source.contains(it)) }
+
+        assertFalse(source.contains("\"设置层级\""))
+        assertFalse(source.contains("\"设置首页\""))
     }
 
     @Test
@@ -163,7 +195,8 @@ class SettingsThemeTextTest {
         ).first { it.exists() }.readText()
 
         assertTrue(app.contains("Tab.entries.forEach"))
-        assertTrue(app.contains("viewModel.selectTab(tab)"))
+        assertTrue(app.contains("onSelect = { viewModel.selectTab(it) }"))
+        assertTrue(app.contains("onClick = { onSelect(tab) }"))
         listOf("首页", "资料", "复习", "历史", "设置").forEach {
             assertTrue("missing bottom nav label: $it", strings.contains(it))
         }

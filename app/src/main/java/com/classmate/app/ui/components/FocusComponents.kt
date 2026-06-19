@@ -265,15 +265,14 @@ fun ThemePreviewCard(
     onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
-    val cs = MaterialTheme.colorScheme
     val tokens = ClassMateTheme.colors
     val container by animateColorAsState(
-        targetValue = if (selected) accentColor.copy(alpha = if (tokens.isDark) 0.14f else 0.08f) else tokens.surfaceContainerLow,
+        targetValue = if (selected) accentColor.copy(alpha = if (tokens.isDark) 0.1f else 0.06f) else tokens.surfaceContainerLow,
         animationSpec = tween(durationMillis = 200),
         label = "theme-preview-container",
     )
     val borderColor by animateColorAsState(
-        targetValue = if (selected) accentColor.copy(alpha = 0.72f) else tokens.outline.copy(alpha = 0.30f),
+        targetValue = if (selected) accentColor.copy(alpha = 0.52f) else tokens.outline.copy(alpha = 0.28f),
         animationSpec = tween(durationMillis = 200),
         label = "theme-preview-border",
     )
@@ -287,42 +286,42 @@ fun ThemePreviewCard(
         animationSpec = tween(durationMillis = 180),
         label = "theme-preview-scale",
     )
-    val border = BorderStroke(if (selected) 1.1.dp else 0.75.dp, borderColor)
+    val border = BorderStroke(if (selected) 0.9.dp else 0.75.dp, borderColor)
     val base = modifier.fillMaxWidth()
     Surface(
-        modifier = (if (onClick != null) base.scale(scale).clickable { onClick() } else base).defaultMinSize(minHeight = 118.dp),
-        shape = RoundedCornerShape(24.dp),
+        modifier = (if (onClick != null) base.scale(scale).clickable { onClick() } else base).defaultMinSize(minHeight = 108.dp),
+        shape = RoundedCornerShape(22.dp),
         color = container,
         border = border,
         shadowElevation = elevation,
     ) {
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier
-                    .size(width = 74.dp, height = 60.dp)
-                    .clip(RoundedCornerShape(18.dp))
+                    .size(width = 58.dp, height = 48.dp)
+                    .clip(RoundedCornerShape(15.dp))
                     .background(backgroundColor),
             ) {
                 Box(
                     Modifier
                         .align(Alignment.Center)
-                        .size(width = 48.dp, height = 34.dp)
-                        .clip(RoundedCornerShape(12.dp))
+                        .size(width = 36.dp, height = 26.dp)
+                        .clip(RoundedCornerShape(10.dp))
                         .background(surfaceColor),
                 )
                 Box(
                     Modifier
                         .align(Alignment.CenterStart)
-                        .padding(start = 13.dp)
-                        .size(width = 18.dp, height = 6.dp)
+                        .padding(start = 10.dp)
+                        .size(width = 14.dp, height = 5.dp)
                         .clip(RoundedCornerShape(999.dp))
                         .background(accentColor.copy(alpha = 0.42f)),
                 )
                 Box(
                     Modifier
                         .align(Alignment.CenterEnd)
-                        .padding(end = 13.dp)
-                        .size(width = 12.dp, height = 12.dp)
+                        .padding(end = 10.dp)
+                        .size(width = 10.dp, height = 10.dp)
                         .clip(CircleShape)
                         .background(accentColor),
                 )
@@ -350,18 +349,12 @@ fun ThemePreviewCard(
                     }
                 }
             }
-            Spacer(Modifier.width(Dimens.m))
+            Spacer(Modifier.width(Dimens.s))
             Column(Modifier.weight(1f)) {
                 Text(name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(tagline, style = MaterialTheme.typography.labelMedium, color = tokens.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(2.dp))
                 Text(description, style = MaterialTheme.typography.bodySmall, color = tokens.textSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            }
-            if (selected) {
-                Spacer(Modifier.width(8.dp))
-                Surface(shape = CircleShape, color = accentColor.copy(alpha = if (tokens.isDark) 0.22f else 0.12f)) {
-                    Text("当前", style = MaterialTheme.typography.labelMedium, color = cs.primary, maxLines = 1, modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp))
-                }
             }
         }
     }
