@@ -276,6 +276,11 @@ fun ThemePreviewCard(
         animationSpec = tween(durationMillis = 200),
         label = "theme-preview-border",
     )
+    val titleColor by animateColorAsState(
+        targetValue = if (selected) accentColor else tokens.textPrimary,
+        animationSpec = tween(durationMillis = 200),
+        label = "theme-preview-title",
+    )
     val elevation by animateDpAsState(
         targetValue = 0.dp,
         animationSpec = tween(durationMillis = 200),
@@ -351,7 +356,7 @@ fun ThemePreviewCard(
             }
             Spacer(Modifier.width(Dimens.s))
             Column(Modifier.weight(1f)) {
-                Text(name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = titleColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(tagline, style = MaterialTheme.typography.labelMedium, color = tokens.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(2.dp))
                 Text(description, style = MaterialTheme.typography.bodySmall, color = tokens.textSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis)

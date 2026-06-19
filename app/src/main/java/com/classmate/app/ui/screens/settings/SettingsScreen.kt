@@ -64,6 +64,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -317,23 +318,35 @@ private fun SettingsPageHeader(page: SettingsPage, onBack: () -> Unit) {
 @Composable
 private fun SettingsHomeStatusCards(viewModel: AppViewModel) {
     val ui = viewModel.ui
+    val colors = ClassMateTheme.colors
     val multimodalReady = ui.onDeviceMultimodalDiagnostic?.callVitMethodPresent == true
     val modelPermissionReady = ui.onDevicePermissions.allFilesAccess
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
-        SettingsMiniStatusCard(
-            title = "导入草稿",
-            status = if (multimodalReady) "可编辑" else "按配置启用",
-            detail = "图片资料先进入确认草稿",
-            active = multimodalReady,
-            modifier = Modifier.weight(1f),
-        )
-        SettingsMiniStatusCard(
-            title = "端侧模型",
-            status = if (modelPermissionReady) "已授权" else "待确认",
-            detail = "影响本机处理和离线兜底",
-            active = modelPermissionReady,
-            modifier = Modifier.weight(1f),
-        )
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        color = if (colors.isDark) colors.surfaceContainerLow.copy(alpha = 0.78f) else colors.surface.copy(alpha = 0.96f),
+        border = BorderStroke(0.75.dp, colors.outline.copy(alpha = if (colors.isDark) 0.14f else 0.07f)),
+        shadowElevation = if (colors.isDark) 0.dp else 1.dp,
+    ) {
+        Row(
+            Modifier.padding(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            SettingsMiniStatusCard(
+                title = "导入草稿",
+                status = if (multimodalReady) "可编辑" else "按配置启用",
+                detail = "图片资料先进入确认草稿",
+                active = multimodalReady,
+                modifier = Modifier.weight(1f),
+            )
+            SettingsMiniStatusCard(
+                title = "端侧模型",
+                status = if (modelPermissionReady) "已授权" else "待确认",
+                detail = "影响本机处理和离线兜底",
+                active = modelPermissionReady,
+                modifier = Modifier.weight(1f),
+            )
+        }
     }
 }
 
@@ -347,21 +360,21 @@ private fun SettingsMiniStatusCard(
 ) {
     val colors = ClassMateTheme.colors
     val container by animateColorAsState(
-        targetValue = if (active) colors.primary.copy(alpha = if (colors.isDark) 0.18f else 0.12f) else colors.surfaceContainerLow,
+        targetValue = if (active) colors.primary.copy(alpha = if (colors.isDark) 0.08f else 0.055f) else Color.Transparent,
         animationSpec = tween(durationMillis = 180),
         label = "settings-mini-status-container",
     )
     val border by animateColorAsState(
-        targetValue = if (active) colors.primary.copy(alpha = 0.38f) else colors.outline.copy(alpha = 0.24f),
+        targetValue = if (active) colors.primary.copy(alpha = 0.22f) else Color.Transparent,
         animationSpec = tween(durationMillis = 180),
         label = "settings-mini-status-border",
     )
     Surface(
-        modifier = modifier.defaultMinSize(minHeight = 104.dp),
-        shape = RoundedCornerShape(ClassMateTheme.shapes.cardRadius),
+        modifier = modifier.defaultMinSize(minHeight = 88.dp),
+        shape = RoundedCornerShape(17.dp),
         color = container,
         border = BorderStroke(0.75.dp, border),
-        shadowElevation = if (active && !colors.isDark) 1.dp else 0.dp,
+        shadowElevation = 0.dp,
     ) {
         Column(Modifier.padding(Dimens.s), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -376,9 +389,9 @@ private fun SettingsHomeCard(
     onGeneral: () -> Unit,
     onDeveloper: () -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(Dimens.s)) {
-        SettingsEntryRow("通用设置", "外观、AI 模型配置、隐私权限、学习导出与沉浸背景音", SettingsEntryIcon.GENERAL_SETTINGS, onGeneral, emphasized = true)
-        SettingsEntryRow("开发者设置", "Provider 诊断、smoke dry-run、端侧状态与脱敏日志", SettingsEntryIcon.DEVELOPER_SETTINGS, onDeveloper)
+    SettingsGroupedListCard {
+        SettingsEntryRow("通用设置", "外观、AI 模型配置、隐私权限、学习导出与沉浸背景音", SettingsEntryIcon.GENERAL_SETTINGS, onGeneral, emphasized = true, grouped = true)
+        SettingsEntryRow("开发者设置", "Provider 诊断、smoke dry-run、端侧状态与脱敏日志", SettingsEntryIcon.DEVELOPER_SETTINGS, onDeveloper, grouped = true)
     }
 }
 

@@ -82,7 +82,7 @@ class SettingsThemeTextTest {
         val source = source()
         listOf(
             "defaultMinSize(minHeight = 72.dp)",
-            "defaultMinSize(minHeight = 104.dp)",
+            "defaultMinSize(minHeight = 88.dp)",
             "maxLines = 1",
             "maxLines = 2",
             "TextOverflow.Ellipsis",
@@ -123,10 +123,12 @@ class SettingsThemeTextTest {
         listOf(
             "theme-preview-container",
             "theme-preview-scale",
+            "theme-preview-title",
             "Icons.Filled.Check",
             "defaultMinSize(minHeight = 100.dp)",
             "1.001f",
             "0.32f",
+            "color = titleColor",
             "if (selected) accentColor.copy(alpha = if (tokens.isDark) 0.09f else 0.08f)",
         ).forEach { assertTrue("missing animated theme preview hook: $it", focusComponents.contains(it)) }
         assertFalse("theme selected card should not use a heavy selected border", focusComponents.contains("BorderStroke(if (selected) 0.9.dp"))
@@ -165,8 +167,8 @@ class SettingsThemeTextTest {
             ".padding(horizontal = 14.dp, vertical = 3.dp)",
             "height(52.dp)",
             "modifier = Modifier.weight(1f)",
-            "bottom-nav-selected-icon-container",
-            ".size(32.dp)",
+            "bottom-nav-selected-dot",
+            ".size(4.dp)",
             "CircleShape",
             "Color.Transparent",
         ).forEach {
@@ -174,6 +176,7 @@ class SettingsThemeTextTest {
         }
         assertFalse("bottom nav should not use the old oversized fixed selected width", app.contains(".width(64.dp)"))
         assertFalse("bottom nav should not wrap the whole item in a large selected surface", app.contains("label = \"bottom-nav-selected-container\""))
+        assertFalse("bottom nav should not use an icon background selected pill", app.contains("label = \"bottom-nav-selected-icon-container\""))
         assertFalse("bottom nav should not use Material NavigationBarItem indicator overflow", app.contains("NavigationBarItem("))
         assertFalse("bottom nav should not use Material indicatorColor", app.contains("indicatorColor ="))
         listOf("0xFF2196F3", "0xFF1976D2", "0xFF6200EE").forEach {
@@ -207,11 +210,14 @@ class SettingsThemeTextTest {
         val source = source()
         listOf(
             "SettingsGroupedListCard",
+            "SettingsMiniStatusCard(",
             "SettingsEntryRow(\"外观与主题\"",
             "grouped = true",
             "verticalArrangement = Arrangement.spacedBy(3.dp)",
             "border = if (grouped) null else BorderStroke",
         ).forEach { assertTrue("missing grouped settings list guard: $it", source.contains(it)) }
+        assertTrue("settings home should group status summary into one surface", source.contains("Modifier.padding(6.dp)"))
+        assertTrue("settings home entries should use the grouped row container", source.contains("SettingsEntryRow(\"通用设置\"") && source.contains("emphasized = true, grouped = true"))
     }
 
     @Test

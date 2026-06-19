@@ -199,10 +199,10 @@ private fun BottomNavigationDockItem(
     modifier: Modifier = Modifier,
 ) {
     val themeColors = ClassMateTheme.colors
-    val iconContainer by animateColorAsState(
-        targetValue = if (selected) themeColors.primary.copy(alpha = if (themeColors.isDark) 0.1f else 0.065f) else Color.Transparent,
+    val indicator by animateColorAsState(
+        targetValue = if (selected) themeColors.primary.copy(alpha = if (themeColors.isDark) 0.78f else 0.72f) else Color.Transparent,
         animationSpec = tween(durationMillis = 180),
-        label = "bottom-nav-selected-icon-container",
+        label = "bottom-nav-selected-dot",
     )
     val content by animateColorAsState(
         targetValue = if (selected) themeColors.primary else themeColors.textSecondary,
@@ -224,12 +224,12 @@ private fun BottomNavigationDockItem(
     ) {
         Box(
             Modifier
-                .size(32.dp)
+                .size(22.dp)
                 .clip(CircleShape)
-                .background(iconContainer),
+                .background(Color.Transparent),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(icon, contentDescription = label, tint = content, modifier = Modifier.size(18.dp))
+            Icon(icon, contentDescription = label, tint = content, modifier = Modifier.size(19.dp))
         }
         Text(
             label,
@@ -238,6 +238,13 @@ private fun BottomNavigationDockItem(
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+        )
+        Box(
+            Modifier
+                .padding(top = 2.dp)
+                .size(4.dp)
+                .clip(CircleShape)
+                .background(indicator),
         )
     }
 }
