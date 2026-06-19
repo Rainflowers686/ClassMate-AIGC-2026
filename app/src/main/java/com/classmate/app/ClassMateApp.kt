@@ -6,13 +6,14 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
@@ -162,18 +163,18 @@ private fun BottomNavigationDock(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 18.dp, vertical = 12.dp)
+            .padding(horizontal = 20.dp, vertical = 10.dp)
             .clip(dockShape),
         shape = dockShape,
-        color = themeColors.surfaceContainerLow.copy(alpha = if (themeColors.isDark) 0.9f else 0.96f),
-        border = BorderStroke(1.dp, themeColors.outline.copy(alpha = if (themeColors.isDark) 0.28f else 0.14f)),
-        shadowElevation = if (themeColors.isDark) 0.dp else 7.dp,
+        color = themeColors.surfaceContainerLow.copy(alpha = if (themeColors.isDark) 0.86f else 0.94f),
+        border = BorderStroke(0.75.dp, themeColors.outline.copy(alpha = if (themeColors.isDark) 0.24f else 0.12f)),
+        shadowElevation = if (themeColors.isDark) 0.dp else 4.dp,
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(66.dp)
-                .padding(horizontal = 8.dp, vertical = 7.dp),
+                .height(58.dp)
+                .padding(horizontal = 10.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Tab.entries.forEach { tab ->
@@ -198,10 +199,10 @@ private fun BottomNavigationDockItem(
     modifier: Modifier = Modifier,
 ) {
     val themeColors = ClassMateTheme.colors
-    val container by animateColorAsState(
-        targetValue = if (selected) themeColors.primary.copy(alpha = if (themeColors.isDark) 0.16f else 0.1f) else Color.Transparent,
+    val iconContainer by animateColorAsState(
+        targetValue = if (selected) themeColors.primary.copy(alpha = if (themeColors.isDark) 0.14f else 0.09f) else Color.Transparent,
         animationSpec = tween(durationMillis = 180),
-        label = "bottom-nav-selected-container",
+        label = "bottom-nav-selected-icon-container",
     )
     val content by animateColorAsState(
         targetValue = if (selected) themeColors.primary else themeColors.textSecondary,
@@ -209,35 +210,35 @@ private fun BottomNavigationDockItem(
         label = "bottom-nav-selected-content",
     )
     val scale by animateFloatAsState(
-        targetValue = if (selected) 1.02f else 1f,
+        targetValue = if (selected) 1.015f else 1f,
         animationSpec = tween(durationMillis = 160),
         label = "bottom-nav-selected-scale",
     )
-    Surface(
+    Column(
         modifier = modifier
             .padding(horizontal = 2.dp)
-            .defaultMinSize(minHeight = 48.dp)
             .scale(scale)
-            .clip(RoundedCornerShape(24.dp))
+            .clip(RoundedCornerShape(18.dp))
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(24.dp),
-        color = container,
-        contentColor = content,
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Column(
-            Modifier.padding(horizontal = 4.dp, vertical = 6.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+        Box(
+            Modifier
+                .size(30.dp)
+                .clip(CircleShape)
+                .background(iconContainer),
+            contentAlignment = Alignment.Center,
         ) {
-            Icon(icon, contentDescription = label, tint = content, modifier = Modifier.size(20.dp))
-            Text(
-                label,
-                style = MaterialTheme.typography.labelSmall,
-                color = content,
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Icon(icon, contentDescription = label, tint = content, modifier = Modifier.size(19.dp))
         }
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = content,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

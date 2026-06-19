@@ -53,6 +53,9 @@ class ThemeOptionTest {
 
         assertTrue(focus.background != androidx.compose.ui.graphics.Color(0xFF000000))
         assertTrue(focus.background != androidx.compose.ui.graphics.Color(0xFF0E0E0E))
+        assertTrue(focus.background != focus.surface)
+        assertTrue(focus.surface != focus.surfaceContainerLow)
+        assertTrue(focus.surfaceContainerLow != focus.surfaceContainerHigh)
         assertTrue(focus.outline != androidx.compose.ui.graphics.Color(0xFF5C3F45))
         assertEquals(AccentColorPreset.OCEAN.resolveFor(ThemePreset.FOCUS_IMMERSION, dark = true), focus.primary)
     }

@@ -15,12 +15,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
@@ -269,16 +270,27 @@ private fun SettingsPageHeader(page: SettingsPage, onBack: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 2.dp, vertical = 4.dp),
+            .padding(horizontal = 2.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Dimens.s),
     ) {
         Surface(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(999.dp))
+                .clickable(onClick = onBack),
             shape = RoundedCornerShape(999.dp),
             color = colors.surfaceContainerLow,
-            border = BorderStroke(0.75.dp, colors.outline.copy(alpha = if (colors.isDark) 0.28f else 0.14f)),
+            border = BorderStroke(0.75.dp, colors.outline.copy(alpha = if (colors.isDark) 0.22f else 0.12f)),
         ) {
-            TextButton(onClick = onBack, modifier = Modifier.defaultMinSize(minHeight = 36.dp)) { Text("返回") }
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "返回",
+                    tint = colors.textSecondary,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
         }
         Column(Modifier.weight(1f)) {
             Text(
@@ -393,14 +405,18 @@ private fun SettingsEntryRow(title: String, subtitle: String, icon: SettingsEntr
     val container by animateColorAsState(
         targetValue = when {
             pressed -> colors.surfaceContainerHigh
-            emphasized -> colors.primary.copy(alpha = if (colors.isDark) 0.14f else 0.07f)
+            emphasized -> colors.surfaceContainerLow
             else -> colors.surfaceContainerLow
         },
         animationSpec = tween(durationMillis = 170),
         label = "settings-entry-container",
     )
     val iconContainer by animateColorAsState(
-        targetValue = if (pressed) colors.primary.copy(alpha = 0.24f) else colors.primary.copy(alpha = if (colors.isDark) 0.18f else 0.11f),
+        targetValue = when {
+            pressed -> colors.primary.copy(alpha = 0.18f)
+            emphasized -> colors.primary.copy(alpha = if (colors.isDark) 0.13f else 0.08f)
+            else -> colors.surfaceContainerHigh.copy(alpha = if (colors.isDark) 0.78f else 0.88f)
+        },
         animationSpec = tween(durationMillis = 170),
         label = "settings-entry-icon-container",
     )
@@ -418,12 +434,12 @@ private fun SettingsEntryRow(title: String, subtitle: String, icon: SettingsEntr
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = Dimens.xxs)
-            .defaultMinSize(minHeight = 84.dp)
+            .defaultMinSize(minHeight = 78.dp)
             .scale(scale)
             .clickable(interaction, indication = null, onClick = onClick),
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(20.dp),
         color = container,
-        border = BorderStroke(0.75.dp, if (emphasized) colors.primary.copy(alpha = if (colors.isDark) 0.32f else 0.2f) else colors.outline.copy(alpha = if (colors.isDark) 0.3f else 0.14f)),
+        border = BorderStroke(0.75.dp, if (emphasized) colors.primary.copy(alpha = if (colors.isDark) 0.22f else 0.14f) else colors.outline.copy(alpha = if (colors.isDark) 0.24f else 0.12f)),
         shadowElevation = elevation,
     ) {
         Row(
@@ -433,12 +449,12 @@ private fun SettingsEntryRow(title: String, subtitle: String, icon: SettingsEntr
         ) {
             Box(
                 Modifier
-                    .size(44.dp)
-                    .clip(RoundedCornerShape(16.dp))
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(14.dp))
                     .background(iconContainer),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(icon.imageVector(), contentDescription = null, tint = colors.primary, modifier = Modifier.size(22.dp))
+                Icon(icon.imageVector(), contentDescription = null, tint = if (emphasized) colors.primary else colors.textSecondary, modifier = Modifier.size(20.dp))
             }
             Column(Modifier.weight(1f)) {
                 Text(
@@ -457,17 +473,12 @@ private fun SettingsEntryRow(title: String, subtitle: String, icon: SettingsEntr
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Surface(
-                shape = RoundedCornerShape(999.dp),
-                color = colors.surfaceContainerHigh.copy(alpha = if (colors.isDark) 0.7f else 0.82f),
-            ) {
-                Icon(
-                    Icons.Filled.KeyboardArrowRight,
-                    contentDescription = null,
-                    tint = colors.textSecondary,
-                    modifier = Modifier.padding(5.dp).size(18.dp),
-                )
-            }
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = colors.textSecondary.copy(alpha = 0.78f),
+                modifier = Modifier.size(18.dp),
+            )
         }
     }
 }
@@ -580,17 +591,17 @@ private fun AccentColorSwatch(
     val preview = classMateColorScheme(themePreset, accent)
     val tokens = ClassMateTheme.colors
     val scale by animateFloatAsState(
-        targetValue = if (selected) 1.015f else 1f,
+        targetValue = if (selected) 1.008f else 1f,
         animationSpec = tween(durationMillis = 170),
         label = "accent-swatch-scale",
     )
     val container by animateColorAsState(
-        targetValue = if (selected) preview.primary.copy(alpha = if (tokens.isDark) 0.12f else 0.07f) else tokens.surfaceContainerHigh,
+        targetValue = if (selected) preview.primary.copy(alpha = if (tokens.isDark) 0.09f else 0.055f) else tokens.surfaceContainerHigh,
         animationSpec = tween(durationMillis = 170),
         label = "accent-swatch-container",
     )
     val border by animateColorAsState(
-        targetValue = if (selected) preview.primary.copy(alpha = if (tokens.isDark) 0.58f else 0.5f) else tokens.outline.copy(alpha = 0.28f),
+        targetValue = if (selected) preview.primary.copy(alpha = if (tokens.isDark) 0.46f else 0.42f) else tokens.outline.copy(alpha = 0.24f),
         animationSpec = tween(durationMillis = 170),
         label = "accent-swatch-border",
     )
@@ -599,13 +610,13 @@ private fun AccentColorSwatch(
         shape = RoundedCornerShape(18.dp),
         color = container,
         contentColor = tokens.textPrimary,
-        border = BorderStroke(if (selected) 0.85.dp else 0.75.dp, border),
+        border = BorderStroke(0.75.dp, border),
     ) {
         Column(Modifier.padding(horizontal = 10.dp, vertical = 9.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Surface(
                 shape = RoundedCornerShape(999.dp),
-                color = preview.primary.copy(alpha = if (selected) 0.14f else 0.1f),
-                border = BorderStroke(0.75.dp, preview.primary.copy(alpha = if (selected) 0.46f else 0.3f)),
+                color = preview.primary.copy(alpha = if (selected) 0.12f else 0.09f),
+                border = BorderStroke(0.75.dp, preview.primary.copy(alpha = if (selected) 0.38f else 0.28f)),
             ) {
                 Box(
                     Modifier

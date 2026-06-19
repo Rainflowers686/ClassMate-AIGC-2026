@@ -267,12 +267,12 @@ fun ThemePreviewCard(
 ) {
     val tokens = ClassMateTheme.colors
     val container by animateColorAsState(
-        targetValue = if (selected) accentColor.copy(alpha = if (tokens.isDark) 0.1f else 0.06f) else tokens.surfaceContainerLow,
+        targetValue = if (selected) accentColor.copy(alpha = if (tokens.isDark) 0.08f else 0.045f) else tokens.surfaceContainerLow,
         animationSpec = tween(durationMillis = 200),
         label = "theme-preview-container",
     )
     val borderColor by animateColorAsState(
-        targetValue = if (selected) accentColor.copy(alpha = 0.52f) else tokens.outline.copy(alpha = 0.28f),
+        targetValue = if (selected) accentColor.copy(alpha = 0.42f) else tokens.outline.copy(alpha = 0.24f),
         animationSpec = tween(durationMillis = 200),
         label = "theme-preview-border",
     )
@@ -286,11 +286,11 @@ fun ThemePreviewCard(
         animationSpec = tween(durationMillis = 180),
         label = "theme-preview-scale",
     )
-    val border = BorderStroke(if (selected) 0.9.dp else 0.75.dp, borderColor)
+    val border = BorderStroke(0.75.dp, borderColor)
     val base = modifier.fillMaxWidth()
     Surface(
-        modifier = (if (onClick != null) base.scale(scale).clickable { onClick() } else base).defaultMinSize(minHeight = 108.dp),
-        shape = RoundedCornerShape(22.dp),
+        modifier = (if (onClick != null) base.scale(scale).clickable { onClick() } else base).defaultMinSize(minHeight = 104.dp),
+        shape = RoundedCornerShape(20.dp),
         color = container,
         border = border,
         shadowElevation = elevation,
@@ -298,39 +298,39 @@ fun ThemePreviewCard(
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier
-                    .size(width = 58.dp, height = 48.dp)
-                    .clip(RoundedCornerShape(15.dp))
+                    .size(width = 52.dp, height = 42.dp)
+                    .clip(RoundedCornerShape(14.dp))
                     .background(backgroundColor),
             ) {
                 Box(
                     Modifier
-                        .align(Alignment.Center)
-                        .size(width = 36.dp, height = 26.dp)
-                        .clip(RoundedCornerShape(10.dp))
+                        .align(Alignment.CenterStart)
+                        .padding(start = 9.dp)
+                        .size(width = 26.dp, height = 22.dp)
+                        .clip(RoundedCornerShape(8.dp))
                         .background(surfaceColor),
                 )
                 Box(
                     Modifier
-                        .align(Alignment.CenterStart)
-                        .padding(start = 10.dp)
-                        .size(width = 14.dp, height = 5.dp)
+                        .align(Alignment.Center)
+                        .size(width = 22.dp, height = 4.dp)
                         .clip(RoundedCornerShape(999.dp))
-                        .background(accentColor.copy(alpha = 0.42f)),
+                        .background(accentColor.copy(alpha = 0.34f)),
                 )
                 Box(
                     Modifier
                         .align(Alignment.CenterEnd)
-                        .padding(end = 10.dp)
-                        .size(width = 10.dp, height = 10.dp)
+                        .padding(end = 9.dp)
+                        .size(width = 8.dp, height = 8.dp)
                         .clip(CircleShape)
-                        .background(accentColor),
+                        .background(accentColor.copy(alpha = 0.86f)),
                 )
                 Box(
                     Modifier
                         .align(Alignment.BottomStart)
-                        .height(4.dp)
+                        .height(3.dp)
                         .fillMaxWidth()
-                        .background(accentColor),
+                        .background(accentColor.copy(alpha = 0.74f)),
                 )
                 if (selected) {
                     Surface(

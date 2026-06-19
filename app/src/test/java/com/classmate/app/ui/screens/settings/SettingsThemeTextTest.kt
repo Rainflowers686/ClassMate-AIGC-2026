@@ -81,7 +81,7 @@ class SettingsThemeTextTest {
     fun settingsRowsConstrainTextAndCardHeights() {
         val source = source()
         listOf(
-            "defaultMinSize(minHeight = 84.dp)",
+            "defaultMinSize(minHeight = 78.dp)",
             "defaultMinSize(minHeight = 104.dp)",
             "maxLines = 1",
             "maxLines = 2",
@@ -116,16 +116,19 @@ class SettingsThemeTextTest {
             ".padding(bottom = 176.dp)",
             "themeSelectorDescription",
             "defaultMinSize(minHeight = 76.dp)",
-            "0.85.dp",
-            "0.58f",
+            "1.008f",
+            "0.46f",
         ).forEach { assertTrue("missing animated accent swatch hook: $it", settings.contains(it)) }
         assertFalse("accent swatch selected outline should stay subtle", settings.contains("1.1.dp"))
         listOf(
             "theme-preview-container",
             "theme-preview-scale",
             "Icons.Filled.Check",
-            "defaultMinSize(minHeight = 108.dp)",
+            "defaultMinSize(minHeight = 104.dp)",
+            "0.045f",
+            "0.42f",
         ).forEach { assertTrue("missing animated theme preview hook: $it", focusComponents.contains(it)) }
+        assertFalse("theme selected card should not use a heavy selected border", focusComponents.contains("BorderStroke(if (selected) 0.9.dp"))
     }
 
     @Test
@@ -154,15 +157,18 @@ class SettingsThemeTextTest {
             "BottomNavigationDockItem(",
             "RoundedCornerShape(999.dp)",
             ".clip(dockShape)",
-            ".padding(horizontal = 8.dp, vertical = 7.dp)",
-            "height(66.dp)",
+            ".padding(horizontal = 10.dp, vertical = 6.dp)",
+            "height(58.dp)",
             "modifier = Modifier.weight(1f)",
-            "bottom-nav-selected-container",
+            "bottom-nav-selected-icon-container",
+            ".size(30.dp)",
+            "CircleShape",
             "Color.Transparent",
         ).forEach {
             assertTrue("missing floating bottom nav polish hook: $it", app.contains(it))
         }
         assertFalse("bottom nav should not use the old oversized fixed selected width", app.contains(".width(64.dp)"))
+        assertFalse("bottom nav should not wrap the whole item in a large selected surface", app.contains("label = \"bottom-nav-selected-container\""))
         assertFalse("bottom nav should not use Material NavigationBarItem indicator overflow", app.contains("NavigationBarItem("))
         assertFalse("bottom nav should not use Material indicatorColor", app.contains("indicatorColor ="))
         listOf("0xFF2196F3", "0xFF1976D2", "0xFF6200EE").forEach {
@@ -178,12 +184,15 @@ class SettingsThemeTextTest {
             "title = \"导入草稿\"",
             "title = \"端侧模型\"",
             "SettingsPageHeader(page = page",
-            "defaultMinSize(minHeight = 36.dp)",
+            "Icons.AutoMirrored.Filled.ArrowBack",
+            ".size(36.dp)",
             "emphasized = true",
+            "emphasized -> colors.surfaceContainerLow",
         ).forEach { assertTrue("missing V3.2 settings polish hook: $it", source.contains(it)) }
 
         assertFalse(source.contains("\"设置层级\""))
         assertFalse(source.contains("\"设置首页\""))
+        assertFalse("home settings entry should not use a heavy whole-card selected tint", source.contains("emphasized -> colors.primary.copy(alpha = if (colors.isDark) 0.14f else 0.07f)"))
     }
 
     @Test
