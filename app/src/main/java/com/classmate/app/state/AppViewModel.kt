@@ -16,6 +16,7 @@ import com.classmate.app.data.BlueLMHttpTransport
 import com.classmate.app.data.ExportActionStatus
 import com.classmate.app.data.ExportReceipt
 import com.classmate.app.data.ExportStore
+import com.classmate.app.data.EvidenceAssetStore
 import com.classmate.app.data.HistoryRecord
 import com.classmate.app.data.HistoryStore
 import com.classmate.app.data.InMemoryExportStore
@@ -83,6 +84,7 @@ import com.classmate.app.l3.TtsPlaybackEngine
 import com.classmate.app.l3.TtsPlaybackProvider
 import com.classmate.app.l3.TtsPlaybackStatus
 import com.classmate.app.l3.TtsPlaybackSourceType
+import com.classmate.app.l3.TranscriptSegment
 import com.classmate.app.material.LessonMaterialAssembler
 import com.classmate.core.material.LessonContextHints
 import com.classmate.app.sample.SampleLessonLibrary
@@ -228,6 +230,7 @@ class AppViewModel(
     private val semanticIndexRepository: LocalSemanticIndexRepository = LocalSemanticIndexRepository.disabled(),
     // App-private L3 state. Stores study artifacts only: no credentials, keys, endpoints, or local config.
     private val l3PersistenceRepository: L3PersistenceRepository = L3PersistenceRepository.disabled(),
+    private val evidenceAssetStore: EvidenceAssetStore = EvidenceAssetStore.disabled(),
     private val localTtsPlayer: LocalTtsPlayer = NoOpLocalTtsPlayer(),
     private val officialRuntimeGateway: OfficialRuntimeGateway = OfficialRuntimeGatewayFactory.production(),
     // On-device BlueLM 3B owner. Defaults to the honest missing-SDK bridge until the AAR is bundled.
@@ -891,6 +894,7 @@ class AppViewModel(
             imageDraftActive = true, imageDraftRunning = false, imageDraftText = "",
             imageDraftManualMode = false, imageDraftMessage = null,
             imageDraftOrigin = origin, imageDraftMeta = null,
+            imageDraftImageRef = "", imageDraftThumbnailRef = "", imageDraftMimeType = "",
         )
     }
 
@@ -909,6 +913,11 @@ class AppViewModel(
     ) {
         if (ui.imageDraftRunning) return // single in-flight multimodal task; repeat taps are no-ops
         maybePromptMissingCloudConfig("官方 OCR")
+        val storedImage = evidenceAssetStore.saveImage(
+            bytes = encodedImageBytes,
+            sourceLabel = ui.imageDraftOrigin ?: "图片学习输入",
+            mimeType = "image/jpeg",
+        )
         val meta = buildString {
             if (originalWidth > 0 && originalHeight > 0) append("原图 ${originalWidth}x$originalHeight → ")
             append("处理 ${image.width}x${image.height} · RGB ${image.bytes.size} 字节")
@@ -917,6 +926,9 @@ class AppViewModel(
             imageDraftActive = true, imageDraftRunning = true, imageDraftManualMode = false,
             imageDraftMessage = null, imageDraftMeta = meta, imageStudyDraft = null,
             imageDraftSource = null, imageDraftOcrError = null,
+            imageDraftImageRef = storedImage.imageRef,
+            imageDraftThumbnailRef = storedImage.thumbnailRef,
+            imageDraftMimeType = storedImage.mimeType,
             aiProcessing = AiProcessingUiState(
                 visible = true,
                 title = "正在识别图片文字",
@@ -1062,6 +1074,9 @@ class AppViewModel(
         val now = System.currentTimeMillis()
         val courseTitle = confirmed?.courseTitle?.takeIf { it.isNotBlank() } ?: ui.courseTitle.ifBlank { origin }
         val courseText = confirmed?.courseText ?: text
+        val imageRef = ui.imageDraftImageRef.ifBlank { draft?.id?.let { "image_asset_$it" } ?: "image_asset_$now" }
+        val thumbnailRef = ui.imageDraftThumbnailRef.ifBlank { "thumbnail_$imageRef" }
+        val mimeType = ui.imageDraftMimeType.ifBlank { "image/jpeg" }
         ui = ui.copy(
             courseTitle = courseTitle,
             courseText = courseText,
@@ -1076,8 +1091,41 @@ class AppViewModel(
             imageStudyDraft = null,
             imageDraftSource = null,
             imageDraftOcrError = null,
+            imageDraftImageRef = "",
+            imageDraftThumbnailRef = "",
+            imageDraftMimeType = "",
             aiProcessing = AiProcessingUiState.hidden(),
-            toast = "已确认（$origin · 端侧多模态理解草稿），用户确认后进入学习资料，可生成知识时间线。",
+        )
+        val input = currentLearningLoopInput(
+            now = now + 1,
+            text = courseText,
+            sourceType = L3SourceType.OCR_IMAGE,
+            title = courseTitle,
+            assets = listOf(
+                EvidenceAsset(
+                    id = "asset_image_$now",
+                    type = EvidenceAssetType.OCR_IMAGE,
+                    sourceType = L3SourceType.OCR_IMAGE,
+                    text = courseText,
+                    sourceLabel = origin,
+                    fileName = draft?.origin?.takeIf { it.isNotBlank() } ?: origin,
+                    fileExt = mimeType.substringAfterLast('/', "image"),
+                    mimeType = mimeType,
+                    localUri = imageRef,
+                    thumbnailRef = thumbnailRef,
+                    imageRef = imageRef,
+                    snippet = courseText.take(180),
+                    createdAt = now,
+                    status = "OCR_TEXT_CONFIRMED",
+                ),
+            ),
+            sourceLabel = origin,
+            providerProvenance = providerProvenanceFor(L3SourceType.OCR_IMAGE),
+        )
+        publishL3Snapshot(
+            l3Pipeline.buildFromLearningLoopInput(input, ui.providerConfigSummary, now + 1),
+            now + 1,
+            "已确认（$origin · 端侧多模态理解草稿），用户确认后进入学习资料，并已生成 L3 学习闭环。",
         )
     }
 
@@ -1088,6 +1136,7 @@ class AppViewModel(
             imageDraftManualMode = false, imageDraftMessage = null,
             imageDraftOrigin = null, imageDraftMeta = null,
             imageStudyDraft = null, imageDraftSource = null, imageDraftOcrError = null,
+            imageDraftImageRef = "", imageDraftThumbnailRef = "", imageDraftMimeType = "",
             aiProcessing = AiProcessingUiState.hidden(),
         )
     }
@@ -1300,6 +1349,8 @@ class AppViewModel(
                     fileName = ui.inputArtifacts.firstOrNull { it.id == artifactId }?.fileName.orEmpty(),
                     fileExt = "pdf",
                     pageHint = "page $pageNumber",
+                    segmentHint = "manual page text",
+                    snippet = text.take(180),
                     createdAt = now,
                     status = updated.status.name,
                 ),
@@ -1343,13 +1394,51 @@ class AppViewModel(
             }.trim(),
             toast = "ASR transcript filled; it can now enter the L3 learning package.",
         )
-        val snapshot = l3Pipeline.buildFromLearningLoopInput(
-            title = ui.courseTitle.ifBlank { "课堂转写" },
+        val sourceTitle = ui.courseTitle.ifBlank { "课堂转写" }
+        val audioArtifact = ui.inputArtifacts.firstOrNull { it.id == job.audioArtifactId }
+        val segments = filled.transcriptSegments.ifEmpty {
+            listOf(
+                TranscriptSegment(
+                    segmentId = "seg_${job.id}_1",
+                    sourceId = "asr_source_$now",
+                    startMs = 0L,
+                    endMs = null,
+                    text = transcriptText.trim(),
+                    sourceType = L3SourceType.AUDIO_TRANSCRIPT,
+                    fallbackGenerated = true,
+                ),
+            )
+        }
+        val assets = segments.mapIndexed { index, segment ->
+            EvidenceAsset(
+                id = "asset_${job.id}_${segment.segmentId}",
+                type = EvidenceAssetType.AUDIO,
+                sourceType = L3SourceType.AUDIO_TRANSCRIPT,
+                text = segment.text,
+                sourceLabel = audioArtifact?.fileName ?: "ASR transcript",
+                fileName = audioArtifact?.fileName ?: job.audioArtifactId,
+                fileExt = (audioArtifact?.fileName ?: job.audioArtifactId).substringAfterLast('.', ""),
+                mimeType = ui.selectedImportFileMetadata?.mimeType.orEmpty(),
+                audioRef = audioArtifact?.id ?: job.audioArtifactId,
+                segmentHint = "segment ${index + 1}",
+                startMs = segment.startMs,
+                endMs = segment.endMs,
+                transcriptSegment = segment.text,
+                snippet = segment.text.take(180),
+                createdAt = now,
+                status = "TRANSCRIPT_READY",
+            )
+        }
+        val input = currentLearningLoopInput(
+            now = now + 1,
             text = transcriptText,
             sourceType = L3SourceType.AUDIO_TRANSCRIPT,
-            providerSummary = ui.providerConfigSummary,
-            now = now + 1,
+            title = sourceTitle,
+            assets = assets,
+            sourceLabel = audioArtifact?.fileName ?: "ASR transcript",
+            providerProvenance = providerProvenanceFor(L3SourceType.AUDIO_TRANSCRIPT),
         )
+        val snapshot = l3Pipeline.buildFromLearningLoopInput(input, ui.providerConfigSummary, now + 1)
         return publishL3Snapshot(snapshot, now + 1, "ASR transcript has entered the L3 learning package.")
     }
 
@@ -1536,6 +1625,8 @@ class AppViewModel(
                     segmentHint = "segment ${index + 1}",
                     startMs = segment.startMs,
                     endMs = segment.endMs,
+                    transcriptSegment = segment.text,
+                    snippet = segment.text.take(180),
                     createdAt = transcript.createdAt.takeIf { it > 0L } ?: now,
                     status = if (transcript.sourceType == TranscriptSourceType.AUDIO_TRANSCRIPT || transcript.sourceType == TranscriptSourceType.LIVE_ASR) {
                         "TRANSCRIPT_READY"
@@ -1560,6 +1651,7 @@ class AppViewModel(
                 imageRef = draft.fileMeta.fileName,
                 thumbnailRef = draft.fileMeta.safeSummary(),
                 pageHint = draft.pageIndex?.let { "page $it" }.orEmpty(),
+                snippet = draft.pastedText.take(180),
                 createdAt = draft.createdAt,
                 status = "OCR_TEXT_CONFIRMED",
             )
@@ -1588,6 +1680,9 @@ class AppViewModel(
                     imageRef = if (artifact.kind == InputFileKind.IMAGE) artifact.fileName else "",
                     audioRef = if (artifact.kind == InputFileKind.AUDIO) artifact.fileName else "",
                     pageHint = ui.pdfPages.lastOrNull { it.artifactId == artifact.id }?.pageNumber?.let { "page $it" }.orEmpty(),
+                    segmentHint = if (artifact.kind == InputFileKind.PPTX) "slide text" else artifact.status.name,
+                    transcriptSegment = if (artifact.kind == InputFileKind.AUDIO) artifact.extractedText.ifBlank { text.take(180) } else "",
+                    snippet = artifact.extractedText.ifBlank { text }.take(180),
                     createdAt = artifact.createdAt,
                     status = artifact.status.name,
                 ),
@@ -1609,6 +1704,8 @@ class AppViewModel(
                 sourceType = sourceType,
                 text = text.take(240),
                 sourceLabel = sourceLabelFor(sourceType),
+                transcriptSegment = if (sourceType == L3SourceType.AUDIO_TRANSCRIPT || sourceType == L3SourceType.MANUAL_TRANSCRIPT) text.take(240) else "",
+                snippet = text.take(180),
                 createdAt = now,
                 status = "TEXT_READY",
             ),
@@ -2517,6 +2614,22 @@ class AppViewModel(
             ?.evidenceIds
             ?.firstOrNull()
         openEvidenceById(evidenceId.orEmpty())
+    }
+
+    fun reviewEvidenceIdForKnowledgePoint(knowledgePointId: String): String? =
+        ui.l3Pipeline.knowledgePoints.firstOrNull { it.id == knowledgePointId }
+            ?.sourceEvidenceIds
+            ?.firstOrNull()
+            ?: ui.l3Pipeline.questions.firstOrNull { it.knowledgePointId == knowledgePointId }
+                ?.evidenceIds
+                ?.firstOrNull()
+
+    fun openEvidenceForKnowledgePoint(knowledgePointId: String) {
+        openEvidenceById(reviewEvidenceIdForKnowledgePoint(knowledgePointId).orEmpty())
+    }
+
+    fun openEvidenceForReviewTask(task: ReviewTask) {
+        openEvidenceForKnowledgePoint(task.knowledgePointId)
     }
 
     // --- quiz ---

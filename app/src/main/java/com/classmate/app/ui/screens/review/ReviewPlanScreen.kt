@@ -180,6 +180,25 @@ private fun L3LearningLoopCard(viewModel: AppViewModel) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        if (l3.reviewQueue.isNotEmpty()) {
+            Spacer(Modifier.height(Dimens.s))
+            Text("20 分钟复习计划", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            l3.reviewQueue.take(5).forEach { item ->
+                val kp = l3.knowledgePoints.firstOrNull { it.id == item.knowledgePointId }
+                val evidenceId = viewModel.reviewEvidenceIdForKnowledgePoint(item.knowledgePointId)
+                Spacer(Modifier.height(Dimens.xs))
+                Text(kp?.title ?: item.knowledgePointId, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "安排原因：${item.masteryState.name} · 优先级 ${item.priority}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (evidenceId != null) {
+                    Spacer(Modifier.height(Dimens.xxs))
+                    ActionChip("查看证据") { viewModel.openEvidenceById(evidenceId) }
+                }
+            }
+        }
         if (l3.wrongBook.isNotEmpty()) {
             Spacer(Modifier.height(Dimens.s))
             Text("错题本", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
@@ -189,6 +208,10 @@ private fun L3LearningLoopCard(viewModel: AppViewModel) {
                 Text("用户答案：${wrong.userAnswer} · 正确答案：${wrong.correctAnswer}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text("解析：${wrong.explanation}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text("证据：$evidence", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                wrong.evidenceIds.firstOrNull()?.let { evidenceId ->
+                    Spacer(Modifier.height(Dimens.xxs))
+                    ActionChip("查看错题证据") { viewModel.openEvidenceById(evidenceId) }
+                }
             }
         }
         Spacer(Modifier.height(Dimens.s))
@@ -394,6 +417,9 @@ private fun TaskCard(task: ReviewTask, index: Int, total: Int, viewModel: AppVie
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
             ActionChip("打开") { viewModel.openTaskCourse(task) }
             ActionChip("开始练习") { viewModel.startPracticeForTask(task) }
+            if (viewModel.reviewEvidenceIdForKnowledgePoint(task.knowledgePointId) != null) {
+                ActionChip("查看来源") { viewModel.openEvidenceForReviewTask(task) }
+            }
             ActionChip("完成") { viewModel.reviewMarkDone(task.taskId) }
         }
         Spacer(Modifier.height(Dimens.s))

@@ -72,22 +72,37 @@ fun EvidenceDetailScreen(viewModel: AppViewModel) {
                     Text(l3AssetLine("MIME", l3Evidence.mimeType.ifBlank { l3Asset?.mimeType.orEmpty() }), style = MaterialTheme.typography.bodyMedium)
                     Text(l3AssetLine("Page", l3Evidence.pageHint.ifBlank { l3Asset?.pageHint.orEmpty() }), style = MaterialTheme.typography.bodyMedium)
                     Text(l3AssetLine("Segment", l3Evidence.segmentHint.ifBlank { l3Asset?.segmentHint.orEmpty() }), style = MaterialTheme.typography.bodyMedium)
+                    Text(l3AssetLine("Snippet", l3Evidence.snippet.ifBlank { l3Asset?.snippet.orEmpty() }), style = MaterialTheme.typography.bodyMedium)
                     val start = l3Evidence.segmentStartMs ?: l3Asset?.startMs
                     val end = l3Evidence.segmentEndMs ?: l3Asset?.endMs
                     if (start != null || end != null) {
                         Text(l3AssetLine("Time", listOfNotNull(start?.let { "${it / 1000}s" }, end?.let { "${it / 1000}s" }).joinToString(" - ")), style = MaterialTheme.typography.bodyMedium)
                     }
-                    if (l3Evidence.imageRef.isNotBlank() || l3Asset?.imageRef.orEmpty().isNotBlank()) {
+                    val imageRef = l3Evidence.imageRef.ifBlank { l3Asset?.imageRef.orEmpty() }
+                    val thumbnailRef = l3Evidence.thumbnailRef.ifBlank { l3Asset?.thumbnailRef.orEmpty() }
+                    if (l3Evidence.sourceType == L3SourceType.OCR_IMAGE || imageRef.isNotBlank()) {
                         Spacer(Modifier.height(Dimens.xs))
-                        Text("Image source retained. Thumbnail display falls back to text metadata if the bitmap is unavailable.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("图片缩略图引用", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                        Text(l3AssetLine("Thumbnail", thumbnailRef), style = MaterialTheme.typography.bodyMedium)
+                        Text(l3AssetLine("Image ref", imageRef), style = MaterialTheme.typography.bodyMedium)
+                        Text("如果真机 bitmap 暂不可解析，将使用 OCR 文本和资产引用降级展示。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    if (l3Evidence.audioRef.isNotBlank() || l3Asset?.audioRef.orEmpty().isNotBlank()) {
+                    if (l3Evidence.sourceType == L3SourceType.DOCUMENT) {
                         Spacer(Modifier.height(Dimens.xs))
-                        Text("Audio source retained. Seek playback is unavailable until the local recording artifact is resolvable.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("文档来源已保留：文件名、页码/段落和片段会随 L3 snapshot 持久化。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    val audioRef = l3Evidence.audioRef.ifBlank { l3Asset?.audioRef.orEmpty() }
+                    val transcriptSegment = l3Evidence.transcriptSegment.ifBlank { l3Asset?.transcriptSegment.orEmpty() }
+                    if (l3Evidence.sourceType == L3SourceType.AUDIO_TRANSCRIPT || l3Evidence.sourceType == L3SourceType.MANUAL_TRANSCRIPT || l3Evidence.sourceType == L3SourceType.RECORDING_ARTIFACT || audioRef.isNotBlank()) {
+                        Spacer(Modifier.height(Dimens.xs))
+                        Text("音频 / 转写证据", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                        Text(l3AssetLine("Audio ref", audioRef), style = MaterialTheme.typography.bodyMedium)
+                        Text(l3AssetLine("Transcript", transcriptSegment), style = MaterialTheme.typography.bodyMedium)
+                        Text("当前保留转写证据，播放定位待真机验证。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     if (l3Asset == null && l3Evidence.assetId != null) {
                         Spacer(Modifier.height(Dimens.xs))
-                        Text("Evidence asset is missing; text evidence is still available.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                        Text("证据资产缺失，但保留文本证据。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                     }
                 }
                 val linkedKnowledge = ui.l3Pipeline.knowledgePoints.filter { l3Evidence.id in it.sourceEvidenceIds }

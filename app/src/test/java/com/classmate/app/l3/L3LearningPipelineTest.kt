@@ -71,6 +71,7 @@ class L3LearningPipelineTest {
                     mimeType = "image/jpeg",
                     imageRef = "board.jpg",
                     thumbnailRef = "board thumbnail",
+                    snippet = "Faraday law says changing magnetic flux induces voltage.",
                     status = "OCR_TEXT_CONFIRMED",
                 ),
             ),
@@ -85,6 +86,7 @@ class L3LearningPipelineTest {
         assertTrue(snapshot.evidence.isNotEmpty())
         assertTrue(snapshot.evidence.all { it.assetId == "asset_image_1" })
         assertTrue(snapshot.evidence.any { it.sourceType == L3SourceType.OCR_IMAGE && it.imageRef == "board.jpg" })
+        assertTrue(snapshot.evidence.any { it.thumbnailRef == "board thumbnail" && it.snippet.contains("Faraday") })
         assertTrue(snapshot.questions.all { it.evidenceIds.isNotEmpty() })
     }
 

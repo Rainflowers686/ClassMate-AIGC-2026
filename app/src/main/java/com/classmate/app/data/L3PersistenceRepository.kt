@@ -67,6 +67,8 @@ class L3PersistenceRepository(private val file: File? = null) {
                     b64(ev.audioRef),
                     b64(ev.pageHint),
                     b64(ev.segmentHint),
+                    b64(ev.transcriptSegment),
+                    b64(ev.snippet),
                 ))
             }
             snapshot.evidenceAssets.forEach { asset ->
@@ -90,6 +92,8 @@ class L3PersistenceRepository(private val file: File? = null) {
                     asset.endMs.s(),
                     asset.createdAt.toString(),
                     asset.status,
+                    b64(asset.transcriptSegment),
+                    b64(asset.snippet),
                 ))
             }
             snapshot.questions.forEach { q ->
@@ -155,6 +159,8 @@ class L3PersistenceRepository(private val file: File? = null) {
                             audioRef = p.getOrNull(18)?.let(::unb64).orEmpty(),
                             pageHint = p.getOrNull(19)?.let(::unb64).orEmpty(),
                             segmentHint = p.getOrNull(20)?.let(::unb64).orEmpty(),
+                            transcriptSegment = p.getOrNull(21)?.let(::unb64).orEmpty(),
+                            snippet = p.getOrNull(22)?.let(::unb64).orEmpty(),
                         )
                     }
                     "asset" -> if (p.size >= 19) {
@@ -177,6 +183,8 @@ class L3PersistenceRepository(private val file: File? = null) {
                             endMs = p[16].toLongOrNullOrNull(),
                             createdAt = p[17].toLongOrNull() ?: 0L,
                             status = p[18],
+                            transcriptSegment = p.getOrNull(19)?.let(::unb64).orEmpty(),
+                            snippet = p.getOrNull(20)?.let(::unb64).orEmpty(),
                         )
                     }
                     "question" -> if (p.size >= 10) {

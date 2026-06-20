@@ -244,6 +244,8 @@ data class Evidence(
     val audioRef: String = "",
     val pageHint: String = "",
     val segmentHint: String = "",
+    val transcriptSegment: String = "",
+    val snippet: String = "",
 )
 
 data class EvidenceAsset(
@@ -265,6 +267,8 @@ data class EvidenceAsset(
     val endMs: Long? = null,
     val createdAt: Long = 0L,
     val status: String = "READY",
+    val transcriptSegment: String = "",
+    val snippet: String = "",
 )
 
 data class LearningLoopInput(

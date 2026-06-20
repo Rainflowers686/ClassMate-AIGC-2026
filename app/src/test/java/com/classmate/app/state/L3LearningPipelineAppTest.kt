@@ -1,5 +1,6 @@
 package com.classmate.app.state
 
+import com.classmate.app.data.L3PersistenceRepository
 import com.classmate.app.data.InMemoryHistoryStore
 import com.classmate.app.l3.ClassroomAudioRecorder
 import com.classmate.app.l3.L3AsrStatus
@@ -47,6 +48,12 @@ class L3LearningPipelineAppTest {
         assertTrue(viewModel.ui.l3Pipeline.questions.size in 3..5)
         assertTrue(viewModel.ui.learningSnapshot.tasks.isNotEmpty())
         assertEquals(Screen.COURSE_DETAIL, viewModel.currentScreen)
+        val reviewItem = viewModel.ui.l3Pipeline.reviewQueue.first()
+        val reviewEvidenceId = viewModel.reviewEvidenceIdForKnowledgePoint(reviewItem.knowledgePointId)
+        assertNotNull(reviewEvidenceId)
+        viewModel.openEvidenceForKnowledgePoint(reviewItem.knowledgePointId)
+        assertEquals(Screen.EVIDENCE, viewModel.currentScreen)
+        assertEquals(reviewEvidenceId, viewModel.ui.selectedEvidenceId)
 
         val question = viewModel.ui.result!!.quizQuestions.first()
         val wrong = question.options.first { !it.isCorrect }.id
@@ -108,6 +115,17 @@ class L3LearningPipelineAppTest {
         assertTrue(viewModel.addManualPdfPageText(viewModel.ui.pdfPages.last().artifactId, viewModel.ui.pdfPages.last().pageNumber, "PDF page manual learning text", now + 30))
         assertEquals(PdfPageStatus.MANUAL_PAGE_TEXT_READY, viewModel.ui.pdfPages.last().status)
         assertTrue(viewModel.ui.courseText.contains("PDF page manual learning text"))
+        val pdfEvidence = viewModel.ui.l3Pipeline.evidence.first { it.sourceType.name == "DOCUMENT" }
+        assertTrue(pdfEvidence.pageHint.contains("page"))
+        assertTrue(pdfEvidence.snippet.contains("PDF page manual"))
+        viewModel.openEvidenceById(pdfEvidence.id)
+        assertEquals(Screen.EVIDENCE, viewModel.currentScreen)
+        assertEquals(pdfEvidence.id, viewModel.ui.selectedEvidenceId)
+        val storeFile = Files.createTempDirectory("cm-l3-pdf-store").resolve("classmate_l3_store.json").toFile()
+        L3PersistenceRepository(storeFile).saveSnapshot(viewModel.ui.l3Pipeline)
+        val restored = L3PersistenceRepository(storeFile).loadSnapshot()
+        assertTrue(restored.evidence.any { it.sourceType.name == "DOCUMENT" && it.pageHint.contains("page") })
+        assertTrue(restored.evidenceAssets.any { it.type.name == "DOCUMENT" && it.snippet.contains("PDF page manual") })
 
         assertFalse(viewModel.importSuperhubFile(byteArrayOf(1, 2), "lecture.m4a", "audio/mp4", now + 4))
         assertEquals(L3AsrStatus.ASR_NOT_CONFIGURED, viewModel.ui.asrLongJobs.last().status)
@@ -124,6 +142,8 @@ class L3LearningPipelineAppTest {
         assertTrue(viewModel.ui.l3Pipeline.evidence.any { it.sourceType.name == "OCR_IMAGE" && it.text.contains("磁通量") })
         assertTrue(viewModel.ui.l3Pipeline.evidenceAssets.any { it.type.name == "OCR_IMAGE" })
         assertTrue(viewModel.ui.l3Pipeline.evidence.any { it.assetId != null })
+        assertTrue(viewModel.ui.l3Pipeline.evidence.any { it.imageRef.isNotBlank() && it.thumbnailRef.isNotBlank() })
+        assertTrue(viewModel.ui.l3Pipeline.evidenceAssets.any { it.snippet.contains("磁通量") })
         assertTrue(viewModel.ui.l3Pipeline.stepLogs.any { it.step == "OCR" })
     }
 
@@ -216,6 +236,14 @@ class L3LearningPipelineAppTest {
         assertTrue(viewModel.ui.l3Pipeline.transcriptSegments.isNotEmpty())
         assertTrue(viewModel.ui.l3Pipeline.evidence.isNotEmpty())
         assertTrue(viewModel.ui.l3Pipeline.evidenceAssets.any { it.type.name == "AUDIO" })
+        assertTrue(viewModel.ui.l3Pipeline.evidenceAssets.any { it.audioRef.isNotBlank() && it.transcriptSegment.contains("电磁感应") })
+        assertTrue(viewModel.ui.l3Pipeline.evidence.any { it.audioRef.isNotBlank() && it.transcriptSegment.isNotBlank() })
+        val questionEvidenceId = viewModel.ui.l3Pipeline.questions.first().evidenceIds.first()
+        assertNotNull(viewModel.ui.l3Pipeline.evidence.firstOrNull { it.id == questionEvidenceId && it.audioRef.isNotBlank() })
+        val reviewEvidenceId = viewModel.reviewEvidenceIdForKnowledgePoint(viewModel.ui.l3Pipeline.reviewQueue.first().knowledgePointId)
+        assertNotNull(reviewEvidenceId)
+        viewModel.openEvidenceById(reviewEvidenceId!!)
+        assertEquals(Screen.EVIDENCE, viewModel.currentScreen)
         assertTrue(viewModel.ui.l3Pipeline.reviewQueue.isNotEmpty())
     }
 

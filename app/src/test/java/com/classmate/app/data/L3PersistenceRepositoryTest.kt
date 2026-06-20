@@ -53,6 +53,21 @@ class L3PersistenceRepositoryTest {
             fileExt = "md",
             mimeType = "text/markdown",
             pageHint = "section 1",
+            snippet = base.evidence.first().text.take(120),
+            createdAt = now,
+        )
+        val imageAsset = EvidenceAsset(
+            id = "asset_image_1",
+            type = EvidenceAssetType.OCR_IMAGE,
+            sourceType = L3SourceType.OCR_IMAGE,
+            text = "OCR board text",
+            sourceLabel = "board image",
+            fileName = "board.jpg",
+            fileExt = "jpg",
+            mimeType = "image/jpeg",
+            imageRef = "app-private/board.jpg",
+            thumbnailRef = "app-private/board_thumb.jpg",
+            snippet = "OCR board text",
             createdAt = now,
         )
         val snapshot = wrong.copy(
@@ -74,18 +89,22 @@ class L3PersistenceRepositoryTest {
             },
         )
         val file = Files.createTempDirectory("cm-l3-store").resolve("classmate_l3_store.json").toFile()
+        val withAssets = snapshot.copy(evidenceAssets = snapshot.evidenceAssets + imageAsset)
 
-        L3PersistenceRepository(file).saveSnapshot(snapshot)
+        L3PersistenceRepository(file).saveSnapshot(withAssets)
         val reloaded = L3PersistenceRepository(file).loadSnapshot()
 
-        assertEquals(snapshot.lessonSource!!.id, reloaded.lessonSource!!.id)
-        assertEquals(snapshot.questions.first().id, reloaded.questions.first().id)
+        assertEquals(withAssets.lessonSource!!.id, reloaded.lessonSource!!.id)
+        assertEquals(withAssets.questions.first().id, reloaded.questions.first().id)
         assertEquals(1, reloaded.wrongBook.size)
         assertEquals(L3MasteryState.WEAK, reloaded.reviewQueue.first { it.knowledgePointId == base.questions.first().knowledgePointId }.masteryState)
         assertTrue(reloaded.masteryHistory.isNotEmpty())
         assertEquals("exam_report_1", reloaded.examReports.single().id)
         assertEquals("# Exam Report", reloaded.examReports.single().markdownReport)
-        assertEquals("asset_doc_1", reloaded.evidenceAssets.single().id)
+        assertEquals("asset_doc_1", reloaded.evidenceAssets.first { it.id == "asset_doc_1" }.id)
+        assertEquals("app-private/board.jpg", reloaded.evidenceAssets.first { it.id == "asset_image_1" }.imageRef)
+        assertEquals("app-private/board_thumb.jpg", reloaded.evidenceAssets.first { it.id == "asset_image_1" }.thumbnailRef)
+        assertEquals("OCR board text", reloaded.evidenceAssets.first { it.id == "asset_image_1" }.snippet)
         assertEquals("lesson.md", reloaded.evidence.first().fileName)
         assertEquals("asset_doc_1", reloaded.evidence.first().assetId)
     }

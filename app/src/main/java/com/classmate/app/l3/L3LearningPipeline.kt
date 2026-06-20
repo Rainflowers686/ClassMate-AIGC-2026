@@ -93,6 +93,8 @@ class L3LearningPipeline {
                 audioRef = asset.audioRef,
                 pageHint = asset.pageHint,
                 segmentHint = asset.segmentHint,
+                transcriptSegment = asset.transcriptSegment,
+                snippet = asset.snippet.ifBlank { asset.text.take(180) },
                 segmentStartMs = ev.segmentStartMs ?: asset.startMs,
                 segmentEndMs = ev.segmentEndMs ?: asset.endMs,
                 providerProvenance = ev.providerProvenance.ifBlank { providerProvenance },
