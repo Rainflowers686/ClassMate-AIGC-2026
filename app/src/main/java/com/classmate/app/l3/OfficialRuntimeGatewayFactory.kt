@@ -2,6 +2,7 @@ package com.classmate.app.l3
 
 import com.classmate.app.data.AppCaptureTransport
 import com.classmate.app.platform.CaptureConfigLoader
+import com.classmate.core.capture.CaptureTransport
 import com.classmate.core.capture.VivoEmbeddingProvider
 import com.classmate.core.capture.VivoQueryRewriteProvider
 import com.classmate.core.capture.VivoTextSimilarityProvider
@@ -17,9 +18,9 @@ import com.classmate.core.retrieval.VivoTextSimilarityLearningProvider
 object OfficialRuntimeGatewayFactory {
     fun production(
         configLoader: CaptureConfigLoader = CaptureConfigLoader(),
+        transport: CaptureTransport = AppCaptureTransport(),
     ): OfficialRuntimeGateway {
         val config = configLoader.load()
-        val transport = AppCaptureTransport()
         return ProviderBackedOfficialRuntimeGateway(
             queryRewriteProvider = VivoQueryRewriteLearningProvider(
                 VivoQueryRewriteProvider(config = config, transport = transport),
