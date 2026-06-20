@@ -2,7 +2,7 @@
 
 Date: 2026-06-20
 
-> Superseded current-status note: v1.6 adds an official runtime gateway in the L3 publish path for Query Rewrite, Embedding, and Text Similarity. v1.5's local/seam wording remains the historical red-team correction; current status is runtime-gateway-wired with local fallback unless an injected app adapter succeeds.
+> Superseded current-status note: v1.7 adds production official retrieval adapter injection through `OfficialRuntimeGatewayFactory.production()` for Query Rewrite, Embedding, and Text Similarity. v1.5's local/seam wording remains the historical red-team correction; current status is production-adapter-injected with local fallback unless the official runtime succeeds with real config.
 
 ## Scope
 

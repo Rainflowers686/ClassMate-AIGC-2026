@@ -93,7 +93,7 @@ object OfficialRuntimeIntegrator {
                 )
             } else {
                 record.copy(
-                    embeddingStatus = "${result.status.name}_LOCAL_FALLBACK",
+                    embeddingStatus = runtimeFallbackStatus(result, "LOCAL_FALLBACK"),
                     vector = local,
                     officialVector = emptyList(),
                     localVector = local,
@@ -134,7 +134,7 @@ object OfficialRuntimeIntegrator {
                 )
             } else {
                 match.copy(
-                    providerStatus = "${result.status.name}_LOCAL_FALLBACK",
+                    providerStatus = runtimeFallbackStatus(result, "LOCAL_FALLBACK"),
                     scoreSource = "LOCAL_FALLBACK",
                 )
             }
@@ -163,6 +163,8 @@ object OfficialRuntimeIntegrator {
             output = if (used) "OCR_EVIDENCE_CREATED" else "OCR_NOT_REQUIRED",
             errorCode = if (configured) null else "OFFICIAL_OCR_NOT_CONFIGURED",
             fallbackUsed = !configured,
+            officialAdapterInjected = configured,
+            officialRuntimeAttempted = configured && used,
             createdAt = now,
         )
     }
@@ -173,6 +175,8 @@ object OfficialRuntimeIntegrator {
         now: Long,
     ): OfficialRuntimeResult<String> {
         val officialCount = records.count { it.vectorSource == "OFFICIAL" }
+        val adapterInjected = records.any { it.embeddingStatus.contains("OFFICIAL_ADAPTER_INJECTED") } || officialCount > 0
+        val attempted = records.any { it.embeddingStatus.contains("OFFICIAL_RUNTIME_ATTEMPTED") } || officialCount > 0
         val status = when {
             officialCount > 0 -> OfficialRuntimeStatus.OFFICIAL_RUNTIME_USED
             !summary.officialProviders.embeddingConfigured -> OfficialRuntimeStatus.OFFICIAL_RUNTIME_NOT_CONFIGURED
@@ -184,6 +188,8 @@ object OfficialRuntimeIntegrator {
             output = "official=$officialCount local=${records.size - officialCount}",
             errorCode = if (status == OfficialRuntimeStatus.OFFICIAL_RUNTIME_USED) null else "EMBEDDING_LOCAL_FALLBACK_USED",
             fallbackUsed = status != OfficialRuntimeStatus.OFFICIAL_RUNTIME_USED,
+            officialAdapterInjected = adapterInjected,
+            officialRuntimeAttempted = attempted,
             createdAt = now,
         )
     }
@@ -194,6 +200,8 @@ object OfficialRuntimeIntegrator {
         now: Long,
     ): OfficialRuntimeResult<String> {
         val officialCount = matches.count { it.scoreSource == "OFFICIAL" }
+        val adapterInjected = matches.any { it.providerStatus.contains("OFFICIAL_ADAPTER_INJECTED") } || officialCount > 0
+        val attempted = matches.any { it.providerStatus.contains("OFFICIAL_RUNTIME_ATTEMPTED") } || officialCount > 0
         val status = when {
             officialCount > 0 -> OfficialRuntimeStatus.OFFICIAL_RUNTIME_USED
             !summary.officialProviders.textSimilarityConfigured -> OfficialRuntimeStatus.OFFICIAL_RUNTIME_NOT_CONFIGURED
@@ -205,6 +213,8 @@ object OfficialRuntimeIntegrator {
             output = "official=$officialCount local=${matches.size - officialCount}",
             errorCode = if (status == OfficialRuntimeStatus.OFFICIAL_RUNTIME_USED) null else "TEXT_SIMILARITY_LOCAL_FALLBACK_USED",
             fallbackUsed = status != OfficialRuntimeStatus.OFFICIAL_RUNTIME_USED,
+            officialAdapterInjected = adapterInjected,
+            officialRuntimeAttempted = attempted,
             createdAt = now,
         )
     }
@@ -224,10 +234,19 @@ object OfficialRuntimeIntegrator {
             step = step,
             provider = "officialRuntime.${result.capability.name.lowercase()}",
             status = status,
-            message = "configuredStatus=${result.status.name}; fallback=${result.fallbackUsed}; blocker=${result.errorCode.orEmpty()}; redacted=${result.sensitiveFieldsRedacted}",
+            message = "configuredStatus=${result.status.name}; adapterInjected=${result.officialAdapterInjected}; attempted=${result.officialRuntimeAttempted}; fallback=${result.fallbackUsed}; blocker=${result.errorCode.orEmpty()}; redacted=${result.sensitiveFieldsRedacted}",
             createdAt = now,
         )
     }
+
+    private fun runtimeFallbackStatus(result: OfficialRuntimeResult<*>, fallbackLabel: String): String =
+        buildString {
+            if (result.officialAdapterInjected) append("OFFICIAL_ADAPTER_INJECTED_")
+            if (result.officialRuntimeAttempted) append("OFFICIAL_RUNTIME_ATTEMPTED_")
+            append(result.status.name)
+            append('_')
+            append(fallbackLabel)
+        }
 
     private fun updateToolSteps(
         existing: List<ToolStepRecord>,
@@ -280,6 +299,8 @@ object OfficialRuntimeIntegrator {
             capability = result.capability.name,
             status = result.status.name,
             message = "official_runtime_configured=$configured; " +
+                "official_adapter_injected=${result.officialAdapterInjected}; " +
+                "official_runtime_attempted=${result.officialRuntimeAttempted}; " +
                 "official_runtime_used=${result.status == OfficialRuntimeStatus.OFFICIAL_RUNTIME_USED}; " +
                 "fallback_used=${result.fallbackUsed}; exact_blocker=$blocker; redacted=${result.sensitiveFieldsRedacted}",
         )

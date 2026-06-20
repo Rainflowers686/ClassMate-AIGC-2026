@@ -6,6 +6,8 @@ Superseded note: v1.6 introduced the runtime gateway and integrator, but Claude 
 
 No AppKey, Authorization value, full endpoint URL, request body, or local `config.local.json` content is recorded here.
 
+> v1.7 current-status note: v1.6 established gateway plumbing, but production `AppViewModel` still defaulted to ConfigMissing retrieval providers. v1.7 fixes that production injection gap with `OfficialRuntimeGatewayFactory.production()`, which injects the existing Vivo Query Rewrite / Embedding / Text Similarity adapters. This v1.6 report remains useful as the gateway design record.
+
 ## Scope
 
 This sprint moves official AI capabilities from smoke/seam/local-only status toward the real L3 App learning pipeline. It does not run provider network smoke. Official runtime success is recorded only when an injected app adapter returns success. Otherwise the App keeps the learning pipeline alive through explicit local fallback.
