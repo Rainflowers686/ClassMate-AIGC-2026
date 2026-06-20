@@ -39,6 +39,8 @@ import com.classmate.app.importing.OcrImportKind
 import com.classmate.app.importing.SelectedLocalFileMetadata
 import com.classmate.app.l3.ClassroomAudioRecorder
 import com.classmate.app.l3.ClassroomRecordingRecord
+import com.classmate.app.l3.EvidenceAsset
+import com.classmate.app.l3.EvidenceAssetType
 import com.classmate.app.l3.ExamSession
 import com.classmate.app.l3.ExamStatus
 import com.classmate.app.l3.AsrLongJob
@@ -55,6 +57,8 @@ import com.classmate.app.l3.L3LearningPipeline
 import com.classmate.app.l3.L3PipelineSnapshot
 import com.classmate.app.l3.L3RecordingStatus
 import com.classmate.app.l3.L3SourceType
+import com.classmate.app.l3.LearningLoopInput
+import com.classmate.app.l3.LearningLoopInputKind
 import com.classmate.app.l3.LocalTtsPlayer
 import com.classmate.app.l3.LocalSemanticIndexEngine
 import com.classmate.app.l3.NoOpClassroomAudioRecorder
@@ -1053,11 +1057,15 @@ class AppViewModel(
             return
         }
         val origin = ui.imageDraftOrigin ?: "图片学习输入"
-        val confirmed = ui.imageStudyDraft?.let { captureGateway.confirmImageDraft(it, text, ui.courseTitle.ifBlank { origin }) }
+        val draft = ui.imageStudyDraft
+        val confirmed = draft?.let { captureGateway.confirmImageDraft(it, text, ui.courseTitle.ifBlank { origin }) }
+        val now = System.currentTimeMillis()
+        val courseTitle = confirmed?.courseTitle?.takeIf { it.isNotBlank() } ?: ui.courseTitle.ifBlank { origin }
+        val courseText = confirmed?.courseText ?: text
         ui = ui.copy(
-            courseTitle = confirmed?.courseTitle?.takeIf { it.isNotBlank() } ?: ui.courseTitle,
-            courseText = confirmed?.courseText ?: text,
-            importSourceType = ImportSourceType.PASTE_TEXT,
+            courseTitle = courseTitle,
+            courseText = courseText,
+            importSourceType = ImportSourceType.IMAGE_OCR,
             imageDraftActive = false,
             imageDraftRunning = false,
             imageDraftText = "",
@@ -1238,7 +1246,7 @@ class AppViewModel(
                         importSourceType = if (artifact.kind == InputFileKind.MARKDOWN) ImportSourceType.MARKDOWN_FILE else ImportSourceType.TXT_FILE,
                         toast = artifact.message,
                     )
-                    true
+                    generateL3PipelineFromCurrentMaterial(now + 1)
                 }
             }
             else -> {
@@ -1277,7 +1285,32 @@ class AppViewModel(
             }.trim(),
             toast = "PDF page text added; it can now enter the L3 pipeline.",
         )
-        return true
+        val input = currentLearningLoopInput(
+            now = now + 1,
+            text = text,
+            sourceType = L3SourceType.DOCUMENT,
+            title = ui.courseTitle.ifBlank { "PDF page $pageNumber" },
+            assets = listOf(
+                EvidenceAsset(
+                    id = "asset_${updated.id}",
+                    type = EvidenceAssetType.DOCUMENT,
+                    sourceType = L3SourceType.DOCUMENT,
+                    text = text,
+                    sourceLabel = "PDF page $pageNumber",
+                    fileName = ui.inputArtifacts.firstOrNull { it.id == artifactId }?.fileName.orEmpty(),
+                    fileExt = "pdf",
+                    pageHint = "page $pageNumber",
+                    createdAt = now,
+                    status = updated.status.name,
+                ),
+            ),
+            sourceLabel = "PDF page $pageNumber",
+        )
+        return publishL3Snapshot(
+            l3Pipeline.buildFromLearningLoopInput(input, ui.providerConfigSummary, now + 1),
+            now + 1,
+            "PDF page text entered the learning loop.",
+        )
     }
 
     private fun createAsrLongJobForArtifact(artifactId: String, now: Long) {
@@ -1310,7 +1343,7 @@ class AppViewModel(
             }.trim(),
             toast = "ASR transcript filled; it can now enter the L3 learning package.",
         )
-        val snapshot = l3Pipeline.buildFromText(
+        val snapshot = l3Pipeline.buildFromLearningLoopInput(
             title = ui.courseTitle.ifBlank { "课堂转写" },
             text = transcriptText,
             sourceType = L3SourceType.AUDIO_TRANSCRIPT,
@@ -1452,23 +1485,191 @@ class AppViewModel(
             }
         }
         ui.ocrImports.any { it.pastedText.isNotBlank() } -> L3SourceType.OCR_IMAGE
+        ui.importSourceType == ImportSourceType.IMAGE_OCR -> L3SourceType.OCR_IMAGE
+        ui.inputArtifacts.lastOrNull { it.extractedText.isNotBlank() }?.kind in setOf(
+            InputFileKind.TXT,
+            InputFileKind.MARKDOWN,
+            InputFileKind.DOCX,
+            InputFileKind.PPTX,
+            InputFileKind.PDF,
+        ) -> L3SourceType.DOCUMENT
         else -> L3SourceType.TEXT
     }
 
+    private fun currentLearningLoopInput(
+        now: Long,
+        text: String = l3MaterialText(),
+        sourceType: L3SourceType = currentL3SourceType(),
+        title: String = ui.courseTitle.ifBlank { "L3 learning material" },
+        assets: List<EvidenceAsset> = currentEvidenceAssets(now, text, sourceType),
+        sourceLabel: String = sourceLabelFor(sourceType),
+        providerProvenance: String = providerProvenanceFor(sourceType),
+    ): LearningLoopInput =
+        LearningLoopInput(
+            id = "loop_input_$now",
+            title = title,
+            kind = learningInputKind(sourceType),
+            sourceType = sourceType,
+            text = text,
+            evidenceAssets = assets,
+            sourceLabel = sourceLabel,
+            providerProvenance = providerProvenance,
+        )
+
+    private fun currentEvidenceAssets(now: Long, text: String, sourceType: L3SourceType): List<EvidenceAsset> {
+        val transcriptAssets = ui.transcripts.flatMap { transcript ->
+            transcript.segments.filter { it.text.isNotBlank() }.mapIndexed { index, segment ->
+                EvidenceAsset(
+                    id = "asset_${transcript.id}_${segment.id}",
+                    type = EvidenceAssetType.AUDIO,
+                    sourceType = if (transcript.sourceType == TranscriptSourceType.AUDIO_TRANSCRIPT || transcript.sourceType == TranscriptSourceType.LIVE_ASR) {
+                        L3SourceType.AUDIO_TRANSCRIPT
+                    } else {
+                        L3SourceType.MANUAL_TRANSCRIPT
+                    },
+                    text = segment.text,
+                    sourceLabel = transcript.displayLabel(),
+                    fileName = transcript.fileName.orEmpty(),
+                    fileExt = transcript.fileName.orEmpty().substringAfterLast('.', ""),
+                    mimeType = transcript.mimeType.orEmpty(),
+                    audioRef = transcript.fileName.orEmpty(),
+                    segmentHint = "segment ${index + 1}",
+                    startMs = segment.startMs,
+                    endMs = segment.endMs,
+                    createdAt = transcript.createdAt.takeIf { it > 0L } ?: now,
+                    status = if (transcript.sourceType == TranscriptSourceType.AUDIO_TRANSCRIPT || transcript.sourceType == TranscriptSourceType.LIVE_ASR) {
+                        "TRANSCRIPT_READY"
+                    } else {
+                        "MANUAL_TRANSCRIPT_FALLBACK"
+                    },
+                )
+            }
+        }
+        if (transcriptAssets.isNotEmpty()) return transcriptAssets
+
+        val ocrAssets = ui.ocrImports.filter { it.pastedText.isNotBlank() }.map { draft ->
+            EvidenceAsset(
+                id = "asset_${draft.id}",
+                type = EvidenceAssetType.OCR_IMAGE,
+                sourceType = L3SourceType.OCR_IMAGE,
+                text = draft.pastedText,
+                sourceLabel = draft.fileMeta.safeDisplayLabel(),
+                fileName = draft.fileMeta.fileName,
+                fileExt = draft.fileMeta.fileName.substringAfterLast('.', ""),
+                mimeType = draft.fileMeta.mimeType.orEmpty(),
+                imageRef = draft.fileMeta.fileName,
+                thumbnailRef = draft.fileMeta.safeSummary(),
+                pageHint = draft.pageIndex?.let { "page $it" }.orEmpty(),
+                createdAt = draft.createdAt,
+                status = "OCR_TEXT_CONFIRMED",
+            )
+        }
+        if (ocrAssets.isNotEmpty()) return ocrAssets
+
+        val artifact = ui.inputArtifacts.lastOrNull {
+            it.extractedText.isNotBlank() || it.kind == InputFileKind.PDF || it.kind == InputFileKind.AUDIO
+        }
+        if (artifact != null) {
+            return listOf(
+                EvidenceAsset(
+                    id = "asset_${artifact.id}",
+                    type = when (artifact.kind) {
+                        InputFileKind.IMAGE -> EvidenceAssetType.OCR_IMAGE
+                        InputFileKind.AUDIO, InputFileKind.VIDEO -> EvidenceAssetType.AUDIO
+                        else -> EvidenceAssetType.DOCUMENT
+                    },
+                    sourceType = sourceType,
+                    text = artifact.extractedText.ifBlank { text.take(240) },
+                    sourceLabel = artifact.fileName,
+                    fileName = artifact.fileName,
+                    fileExt = artifact.fileName.substringAfterLast('.', ""),
+                    mimeType = ui.selectedImportFileMetadata?.mimeType.orEmpty(),
+                    localUri = artifact.id,
+                    imageRef = if (artifact.kind == InputFileKind.IMAGE) artifact.fileName else "",
+                    audioRef = if (artifact.kind == InputFileKind.AUDIO) artifact.fileName else "",
+                    pageHint = ui.pdfPages.lastOrNull { it.artifactId == artifact.id }?.pageNumber?.let { "page $it" }.orEmpty(),
+                    createdAt = artifact.createdAt,
+                    status = artifact.status.name,
+                ),
+            )
+        }
+
+        return listOf(
+            EvidenceAsset(
+                id = "asset_text_$now",
+                type = when (sourceType) {
+                    L3SourceType.OCR_IMAGE -> EvidenceAssetType.OCR_IMAGE
+                    L3SourceType.DOCUMENT -> EvidenceAssetType.DOCUMENT
+                    L3SourceType.AUDIO_TRANSCRIPT,
+                    L3SourceType.MANUAL_TRANSCRIPT,
+                    L3SourceType.RECORDING_ARTIFACT -> EvidenceAssetType.AUDIO
+                    L3SourceType.WEB -> EvidenceAssetType.WEB
+                    else -> EvidenceAssetType.TEXT
+                },
+                sourceType = sourceType,
+                text = text.take(240),
+                sourceLabel = sourceLabelFor(sourceType),
+                createdAt = now,
+                status = "TEXT_READY",
+            ),
+        )
+    }
+
+    private fun learningInputKind(sourceType: L3SourceType): LearningLoopInputKind = when (sourceType) {
+        L3SourceType.OCR_IMAGE -> LearningLoopInputKind.OCR_IMAGE
+        L3SourceType.DOCUMENT -> LearningLoopInputKind.DOCUMENT
+        L3SourceType.AUDIO_TRANSCRIPT -> LearningLoopInputKind.AUDIO_TRANSCRIPT
+        L3SourceType.MANUAL_TRANSCRIPT -> LearningLoopInputKind.MANUAL_TRANSCRIPT
+        L3SourceType.QUESTION_BANK -> LearningLoopInputKind.QUESTION_BANK
+        L3SourceType.WEB -> LearningLoopInputKind.WEB
+        L3SourceType.RECORDING_ARTIFACT -> LearningLoopInputKind.AUDIO_TRANSCRIPT
+        L3SourceType.TEXT -> if (ui.importSourceType == ImportSourceType.MARKDOWN_FILE) LearningLoopInputKind.MARKDOWN else LearningLoopInputKind.TEXT
+    }
+
+    private fun sourceLabelFor(sourceType: L3SourceType): String = when (sourceType) {
+        L3SourceType.TEXT -> "pasted text"
+        L3SourceType.OCR_IMAGE -> "OCR image"
+        L3SourceType.DOCUMENT -> "document"
+        L3SourceType.AUDIO_TRANSCRIPT -> "audio transcript"
+        L3SourceType.MANUAL_TRANSCRIPT -> "manual transcript"
+        L3SourceType.RECORDING_ARTIFACT -> "recording artifact"
+        L3SourceType.QUESTION_BANK -> "question bank"
+        L3SourceType.WEB -> "web source"
+    }
+
+    private fun providerProvenanceFor(sourceType: L3SourceType): String = when (sourceType) {
+        L3SourceType.OCR_IMAGE -> "OCR:${ui.providerConfigSummary.officialProviders.ocrConfigured}"
+        L3SourceType.AUDIO_TRANSCRIPT, L3SourceType.MANUAL_TRANSCRIPT, L3SourceType.RECORDING_ARTIFACT -> "ASR:${ui.asrLongStatus.name}"
+        L3SourceType.DOCUMENT -> ui.inputArtifacts.lastOrNull()?.status?.name.orEmpty()
+        else -> ""
+    }
+
     private fun publishL3Snapshot(snapshot: L3PipelineSnapshot, now: Long, toast: String): Boolean {
+        val publishSnapshot = snapshot.lessonSource?.let { source ->
+            if (snapshot.evidenceAssets.isNotEmpty()) {
+                snapshot
+            } else {
+                l3Pipeline.attachEvidenceAssets(
+                    snapshot = snapshot,
+                    assets = currentEvidenceAssets(now, source.rawText, source.type),
+                    sourceLabel = sourceLabelFor(source.type),
+                    providerProvenance = providerProvenanceFor(source.type),
+                )
+            }
+        } ?: snapshot
         val inputType = when {
-            snapshot.lessonSource?.type == L3SourceType.OCR_IMAGE -> ToolInputType.IMAGE
-            snapshot.lessonSource?.type == L3SourceType.QUESTION_BANK -> ToolInputType.QUESTION_BANK
+            publishSnapshot.lessonSource?.type == L3SourceType.OCR_IMAGE -> ToolInputType.IMAGE
+            publishSnapshot.lessonSource?.type == L3SourceType.QUESTION_BANK -> ToolInputType.QUESTION_BANK
             ui.pdfPages.isNotEmpty() -> ToolInputType.PDF
-            ui.asrLongJobs.isNotEmpty() || snapshot.transcriptSegments.isNotEmpty() -> ToolInputType.AUDIO
+            ui.asrLongJobs.isNotEmpty() || publishSnapshot.transcriptSegments.isNotEmpty() -> ToolInputType.AUDIO
             else -> ToolInputType.TEXT
         }
-        val toolPlan = L3OfficialToolSeams.orchestrate("L3 learning package", snapshot, ui.providerConfigSummary, now)
+        val toolPlan = L3OfficialToolSeams.orchestrate("L3 learning package", publishSnapshot, ui.providerConfigSummary, now)
         val toolSteps = toolPlan.stepRecords.ifEmpty {
-            ToolOrchestratorProductizationEngine.stepRecords(inputType, snapshot, ui.providerConfigSummary, now)
+            ToolOrchestratorProductizationEngine.stepRecords(inputType, publishSnapshot, ui.providerConfigSummary, now)
         }
-        val localSemanticRecords = LocalSemanticIndexEngine.records(snapshot, ui.providerConfigSummary, now)
-        val baseSnapshot = snapshot.copy(
+        val localSemanticRecords = LocalSemanticIndexEngine.records(publishSnapshot, ui.providerConfigSummary, now)
+        val baseSnapshot = publishSnapshot.copy(
             inputArtifacts = ui.inputArtifacts,
             inputReports = ui.importReports,
             pdfDocuments = ui.pdfDocuments,
@@ -1479,7 +1680,7 @@ class AppViewModel(
             semanticIndexRecords = localSemanticRecords,
             translationResults = ui.l3TranslationResults,
             ttsPlaybackStates = listOfNotNull(ui.l3TtsPlaybackState),
-            reviewDailyStats = ReviewStatsEngine.daily(snapshot, now),
+            reviewDailyStats = ReviewStatsEngine.daily(publishSnapshot, now),
         )
         val runtimeSnapshot = OfficialRuntimeIntegrator.enrich(
             snapshot = baseSnapshot,
@@ -2188,6 +2389,14 @@ class AppViewModel(
                         providerSummary = ui.providerConfigSummary,
                         now = now,
                     )
+                    publishL3Snapshot(l3Snapshot, now, "BlueLM analysis entered the unified L3 learning loop.")
+                    ui = ui.copy(
+                        logs = outcome.logs,
+                        analysisSourceReport = sourceReport,
+                        onDeviceAnalysisReason = onDeviceReason ?: ui.onDeviceAnalysisReason,
+                        onDeviceAnalysisDiagnostic = onDeviceDiag ?: ui.onDeviceAnalysisDiagnostic,
+                    )
+                    return@launch
                     val updatedHistory = (listOf(buildHistoryRecord(session, outcome, now)) + ui.history).take(MAX_HISTORY)
                     // Cross-course review tasks: one per kept knowledge point (idempotent per session).
                     val provider = outcome.result.provenance.provider
@@ -2286,12 +2495,28 @@ class AppViewModel(
 
     // --- knowledge / evidence ---
     fun openEvidence(knowledgePointId: String) {
-        ui = ui.copy(selectedKnowledgePointId = knowledgePointId)
+        ui = ui.copy(selectedKnowledgePointId = knowledgePointId, selectedEvidenceId = null)
         ui.result?.sessionId?.let { sessionId ->
             learningStore.recordTracebackOpen(sessionId, knowledgePointId)
             ui = ui.copy(learningSnapshot = learningStore.snapshot())
         }
         navigateTo(Screen.EVIDENCE)
+    }
+
+    fun openEvidenceById(evidenceId: String) {
+        if (evidenceId.isBlank()) {
+            ui = ui.copy(toast = "No evidence is available for this item.")
+            return
+        }
+        ui = ui.copy(selectedEvidenceId = evidenceId, selectedKnowledgePointId = null)
+        navigateTo(Screen.EVIDENCE)
+    }
+
+    fun openEvidenceForQuestion(questionId: String) {
+        val evidenceId = ui.l3Pipeline.questions.firstOrNull { it.id == questionId }
+            ?.evidenceIds
+            ?.firstOrNull()
+        openEvidenceById(evidenceId.orEmpty())
     }
 
     // --- quiz ---

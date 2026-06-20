@@ -23,6 +23,99 @@ data class L3CourseArtifacts(
 
 class L3LearningPipeline {
 
+    fun buildFromLearningLoopInput(
+        input: LearningLoopInput,
+        providerSummary: ProviderConfigSummary,
+        now: Long,
+    ): L3PipelineSnapshot {
+        val base = buildFromText(
+            title = input.title,
+            text = input.text,
+            sourceType = input.sourceType,
+            providerSummary = providerSummary,
+            now = now,
+        )
+        return attachEvidenceAssets(
+            snapshot = base,
+            assets = input.evidenceAssets,
+            sourceLabel = input.sourceLabel,
+            providerProvenance = input.providerProvenance,
+        )
+    }
+
+    fun buildFromLearningLoopInput(
+        title: String,
+        text: String,
+        sourceType: L3SourceType,
+        providerSummary: ProviderConfigSummary,
+        now: Long,
+    ): L3PipelineSnapshot =
+        buildFromLearningLoopInput(
+            input = LearningLoopInput(
+                id = "loop_input_$now",
+                title = title,
+                kind = when (sourceType) {
+                    L3SourceType.OCR_IMAGE -> LearningLoopInputKind.OCR_IMAGE
+                    L3SourceType.DOCUMENT -> LearningLoopInputKind.DOCUMENT
+                    L3SourceType.AUDIO_TRANSCRIPT -> LearningLoopInputKind.AUDIO_TRANSCRIPT
+                    L3SourceType.MANUAL_TRANSCRIPT -> LearningLoopInputKind.MANUAL_TRANSCRIPT
+                    L3SourceType.QUESTION_BANK -> LearningLoopInputKind.QUESTION_BANK
+                    L3SourceType.WEB -> LearningLoopInputKind.WEB
+                    L3SourceType.RECORDING_ARTIFACT -> LearningLoopInputKind.AUDIO_TRANSCRIPT
+                    L3SourceType.TEXT -> LearningLoopInputKind.TEXT
+                },
+                sourceType = sourceType,
+                text = text,
+            ),
+            providerSummary = providerSummary,
+            now = now,
+        )
+
+    fun attachEvidenceAssets(
+        snapshot: L3PipelineSnapshot,
+        assets: List<EvidenceAsset>,
+        sourceLabel: String = "",
+        providerProvenance: String = "",
+    ): L3PipelineSnapshot {
+        if (assets.isEmpty()) return snapshot
+        val fallback = assets.first()
+        val evidence = snapshot.evidence.mapIndexed { index, ev ->
+            val asset = assets.getOrNull(index) ?: fallback
+            ev.copy(
+                assetId = asset.id,
+                sourceLabel = asset.sourceLabel.ifBlank { sourceLabel },
+                fileName = asset.fileName,
+                fileExt = asset.fileExt,
+                mimeType = asset.mimeType,
+                localUri = asset.localUri,
+                thumbnailRef = asset.thumbnailRef,
+                imageRef = asset.imageRef,
+                audioRef = asset.audioRef,
+                pageHint = asset.pageHint,
+                segmentHint = asset.segmentHint,
+                segmentStartMs = ev.segmentStartMs ?: asset.startMs,
+                segmentEndMs = ev.segmentEndMs ?: asset.endMs,
+                providerProvenance = ev.providerProvenance.ifBlank { providerProvenance },
+            )
+        }
+        val transcriptSegments = if (snapshot.transcriptSegments.isEmpty()) {
+            snapshot.transcriptSegments
+        } else {
+            snapshot.transcriptSegments.mapIndexed { index, segment ->
+                val asset = assets.getOrNull(index) ?: fallback
+                segment.copy(
+                    startMs = segment.startMs ?: asset.startMs,
+                    endMs = segment.endMs ?: asset.endMs,
+                )
+            }
+        }
+        return snapshot.copy(
+            evidence = evidence,
+            transcriptSegments = transcriptSegments,
+            evidenceAssets = (snapshot.evidenceAssets + assets).distinctBy { it.id },
+        )
+    }
+
     fun buildFromText(
         title: String,
         text: String,
@@ -423,6 +516,7 @@ class L3LearningPipeline {
         questionBank: L3QuestionBank?,
         providerSummary: ProviderConfigSummary,
         now: Long,
+        evidenceAssets: List<EvidenceAsset> = emptyList(),
     ): L3PipelineSnapshot {
         val queue = knowledge.mapIndexed { index, kp ->
             ReviewQueueItem(
@@ -463,6 +557,7 @@ class L3LearningPipeline {
             reviewFocus = reviewFocus,
             actionItems = actionItems,
             evidence = evidence,
+            evidenceAssets = evidenceAssets,
             knowledgePoints = knowledge,
             questions = questions,
             reviewQueue = queue,

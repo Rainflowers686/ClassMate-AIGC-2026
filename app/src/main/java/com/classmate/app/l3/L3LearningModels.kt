@@ -5,10 +5,32 @@ import com.classmate.core.model.Difficulty
 enum class L3SourceType {
     TEXT,
     OCR_IMAGE,
+    DOCUMENT,
     AUDIO_TRANSCRIPT,
     MANUAL_TRANSCRIPT,
     RECORDING_ARTIFACT,
     QUESTION_BANK,
+    WEB,
+}
+
+enum class EvidenceAssetType {
+    TEXT,
+    OCR_IMAGE,
+    DOCUMENT,
+    AUDIO,
+    WEB,
+    UNKNOWN,
+}
+
+enum class LearningLoopInputKind {
+    TEXT,
+    MARKDOWN,
+    OCR_IMAGE,
+    DOCUMENT,
+    AUDIO_TRANSCRIPT,
+    MANUAL_TRANSCRIPT,
+    QUESTION_BANK,
+    WEB,
 }
 
 enum class L3MasteryState {
@@ -210,6 +232,49 @@ data class Evidence(
     val segmentEndMs: Long? = null,
     val page: Int? = null,
     val blockIndex: Int? = null,
+    val providerProvenance: String = "",
+    val assetId: String? = null,
+    val sourceLabel: String = "",
+    val fileName: String = "",
+    val fileExt: String = "",
+    val mimeType: String = "",
+    val localUri: String = "",
+    val thumbnailRef: String = "",
+    val imageRef: String = "",
+    val audioRef: String = "",
+    val pageHint: String = "",
+    val segmentHint: String = "",
+)
+
+data class EvidenceAsset(
+    val id: String,
+    val type: EvidenceAssetType,
+    val sourceType: L3SourceType,
+    val text: String = "",
+    val sourceLabel: String = "",
+    val fileName: String = "",
+    val fileExt: String = "",
+    val mimeType: String = "",
+    val localUri: String = "",
+    val thumbnailRef: String = "",
+    val imageRef: String = "",
+    val audioRef: String = "",
+    val pageHint: String = "",
+    val segmentHint: String = "",
+    val startMs: Long? = null,
+    val endMs: Long? = null,
+    val createdAt: Long = 0L,
+    val status: String = "READY",
+)
+
+data class LearningLoopInput(
+    val id: String,
+    val title: String,
+    val kind: LearningLoopInputKind,
+    val sourceType: L3SourceType,
+    val text: String,
+    val evidenceAssets: List<EvidenceAsset> = emptyList(),
+    val sourceLabel: String = "",
     val providerProvenance: String = "",
 )
 
@@ -595,6 +660,7 @@ data class L3PipelineSnapshot(
     val reviewFocus: List<String> = emptyList(),
     val actionItems: List<String> = emptyList(),
     val evidence: List<Evidence> = emptyList(),
+    val evidenceAssets: List<EvidenceAsset> = emptyList(),
     val knowledgePoints: List<L3KnowledgePoint> = emptyList(),
     val questions: List<L3GeneratedQuestion> = emptyList(),
     val attempts: List<L3PracticeAttempt> = emptyList(),

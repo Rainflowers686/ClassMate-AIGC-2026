@@ -1,6 +1,8 @@
 package com.classmate.app.data
 
 import com.classmate.app.l3.ExamResultReport
+import com.classmate.app.l3.EvidenceAsset
+import com.classmate.app.l3.EvidenceAssetType
 import com.classmate.app.l3.L3DemoSeeds
 import com.classmate.app.l3.L3LearningPipeline
 import com.classmate.app.l3.L3MasteryState
@@ -41,7 +43,36 @@ class L3PersistenceRepositoryTest {
             markdownReport = "# Exam Report",
             generatedAt = now + 2,
         )
-        val snapshot = wrong.copy(examReports = listOf(examReport))
+        val asset = EvidenceAsset(
+            id = "asset_doc_1",
+            type = EvidenceAssetType.DOCUMENT,
+            sourceType = L3SourceType.DOCUMENT,
+            text = base.evidence.first().text,
+            sourceLabel = "lesson doc",
+            fileName = "lesson.md",
+            fileExt = "md",
+            mimeType = "text/markdown",
+            pageHint = "section 1",
+            createdAt = now,
+        )
+        val snapshot = wrong.copy(
+            examReports = listOf(examReport),
+            evidenceAssets = listOf(asset),
+            evidence = wrong.evidence.mapIndexed { index, evidence ->
+                if (index == 0) {
+                    evidence.copy(
+                        assetId = asset.id,
+                        sourceLabel = asset.sourceLabel,
+                        fileName = asset.fileName,
+                        fileExt = asset.fileExt,
+                        mimeType = asset.mimeType,
+                        pageHint = asset.pageHint,
+                    )
+                } else {
+                    evidence
+                }
+            },
+        )
         val file = Files.createTempDirectory("cm-l3-store").resolve("classmate_l3_store.json").toFile()
 
         L3PersistenceRepository(file).saveSnapshot(snapshot)
@@ -54,6 +85,9 @@ class L3PersistenceRepositoryTest {
         assertTrue(reloaded.masteryHistory.isNotEmpty())
         assertEquals("exam_report_1", reloaded.examReports.single().id)
         assertEquals("# Exam Report", reloaded.examReports.single().markdownReport)
+        assertEquals("asset_doc_1", reloaded.evidenceAssets.single().id)
+        assertEquals("lesson.md", reloaded.evidence.first().fileName)
+        assertEquals("asset_doc_1", reloaded.evidence.first().assetId)
     }
 
     @Test

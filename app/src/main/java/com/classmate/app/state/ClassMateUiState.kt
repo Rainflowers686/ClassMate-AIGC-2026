@@ -234,6 +234,7 @@ data class ClassMateUiState(
 
     // navigation context
     val selectedKnowledgePointId: String? = null,
+    val selectedEvidenceId: String? = null,
     val settingsDeepLink: SettingsDeepLink = SettingsDeepLink.NONE,
 
     // transient

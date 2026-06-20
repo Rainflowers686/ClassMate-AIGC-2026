@@ -113,7 +113,13 @@ fun PracticeSessionScreen(viewModel: AppViewModel) {
                             modifier = Modifier.fillMaxWidth(),
                         )
                     } else {
-                        PracticeAnswerReview(item = item, selectedAnswers = submitted.selectedAnswers, correct = submitted.correct)
+                        PracticeAnswerReview(viewModel = viewModel, item = item, selectedAnswers = submitted.selectedAnswers, correct = submitted.correct)
+                        Spacer(Modifier.height(Dimens.xs))
+                        SecondaryButton(
+                            text = "View evidence",
+                            onClick = { viewModel.openEvidenceForQuestion(item.quizId ?: item.id) },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                     }
                 } else {
                     if (ui.practiceRevealed) {
@@ -191,7 +197,7 @@ private fun PracticeOptionRow(
 }
 
 @Composable
-private fun PracticeAnswerReview(item: com.classmate.core.practice.PracticeItem, selectedAnswers: List<String>, correct: Boolean) {
+private fun PracticeAnswerReview(viewModel: AppViewModel, item: com.classmate.core.practice.PracticeItem, selectedAnswers: List<String>, correct: Boolean) {
     val cs = MaterialTheme.colorScheme
     Surface(
         shape = MaterialTheme.shapes.medium,

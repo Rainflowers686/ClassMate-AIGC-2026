@@ -122,6 +122,8 @@ class L3LearningPipelineAppTest {
         assertTrue(viewModel.generateL3PipelineFromCurrentMaterial(now + 1))
 
         assertTrue(viewModel.ui.l3Pipeline.evidence.any { it.sourceType.name == "OCR_IMAGE" && it.text.contains("磁通量") })
+        assertTrue(viewModel.ui.l3Pipeline.evidenceAssets.any { it.type.name == "OCR_IMAGE" })
+        assertTrue(viewModel.ui.l3Pipeline.evidence.any { it.assetId != null })
         assertTrue(viewModel.ui.l3Pipeline.stepLogs.any { it.step == "OCR" })
     }
 
@@ -145,6 +147,9 @@ class L3LearningPipelineAppTest {
         val wrongRecord = viewModel.ui.l3Pipeline.wrongBook.single()
         assertTrue(wrongRecord.evidenceIds.isNotEmpty())
         assertNotNull(viewModel.ui.l3Pipeline.evidence.firstOrNull { it.id in wrongRecord.evidenceIds })
+        viewModel.openEvidenceById(wrongRecord.evidenceIds.first())
+        assertEquals(Screen.EVIDENCE, viewModel.currentScreen)
+        assertEquals(wrongRecord.evidenceIds.first(), viewModel.ui.selectedEvidenceId)
     }
 
     @Test
@@ -210,6 +215,7 @@ class L3LearningPipelineAppTest {
         assertEquals(L3AsrStatus.TRANSCRIPT_READY, viewModel.ui.asrLongStatus)
         assertTrue(viewModel.ui.l3Pipeline.transcriptSegments.isNotEmpty())
         assertTrue(viewModel.ui.l3Pipeline.evidence.isNotEmpty())
+        assertTrue(viewModel.ui.l3Pipeline.evidenceAssets.any { it.type.name == "AUDIO" })
         assertTrue(viewModel.ui.l3Pipeline.reviewQueue.isNotEmpty())
     }
 

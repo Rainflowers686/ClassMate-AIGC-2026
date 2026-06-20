@@ -15,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import com.classmate.app.l3.L3SourceType
 import com.classmate.app.state.AppViewModel
 import com.classmate.app.ui.components.ClassMateCard
 import com.classmate.app.ui.components.ClassMateScaffold
@@ -32,9 +33,85 @@ fun EvidenceDetailScreen(viewModel: AppViewModel) {
     val ui = viewModel.ui
     val result = ui.result
     val session = ui.session
+    val l3Evidence = ui.selectedEvidenceId?.let { id -> ui.l3Pipeline.evidence.firstOrNull { it.id == id } }
+    val l3Asset = l3Evidence?.assetId?.let { id -> ui.l3Pipeline.evidenceAssets.firstOrNull { it.id == id } }
     val kp = result?.knowledgePoint(ui.selectedKnowledgePointId ?: "")
 
     ClassMateScaffold(title = "证据链", onBack = { viewModel.goBack() }) { padding ->
+        if (l3Evidence != null) {
+            Column(
+                Modifier
+                    .padding(padding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = Dimens.screen)
+                    .padding(bottom = Dimens.xxl),
+                verticalArrangement = Arrangement.spacedBy(Dimens.cardGap),
+            ) {
+                ClassMateCard {
+                    Text(l3SourceTitle(l3Evidence.sourceType), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(Dimens.s))
+                    Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+                        Pill(
+                            text = l3Evidence.sourceType.name,
+                            container = MaterialTheme.colorScheme.secondaryContainer,
+                            content = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                    }
+                    Spacer(Modifier.height(Dimens.m))
+                    Text(
+                        l3Evidence.text.ifBlank { "Evidence text is missing; only source metadata is retained." },
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+                ClassMateCard {
+                    Text("Source asset", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(Dimens.s))
+                    Text(l3AssetLine("Label", l3Evidence.sourceLabel.ifBlank { l3Asset?.sourceLabel.orEmpty() }), style = MaterialTheme.typography.bodyMedium)
+                    Text(l3AssetLine("File", l3Evidence.fileName.ifBlank { l3Asset?.fileName.orEmpty() }), style = MaterialTheme.typography.bodyMedium)
+                    Text(l3AssetLine("MIME", l3Evidence.mimeType.ifBlank { l3Asset?.mimeType.orEmpty() }), style = MaterialTheme.typography.bodyMedium)
+                    Text(l3AssetLine("Page", l3Evidence.pageHint.ifBlank { l3Asset?.pageHint.orEmpty() }), style = MaterialTheme.typography.bodyMedium)
+                    Text(l3AssetLine("Segment", l3Evidence.segmentHint.ifBlank { l3Asset?.segmentHint.orEmpty() }), style = MaterialTheme.typography.bodyMedium)
+                    val start = l3Evidence.segmentStartMs ?: l3Asset?.startMs
+                    val end = l3Evidence.segmentEndMs ?: l3Asset?.endMs
+                    if (start != null || end != null) {
+                        Text(l3AssetLine("Time", listOfNotNull(start?.let { "${it / 1000}s" }, end?.let { "${it / 1000}s" }).joinToString(" - ")), style = MaterialTheme.typography.bodyMedium)
+                    }
+                    if (l3Evidence.imageRef.isNotBlank() || l3Asset?.imageRef.orEmpty().isNotBlank()) {
+                        Spacer(Modifier.height(Dimens.xs))
+                        Text("Image source retained. Thumbnail display falls back to text metadata if the bitmap is unavailable.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    if (l3Evidence.audioRef.isNotBlank() || l3Asset?.audioRef.orEmpty().isNotBlank()) {
+                        Spacer(Modifier.height(Dimens.xs))
+                        Text("Audio source retained. Seek playback is unavailable until the local recording artifact is resolvable.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    if (l3Asset == null && l3Evidence.assetId != null) {
+                        Spacer(Modifier.height(Dimens.xs))
+                        Text("Evidence asset is missing; text evidence is still available.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                    }
+                }
+                val linkedKnowledge = ui.l3Pipeline.knowledgePoints.filter { l3Evidence.id in it.sourceEvidenceIds }
+                val linkedQuestions = ui.l3Pipeline.questions.filter { l3Evidence.id in it.evidenceIds }
+                if (linkedKnowledge.isNotEmpty()) {
+                    ClassMateCard {
+                        Text("Linked knowledge", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(Dimens.s))
+                        linkedKnowledge.forEach { Text(it.title, style = MaterialTheme.typography.bodyMedium) }
+                    }
+                }
+                if (linkedQuestions.isNotEmpty()) {
+                    ClassMateCard {
+                        Text("Linked quiz items", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(Dimens.s))
+                        linkedQuestions.forEach { question ->
+                            Text(question.stem, style = MaterialTheme.typography.bodyMedium)
+                            Spacer(Modifier.height(Dimens.xs))
+                        }
+                    }
+                }
+            }
+            return@ClassMateScaffold
+        }
         if (kp == null || session == null) {
             Box(Modifier.padding(padding).fillMaxWidth().padding(Dimens.screen)) {
                 Text("未选择知识点。", style = MaterialTheme.typography.bodyMedium)
@@ -122,3 +199,17 @@ fun EvidenceDetailScreen(viewModel: AppViewModel) {
         }
     }
 }
+
+private fun l3SourceTitle(sourceType: L3SourceType): String = when (sourceType) {
+    L3SourceType.TEXT -> "Text evidence"
+    L3SourceType.OCR_IMAGE -> "OCR image evidence"
+    L3SourceType.DOCUMENT -> "Document evidence"
+    L3SourceType.AUDIO_TRANSCRIPT -> "Audio transcript evidence"
+    L3SourceType.MANUAL_TRANSCRIPT -> "Manual transcript evidence"
+    L3SourceType.RECORDING_ARTIFACT -> "Recording evidence"
+    L3SourceType.QUESTION_BANK -> "Question bank evidence"
+    L3SourceType.WEB -> "Web evidence"
+}
+
+private fun l3AssetLine(label: String, value: String): String =
+    "$label: ${value.ifBlank { "not available" }}"

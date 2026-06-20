@@ -53,6 +53,42 @@ class L3LearningPipelineTest {
     }
 
     @Test
+    fun learningLoopInputKeepsOcrAssetMetadataOnEvidence() {
+        val input = LearningLoopInput(
+            id = "input_ocr",
+            title = "Board photo",
+            kind = LearningLoopInputKind.OCR_IMAGE,
+            sourceType = L3SourceType.OCR_IMAGE,
+            text = "Faraday law says changing magnetic flux induces voltage.",
+            evidenceAssets = listOf(
+                EvidenceAsset(
+                    id = "asset_image_1",
+                    type = EvidenceAssetType.OCR_IMAGE,
+                    sourceType = L3SourceType.OCR_IMAGE,
+                    text = "Faraday law says changing magnetic flux induces voltage.",
+                    sourceLabel = "blackboard photo",
+                    fileName = "board.jpg",
+                    mimeType = "image/jpeg",
+                    imageRef = "board.jpg",
+                    thumbnailRef = "board thumbnail",
+                    status = "OCR_TEXT_CONFIRMED",
+                ),
+            ),
+            sourceLabel = "blackboard photo",
+            providerProvenance = "OCR:true",
+        )
+
+        val snapshot = L3LearningPipeline().buildFromLearningLoopInput(input, providerSummary, now)
+
+        assertEquals(1, snapshot.evidenceAssets.size)
+        assertEquals(EvidenceAssetType.OCR_IMAGE, snapshot.evidenceAssets.single().type)
+        assertTrue(snapshot.evidence.isNotEmpty())
+        assertTrue(snapshot.evidence.all { it.assetId == "asset_image_1" })
+        assertTrue(snapshot.evidence.any { it.sourceType == L3SourceType.OCR_IMAGE && it.imageRef == "board.jpg" })
+        assertTrue(snapshot.questions.all { it.evidenceIds.isNotEmpty() })
+    }
+
+    @Test
     fun wrongAnswerUpdatesWrongBookReviewQueueAndMastery() {
         val pipeline = L3LearningPipeline()
         val snapshot = pipeline.buildFromText(L3DemoSeeds.lessonTitle, L3DemoSeeds.lessonText, L3SourceType.TEXT, providerSummary, now)
