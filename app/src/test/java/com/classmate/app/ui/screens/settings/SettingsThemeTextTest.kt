@@ -106,17 +106,29 @@ class SettingsThemeTextTest {
         val app = appSource()
         val strings = stringsSource()
         val themeOptions = themeOptionSource()
+        val viewModel = viewModelSource()
 
         listOf(
             "CustomPalette(",
+            "canApplyCustomPalette",
+            "withCustomPalette(previewPalette)",
             "normalizeHexColorOrNull",
             "validateCustomPalette",
             "onPrimaryChange",
             "onSecondaryChange",
             "onTertiaryChange",
             "bestOnColorFor",
+            "enabled = true",
+            "if (applied) \"已应用\" else \"应用自定义色\"",
             "resetAdvancedAppearance",
         ).forEach { assertTrue("missing custom color UI hook: $it", settings.contains(it)) }
+        listOf(
+            "themePreferenceRepository.saveCustomPalette(customPalette)",
+            "toast = if (next.customPalette.enabled)",
+            "themePreferenceRepository.saveTypographyPreset(preset)",
+            "toast = \"字体风格已应用。\"",
+            "themePreferenceRepository.resetAdvancedAppearance()",
+        ).forEach { assertTrue("missing appearance ViewModel persistence/feedback hook: $it", viewModel.contains(it)) }
         listOf(
             "SYSTEM_DEFAULT",
             "ACADEMIC",
@@ -124,6 +136,12 @@ class SettingsThemeTextTest {
             "CLEAN_SANS",
             "TITLE_PERSONALITY",
         ).forEach { assertTrue("missing typography preset: $it", themeOptions.contains(it)) }
+        listOf(
+            "classMateTypographyFor(preset)",
+            "标题预览 Aa",
+            "正文预览：知识点、证据和复习动作",
+            "按钮预览",
+        ).forEach { assertTrue("missing visible typography preview: $it", settings.contains(it)) }
         listOf(
             "ClassMateSingleLineText",
             "ClassMateTwoLineDescription",
@@ -340,5 +358,11 @@ class SettingsThemeTextTest {
         listOf(
             File("src/main/java/com/classmate/app/ui/theme/ThemeOption.kt"),
             File("app/src/main/java/com/classmate/app/ui/theme/ThemeOption.kt"),
+        ).first { it.exists() }.readText()
+
+    private fun viewModelSource(): String =
+        listOf(
+            File("src/main/java/com/classmate/app/state/AppViewModel.kt"),
+            File("app/src/main/java/com/classmate/app/state/AppViewModel.kt"),
         ).first { it.exists() }.readText()
 }

@@ -80,6 +80,25 @@ class ThemeOptionTest {
     }
 
     @Test
+    fun disabledCustomPaletteDoesNotOverrideThemeColors() {
+        val base = themeColors(ThemePreset.STANDARD_STUDY, AccentColorPreset.GREEN)
+        val disabled = themeColors(
+            ThemePreset.STANDARD_STUDY,
+            AccentColorPreset.GREEN,
+            customPalette = CustomPalette(
+                enabled = false,
+                primaryHex = "#FF0000",
+                secondaryHex = "#00FF00",
+                tertiaryHex = "#0000FF",
+            ),
+        )
+
+        assertEquals(base.classMate.primary, disabled.classMate.primary)
+        assertEquals(base.classMate.secondary, disabled.classMate.secondary)
+        assertEquals(base.classMate.tertiary, disabled.classMate.tertiary)
+    }
+
+    @Test
     fun customPaletteWarnsForInvalidOrLowContrastValues() {
         val warnings = validateCustomPalette(
             CustomPalette(enabled = true, primaryHex = "#F8FAF3", secondaryHex = "bad", tertiaryHex = "#111111"),
@@ -90,6 +109,31 @@ class ThemeOptionTest {
         assertTrue(warnings.any { it.contains("Primary") })
         assertTrue(warnings.any { it.contains("Secondary") })
         assertFalse(warnings.any { it.contains("AppKey") })
+    }
+
+    @Test
+    fun typographyPresetsProduceVisibleTextStyleDifferences() {
+        val signatures = TypographyPreset.entries.map { preset ->
+            val typography = classMateTypographyFor(preset)
+            listOf(
+                typography.displaySmall.fontFamily,
+                typography.displaySmall.fontWeight,
+                typography.displaySmall.fontSize,
+                typography.displaySmall.letterSpacing,
+                typography.bodyMedium.fontFamily,
+                typography.bodyMedium.fontWeight,
+                typography.bodyMedium.fontSize,
+                typography.bodyMedium.lineHeight,
+                typography.labelLarge.fontWeight,
+                typography.labelLarge.letterSpacing,
+            ).joinToString("|")
+        }
+
+        assertEquals(TypographyPreset.entries.size, signatures.toSet().size)
+        assertTrue(classMateTypographyFor(TypographyPreset.ACADEMIC).bodyMedium.lineHeight.value > classMateTypographyFor(TypographyPreset.SYSTEM_DEFAULT).bodyMedium.lineHeight.value)
+        assertTrue(classMateTypographyFor(TypographyPreset.CLEAN_SANS).bodyMedium.fontSize.value < classMateTypographyFor(TypographyPreset.SYSTEM_DEFAULT).bodyMedium.fontSize.value)
+        assertTrue(classMateTypographyFor(TypographyPreset.TITLE_PERSONALITY).displaySmall.fontSize.value > classMateTypographyFor(TypographyPreset.SYSTEM_DEFAULT).displaySmall.fontSize.value)
+        assertTrue(classMateTypographyFor(TypographyPreset.TITLE_PERSONALITY).displaySmall.letterSpacing.value > 0f)
     }
 
     @Test

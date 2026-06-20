@@ -304,15 +304,33 @@ class AppViewModel(
     }
     fun setCustomPalette(customPalette: CustomPalette) {
         val next = themePreferenceRepository.saveCustomPalette(customPalette)
-        ui = ui.copy(theme = next.themePreset, accentColor = next.accentColorPreset, customPalette = next.customPalette, typographyPreset = next.typographyPreset)
+        ui = ui.copy(
+            theme = next.themePreset,
+            accentColor = next.accentColorPreset,
+            customPalette = next.customPalette,
+            typographyPreset = next.typographyPreset,
+            toast = if (next.customPalette.enabled) "自定义色彩已应用。" else "自定义色彩已关闭。",
+        )
     }
     fun setTypographyPreset(preset: TypographyPreset) {
         val next = themePreferenceRepository.saveTypographyPreset(preset)
-        ui = ui.copy(theme = next.themePreset, accentColor = next.accentColorPreset, customPalette = next.customPalette, typographyPreset = next.typographyPreset)
+        ui = ui.copy(
+            theme = next.themePreset,
+            accentColor = next.accentColorPreset,
+            customPalette = next.customPalette,
+            typographyPreset = next.typographyPreset,
+            toast = "字体风格已应用。",
+        )
     }
     fun resetAdvancedAppearance() {
         val next = themePreferenceRepository.resetAdvancedAppearance()
-        ui = ui.copy(theme = next.themePreset, accentColor = next.accentColorPreset, customPalette = next.customPalette, typographyPreset = next.typographyPreset)
+        ui = ui.copy(
+            theme = next.themePreset,
+            accentColor = next.accentColorPreset,
+            customPalette = next.customPalette,
+            typographyPreset = next.typographyPreset,
+            toast = "高级外观已恢复默认。",
+        )
     }
     fun setDarkMode(dark: Boolean?) { ui = ui.copy(darkMode = dark) }
     fun setLanguage(language: AppLanguage) { ui = ui.copy(language = language) }

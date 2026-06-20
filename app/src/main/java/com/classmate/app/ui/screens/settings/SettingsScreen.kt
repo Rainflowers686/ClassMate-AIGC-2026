@@ -114,8 +114,10 @@ import com.classmate.app.ui.theme.ThemePreset
 import com.classmate.app.ui.theme.TypographyPreset
 import com.classmate.app.ui.theme.bestOnColorFor
 import com.classmate.app.ui.theme.classMateColorScheme
+import com.classmate.app.ui.theme.classMateTypographyFor
 import com.classmate.app.ui.theme.normalizeHexColorOrNull
 import com.classmate.app.ui.theme.validateCustomPalette
+import com.classmate.app.ui.theme.withCustomPalette
 import com.classmate.app.ui.i18n.AppLanguage
 import com.classmate.app.ui.i18n.appStrings
 import kotlinx.serialization.json.Json
@@ -541,7 +543,25 @@ private fun AppearanceAndThemeSettingsCard(viewModel: AppViewModel) {
         secondaryHex = secondaryHex,
         tertiaryHex = tertiaryHex,
     )
-    val customWarnings = validateCustomPalette(draftPalette, colors.background, colors.textPrimary)
+    val normalizedPrimaryHex = normalizeHexColorOrNull(primaryHex)
+    val normalizedSecondaryHex = normalizeHexColorOrNull(secondaryHex)
+    val normalizedTertiaryHex = normalizeHexColorOrNull(tertiaryHex)
+    val canApplyCustomPalette = normalizedPrimaryHex != null && normalizedSecondaryHex != null && normalizedTertiaryHex != null
+    val customWarnings = validateCustomPalette(draftPalette.copy(enabled = true), colors.background, colors.textPrimary)
+    val previewPalette = if (canApplyCustomPalette) {
+        CustomPalette(
+            enabled = true,
+            primaryHex = normalizedPrimaryHex ?: CustomPalette.DEFAULT_PRIMARY,
+            secondaryHex = normalizedSecondaryHex ?: CustomPalette.DEFAULT_SECONDARY,
+            tertiaryHex = normalizedTertiaryHex ?: CustomPalette.DEFAULT_TERTIARY,
+        )
+    } else {
+        CustomPalette.Default
+    }
+    val customApplied = ui.customPalette.enabled &&
+        normalizedPrimaryHex == ui.customPalette.primaryHex &&
+        normalizedSecondaryHex == ui.customPalette.secondaryHex &&
+        normalizedTertiaryHex == ui.customPalette.tertiaryHex
     ClassMateCard {
         Text("外观与主题", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.xs))
@@ -562,7 +582,7 @@ private fun AppearanceAndThemeSettingsCard(viewModel: AppViewModel) {
         Text("学习主题", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.xs))
         ThemePreset.entries.forEach { option ->
-            val preview = classMateColorScheme(option, ui.accentColor)
+            val preview = classMateColorScheme(option, ui.accentColor).withCustomPalette(previewPalette)
             ThemePreviewCard(
                 name = option.displayName,
                 tagline = themeSelectorTagline(option),
@@ -592,18 +612,25 @@ private fun AppearanceAndThemeSettingsCard(viewModel: AppViewModel) {
             secondaryHex = secondaryHex,
             tertiaryHex = tertiaryHex,
             warnings = customWarnings,
+            canApply = canApplyCustomPalette,
+            applied = customApplied,
             onEnabledChange = { customEnabled = it },
             onPrimaryChange = { primaryHex = it },
             onSecondaryChange = { secondaryHex = it },
             onTertiaryChange = { tertiaryHex = it },
             onApply = {
+                val nextPalette = CustomPalette(
+                    enabled = true,
+                    primaryHex = normalizedPrimaryHex ?: CustomPalette.DEFAULT_PRIMARY,
+                    secondaryHex = normalizedSecondaryHex ?: CustomPalette.DEFAULT_SECONDARY,
+                    tertiaryHex = normalizedTertiaryHex ?: CustomPalette.DEFAULT_TERTIARY,
+                )
+                customEnabled = true
+                primaryHex = nextPalette.primaryHex
+                secondaryHex = nextPalette.secondaryHex
+                tertiaryHex = nextPalette.tertiaryHex
                 viewModel.setCustomPalette(
-                    CustomPalette(
-                        enabled = customEnabled,
-                        primaryHex = normalizeHexColorOrNull(primaryHex) ?: CustomPalette.DEFAULT_PRIMARY,
-                        secondaryHex = normalizeHexColorOrNull(secondaryHex) ?: CustomPalette.DEFAULT_SECONDARY,
-                        tertiaryHex = normalizeHexColorOrNull(tertiaryHex) ?: CustomPalette.DEFAULT_TERTIARY,
-                    ),
+                    nextPalette,
                 )
             },
             onReset = {
@@ -651,6 +678,8 @@ private fun AdvancedColorSection(
     secondaryHex: String,
     tertiaryHex: String,
     warnings: List<String>,
+    canApply: Boolean,
+    applied: Boolean,
     onEnabledChange: (Boolean) -> Unit,
     onPrimaryChange: (String) -> Unit,
     onSecondaryChange: (String) -> Unit,
@@ -673,7 +702,11 @@ private fun AdvancedColorSection(
     Spacer(Modifier.height(Dimens.xs))
     CustomColorEditor("Tertiary", tertiaryHex, onTertiaryChange)
     Spacer(Modifier.height(Dimens.s))
-    val status = if (!enabled) {
+    val status = if (!canApply) {
+        "HEX 格式未通过，请修正后再应用"
+    } else if (applied) {
+        "已应用；预览、选中态和按钮会立即反映自定义色"
+    } else if (!enabled) {
         "未启用；当前使用预设强调色"
     } else if (warnings.isEmpty()) {
         "对比度检查通过；文字色会自动选择深色或浅色"
@@ -683,7 +716,7 @@ private fun AdvancedColorSection(
     ProviderStatusRow("对比度检查", status)
     Spacer(Modifier.height(Dimens.s))
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
-        PrimaryButton("应用自定义色", onClick = onApply, modifier = Modifier.weight(1f))
+        PrimaryButton(if (applied) "已应用" else "应用自定义色", onClick = onApply, modifier = Modifier.weight(1f), enabled = canApply)
         SecondaryButton("恢复默认", onClick = onReset, modifier = Modifier.weight(1f))
     }
 }
@@ -774,6 +807,7 @@ private fun TypographyPresetSection(
 @Composable
 private fun TypographyPresetRow(preset: TypographyPreset, selected: Boolean, onClick: () -> Unit) {
     val colors = ClassMateTheme.colors
+    val previewTypography = classMateTypographyFor(preset)
     val container by animateColorAsState(
         targetValue = if (selected) colors.primary.copy(alpha = if (colors.isDark) 0.1f else 0.06f) else Color.Transparent,
         animationSpec = tween(durationMillis = 160),
@@ -782,16 +816,33 @@ private fun TypographyPresetRow(preset: TypographyPreset, selected: Boolean, onC
     Row(
         Modifier
             .fillMaxWidth()
-            .defaultMinSize(minHeight = 58.dp)
+            .defaultMinSize(minHeight = 104.dp)
             .clip(RoundedCornerShape(16.dp))
             .background(container)
             .clickable { onClick() }
             .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(Modifier.weight(1f)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             ClassMateSingleLineText(preset.displayName, style = MaterialTheme.typography.bodyMedium, color = colors.textPrimary, fontWeight = FontWeight.SemiBold)
             ClassMateTwoLineDescription(preset.description, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = colors.surface.copy(alpha = if (colors.isDark) 0.46f else 0.68f),
+                border = BorderStroke(0.75.dp, colors.outline.copy(alpha = if (selected) 0.24f else 0.14f)),
+            ) {
+                Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    ClassMateSingleLineText("标题预览 Aa", style = previewTypography.titleMedium, color = colors.textPrimary)
+                    Text(
+                        "正文预览：知识点、证据和复习动作",
+                        style = previewTypography.bodySmall,
+                        color = colors.textSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    ClassMateSingleLineText("按钮预览", style = previewTypography.labelLarge, color = colors.primary)
+                }
+            }
         }
         if (selected) Icon(Icons.Filled.Check, contentDescription = null, tint = colors.primary, modifier = Modifier.size(18.dp))
     }
