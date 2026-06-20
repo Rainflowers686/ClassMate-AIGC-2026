@@ -75,6 +75,13 @@ class ThemeOptionTest {
         assertEquals(parseHexColorOrNull("#F7F7F7"), scheme.classMate.primary)
         assertEquals(parseHexColorOrNull("#111111"), scheme.classMate.secondary)
         assertEquals(parseHexColorOrNull("#006D32"), scheme.classMate.tertiary)
+        assertEquals(parseHexColorOrNull("#111111"), scheme.classMate.success)
+        assertEquals(parseHexColorOrNull("#006D32"), scheme.classMate.info)
+        assertTrue(scheme.classMate.secondaryContainer != themeColors(ThemePreset.STANDARD_STUDY, AccentColorPreset.GREEN).classMate.secondaryContainer)
+        assertTrue(scheme.classMate.tertiaryContainer != themeColors(ThemePreset.STANDARD_STUDY, AccentColorPreset.GREEN).classMate.tertiaryContainer)
+        assertTrue(scheme.classMate.progressSurface != themeColors(ThemePreset.STANDARD_STUDY, AccentColorPreset.GREEN).classMate.progressSurface)
+        assertTrue(scheme.classMate.evidenceSurface != themeColors(ThemePreset.STANDARD_STUDY, AccentColorPreset.GREEN).classMate.evidenceSurface)
+        assertTrue(scheme.classMate.reviewSurface != themeColors(ThemePreset.STANDARD_STUDY, AccentColorPreset.GREEN).classMate.reviewSurface)
         assertEquals(androidx.compose.ui.graphics.Color(0xFF111111), bestOnColorFor(parseHexColorOrNull("#F7F7F7")!!))
         assertEquals(androidx.compose.ui.graphics.Color.White, bestOnColorFor(parseHexColorOrNull("#111111")!!))
     }
@@ -96,6 +103,8 @@ class ThemeOptionTest {
         assertEquals(base.classMate.primary, disabled.classMate.primary)
         assertEquals(base.classMate.secondary, disabled.classMate.secondary)
         assertEquals(base.classMate.tertiary, disabled.classMate.tertiary)
+        assertEquals(base.classMate.progressSurface, disabled.classMate.progressSurface)
+        assertEquals(base.classMate.reviewSurface, disabled.classMate.reviewSurface)
     }
 
     @Test

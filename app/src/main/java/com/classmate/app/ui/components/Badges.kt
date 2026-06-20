@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.classmate.app.ui.theme.ClassMateTheme
 import com.classmate.core.model.AnalysisProvenance
@@ -33,6 +34,7 @@ fun Pill(text: String, container: Color, content: Color, modifier: Modifier = Mo
             style = MaterialTheme.typography.labelMedium,
             color = content,
             maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             softWrap = false,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
         )

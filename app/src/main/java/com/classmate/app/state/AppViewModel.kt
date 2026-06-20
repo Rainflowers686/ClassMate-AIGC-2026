@@ -322,6 +322,16 @@ class AppViewModel(
             toast = "字体风格已应用。",
         )
     }
+    fun resetCustomPalette() {
+        val next = themePreferenceRepository.saveCustomPalette(CustomPalette.Default)
+        ui = ui.copy(
+            theme = next.themePreset,
+            accentColor = next.accentColorPreset,
+            customPalette = next.customPalette,
+            typographyPreset = next.typographyPreset,
+            toast = "高级颜色已恢复默认。",
+        )
+    }
     fun resetAdvancedAppearance() {
         val next = themePreferenceRepository.resetAdvancedAppearance()
         ui = ui.copy(

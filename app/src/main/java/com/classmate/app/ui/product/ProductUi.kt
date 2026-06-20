@@ -398,6 +398,9 @@ fun ProviderPathStrip(activeIndex: Int, modifier: Modifier = Modifier) {
                 style = MaterialTheme.typography.labelMedium,
                 color = if (i == activeIndex) cs.onSurface else cs.onSurfaceVariant,
                 fontWeight = if (i == activeIndex) FontWeight.SemiBold else FontWeight.Normal,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                softWrap = false,
             )
         }
     }

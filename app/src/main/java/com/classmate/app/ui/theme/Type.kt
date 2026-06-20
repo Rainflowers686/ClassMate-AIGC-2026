@@ -23,14 +23,15 @@ fun classMateTypographyFor(preset: TypographyPreset): Typography {
         else -> Brand
     }
     val titleWeight = when (preset) {
-        TypographyPreset.ACADEMIC -> FontWeight.SemiBold
-        TypographyPreset.MODERN_ROUNDED -> FontWeight.Medium
+        TypographyPreset.ACADEMIC -> FontWeight.Bold
+        TypographyPreset.MODERN_ROUNDED -> FontWeight.SemiBold
         TypographyPreset.CLEAN_SANS -> FontWeight.Medium
         TypographyPreset.TITLE_PERSONALITY -> FontWeight.ExtraBold
         TypographyPreset.SYSTEM_DEFAULT -> FontWeight.Bold
     }
     val bodyWeight = when (preset) {
         TypographyPreset.MODERN_ROUNDED -> FontWeight.Medium
+        TypographyPreset.ACADEMIC -> FontWeight.Medium
         TypographyPreset.CLEAN_SANS -> FontWeight.Light
         else -> FontWeight.Normal
     }
@@ -41,58 +42,62 @@ fun classMateTypographyFor(preset: TypographyPreset): Typography {
         else -> FontWeight.SemiBold
     }
     val displaySize = when (preset) {
-        TypographyPreset.CLEAN_SANS -> 28.sp
-        TypographyPreset.ACADEMIC -> 31.sp
-        TypographyPreset.MODERN_ROUNDED -> 32.sp
-        TypographyPreset.TITLE_PERSONALITY -> 34.sp
+        TypographyPreset.CLEAN_SANS -> 27.sp
+        TypographyPreset.ACADEMIC -> 32.sp
+        TypographyPreset.MODERN_ROUNDED -> 33.sp
+        TypographyPreset.TITLE_PERSONALITY -> 36.sp
         TypographyPreset.SYSTEM_DEFAULT -> 30.sp
     }
     val headlineSize = when (preset) {
-        TypographyPreset.CLEAN_SANS -> 24.sp
-        TypographyPreset.TITLE_PERSONALITY -> 29.sp
-        TypographyPreset.MODERN_ROUNDED -> 27.sp
-        else -> 26.sp
+        TypographyPreset.CLEAN_SANS -> 23.sp
+        TypographyPreset.ACADEMIC -> 27.sp
+        TypographyPreset.TITLE_PERSONALITY -> 31.sp
+        TypographyPreset.MODERN_ROUNDED -> 28.sp
+        TypographyPreset.SYSTEM_DEFAULT -> 26.sp
     }
     val titleLargeSize = when (preset) {
         TypographyPreset.CLEAN_SANS -> 18.sp
-        TypographyPreset.TITLE_PERSONALITY -> 22.sp
+        TypographyPreset.ACADEMIC -> 21.sp
+        TypographyPreset.TITLE_PERSONALITY -> 23.sp
         else -> 20.sp
     }
     val titleMediumSize = when (preset) {
         TypographyPreset.CLEAN_SANS -> 15.sp
-        TypographyPreset.MODERN_ROUNDED -> 17.sp
-        TypographyPreset.TITLE_PERSONALITY -> 17.sp
+        TypographyPreset.ACADEMIC -> 17.sp
+        TypographyPreset.MODERN_ROUNDED -> 18.sp
+        TypographyPreset.TITLE_PERSONALITY -> 18.sp
         else -> 16.sp
     }
     val bodyLargeLineHeight = when (preset) {
-        TypographyPreset.ACADEMIC -> 28.sp
-        TypographyPreset.MODERN_ROUNDED -> 26.sp
-        TypographyPreset.CLEAN_SANS -> 22.sp
+        TypographyPreset.ACADEMIC -> 30.sp
+        TypographyPreset.MODERN_ROUNDED -> 27.sp
+        TypographyPreset.CLEAN_SANS -> 21.sp
         else -> 25.sp
     }
     val bodyMediumLineHeight = when (preset) {
-        TypographyPreset.ACADEMIC -> 24.sp
+        TypographyPreset.ACADEMIC -> 26.sp
         TypographyPreset.MODERN_ROUNDED -> 23.sp
-        TypographyPreset.CLEAN_SANS -> 19.sp
+        TypographyPreset.CLEAN_SANS -> 18.sp
         else -> 21.sp
     }
     val bodySmallLineHeight = when (preset) {
-        TypographyPreset.ACADEMIC -> 21.sp
+        TypographyPreset.ACADEMIC -> 22.sp
         TypographyPreset.MODERN_ROUNDED -> 19.sp
-        TypographyPreset.CLEAN_SANS -> 17.sp
+        TypographyPreset.CLEAN_SANS -> 16.sp
         else -> 18.sp
     }
     val bodyLargeSize = if (preset == TypographyPreset.CLEAN_SANS) 15.sp else 16.sp
     val bodyMediumSize = if (preset == TypographyPreset.CLEAN_SANS) 13.sp else if (preset == TypographyPreset.MODERN_ROUNDED) 15.sp else 14.sp
     val bodySmallSize = if (preset == TypographyPreset.CLEAN_SANS) 12.sp else 13.sp
     val titleTracking = when (preset) {
-        TypographyPreset.TITLE_PERSONALITY -> 0.6.sp
-        TypographyPreset.CLEAN_SANS -> 0.2.sp
+        TypographyPreset.TITLE_PERSONALITY -> 0.9.sp
+        TypographyPreset.CLEAN_SANS -> 0.35.sp
+        TypographyPreset.ACADEMIC -> 0.15.sp
         else -> 0.sp
     }
     val labelTracking = when (preset) {
-        TypographyPreset.TITLE_PERSONALITY -> 0.3.sp
-        TypographyPreset.CLEAN_SANS -> 0.2.sp
+        TypographyPreset.TITLE_PERSONALITY -> 0.5.sp
+        TypographyPreset.CLEAN_SANS -> 0.35.sp
         else -> 0.sp
     }
     return Typography(

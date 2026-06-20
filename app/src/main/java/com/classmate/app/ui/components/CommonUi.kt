@@ -145,10 +145,10 @@ fun ClassMateCard(
 @Composable
 fun SectionHeader(title: String, subtitle: String? = null, modifier: Modifier = Modifier) {
     Column(modifier) {
-        Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onBackground)
+        Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (subtitle != null) {
             Spacer(Modifier.height(2.dp))
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -201,10 +201,10 @@ fun SecondaryButton(
         modifier = modifier.height(52.dp).defaultMinSize(minHeight = 52.dp),
         enabled = enabled,
         shape = RoundedCornerShape(ClassMateTheme.shapes.buttonRadius),
-        border = BorderStroke(1.dp, tokens.primary.copy(alpha = 0.28f)),
+        border = BorderStroke(1.dp, tokens.secondary.copy(alpha = 0.32f)),
         colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = tokens.surfaceContainerLow,
-            contentColor = tokens.primary,
+            containerColor = tokens.secondaryContainer.copy(alpha = if (tokens.isDark) 0.34f else 0.42f),
+            contentColor = tokens.secondary,
             disabledContainerColor = tokens.surfaceVariant,
             disabledContentColor = tokens.textSecondary,
         ),
@@ -252,9 +252,9 @@ fun FeatureRow(
         }
         Spacer(Modifier.width(Dimens.m))
         Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
+            Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(2.dp))
-            Text(description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -263,7 +263,8 @@ fun FeatureRow(
 @Composable
 fun KeyValueRow(label: String, value: String, modifier: Modifier = Modifier) {
     Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(0.45f))
+        Spacer(Modifier.width(Dimens.s))
+        Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false, modifier = Modifier.weight(0.55f))
     }
 }

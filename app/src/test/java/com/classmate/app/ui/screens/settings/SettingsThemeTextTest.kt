@@ -16,6 +16,7 @@ class SettingsThemeTextTest {
             "沉浸学习",
             "强调色 / Accent Color",
             "高级自定义色彩",
+            "高级颜色自定义",
             "Primary",
             "Secondary",
             "Tertiary",
@@ -56,6 +57,7 @@ class SettingsThemeTextTest {
             "PRIVACY_PERMISSIONS",
             "LEARNING_EXPORT",
             "AMBIENT_SOUND",
+            "ADVANCED_COLOR_CUSTOMIZATION",
             "DEVELOPER_SETTINGS",
         ).forEach { assertTrue("missing Settings IA page state: $it", source.contains(it)) }
 
@@ -107,6 +109,24 @@ class SettingsThemeTextTest {
         val strings = stringsSource()
         val themeOptions = themeOptionSource()
         val viewModel = viewModelSource()
+        val colorSource = colorSource()
+        val appearanceHome = blockBetween(settings, "private fun AppearanceAndThemeSettingsCard", "private fun themeSelectorTagline")
+        val advancedPage = blockBetween(settings, "private fun AdvancedColorCustomizationPage", "private fun AdvancedColorSection")
+
+        assertTrue("appearance home should expose a second-level advanced color entry", appearanceHome.contains("onAdvancedColors"))
+        assertTrue("appearance home should expose a second-level advanced color entry", appearanceHome.contains("高级颜色自定义"))
+        assertFalse("appearance home should not inline the HEX editor", appearanceHome.contains("CustomColorEditor("))
+        assertFalse("appearance home should not inline the full advanced color section", appearanceHome.contains("AdvancedColorSection("))
+        listOf(
+            "AdvancedColorImpactPreview(preview)",
+            "ColorImpactBlock(",
+            "MixedPalettePreview(",
+        ).forEach { assertTrue("missing advanced color second-level page hook: $it", advancedPage.contains(it)) }
+        listOf(
+            "CustomColorEditor(\"Primary\"",
+            "CustomColorEditor(\"Secondary\"",
+            "CustomColorEditor(\"Tertiary\"",
+        ).forEach { assertTrue("missing advanced color editor hook: $it", settings.contains(it)) }
 
         listOf(
             "CustomPalette(",
@@ -120,11 +140,20 @@ class SettingsThemeTextTest {
             "bestOnColorFor",
             "enabled = true",
             "if (applied) \"已应用\" else \"应用自定义色\"",
-            "resetAdvancedAppearance",
+            "resetCustomPalette",
         ).forEach { assertTrue("missing custom color UI hook: $it", settings.contains(it)) }
+        listOf(
+            "tertiaryContainer",
+            "progressSurface",
+            "reviewSurface",
+            "success = customSecondary",
+            "info = customTertiary",
+            "evidenceSurface = blend(customTertiary",
+        ).forEach { assertTrue("missing layered color token hook: $it", colorSource.contains(it)) }
         listOf(
             "themePreferenceRepository.saveCustomPalette(customPalette)",
             "toast = if (next.customPalette.enabled)",
+            "fun resetCustomPalette()",
             "themePreferenceRepository.saveTypographyPreset(preset)",
             "toast = \"字体风格已应用。\"",
             "themePreferenceRepository.resetAdvancedAppearance()",
@@ -141,6 +170,7 @@ class SettingsThemeTextTest {
             "标题预览 Aa",
             "正文预览：知识点、证据和复习动作",
             "按钮预览",
+            "Chip 预览",
         ).forEach { assertTrue("missing visible typography preview: $it", settings.contains(it)) }
         listOf(
             "ClassMateSingleLineText",
@@ -150,6 +180,9 @@ class SettingsThemeTextTest {
             "overflow = TextOverflow.Ellipsis",
         ).forEach { assertTrue("missing shared text fit guard: $it", common.contains(it)) }
         assertTrue("settings chips should use ClassMateChipText", settings.contains("ClassMateChipText(text"))
+        assertTrue("settings chips should keep stable chip height", settings.contains("modifier = modifier.defaultMinSize(minHeight = 36.dp)"))
+        assertTrue("language chips should use stable equal slots", settings.contains("SelectableChip(lang.displayNameFor(ui.language), ui.language == lang, modifier = Modifier.weight(1f))"))
+        assertTrue("display chips should use stable equal slots", settings.contains("SelectableChip(systemLabel, ui.darkMode == null, modifier = Modifier.weight(1f))"))
         assertTrue("product pill should use chip text guard", product.contains("ClassMateChipText(label"))
         assertTrue("bottom nav label should be single-line", app.contains("softWrap = false"))
         assertFalse("small chips must not mix Chinese and English with slash", strings.contains("跟随系统 / System"))
@@ -360,9 +393,18 @@ class SettingsThemeTextTest {
             File("app/src/main/java/com/classmate/app/ui/theme/ThemeOption.kt"),
         ).first { it.exists() }.readText()
 
+    private fun colorSource(): String =
+        listOf(
+            File("src/main/java/com/classmate/app/ui/theme/Color.kt"),
+            File("app/src/main/java/com/classmate/app/ui/theme/Color.kt"),
+        ).first { it.exists() }.readText()
+
     private fun viewModelSource(): String =
         listOf(
             File("src/main/java/com/classmate/app/state/AppViewModel.kt"),
             File("app/src/main/java/com/classmate/app/state/AppViewModel.kt"),
         ).first { it.exists() }.readText()
+
+    private fun blockBetween(source: String, start: String, end: String): String =
+        source.substringAfter(start).substringBefore(end)
 }

@@ -261,6 +261,8 @@ fun ThemePreviewCard(
     backgroundColor: Color,
     surfaceColor: Color,
     accentColor: Color,
+    secondaryColor: Color = accentColor,
+    tertiaryColor: Color = accentColor,
     selected: Boolean,
     onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
@@ -320,7 +322,7 @@ fun ThemePreviewCard(
                         .align(Alignment.Center)
                         .size(width = 16.dp, height = 3.dp)
                         .clip(RoundedCornerShape(999.dp))
-                        .background(accentColor.copy(alpha = 0.22f)),
+                        .background(secondaryColor.copy(alpha = 0.34f)),
                 )
                 Box(
                     Modifier
@@ -328,14 +330,21 @@ fun ThemePreviewCard(
                         .padding(end = 8.dp)
                         .size(width = 6.dp, height = 6.dp)
                         .clip(CircleShape)
-                        .background(accentColor.copy(alpha = 0.58f)),
+                        .background(tertiaryColor.copy(alpha = 0.62f)),
                 )
                 Box(
                     Modifier
                         .align(Alignment.BottomStart)
                         .height(2.dp)
                         .fillMaxWidth()
-                        .background(accentColor.copy(alpha = 0.44f)),
+                        .background(accentColor.copy(alpha = 0.28f)),
+                )
+                Box(
+                    Modifier
+                        .align(Alignment.BottomEnd)
+                        .height(2.dp)
+                        .fillMaxWidth(0.42f)
+                        .background(tertiaryColor.copy(alpha = 0.42f)),
                 )
                 if (selected) {
                     Surface(
