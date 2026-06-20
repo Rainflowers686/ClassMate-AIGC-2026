@@ -71,6 +71,21 @@ enum class ExamStatus {
     SUBMITTED,
 }
 
+enum class PdfPageStatus {
+    PDF_ARTIFACT_READY,
+    PDF_TEXT_PARSER_PENDING,
+    PAGE_OCR_SEAM_READY,
+    MANUAL_PAGE_TEXT_READY,
+}
+
+enum class PracticeGradingStatus {
+    CORRECT,
+    WRONG,
+    PARTIAL,
+    SELF_ASSESSMENT_REQUIRED,
+    AI_GRADING_SEAM_ONLY,
+}
+
 data class LessonSource(
     val id: String,
     val title: String,
@@ -216,6 +231,16 @@ data class TextSimilarityMatch(
     val providerStatus: String,
 )
 
+data class SemanticIndexChunk(
+    val id: String,
+    val sourceId: String,
+    val ownerType: String,
+    val ownerId: String,
+    val text: String,
+    val vector: List<Double>,
+    val status: String,
+)
+
 data class KnowledgeGraphEdge(
     val id: String,
     val fromKnowledgePointId: String,
@@ -246,6 +271,65 @@ data class L3CapabilityStatus(
     val capability: String,
     val status: String,
     val message: String,
+)
+
+data class PdfPageArtifact(
+    val id: String,
+    val artifactId: String,
+    val pageNumber: Int,
+    val status: PdfPageStatus,
+    val manualText: String = "",
+    val ocrStatus: String = "PAGE_OCR_SEAM_READY",
+    val evidenceId: String? = null,
+)
+
+data class ImportReport(
+    val id: String,
+    val sourceType: InputFileKind,
+    val successCount: Int,
+    val warningCount: Int,
+    val failedItems: List<String>,
+    val fallbackUsed: Boolean,
+    val nextAction: String,
+    val createdAt: Long,
+)
+
+data class PracticeGrade(
+    val status: PracticeGradingStatus,
+    val correct: Boolean,
+    val partial: Boolean,
+    val selectedAnswers: List<String>,
+    val correctAnswers: List<String>,
+    val message: String,
+)
+
+data class DistractorExplanation(
+    val questionId: String,
+    val optionId: String,
+    val status: String,
+    val explanation: String,
+)
+
+data class ExamResultReport(
+    val id: String,
+    val examSessionId: String,
+    val score: Int,
+    val correctCount: Int,
+    val wrongCount: Int,
+    val elapsedMs: Long,
+    val weakKnowledgePointIds: List<String>,
+    val wrongQuestionIds: List<String>,
+    val evidenceIds: List<String>,
+)
+
+data class ReviewDailyStats(
+    val dueToday: Int,
+    val weakCount: Int,
+    val wrongQuestionCount: Int,
+    val masteredCount: Int,
+    val overdueCount: Int,
+    val totalKnowledgePoints: Int,
+    val distribution: Map<L3MasteryState, Int>,
 )
 
 data class ClassroomRecordingRecord(
@@ -298,12 +382,27 @@ data class L3PipelineSnapshot(
     val masteryStats: List<MasteryStat> = emptyList(),
     val stepLogs: List<PipelineStepLog> = emptyList(),
     val embeddingRecords: List<EmbeddingRecord> = emptyList(),
+    val semanticIndexChunks: List<SemanticIndexChunk> = emptyList(),
     val similarityMatches: List<TextSimilarityMatch> = emptyList(),
     val knowledgeGraphEdges: List<KnowledgeGraphEdge> = emptyList(),
     val similarQuestionRecommendations: List<SimilarQuestionRecommendation> = emptyList(),
     val inputArtifacts: List<InputArtifact> = emptyList(),
+    val inputReports: List<ImportReport> = emptyList(),
+    val pdfPages: List<PdfPageArtifact> = emptyList(),
     val asrJobs: List<AsrLongJob> = emptyList(),
     val officialToolSeams: List<OfficialToolSeam> = emptyList(),
+    val toolOrchestrationPlan: ToolOrchestrationPlan? = null,
+    val reviewDailyStats: ReviewDailyStats = ReviewDailyStats(
+        dueToday = 0,
+        weakCount = 0,
+        wrongQuestionCount = 0,
+        masteredCount = 0,
+        overdueCount = 0,
+        totalKnowledgePoints = 0,
+        distribution = emptyMap(),
+    ),
+    val examReports: List<ExamResultReport> = emptyList(),
+    val distractorExplanations: List<DistractorExplanation> = emptyList(),
     val diagnostics: List<L3CapabilityStatus> = emptyList(),
     val questionBank: L3QuestionBank? = null,
     val supportSeams: List<PipelineStepLog> = emptyList(),

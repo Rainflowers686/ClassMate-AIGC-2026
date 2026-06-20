@@ -12,6 +12,8 @@ Update 2026-06-20 / v1.1: Practice is now split into real quiz, self-assessment 
 
 Update 2026-06-20 / v1.2: Input Superhub adds TXT/MD/CSV/DOCX/XLSX/PPTX best-effort ingestion, PDF/audio/image artifact states, ASR Long jobs, knowledge graph edges, diagnostics matrix, similar-question recommendations, and rule-based next-review policy.
 
+Update 2026-06-20 / v1.3: Championship Upgrade adds ImportReport, PDF page fallback state, lightweight semantic index chunks, local tool orchestration plans, strict multi-choice grading, short-answer self-assessment / AI grading seam, exam reports, distractor explanation pending records, and ReviewDailyStats.
+
 ## Completed In This Pass
 
 - Text classroom material can be converted into an L3 snapshot with summary, evidence, knowledge points, 3-5 micro questions, review queue items, and mastery stats.
@@ -33,7 +35,7 @@ Update 2026-06-20 / v1.2: Input Superhub adds TXT/MD/CSV/DOCX/XLSX/PPTX best-eff
 | Question bank text | completed | Markdown and CSV style parsing. |
 | Word / Excel question bank | best-effort | DOCX/XLSX ZIP/XML extraction supports simple templates; complex formatting remains TEMPLATE_REQUIRED/PARSER_PENDING. |
 | PPTX | best-effort | Slide XML text extraction, complex decks remain limited. |
-| PDF | parser pending | Artifact/manual text fallback only. |
+| PDF | partial / parser pending | Artifact plus page OCR seam and manual page text fallback; native parser remains pending. |
 | Classroom recording | partial completed | Start/stop record creates app-private audio artifact record. |
 | ASR Long | seam only | Status is ASR_NOT_CONFIGURED/PENDING_ASR_CONFIG unless configured; manual transcript fallback is explicit. |
 
@@ -44,7 +46,8 @@ Update 2026-06-20 / v1.2: Input Superhub adds TXT/MD/CSV/DOCX/XLSX/PPTX best-eff
 | OCR | Image text -> lesson source/evidence | Used when configured; manual fallback otherwise. |
 | QUERY_REWRITE | Standardize study/retrieval queries | Seam records READY_SEAM_USED when configured; local safe rewrite otherwise. |
 | EMBEDDING | Lesson/evidence/KP/question index records | Builds embedding record model; provider-ready status when configured. |
-| TEXT_SIMILARITY | Evidence match, similar KP/question attribution | Builds similarity match model; provider-ready status when configured. |
+| EMBEDDING local index | Evidence/KP/question semantic chunks | Builds lightweight local vector placeholders; persistent real vector DB remains future work. |
+| TEXT_SIMILARITY | Evidence match, similar KP/question attribution | Builds similarity match model and local similar-question fallback; provider-ready status when configured. |
 | TRANSLATION | Multilingual material support | SEAM_ONLY unless configured; not part of the main L3 blocker path. |
 | TTS | Listen-review / course essence playback | SEAM_ONLY unless configured; no voice clone. |
 | FUNCTION_CALLING | Local tool orchestration plan | Step-log skeleton only unless official provider is configured. |
@@ -59,9 +62,9 @@ Update 2026-06-20 / v1.2: Input Superhub adds TXT/MD/CSV/DOCX/XLSX/PPTX best-eff
 ## Not Completed
 
 - Full ASR Long upload/poll/result product flow.
-- Rich semantic vector persistence and retrieval ranking UI.
-- Word/Excel native parser.
+- Rich semantic vector persistence and retrieval ranking UI beyond the v1.3 local index.
+- Word/Excel/PPT rich-format parser beyond best-effort templates.
 - Advanced spaced repetition scheduling.
 - Real-time lecture transcription beyond the existing system-ASR/manual transcript path.
-- Multi-choice and short-answer automatic grading beyond the current model/seam.
-- Timer/section-level exam analytics and similar-question recommendations.
+- Short-answer automatic AI grading beyond self-assessment / seam state.
+- Timer/section-level exam analytics and provider-backed similar-question recommendations.

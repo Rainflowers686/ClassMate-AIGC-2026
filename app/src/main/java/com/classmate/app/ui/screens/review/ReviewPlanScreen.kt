@@ -145,6 +145,7 @@ private fun L3LearningLoopCard(viewModel: AppViewModel) {
     val weak = l3.masteryStats.count { it.state.name == "WEAK" }
     val reviewing = l3.masteryStats.count { it.state.name == "REVIEWING" }
     val mastered = l3.masteryStats.count { it.state.name == "MASTERED" }
+    val daily = l3.reviewDailyStats
     ClassMateCard {
         Text("L3 闭环统计", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.s))
@@ -154,6 +155,14 @@ private fun L3LearningLoopCard(viewModel: AppViewModel) {
             Stat("$weak", "薄弱")
             Stat("$reviewing", "复习中")
             Stat("$mastered", "掌握")
+        }
+        if (daily.totalKnowledgePoints > 0) {
+            Spacer(Modifier.height(Dimens.s))
+            Text(
+                "每日复习卡：今日 ${daily.dueToday} · 逾期 ${daily.overdueCount} · 薄弱 ${daily.weakCount} · 已掌握 ${daily.masteredCount}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         if (l3.wrongBook.isNotEmpty()) {
             Spacer(Modifier.height(Dimens.s))
@@ -207,7 +216,9 @@ private fun PracticeEntryCard(viewModel: AppViewModel) {
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
             ActionChip("开始练习") { viewModel.startPractice(PracticeMode.QUICK_REVIEW) }
             ActionChip("错题重练") { viewModel.startPractice(PracticeMode.WRONG_ANSWER_RETRY) }
-            ActionChip("随机小测") { viewModel.startRandomQuiz() }
+            ActionChip("随机 3 题") { viewModel.startRandomQuiz(3) }
+            ActionChip("随机 5 题") { viewModel.startRandomQuiz(5) }
+            ActionChip("随机 10 题") { viewModel.startRandomQuiz(10) }
             ActionChip("模拟考试") { viewModel.startExam() }
             ActionChip("回忆复盘") { viewModel.startSelfAssessment() }
             ActionChip("需要多练") { viewModel.startPractice(PracticeMode.NEED_MORE_PRACTICE) }

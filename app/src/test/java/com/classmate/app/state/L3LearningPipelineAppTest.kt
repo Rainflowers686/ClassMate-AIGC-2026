@@ -5,6 +5,7 @@ import com.classmate.app.l3.ClassroomAudioRecorder
 import com.classmate.app.l3.L3AsrStatus
 import com.classmate.app.l3.L3DemoSeeds
 import com.classmate.app.l3.L3RecordingStatus
+import com.classmate.app.l3.PdfPageStatus
 import com.classmate.app.l3.PracticeQuestionMode
 import com.classmate.app.l3.RecordingArtifactResult
 import com.classmate.app.importing.OcrImportKind
@@ -99,6 +100,11 @@ class L3LearningPipelineAppTest {
 
         assertFalse(viewModel.importSuperhubFile("%PDF".toByteArray(), "handout.pdf", "application/pdf", now + 3))
         assertTrue(viewModel.ui.inputArtifacts.any { it.fileName == "handout.pdf" && it.status.name == "PARSER_PENDING" })
+        assertTrue(viewModel.ui.importReports.any { it.sourceType.name == "PDF" && it.fallbackUsed })
+        assertEquals(PdfPageStatus.PAGE_OCR_SEAM_READY, viewModel.ui.pdfPages.last().status)
+        assertTrue(viewModel.addManualPdfPageText(viewModel.ui.pdfPages.last().artifactId, viewModel.ui.pdfPages.last().pageNumber, "PDF page manual learning text", now + 30))
+        assertEquals(PdfPageStatus.MANUAL_PAGE_TEXT_READY, viewModel.ui.pdfPages.last().status)
+        assertTrue(viewModel.ui.courseText.contains("PDF page manual learning text"))
 
         assertFalse(viewModel.importSuperhubFile(byteArrayOf(1, 2), "lecture.m4a", "audio/mp4", now + 4))
         assertEquals(L3AsrStatus.ASR_NOT_CONFIGURED, viewModel.ui.asrLongJobs.last().status)
@@ -150,11 +156,21 @@ class L3LearningPipelineAppTest {
         val supportSteps = viewModel.ui.l3Pipeline.supportSeams.map { it.step }.toSet()
         assertTrue(supportSteps.containsAll(listOf("TRANSLATION", "TTS", "FUNCTION_CALLING", "ASR_LONG")))
         assertTrue(viewModel.ui.l3Pipeline.embeddingRecords.isNotEmpty())
+        assertTrue(viewModel.ui.l3Pipeline.semanticIndexChunks.isNotEmpty())
         assertTrue(viewModel.ui.l3Pipeline.similarityMatches.isNotEmpty())
+        assertNotNull(viewModel.ui.l3ToolOrchestrationPlan)
+        assertTrue(viewModel.ui.l3ToolOrchestrationPlan!!.plannedTools.contains("REVIEW_UPDATE"))
         assertTrue(viewModel.ui.l3Pipeline.diagnostics.any { it.capability == "TTS" && it.status == "OFFICIAL_TTS_NOT_CONFIGURED" })
         assertTrue(viewModel.ui.l3Pipeline.knowledgeGraphEdges.isNotEmpty())
         assertTrue(viewModel.ui.l3Pipeline.similarQuestionRecommendations.isNotEmpty())
         assertTrue(viewModel.ui.l3Pipeline.officialToolSeams.map { it.capability }.containsAll(listOf("TRANSLATION", "TTS", "FUNCTION_CALLING", "ASR_LONG", "EDGE_MODEL")))
+        assertFalse(viewModel.prepareL3Translation())
+        assertTrue(viewModel.ui.l3TranslationSeams.last().status.name == "NOT_CONFIGURED")
+        assertFalse(viewModel.prepareL3ListenReview())
+        assertEquals("OFFICIAL_TTS_NOT_CONFIGURED", viewModel.ui.l3TtsReviewSeam!!.status.name)
+        viewModel.refreshL3ToolOrchestration(now + 99)
+        assertEquals("LOCAL_ORCHESTRATOR", viewModel.ui.l3ToolOrchestrationPlan!!.status.name)
+        assertEquals("LOCAL_RULE_FALLBACK", viewModel.ui.l3EdgeStudySeam!!.status.name)
     }
 
     @Test

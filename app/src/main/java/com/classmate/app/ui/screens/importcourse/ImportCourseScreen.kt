@@ -267,6 +267,22 @@ private fun ClassroomRecordingCard(viewModel: AppViewModel, onStartRecording: ()
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        ui.importReports.takeLast(2).forEach { report ->
+            Spacer(Modifier.height(Dimens.xs))
+            Text(
+                "Import report · ${report.sourceType.name} · success ${report.successCount} · warnings ${report.warningCount} · ${report.nextAction}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        ui.pdfPages.takeLast(2).forEach { page ->
+            Spacer(Modifier.height(Dimens.xs))
+            Text(
+                "PDF page ${page.pageNumber} · ${page.status.name} · OCR ${page.ocrStatus}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         ui.asrLongJobs.takeLast(2).forEach { job ->
             Spacer(Modifier.height(Dimens.xs))
             Text(

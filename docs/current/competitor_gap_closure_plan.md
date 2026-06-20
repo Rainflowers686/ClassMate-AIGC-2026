@@ -39,13 +39,25 @@ Completed / installed in Full Feature Closure v1.2:
 - Practice adds random quiz and similar-question recommendation seam.
 - Review adds rule-based next-review policy and stronger diagnostics for official tool statuses.
 
+Deepened in Championship Upgrade v1.3:
+
+- PDF input is now page-aware at code level: artifact, page fallback model, page OCR seam, manual page text readiness, and import report.
+- Practice supports multi-choice answer sets and strict/partial grading instead of collapsing `A,B` into `A`.
+- Short-answer practice remains honest as self-assessment / AI grading seam; it is not mislabeled as fully automatic.
+- Exam result reports record score, elapsed time, wrong questions, weak knowledge points, and evidence ids.
+- Review daily stats now summarize due, overdue, weak, wrong-book, mastered, and total knowledge points.
+- Semantic index chunks and local text similarity fallback provide a lightweight evidence/question matching path.
+- Tool orchestration plans show local OCR / ASR / Query Rewrite / Embedding / Similarity / LLM / Question Generation / Review Update chains.
+
 Remaining:
 
-- Robust native Word/Excel question bank parsing beyond the simple best-effort template.
-- Rich exam mode with timer, sections, and per-topic score analytics.
-- Similar-question recommendation UI backed by persisted embeddings.
-- Full ASR Long upload/poll/result product flow.
-- PDF parser or OCR-per-page pipeline.
+- Official ASR Long upload/poll/result product flow.
+- Native PDF parser or real per-page OCR execution.
+- Rich Word/Excel/PPT rich-format parsing beyond the simple ZIP/XML best-effort templates.
+- Persistent provider-backed vector store and large-scale similar-question recommendation.
+- Official TTS playback, Translation execution, and official Function Calling validation.
+- Rich exam mode with sections, timer enforcement, and per-topic score analytics.
+- Long-term mastery trend charts, streak/lapse tracking, and smarter spaced repetition.
 
 ## Current Mainline
 

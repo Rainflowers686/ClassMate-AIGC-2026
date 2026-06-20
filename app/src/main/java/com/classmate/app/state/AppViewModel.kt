@@ -40,9 +40,12 @@ import com.classmate.app.l3.ClassroomRecordingRecord
 import com.classmate.app.l3.ExamSession
 import com.classmate.app.l3.ExamStatus
 import com.classmate.app.l3.AsrLongJob
+import com.classmate.app.l3.ExamReportEngine
 import com.classmate.app.l3.InputArtifactStatus
 import com.classmate.app.l3.InputFileKind
+import com.classmate.app.l3.InputReportEngine
 import com.classmate.app.l3.InputSuperhub
+import com.classmate.app.l3.L3OfficialToolSeams
 import com.classmate.app.l3.L3AsrStatus
 import com.classmate.app.l3.L3DemoSeeds
 import com.classmate.app.l3.L3LearningPipeline
@@ -50,10 +53,12 @@ import com.classmate.app.l3.L3PipelineSnapshot
 import com.classmate.app.l3.L3RecordingStatus
 import com.classmate.app.l3.L3SourceType
 import com.classmate.app.l3.NoOpClassroomAudioRecorder
+import com.classmate.app.l3.PracticeGradingEngine
 import com.classmate.app.l3.PracticeAnswerState
 import com.classmate.app.l3.PracticeAnswerSubmission
 import com.classmate.app.l3.PracticeQuestionMode
 import com.classmate.app.l3.QuestionBankParser
+import com.classmate.app.l3.ReviewStatsEngine
 import com.classmate.app.material.LessonMaterialAssembler
 import com.classmate.core.material.LessonContextHints
 import com.classmate.app.sample.SampleLessonLibrary
@@ -1158,7 +1163,13 @@ class AppViewModel(
         now: Long = System.currentTimeMillis(),
     ): Boolean {
         val artifact = InputSuperhub.parseFile(bytes, fileName, mimeType, now)
-        ui = ui.copy(inputArtifacts = (ui.inputArtifacts + artifact).takeLast(20))
+        val report = InputReportEngine.reportFor(artifact)
+        val pdfPages = InputReportEngine.pdfPagesFor(artifact)
+        ui = ui.copy(
+            inputArtifacts = (ui.inputArtifacts + artifact).takeLast(20),
+            importReports = (ui.importReports + report).takeLast(20),
+            pdfPages = (ui.pdfPages + pdfPages).takeLast(50),
+        )
         val text = artifact.extractedText
         return when {
             artifact.status in setOf(InputArtifactStatus.EMPTY_FILE, InputArtifactStatus.READ_FAILED, InputArtifactStatus.UNSUPPORTED_FORMAT, InputArtifactStatus.FORMAT_ERROR) -> {
@@ -1202,6 +1213,38 @@ class AppViewModel(
                 false
             }
         }
+    }
+
+    fun addManualPdfPageText(
+        artifactId: String,
+        pageNumber: Int,
+        text: String,
+        now: Long = System.currentTimeMillis(),
+    ): Boolean {
+        if (text.isBlank()) {
+            ui = ui.copy(toast = "PDF page text is empty; paste page text before continuing.")
+            return false
+        }
+        val page = ui.pdfPages.firstOrNull { it.artifactId == artifactId && it.pageNumber == pageNumber }
+            ?: com.classmate.app.l3.PdfPageArtifact(
+                id = "pdf_page_${artifactId}_$pageNumber",
+                artifactId = artifactId,
+                pageNumber = pageNumber,
+                status = com.classmate.app.l3.PdfPageStatus.PDF_TEXT_PARSER_PENDING,
+            )
+        val updated = InputReportEngine.withManualPageText(page, text, now)
+        val pages = (ui.pdfPages.filterNot { it.id == updated.id || (it.artifactId == artifactId && it.pageNumber == pageNumber) } + updated)
+            .sortedWith(compareBy({ it.artifactId }, { it.pageNumber }))
+        ui = ui.copy(
+            pdfPages = pages,
+            courseTitle = ui.courseTitle.ifBlank { "PDF page $pageNumber" },
+            courseText = buildString {
+                if (ui.courseText.isNotBlank()) appendLine(ui.courseText.trim())
+                appendLine(text.trim())
+            }.trim(),
+            toast = "PDF page text added; it can now enter the L3 pipeline.",
+        )
+        return true
     }
 
     private fun createAsrLongJobForArtifact(artifactId: String, now: Long) {
@@ -1327,6 +1370,7 @@ class AppViewModel(
             currentRecording = null,
             recordingRecords = ui.recordingRecords + saved,
             inputArtifacts = (ui.inputArtifacts + audioArtifact).takeLast(20),
+            importReports = (ui.importReports + InputReportEngine.reportFor(audioArtifact)).takeLast(20),
             asrLongStatus = saved.asrStatus,
             audioCaptureMessage = if (saved.asrStatus == L3AsrStatus.ASR_NOT_CONFIGURED) "官方 ASR Long 未配置，可粘贴转写文本继续。" else "录音已保存，等待 ASR Long 配置或手动转写。",
             toast = artifact.safeMessage,
@@ -1362,7 +1406,11 @@ class AppViewModel(
     private fun publishL3Snapshot(snapshot: L3PipelineSnapshot, now: Long, toast: String): Boolean {
         val enrichedSnapshot = snapshot.copy(
             inputArtifacts = ui.inputArtifacts,
+            inputReports = ui.importReports,
+            pdfPages = ui.pdfPages,
             asrJobs = ui.asrLongJobs,
+            toolOrchestrationPlan = L3OfficialToolSeams.orchestrate("L3 learning package", snapshot, ui.providerConfigSummary, now),
+            reviewDailyStats = ReviewStatsEngine.daily(snapshot, now),
         )
         val artifacts = l3Pipeline.toCourseArtifacts(enrichedSnapshot, now)
         if (artifacts == null) {
@@ -1386,6 +1434,8 @@ class AppViewModel(
             session = artifacts.session,
             result = artifacts.result,
             l3Pipeline = enrichedSnapshot,
+            l3ToolOrchestrationPlan = enrichedSnapshot.toolOrchestrationPlan,
+            l3EdgeStudySeam = L3OfficialToolSeams.edgeStudyFallback(enrichedSnapshot.summary),
             learningState = LearningState.seed(artifacts.result.sessionId, artifacts.result.knowledgePoints, now),
             learningSnapshot = learningStore.snapshot(),
             history = updatedHistory,
@@ -1402,6 +1452,45 @@ class AppViewModel(
         persistHistory(updatedHistory)
         navigateTo(Screen.COURSE_DETAIL)
         return true
+    }
+
+    fun prepareL3Translation(targetLanguage: String = "zh-CHS"): Boolean {
+        val text = ui.l3Pipeline.evidence.firstOrNull()?.text ?: ui.courseText
+        if (text.isBlank()) {
+            ui = ui.copy(toast = "No lesson evidence is available for translation.")
+            return false
+        }
+        val result = L3OfficialToolSeams.translate(
+            sourceText = text,
+            sourceLanguage = "auto",
+            targetLanguage = targetLanguage,
+            summary = ui.providerConfigSummary,
+        )
+        ui = ui.copy(
+            l3TranslationSeams = (ui.l3TranslationSeams + result).takeLast(10),
+            toast = result.message,
+        )
+        return result.status != com.classmate.app.l3.OfficialToolSeamStatus.NOT_CONFIGURED
+    }
+
+    fun prepareL3ListenReview(): Boolean {
+        val text = ui.l3Pipeline.summary.ifBlank { ui.courseEssenceScript?.toPlainText().orEmpty() }.ifBlank { ui.courseText.take(300) }
+        if (text.isBlank()) {
+            ui = ui.copy(toast = "No summary is available for listen-review.")
+            return false
+        }
+        val result = L3OfficialToolSeams.prepareListenReview(text, ui.providerConfigSummary)
+        ui = ui.copy(l3TtsReviewSeam = result, toast = result.message)
+        return result.officialConfigured
+    }
+
+    fun refreshL3ToolOrchestration(now: Long = System.currentTimeMillis()) {
+        val plan = L3OfficialToolSeams.orchestrate("L3 diagnostics refresh", ui.l3Pipeline, ui.providerConfigSummary, now)
+        ui = ui.copy(
+            l3ToolOrchestrationPlan = plan,
+            l3Pipeline = ui.l3Pipeline.copy(toolOrchestrationPlan = plan),
+            toast = "L3 tool orchestration plan refreshed.",
+        )
     }
 
     // --- live companion ---
@@ -2665,8 +2754,9 @@ class AppViewModel(
             ui = ui.copy(toast = "请先选择一个答案。")
             return false
         }
-        val correctAnswers = item.correctOptionIds.sorted()
-        val correct = selected == correctAnswers
+        val grade = PracticeGradingEngine.grade(item, selected)
+        val correctAnswers = grade.correctAnswers
+        val correct = grade.correct
         val mode = ui.practiceQuestionMode
         val elapsedMs = (now - ui.practiceStartedAt).coerceAtLeast(0L)
         val outcome = if (correct) PracticeOutcome.CORRECT else PracticeOutcome.WRONG
@@ -2694,7 +2784,7 @@ class AppViewModel(
             l3Pipeline.submitAnswer(
                 snapshot = ui.l3Pipeline,
                 questionId = questionId,
-                userAnswer = selected.firstOrNull().orEmpty(),
+                userAnswer = selected.joinToString(","),
                 now = now,
                 selectedAnswers = selected,
                 elapsedMs = elapsedMs,
@@ -2788,6 +2878,15 @@ class AppViewModel(
             correctCount = result.correctCount,
             wrongCount = result.wrongCount,
         )
+        val examReport = submittedExam?.let { ExamReportEngine.build(it, ui.l3Pipeline, ui.practiceSubmittedAnswers) }
+        val nextL3 = if (examReport != null) {
+            ui.l3Pipeline.copy(examReports = (ui.l3Pipeline.examReports + examReport).takeLast(10))
+        } else {
+            ui.l3Pipeline
+        }
+        if (examReport != null) {
+            ui = ui.copy(l3Pipeline = nextL3)
+        }
         ui = ui.copy(
             practiceResult = result,
             learningSnapshot = learningStore.snapshot(),

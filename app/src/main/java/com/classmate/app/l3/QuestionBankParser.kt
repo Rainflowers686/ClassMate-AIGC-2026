@@ -91,7 +91,9 @@ object QuestionBankParser {
         explanation: String,
     ): L3GeneratedQuestion? {
         val validOptions = options.filter { it.second.isNotBlank() }
-        if (stem.isBlank() || validOptions.size < 2 || answer !in validOptions.map { it.first }) return null
+        val validOptionIds = validOptions.map { it.first }.toSet()
+        val answerIds = answerParts(answer)
+        if (stem.isBlank() || validOptions.size < 2 || answerIds.isEmpty() || answerIds.any { it !in validOptionIds }) return null
         val kpId = "qb_kp_${now}_${index + 1}"
         val evidenceId = "qb_ev_${now}_${index + 1}"
         return L3GeneratedQuestion(
@@ -107,11 +109,20 @@ object QuestionBankParser {
         )
     }
 
-    private fun normalizeAnswer(raw: String): String = when (raw.trim().lowercase()) {
-        "true", "t", "正确", "对", "yes", "y" -> "A"
-        "false", "f", "错误", "错", "no", "n" -> "B"
-        else -> raw.trim().take(1).uppercase()
+    private fun normalizeAnswer(raw: String): String {
+        val clean = raw.trim()
+        return when (clean.lowercase()) {
+            "true", "t", "正确", "对", "yes", "y" -> "A"
+            "false", "f", "错误", "错", "no", "n" -> "B"
+            else -> answerParts(clean).joinToString(",")
+        }
     }
+
+    private fun answerParts(raw: String): List<String> =
+        raw.split(",", ";", "|", "、", " ")
+            .map { it.trim().take(1).uppercase() }
+            .filter { it in listOf("A", "B", "C", "D") }
+            .distinct()
 
     private fun trueFalseOptions(raw: String): List<Pair<String, String>> =
         if (normalizeAnswer(raw) in listOf("A", "B") && raw.isNotBlank()) {

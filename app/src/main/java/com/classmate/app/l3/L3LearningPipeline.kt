@@ -211,7 +211,7 @@ class L3LearningPipeline {
                 knowledgePointId = question.testedKnowledgePointIds.firstOrNull().orEmpty(),
                 stem = question.stem,
                 options = question.options.map { "${it.id}. ${it.text}" },
-                correctAnswer = question.correctOptionIds.firstOrNull().orEmpty(),
+                correctAnswer = question.correctOptionIds.joinToString(","),
                 explanation = question.explanation,
                 evidenceIds = question.evidence.mapIndexed { evIndex, _ -> evidence.getOrNull(evIndex)?.id }.filterNotNull()
                     .ifEmpty { knowledge.getOrNull(index % knowledge.size.coerceAtLeast(1))?.sourceEvidenceIds.orEmpty() },
@@ -244,7 +244,17 @@ class L3LearningPipeline {
         mode: PracticeQuestionMode = PracticeQuestionMode.REAL_QUIZ,
     ): L3PipelineSnapshot {
         val question = snapshot.questions.firstOrNull { it.id == questionId } ?: return snapshot
-        val correct = question.correctAnswer.equals(userAnswer, ignoreCase = true)
+        val correctAnswers = question.correctAnswer.split(",", ";", "|")
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .ifEmpty { listOf(question.correctAnswer.trim()) }
+            .sorted()
+        val selected = selectedAnswers.ifEmpty { listOf(userAnswer) }
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .sorted()
+        val correct = selected == correctAnswers
         val attempt = L3PracticeAttempt(
             id = "l3_attempt_${now}_${snapshot.attempts.size + 1}",
             questionId = questionId,
@@ -263,7 +273,7 @@ class L3LearningPipeline {
                 id = previous?.id ?: "wrong_${now}_${snapshot.wrongBook.size + 1}",
                 questionId = question.id,
                 userAnswer = userAnswer,
-                correctAnswer = question.correctAnswer,
+                correctAnswer = correctAnswers.joinToString(","),
                 explanation = question.explanation,
                 knowledgePointId = question.knowledgePointId,
                 evidenceIds = question.evidenceIds,
@@ -310,13 +320,14 @@ class L3LearningPipeline {
         val knowledge = snapshot.knowledgePoints.map { kp ->
             if (kp.id == question.knowledgePointId) kp.copy(masteryState = if (correct) L3MasteryState.REVIEWING else L3MasteryState.WEAK) else kp
         }
-        return snapshot.copy(
+        val updated = snapshot.copy(
             attempts = snapshot.attempts + attempt,
             wrongBook = wrongBook,
             masteryStats = mastery,
             reviewQueue = queue,
             knowledgePoints = knowledge,
         )
+        return updated.copy(reviewDailyStats = ReviewStatsEngine.daily(updated, now))
     }
 
     fun toCourseArtifacts(snapshot: L3PipelineSnapshot, now: Long): L3CourseArtifacts? {
@@ -359,8 +370,8 @@ class L3LearningPipeline {
                     QuizOption(
                         id = id,
                         text = option.substringAfter(". ", option),
-                        isCorrect = id.equals(question.correctAnswer, ignoreCase = true),
-                        rationale = if (id.equals(question.correctAnswer, ignoreCase = true)) question.explanation else "请回到来源证据核对。",
+                        isCorrect = id in correctAnswerIds(question.correctAnswer),
+                        rationale = if (id in correctAnswerIds(question.correctAnswer)) question.explanation else "请回到来源证据核对。",
                     )
                 },
                 testedKnowledgePointIds = listOf(question.knowledgePointId).filter { it.isNotBlank() },
@@ -421,7 +432,7 @@ class L3LearningPipeline {
             )
         }
         val providerLogs = providerStepLogs(source.id, source.type, providerSummary, now)
-        return L3PipelineSnapshot(
+        val base = L3PipelineSnapshot(
             lessonSource = source,
             transcriptSegments = transcriptSegments,
             summary = summary,
@@ -435,6 +446,15 @@ class L3LearningPipeline {
             masteryStats = mastery,
             stepLogs = providerLogs,
             embeddingRecords = embeddingRecords(source.id, evidence, knowledge, questions, providerSummary),
+            semanticIndexChunks = SemanticIndexEngine.build(
+                L3PipelineSnapshot(
+                    lessonSource = source,
+                    evidence = evidence,
+                    knowledgePoints = knowledge,
+                    questions = questions,
+                ),
+                providerSummary,
+            ),
             similarityMatches = similarityMatches(evidence, knowledge, providerSummary),
             knowledgeGraphEdges = graphEdges(knowledge),
             similarQuestionRecommendations = similarQuestionRecommendations(questions, providerSummary),
@@ -442,6 +462,11 @@ class L3LearningPipeline {
             diagnostics = diagnostics(source.type, providerSummary, providerLogs, now),
             questionBank = questionBank,
             supportSeams = supportSeams(source.id, providerSummary, now),
+            distractorExplanations = DistractorExplanationEngine.build(L3PipelineSnapshot(questions = questions)),
+        )
+        return base.copy(
+            toolOrchestrationPlan = L3OfficialToolSeams.orchestrate("L3 learning package", base, providerSummary, now),
+            reviewDailyStats = ReviewStatsEngine.daily(base, now),
         )
     }
 
@@ -491,15 +516,8 @@ class L3LearningPipeline {
         )
     }
 
-    private fun supportSeams(lessonId: String, summary: ProviderConfigSummary, now: Long): List<PipelineStepLog> {
-        val official = summary.officialProviders
-        return listOf(
-            PipelineStepLog("step_translation_$now", lessonId, "TRANSLATION", "officialProviders.translation", if (official.translationConfigured) "READY_SEAM" else "SEAM_ONLY", "多语言资料辅助，非 L3 主链 blocker。", now),
-            PipelineStepLog("step_tts_$now", lessonId, "TTS", "officialProviders.tts", if (official.ttsConfigured) "READY_SEAM" else "SEAM_ONLY", "听读复习/课程精华脚本 seam，不做声音复刻。", now),
-            PipelineStepLog("step_function_calling_$now", lessonId, "FUNCTION_CALLING", "officialProviders.functionCalling", if (official.functionCallingConfigured) "READY_SEAM" else "SEAM_ONLY", "本地 orchestrator 记录 pipeline step log，官方函数调用未配置时不伪装完成。", now),
-            PipelineStepLog("step_asr_long_$now", lessonId, "ASR_LONG", "officialProviders.asrLong", if (official.asrLongConfigured) "PENDING_INPUT" else "ASR_NOT_CONFIGURED", "长音频 ASR 后置；未配置时使用手动转写 fallback。", now),
-        )
-    }
+    private fun supportSeams(lessonId: String, summary: ProviderConfigSummary, now: Long): List<PipelineStepLog> =
+        L3OfficialToolSeams.supportLogs(lessonId, summary, now)
 
     private fun diagnostics(
         sourceType: L3SourceType,
@@ -584,6 +602,12 @@ class L3LearningPipeline {
             )
         }
     }
+
+    private fun correctAnswerIds(answer: String): Set<String> =
+        answer.split(",", ";", "|", "、", " ")
+            .map { it.trim().take(1).uppercase() }
+            .filter { it.isNotBlank() }
+            .toSet()
 
     private fun paragraphChunks(text: String): List<String> =
         text.split(Regex("""\n{2,}|(?<=[。！？.!?])\s+"""))

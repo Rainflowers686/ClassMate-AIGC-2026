@@ -235,6 +235,19 @@ private fun L3PipelineStatusCard(viewModel: AppViewModel) {
                 Text("$from → $to · ${edge.relation.name}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
+        if (l3.transcriptSegments.isNotEmpty()) {
+            Spacer(Modifier.height(Dimens.s))
+            Text("Transcript timeline", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            l3.transcriptSegments.take(4).forEach { segment ->
+                val start = segment.startMs?.let { "${it / 1000}s" } ?: "--"
+                val end = segment.endMs?.let { "${it / 1000}s" } ?: "--"
+                Text(
+                    "$start-$end · ${segment.sourceType.name}${if (segment.fallbackGenerated) " · fallback" else ""} · ${segment.text.take(42)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
         if (l3.diagnostics.isNotEmpty()) {
             Spacer(Modifier.height(Dimens.s))
             Text("L3 能力诊断", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
@@ -248,9 +261,42 @@ private fun L3PipelineStatusCard(viewModel: AppViewModel) {
             Spacer(Modifier.height(Dimens.s))
             Text("输入状态：${l3.inputArtifacts.size} 个 artifact · ${l3.asrJobs.size} 个 ASR job", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        if (l3.inputReports.isNotEmpty() || l3.pdfPages.isNotEmpty()) {
+            Spacer(Modifier.height(Dimens.s))
+            Text(
+                "Import reports: ${l3.inputReports.size} · PDF pages: ${l3.pdfPages.size}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (l3.semanticIndexChunks.isNotEmpty() || l3.toolOrchestrationPlan != null) {
+            Spacer(Modifier.height(Dimens.s))
+            Text(
+                "Semantic index: ${l3.semanticIndexChunks.size} chunks · Tool plan: ${l3.toolOrchestrationPlan?.plannedTools?.joinToString(" -> ").orEmpty()}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         if (l3.similarQuestionRecommendations.isNotEmpty()) {
             Spacer(Modifier.height(Dimens.s))
             Text("相似题推荐（实验）：${l3.similarQuestionRecommendations.size} 条 · ${l3.similarQuestionRecommendations.first().status}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (l3.examReports.isNotEmpty()) {
+            val report = l3.examReports.last()
+            Spacer(Modifier.height(Dimens.s))
+            Text(
+                "Exam report: score ${report.score} · correct ${report.correctCount} · wrong ${report.wrongCount} · evidence ${report.evidenceIds.size}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (l3.distractorExplanations.isNotEmpty()) {
+            Spacer(Modifier.height(Dimens.s))
+            Text(
+                "Distractor explanations: ${l3.distractorExplanations.size} · ${l3.distractorExplanations.first().status}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

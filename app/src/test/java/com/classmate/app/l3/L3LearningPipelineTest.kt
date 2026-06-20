@@ -40,6 +40,10 @@ class L3LearningPipelineTest {
         assertTrue(snapshot.similarityMatches.any { it.providerStatus == "PROVIDER_READY_MATCH" })
         assertTrue(snapshot.knowledgeGraphEdges.isNotEmpty())
         assertTrue(snapshot.similarQuestionRecommendations.isNotEmpty())
+        assertTrue(snapshot.semanticIndexChunks.any { it.ownerType == "EVIDENCE" })
+        assertTrue(snapshot.toolOrchestrationPlan!!.plannedTools.contains("REVIEW_UPDATE"))
+        assertTrue(snapshot.reviewDailyStats.totalKnowledgePoints > 0)
+        assertTrue(snapshot.distractorExplanations.isNotEmpty())
         assertTrue(snapshot.diagnostics.any { it.capability == "FUNCTION_CALLING" && it.status == "LOCAL_ORCHESTRATOR" })
         assertTrue(snapshot.actionItems.isNotEmpty())
         assertTrue(snapshot.masteryStats.all { it.nextReviewAt != null && it.sourceLessonId.isNotBlank() })
@@ -59,6 +63,84 @@ class L3LearningPipelineTest {
         assertEquals(L3MasteryState.WEAK, updated.reviewQueue.first { it.knowledgePointId == question.knowledgePointId }.masteryState)
         assertEquals(now + 1, updated.reviewQueue.first { it.knowledgePointId == question.knowledgePointId }.dueAt)
         assertEquals(3, updated.reviewQueue.first { it.knowledgePointId == question.knowledgePointId }.priority)
+    }
+
+    @Test
+    fun multiChoiceStrictGradingAndShortAnswerSeamAreExplicit() {
+        val item = com.classmate.core.practice.PracticeItem(
+            id = "item_multi",
+            type = com.classmate.core.practice.PracticeItemType.QUIZ_RETRY,
+            knowledgePointId = "kp_multi",
+            knowledgePointTitle = "Multi",
+            taskId = "task_multi",
+            question = "Pick two",
+            answer = "A,B",
+            options = listOf(
+                com.classmate.core.practice.PracticeOption("A", "alpha", true),
+                com.classmate.core.practice.PracticeOption("B", "beta", true),
+                com.classmate.core.practice.PracticeOption("C", "gamma", false),
+            ),
+        )
+
+        val partial = PracticeGradingEngine.grade(item, listOf("A"))
+        assertEquals(PracticeGradingStatus.PARTIAL, partial.status)
+        assertFalse(partial.correct)
+
+        val correct = PracticeGradingEngine.grade(item, listOf("B", "A"))
+        assertEquals(PracticeGradingStatus.CORRECT, correct.status)
+        assertTrue(correct.correct)
+
+        val shortAnswer = PracticeGradingEngine.grade(item.copy(options = emptyList()), emptyList(), textAnswer = "because")
+        assertEquals(PracticeGradingStatus.SELF_ASSESSMENT_REQUIRED, shortAnswer.status)
+        assertTrue(shortAnswer.message.contains("AI_GRADING_SEAM_ONLY"))
+    }
+
+    @Test
+    fun importReportPdfPageSemanticIndexExamAndDailyStatsAreBuiltLocally() {
+        val artifact = InputArtifact(
+            id = "artifact_pdf",
+            kind = InputFileKind.PDF,
+            fileName = "lesson.pdf",
+            status = InputArtifactStatus.PARSER_PENDING,
+            message = "PDF artifact ready; manual page text fallback required.",
+            createdAt = now,
+        )
+
+        val report = InputReportEngine.reportFor(artifact)
+        val page = InputReportEngine.pdfPagesFor(artifact).single()
+        val manualPage = InputReportEngine.withManualPageText(page, "manual pdf page text", now + 1)
+
+        assertEquals(1, report.warningCount)
+        assertTrue(report.fallbackUsed)
+        assertEquals(PdfPageStatus.PAGE_OCR_SEAM_READY, page.status)
+        assertEquals(PdfPageStatus.MANUAL_PAGE_TEXT_READY, manualPage.status)
+
+        val snapshot = L3LearningPipeline().buildFromText(L3DemoSeeds.lessonTitle, L3DemoSeeds.lessonText, L3SourceType.TEXT, providerSummary, now)
+        val similarity = SemanticIndexEngine.similarity(snapshot.evidence.first().text, snapshot.knowledgePoints.first().title)
+        assertTrue(similarity >= 0.0)
+        assertTrue(snapshot.semanticIndexChunks.size >= snapshot.evidence.size)
+
+        val exam = ExamSession(
+            id = "exam_1",
+            sourceLessonId = snapshot.lessonSource!!.id,
+            questionIds = snapshot.questions.take(2).map { it.id },
+            startedAt = now,
+            submittedAt = now + 30_000,
+            status = ExamStatus.SUBMITTED,
+            score = 50,
+            correctCount = 1,
+            wrongCount = 1,
+        )
+        val submissions = mapOf(
+            "item_1" to PracticeAnswerSubmission("item_1", snapshot.questions.first().id, listOf("B"), correct = false, submittedAt = now + 1, mode = PracticeQuestionMode.EXAM, state = PracticeAnswerState.SUBMITTED_WRONG),
+        )
+        val examReport = ExamReportEngine.build(exam, snapshot, submissions)
+        val daily = ReviewStatsEngine.daily(snapshot, now)
+
+        assertEquals(50, examReport.score)
+        assertTrue(examReport.wrongQuestionIds.isNotEmpty())
+        assertTrue(daily.dueToday > 0)
+        assertEquals(snapshot.masteryStats.size, daily.totalKnowledgePoints)
     }
 
     @Test
@@ -91,6 +173,22 @@ class L3LearningPipelineTest {
         )
         assertTrue(tf.message, tf.accepted)
         assertEquals(listOf("A. 正确", "B. 错误"), tf.bank!!.questions.single().options)
+
+        val multi = QuestionBankParser.parse(
+            """
+            Q: 哪些选项属于课堂证据？
+            A. 材料原文
+            B. 课堂转写
+            C. 随机猜测
+            D. 无来源结论
+            Answer: A,B
+            Explanation: 证据必须来自材料或转写。
+            """.trimIndent(),
+            "多选题",
+            now + 3,
+        )
+        assertTrue(multi.message, multi.accepted)
+        assertEquals("A,B", multi.bank!!.questions.single().correctAnswer)
     }
 
     @Test
