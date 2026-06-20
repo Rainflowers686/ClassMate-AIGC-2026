@@ -275,6 +275,14 @@ private fun ClassroomRecordingCard(viewModel: AppViewModel, onStartRecording: ()
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        ui.pdfDocuments.takeLast(2).forEach { doc ->
+            Spacer(Modifier.height(Dimens.xs))
+            Text(
+                "PDF document · ${doc.fileName} · pages ${doc.pageCount} · ${doc.parserStatus}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         ui.pdfPages.takeLast(2).forEach { page ->
             Spacer(Modifier.height(Dimens.xs))
             Text(
@@ -286,7 +294,7 @@ private fun ClassroomRecordingCard(viewModel: AppViewModel, onStartRecording: ()
         ui.asrLongJobs.takeLast(2).forEach { job ->
             Spacer(Modifier.height(Dimens.xs))
             Text(
-                "ASR Long job · ${job.status.name}",
+                "ASR Long job · ${job.status.name} · upload ${job.uploadStatus.ifBlank { "not started" }} · polling ${job.pollingStatus.ifBlank { "not started" }}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

@@ -11,11 +11,16 @@ import com.classmate.app.l3.ExamSession
 import com.classmate.app.l3.AsrLongJob
 import com.classmate.app.l3.InputArtifact
 import com.classmate.app.l3.ImportReport
+import com.classmate.app.l3.PdfDocumentArtifact
 import com.classmate.app.l3.PdfPageArtifact
 import com.classmate.app.l3.L3AsrStatus
 import com.classmate.app.l3.L3PipelineSnapshot
+import com.classmate.app.l3.SemanticSearchResult
+import com.classmate.app.l3.TranslationResultRecord
 import com.classmate.app.l3.TranslationSeamResult
+import com.classmate.app.l3.TtsPlaybackState
 import com.classmate.app.l3.TtsReviewSeamResult
+import com.classmate.app.l3.ToolStepRecord
 import com.classmate.app.l3.ToolOrchestrationPlan
 import com.classmate.app.l3.EdgeStudySeamResult
 import com.classmate.app.l3.PracticeAnswerSubmission
@@ -98,6 +103,7 @@ data class ClassMateUiState(
     val questionBankParseResult: QuestionBankParseResult? = null,
     val inputArtifacts: List<InputArtifact> = emptyList(),
     val importReports: List<ImportReport> = emptyList(),
+    val pdfDocuments: List<PdfDocumentArtifact> = emptyList(),
     val pdfPages: List<PdfPageArtifact> = emptyList(),
     val asrLongJobs: List<AsrLongJob> = emptyList(),
     val currentRecording: ClassroomRecordingRecord? = null,
@@ -129,8 +135,12 @@ data class ClassMateUiState(
     val courseEssenceAudioResult: CourseEssenceAudioResult? = null,
     val translationNotes: List<TranslationNote> = emptyList(),
     val l3TranslationSeams: List<TranslationSeamResult> = emptyList(),
+    val l3TranslationResults: List<TranslationResultRecord> = emptyList(),
     val l3TtsReviewSeam: TtsReviewSeamResult? = null,
+    val l3TtsPlaybackState: TtsPlaybackState? = null,
     val l3ToolOrchestrationPlan: ToolOrchestrationPlan? = null,
+    val l3ToolStepRecords: List<ToolStepRecord> = emptyList(),
+    val l3SemanticSearchResults: List<SemanticSearchResult> = emptyList(),
     val l3EdgeStudySeam: EdgeStudySeamResult? = null,
     val textSafetyResult: TextSafetyResult? = null,
 

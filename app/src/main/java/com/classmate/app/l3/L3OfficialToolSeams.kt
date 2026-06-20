@@ -6,6 +6,7 @@ enum class OfficialToolSeamStatus {
     READY,
     NOT_CONFIGURED,
     SEAM_ONLY,
+    HARD_BLOCKED,
     LOCAL_ORCHESTRATOR,
     LOCAL_TTS_AVAILABLE,
     OFFICIAL_TTS_NOT_CONFIGURED,
@@ -40,6 +41,7 @@ data class ToolOrchestrationPlan(
     val plannedTools: List<String>,
     val executedSteps: List<PipelineStepLog>,
     val status: OfficialToolSeamStatus,
+    val stepRecords: List<ToolStepRecord> = emptyList(),
 )
 
 data class EdgeStudySeamResult(
@@ -72,9 +74,13 @@ object L3OfficialToolSeams {
             ),
             OfficialToolSeam(
                 capability = "ASR_LONG",
-                status = if (official.asrLongConfigured) OfficialToolSeamStatus.SEAM_ONLY else OfficialToolSeamStatus.NOT_CONFIGURED,
+                status = if (official.asrLongConfigured) OfficialToolSeamStatus.HARD_BLOCKED else OfficialToolSeamStatus.NOT_CONFIGURED,
                 plannedUse = "Long-audio upload, polling, and transcript result flow.",
-                fallback = "Recording/audio artifacts stay available; manual transcript fallback enters the same L3 pipeline.",
+                fallback = if (official.asrLongConfigured) {
+                    "Config is present but upload/poll/result schema is missing in the app mapping; manual transcript fallback enters the same L3 pipeline."
+                } else {
+                    "Recording/audio artifacts stay available; manual transcript fallback enters the same L3 pipeline."
+                },
             ),
             OfficialToolSeam(
                 capability = "EDGE_MODEL",
@@ -168,11 +174,20 @@ object L3OfficialToolSeams {
                 createdAt = now,
             )
         }
+        val inputType = when {
+            snapshot.lessonSource?.type == L3SourceType.OCR_IMAGE -> ToolInputType.IMAGE
+            snapshot.asrJobs.isNotEmpty() || snapshot.transcriptSegments.any { it.sourceType == L3SourceType.AUDIO_TRANSCRIPT || it.sourceType == L3SourceType.MANUAL_TRANSCRIPT } -> ToolInputType.AUDIO
+            snapshot.questionBank != null -> ToolInputType.QUESTION_BANK
+            snapshot.pdfPages.isNotEmpty() -> ToolInputType.PDF
+            else -> ToolInputType.TEXT
+        }
+        val stepRecords = ToolOrchestratorProductizationEngine.stepRecords(inputType, snapshot, summary, now)
         return ToolOrchestrationPlan(
             task = task,
             plannedTools = planned,
             executedSteps = steps,
             status = if (configured) OfficialToolSeamStatus.READY else OfficialToolSeamStatus.LOCAL_ORCHESTRATOR,
+            stepRecords = stepRecords,
         )
     }
 

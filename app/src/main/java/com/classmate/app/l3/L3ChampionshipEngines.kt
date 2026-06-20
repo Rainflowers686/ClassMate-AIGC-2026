@@ -40,14 +40,7 @@ object InputReportEngine {
 
     fun pdfPagesFor(artifact: InputArtifact): List<PdfPageArtifact> {
         if (artifact.kind != InputFileKind.PDF) return emptyList()
-        return listOf(
-            PdfPageArtifact(
-                id = "pdf_page_${artifact.id}_1",
-                artifactId = artifact.id,
-                pageNumber = 1,
-                status = PdfPageStatus.PAGE_OCR_SEAM_READY,
-            ),
-        )
+        return PdfProcessingEngine.pagesFor(artifact).map(PdfProcessingEngine::markOcrReady)
     }
 
     fun withManualPageText(page: PdfPageArtifact, text: String, now: Long): PdfPageArtifact =
@@ -174,6 +167,37 @@ object ExamReportEngine {
         val wrongQuestions = snapshot.questions.filter { it.id in wrongQuestionIds }
         val evidenceIds = wrongQuestions.flatMap { it.evidenceIds }.distinct()
         val weakKps = wrongQuestions.map { it.knowledgePointId }.filter { it.isNotBlank() }.distinct()
+        val questionBreakdown = submissions.values.map { submission ->
+            "${submission.questionId}: ${if (submission.correct) "CORRECT" else "WRONG"}"
+        }
+        val kpBreakdown = snapshot.questions
+            .filter { question -> submissions.values.any { it.questionId == question.id } }
+            .groupBy { it.knowledgePointId }
+            .mapValues { (_, questions) ->
+                val ids = questions.map { it.id }.toSet()
+                val wrong = submissions.values.count { it.questionId in ids && !it.correct }
+                val correct = submissions.values.count { it.questionId in ids && it.correct }
+                "correct=$correct,wrong=$wrong"
+            }
+        val covered = submissions.values.count { submission ->
+            snapshot.questions.firstOrNull { it.id == submission.questionId }?.evidenceIds?.isNotEmpty() == true
+        }
+        val total = submissions.size.coerceAtLeast(1)
+        val recommendations = weakKps.map { kpId ->
+            val title = snapshot.knowledgePoints.firstOrNull { it.id == kpId }?.title ?: kpId
+            "Review weak point: $title"
+        }
+        val accuracy = if (exam.correctCount + exam.wrongCount == 0) 0.0 else exam.correctCount.toDouble() / (exam.correctCount + exam.wrongCount)
+        val markdown = buildString {
+            appendLine("# Exam Report")
+            appendLine()
+            appendLine("- Score: ${exam.score}")
+            appendLine("- Accuracy: ${"%.1f".format(accuracy * 100)}%")
+            appendLine("- Correct: ${exam.correctCount}")
+            appendLine("- Wrong: ${exam.wrongCount}")
+            if (wrongQuestionIds.isNotEmpty()) appendLine("- Wrong questions: ${wrongQuestionIds.joinToString(", ")}")
+            if (recommendations.isNotEmpty()) appendLine("- Recommended review: ${recommendations.joinToString("; ")}")
+        }
         return ExamResultReport(
             id = "exam_report_${exam.id}",
             examSessionId = exam.id,
@@ -184,6 +208,13 @@ object ExamReportEngine {
             weakKnowledgePointIds = weakKps,
             wrongQuestionIds = wrongQuestionIds,
             evidenceIds = evidenceIds,
+            accuracy = accuracy,
+            questionBreakdown = questionBreakdown,
+            knowledgePointBreakdown = kpBreakdown,
+            evidenceCoverage = covered.toDouble() / total,
+            recommendedReviewItems = recommendations,
+            markdownReport = markdown,
+            generatedAt = exam.submittedAt ?: exam.startedAt,
         )
     }
 }

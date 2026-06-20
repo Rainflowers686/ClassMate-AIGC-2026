@@ -164,6 +164,22 @@ private fun L3LearningLoopCard(viewModel: AppViewModel) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        if (l3.masteryTrendStats.recentSevenDaySummary.isNotBlank()) {
+            Spacer(Modifier.height(Dimens.xs))
+            Text(
+                "趋势：${l3.masteryTrendStats.recentSevenDaySummary} · streak ${l3.masteryTrendStats.reviewCompletionStreak}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (l3.semanticSearchResults.isNotEmpty()) {
+            Spacer(Modifier.height(Dimens.xs))
+            Text(
+                "语义检索：${l3.semanticSearchResults.first().status} · ${l3.semanticSearchResults.first().hits.size} 条相关证据/题目",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         if (l3.wrongBook.isNotEmpty()) {
             Spacer(Modifier.height(Dimens.s))
             Text("错题本", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)

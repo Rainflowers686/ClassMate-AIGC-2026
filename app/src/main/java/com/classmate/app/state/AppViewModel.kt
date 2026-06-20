@@ -20,6 +20,7 @@ import com.classmate.app.data.HistoryRecord
 import com.classmate.app.data.HistoryStore
 import com.classmate.app.data.InMemoryExportStore
 import com.classmate.app.data.InMemoryHistoryStore
+import com.classmate.app.data.LocalSemanticIndexRepository
 import com.classmate.app.data.ThemePreferenceRepository
 import com.classmate.app.exporting.ExportArtifact
 import com.classmate.app.exporting.ExportCenter
@@ -40,6 +41,7 @@ import com.classmate.app.l3.ClassroomRecordingRecord
 import com.classmate.app.l3.ExamSession
 import com.classmate.app.l3.ExamStatus
 import com.classmate.app.l3.AsrLongJob
+import com.classmate.app.l3.AsrLongProductizationEngine
 import com.classmate.app.l3.ExamReportEngine
 import com.classmate.app.l3.InputArtifactStatus
 import com.classmate.app.l3.InputFileKind
@@ -52,13 +54,23 @@ import com.classmate.app.l3.L3LearningPipeline
 import com.classmate.app.l3.L3PipelineSnapshot
 import com.classmate.app.l3.L3RecordingStatus
 import com.classmate.app.l3.L3SourceType
+import com.classmate.app.l3.LocalTtsPlayer
+import com.classmate.app.l3.LocalSemanticIndexEngine
 import com.classmate.app.l3.NoOpClassroomAudioRecorder
+import com.classmate.app.l3.NoOpLocalTtsPlayer
+import com.classmate.app.l3.PdfProcessingEngine
 import com.classmate.app.l3.PracticeGradingEngine
 import com.classmate.app.l3.PracticeAnswerState
 import com.classmate.app.l3.PracticeAnswerSubmission
 import com.classmate.app.l3.PracticeQuestionMode
 import com.classmate.app.l3.QuestionBankParser
 import com.classmate.app.l3.ReviewStatsEngine
+import com.classmate.app.l3.ToolInputType
+import com.classmate.app.l3.ToolOrchestratorProductizationEngine
+import com.classmate.app.l3.TranslationProductEngine
+import com.classmate.app.l3.TranslationTargetLanguage
+import com.classmate.app.l3.TtsPlaybackEngine
+import com.classmate.app.l3.TtsPlaybackSourceType
 import com.classmate.app.material.LessonMaterialAssembler
 import com.classmate.core.material.LessonContextHints
 import com.classmate.app.sample.SampleLessonLibrary
@@ -200,6 +212,9 @@ class AppViewModel(
     private val modelConfigRepository: ModelConfigRepository = ModelConfigRepository.disabled(),
     // Persistent appearance config. Separate from AI config and contains no secrets.
     private val themePreferenceRepository: ThemePreferenceRepository = ThemePreferenceRepository.disabled(),
+    // App-private semantic index. Stores local lexical vectors only; no provider secrets or endpoint data.
+    private val semanticIndexRepository: LocalSemanticIndexRepository = LocalSemanticIndexRepository.disabled(),
+    private val localTtsPlayer: LocalTtsPlayer = NoOpLocalTtsPlayer(),
     // On-device BlueLM 3B owner. Defaults to the honest missing-SDK bridge until the AAR is bundled.
     private val onDeviceController: OnDeviceLlmController = OnDeviceLlmController(),
     // Lazy so constructing the VM never reads capture credentials; OCR/ASR config is loaded only when
@@ -1165,9 +1180,11 @@ class AppViewModel(
         val artifact = InputSuperhub.parseFile(bytes, fileName, mimeType, now)
         val report = InputReportEngine.reportFor(artifact)
         val pdfPages = InputReportEngine.pdfPagesFor(artifact)
+        val pdfDocument = PdfProcessingEngine.documentFor(artifact)
         ui = ui.copy(
             inputArtifacts = (ui.inputArtifacts + artifact).takeLast(20),
             importReports = (ui.importReports + report).takeLast(20),
+            pdfDocuments = (ui.pdfDocuments + listOfNotNull(pdfDocument)).takeLast(20),
             pdfPages = (ui.pdfPages + pdfPages).takeLast(50),
         )
         val text = artifact.extractedText
@@ -1248,24 +1265,43 @@ class AppViewModel(
     }
 
     private fun createAsrLongJobForArtifact(artifactId: String, now: Long) {
-        val status = if (ui.providerConfigSummary.officialProviders.asrLongConfigured) {
-            L3AsrStatus.PENDING_ASR_CONFIG
-        } else {
-            L3AsrStatus.ASR_NOT_CONFIGURED
-        }
-        val job = AsrLongJob(
-            id = "asr_job_$now",
-            audioArtifactId = artifactId,
-            status = status,
-            errorMessage = if (status == L3AsrStatus.ASR_NOT_CONFIGURED) "官方 ASR Long 未配置，请使用手动转写 fallback。" else null,
-            createdAt = now,
-            updatedAt = now,
-        )
+        val job = AsrLongProductizationEngine.createJob(artifactId, ui.providerConfigSummary, now)
         ui = ui.copy(
             asrLongJobs = (ui.asrLongJobs + job).takeLast(20),
-            asrLongStatus = status,
+            asrLongStatus = job.status,
             audioCaptureMessage = job.errorMessage ?: "ASR Long job 已进入等待配置/输入状态。",
         )
+    }
+
+    fun applyAsrLongTranscript(
+        jobId: String,
+        transcriptText: String,
+        now: Long = System.currentTimeMillis(),
+    ): Boolean {
+        val job = ui.asrLongJobs.firstOrNull { it.id == jobId } ?: return false
+        if (transcriptText.isBlank()) {
+            ui = ui.copy(toast = "转写文本为空，无法回填课堂学习包。")
+            return false
+        }
+        val filled = AsrLongProductizationEngine.applyTranscript(job, transcriptText, "asr_source_$now", now)
+        ui = ui.copy(
+            asrLongJobs = ui.asrLongJobs.map { if (it.id == jobId) filled else it },
+            asrLongStatus = L3AsrStatus.TRANSCRIPT_READY,
+            courseTitle = ui.courseTitle.ifBlank { "课堂转写" },
+            courseText = buildString {
+                if (ui.courseText.isNotBlank()) appendLine(ui.courseText.trim())
+                appendLine(transcriptText.trim())
+            }.trim(),
+            toast = "ASR transcript filled; it can now enter the L3 learning package.",
+        )
+        val snapshot = l3Pipeline.buildFromText(
+            title = ui.courseTitle.ifBlank { "课堂转写" },
+            text = transcriptText,
+            sourceType = L3SourceType.AUDIO_TRANSCRIPT,
+            providerSummary = ui.providerConfigSummary,
+            now = now + 1,
+        )
+        return publishL3Snapshot(snapshot, now + 1, "ASR transcript has entered the L3 learning package.")
     }
 
     fun loadL3DemoSeed() {
@@ -1404,12 +1440,35 @@ class AppViewModel(
     }
 
     private fun publishL3Snapshot(snapshot: L3PipelineSnapshot, now: Long, toast: String): Boolean {
+        val inputType = when {
+            snapshot.lessonSource?.type == L3SourceType.OCR_IMAGE -> ToolInputType.IMAGE
+            snapshot.lessonSource?.type == L3SourceType.QUESTION_BANK -> ToolInputType.QUESTION_BANK
+            ui.pdfPages.isNotEmpty() -> ToolInputType.PDF
+            ui.asrLongJobs.isNotEmpty() || snapshot.transcriptSegments.isNotEmpty() -> ToolInputType.AUDIO
+            else -> ToolInputType.TEXT
+        }
+        val toolPlan = L3OfficialToolSeams.orchestrate("L3 learning package", snapshot, ui.providerConfigSummary, now)
+        val toolSteps = toolPlan.stepRecords.ifEmpty {
+            ToolOrchestratorProductizationEngine.stepRecords(inputType, snapshot, ui.providerConfigSummary, now)
+        }
+        val semanticRecords = LocalSemanticIndexEngine.records(snapshot, ui.providerConfigSummary, now)
+        semanticIndexRepository.save(semanticRecords)
+        val reloadedSemanticRecords = semanticIndexRepository.load().ifEmpty { semanticRecords }
+        val semanticSearch = snapshot.knowledgePoints.firstOrNull()?.title
+            ?.let { listOf(LocalSemanticIndexEngine.search(reloadedSemanticRecords, it)) }
+            ?: emptyList()
         val enrichedSnapshot = snapshot.copy(
             inputArtifacts = ui.inputArtifacts,
             inputReports = ui.importReports,
+            pdfDocuments = ui.pdfDocuments,
             pdfPages = ui.pdfPages,
             asrJobs = ui.asrLongJobs,
-            toolOrchestrationPlan = L3OfficialToolSeams.orchestrate("L3 learning package", snapshot, ui.providerConfigSummary, now),
+            toolOrchestrationPlan = toolPlan.copy(stepRecords = toolSteps),
+            toolStepRecords = toolSteps,
+            semanticIndexRecords = reloadedSemanticRecords,
+            semanticSearchResults = semanticSearch,
+            translationResults = ui.l3TranslationResults,
+            ttsPlaybackStates = listOfNotNull(ui.l3TtsPlaybackState),
             reviewDailyStats = ReviewStatsEngine.daily(snapshot, now),
         )
         val artifacts = l3Pipeline.toCourseArtifacts(enrichedSnapshot, now)
@@ -1435,6 +1494,8 @@ class AppViewModel(
             result = artifacts.result,
             l3Pipeline = enrichedSnapshot,
             l3ToolOrchestrationPlan = enrichedSnapshot.toolOrchestrationPlan,
+            l3ToolStepRecords = enrichedSnapshot.toolStepRecords,
+            l3SemanticSearchResults = enrichedSnapshot.semanticSearchResults,
             l3EdgeStudySeam = L3OfficialToolSeams.edgeStudyFallback(enrichedSnapshot.summary),
             learningState = LearningState.seed(artifacts.result.sessionId, artifacts.result.knowledgePoints, now),
             learningSnapshot = learningStore.snapshot(),
@@ -1455,7 +1516,8 @@ class AppViewModel(
     }
 
     fun prepareL3Translation(targetLanguage: String = "zh-CHS"): Boolean {
-        val text = ui.l3Pipeline.evidence.firstOrNull()?.text ?: ui.courseText
+        val evidence = ui.l3Pipeline.evidence.firstOrNull()
+        val text = evidence?.text ?: ui.courseText
         if (text.isBlank()) {
             ui = ui.copy(toast = "No lesson evidence is available for translation.")
             return false
@@ -1466,32 +1528,73 @@ class AppViewModel(
             targetLanguage = targetLanguage,
             summary = ui.providerConfigSummary,
         )
+        val productResult = TranslationProductEngine.prepare(
+            sourceText = text,
+            targetLanguage = targetLanguageFrom(targetLanguage),
+            evidenceId = evidence?.id,
+            summary = ui.providerConfigSummary,
+            now = System.currentTimeMillis(),
+        )
         ui = ui.copy(
             l3TranslationSeams = (ui.l3TranslationSeams + result).takeLast(10),
+            l3TranslationResults = (ui.l3TranslationResults + productResult).takeLast(10),
+            l3Pipeline = ui.l3Pipeline.copy(translationResults = (ui.l3Pipeline.translationResults + productResult).takeLast(10)),
             toast = result.message,
         )
         return result.status != com.classmate.app.l3.OfficialToolSeamStatus.NOT_CONFIGURED
     }
 
-    fun prepareL3ListenReview(): Boolean {
+    fun prepareL3ListenReview(sourceType: TtsPlaybackSourceType = TtsPlaybackSourceType.SUMMARY): Boolean {
         val text = ui.l3Pipeline.summary.ifBlank { ui.courseEssenceScript?.toPlainText().orEmpty() }.ifBlank { ui.courseText.take(300) }
         if (text.isBlank()) {
             ui = ui.copy(toast = "No summary is available for listen-review.")
             return false
         }
         val result = L3OfficialToolSeams.prepareListenReview(text, ui.providerConfigSummary)
-        ui = ui.copy(l3TtsReviewSeam = result, toast = result.message)
-        return result.officialConfigured
+        val playback = TtsPlaybackEngine.prepare(
+            text = text,
+            sourceType = sourceType,
+            summary = ui.providerConfigSummary,
+            now = System.currentTimeMillis(),
+            localTtsAvailable = localTtsPlayer.canAttemptLocalPlayback(),
+        )
+        val playbackAfterAttempt = if (playback.provider == com.classmate.app.l3.TtsPlaybackProvider.ANDROID_LOCAL_TTS) {
+            if (localTtsPlayer.speak(playback.id, text)) {
+                playback.copy(status = com.classmate.app.l3.TtsPlaybackStatus.PLAYING, message = "Android local TextToSpeech playback started.")
+            } else {
+                playback.copy(message = "${playback.message} Playback may require device initialization.")
+            }
+        } else {
+            playback
+        }
+        ui = ui.copy(
+            l3TtsReviewSeam = result,
+            l3TtsPlaybackState = playbackAfterAttempt,
+            l3Pipeline = ui.l3Pipeline.copy(ttsPlaybackStates = (ui.l3Pipeline.ttsPlaybackStates + playbackAfterAttempt).takeLast(10)),
+            toast = playbackAfterAttempt.message,
+        )
+        return playbackAfterAttempt.status == com.classmate.app.l3.TtsPlaybackStatus.OFFICIAL_TTS_READY ||
+            playbackAfterAttempt.status == com.classmate.app.l3.TtsPlaybackStatus.LOCAL_TTS_AVAILABLE ||
+            playbackAfterAttempt.status == com.classmate.app.l3.TtsPlaybackStatus.PLAYING
     }
 
     fun refreshL3ToolOrchestration(now: Long = System.currentTimeMillis()) {
         val plan = L3OfficialToolSeams.orchestrate("L3 diagnostics refresh", ui.l3Pipeline, ui.providerConfigSummary, now)
         ui = ui.copy(
             l3ToolOrchestrationPlan = plan,
-            l3Pipeline = ui.l3Pipeline.copy(toolOrchestrationPlan = plan),
+            l3ToolStepRecords = plan.stepRecords,
+            l3Pipeline = ui.l3Pipeline.copy(toolOrchestrationPlan = plan, toolStepRecords = plan.stepRecords),
             toast = "L3 tool orchestration plan refreshed.",
         )
     }
+
+    private fun targetLanguageFrom(value: String): TranslationTargetLanguage =
+        when (value.lowercase(Locale.US)) {
+            "en", "english" -> TranslationTargetLanguage.ENGLISH
+            "ja", "jp", "japanese" -> TranslationTargetLanguage.JAPANESE
+            "ko", "kr", "korean" -> TranslationTargetLanguage.KOREAN
+            else -> TranslationTargetLanguage.CHINESE
+        }
 
     // --- live companion ---
     fun updateLiveTitle(value: String) { ui = ui.copy(liveTitleDraft = value) }
@@ -3156,6 +3259,7 @@ class AppViewModel(
 
     /** Official SDK requirement: release native resources when the owner is destroyed. */
     override fun onCleared() {
+        runCatching { localTtsPlayer.release() }
         runCatching { onDeviceController.release() }
         super.onCleared()
     }

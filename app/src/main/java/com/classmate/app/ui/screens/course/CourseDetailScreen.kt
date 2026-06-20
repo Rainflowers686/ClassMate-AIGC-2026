@@ -264,15 +264,24 @@ private fun L3PipelineStatusCard(viewModel: AppViewModel) {
         if (l3.inputReports.isNotEmpty() || l3.pdfPages.isNotEmpty()) {
             Spacer(Modifier.height(Dimens.s))
             Text(
-                "Import reports: ${l3.inputReports.size} · PDF pages: ${l3.pdfPages.size}",
+                "Import reports: ${l3.inputReports.size} · PDF docs: ${l3.pdfDocuments.size} · PDF pages: ${l3.pdfPages.size}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        if (l3.semanticIndexChunks.isNotEmpty() || l3.toolOrchestrationPlan != null) {
+        if (l3.semanticIndexChunks.isNotEmpty() || l3.toolOrchestrationPlan != null || l3.toolStepRecords.isNotEmpty()) {
             Spacer(Modifier.height(Dimens.s))
             Text(
-                "Semantic index: ${l3.semanticIndexChunks.size} chunks · Tool plan: ${l3.toolOrchestrationPlan?.plannedTools?.joinToString(" -> ").orEmpty()}",
+                "Semantic index: ${l3.semanticIndexRecords.size} records · Tool steps: ${l3.toolStepRecords.size} · ${l3.toolOrchestrationPlan?.plannedTools?.joinToString(" -> ").orEmpty()}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (l3.semanticSearchResults.isNotEmpty()) {
+            Spacer(Modifier.height(Dimens.s))
+            val result = l3.semanticSearchResults.first()
+            Text(
+                "Local semantic search: ${result.status} · top hit ${result.hits.firstOrNull()?.ownerType.orEmpty()} ${"%.2f".format(result.hits.firstOrNull()?.score ?: 0.0)}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -285,10 +294,22 @@ private fun L3PipelineStatusCard(viewModel: AppViewModel) {
             val report = l3.examReports.last()
             Spacer(Modifier.height(Dimens.s))
             Text(
-                "Exam report: score ${report.score} · correct ${report.correctCount} · wrong ${report.wrongCount} · evidence ${report.evidenceIds.size}",
+                "Exam report: score ${report.score} · accuracy ${"%.0f".format(report.accuracy * 100)}% · weak ${report.weakKnowledgePointIds.size} · evidence ${report.evidenceIds.size}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+        if (l3.translationResults.isNotEmpty() || l3.ttsPlaybackStates.isNotEmpty()) {
+            Spacer(Modifier.height(Dimens.s))
+            Text(
+                "Study aids: translation ${l3.translationResults.lastOrNull()?.status?.name ?: "not requested"} · TTS ${l3.ttsPlaybackStates.lastOrNull()?.status?.name ?: "not requested"}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (l3.masteryTrendStats.recentSevenDaySummary.isNotBlank()) {
+            Spacer(Modifier.height(Dimens.s))
+            Text("Mastery trend: ${l3.masteryTrendStats.recentSevenDaySummary}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (l3.distractorExplanations.isNotEmpty()) {
             Spacer(Modifier.height(Dimens.s))

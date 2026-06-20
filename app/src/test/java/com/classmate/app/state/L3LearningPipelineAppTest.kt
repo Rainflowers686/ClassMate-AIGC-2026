@@ -8,6 +8,8 @@ import com.classmate.app.l3.L3RecordingStatus
 import com.classmate.app.l3.PdfPageStatus
 import com.classmate.app.l3.PracticeQuestionMode
 import com.classmate.app.l3.RecordingArtifactResult
+import com.classmate.app.l3.TranslationProductStatus
+import com.classmate.app.l3.TtsPlaybackStatus
 import com.classmate.app.importing.OcrImportKind
 import java.io.ByteArrayOutputStream
 import java.util.zip.ZipEntry
@@ -101,6 +103,7 @@ class L3LearningPipelineAppTest {
         assertFalse(viewModel.importSuperhubFile("%PDF".toByteArray(), "handout.pdf", "application/pdf", now + 3))
         assertTrue(viewModel.ui.inputArtifacts.any { it.fileName == "handout.pdf" && it.status.name == "PARSER_PENDING" })
         assertTrue(viewModel.ui.importReports.any { it.sourceType.name == "PDF" && it.fallbackUsed })
+        assertTrue(viewModel.ui.pdfDocuments.any { it.artifactId == viewModel.ui.pdfPages.last().artifactId && it.parserStatus == "PDF_TEXT_PARSER_PENDING" })
         assertEquals(PdfPageStatus.PAGE_OCR_SEAM_READY, viewModel.ui.pdfPages.last().status)
         assertTrue(viewModel.addManualPdfPageText(viewModel.ui.pdfPages.last().artifactId, viewModel.ui.pdfPages.last().pageNumber, "PDF page manual learning text", now + 30))
         assertEquals(PdfPageStatus.MANUAL_PAGE_TEXT_READY, viewModel.ui.pdfPages.last().status)
@@ -157,19 +160,25 @@ class L3LearningPipelineAppTest {
         assertTrue(supportSteps.containsAll(listOf("TRANSLATION", "TTS", "FUNCTION_CALLING", "ASR_LONG")))
         assertTrue(viewModel.ui.l3Pipeline.embeddingRecords.isNotEmpty())
         assertTrue(viewModel.ui.l3Pipeline.semanticIndexChunks.isNotEmpty())
+        assertTrue(viewModel.ui.l3Pipeline.semanticIndexRecords.isNotEmpty())
+        assertTrue(viewModel.ui.l3SemanticSearchResults.isNotEmpty())
         assertTrue(viewModel.ui.l3Pipeline.similarityMatches.isNotEmpty())
         assertNotNull(viewModel.ui.l3ToolOrchestrationPlan)
         assertTrue(viewModel.ui.l3ToolOrchestrationPlan!!.plannedTools.contains("REVIEW_UPDATE"))
-        assertTrue(viewModel.ui.l3Pipeline.diagnostics.any { it.capability == "TTS" && it.status == "OFFICIAL_TTS_NOT_CONFIGURED" })
+        assertTrue(viewModel.ui.l3ToolStepRecords.any { it.toolName == "REVIEW_UPDATE" })
+        assertTrue(viewModel.ui.l3Pipeline.diagnostics.any { it.capability == "TTS" && it.status == "LOCAL_TTS_AVAILABLE" })
         assertTrue(viewModel.ui.l3Pipeline.knowledgeGraphEdges.isNotEmpty())
         assertTrue(viewModel.ui.l3Pipeline.similarQuestionRecommendations.isNotEmpty())
         assertTrue(viewModel.ui.l3Pipeline.officialToolSeams.map { it.capability }.containsAll(listOf("TRANSLATION", "TTS", "FUNCTION_CALLING", "ASR_LONG", "EDGE_MODEL")))
         assertFalse(viewModel.prepareL3Translation())
         assertTrue(viewModel.ui.l3TranslationSeams.last().status.name == "NOT_CONFIGURED")
-        assertFalse(viewModel.prepareL3ListenReview())
+        assertEquals(TranslationProductStatus.OFFICIAL_TRANSLATION_NOT_CONFIGURED, viewModel.ui.l3TranslationResults.last().status)
+        assertTrue(viewModel.prepareL3ListenReview())
         assertEquals("OFFICIAL_TTS_NOT_CONFIGURED", viewModel.ui.l3TtsReviewSeam!!.status.name)
+        assertEquals(TtsPlaybackStatus.PLAYING, viewModel.ui.l3TtsPlaybackState!!.status)
         viewModel.refreshL3ToolOrchestration(now + 99)
         assertEquals("LOCAL_ORCHESTRATOR", viewModel.ui.l3ToolOrchestrationPlan!!.status.name)
+        assertTrue(viewModel.ui.l3ToolStepRecords.isNotEmpty())
         assertEquals("LOCAL_RULE_FALLBACK", viewModel.ui.l3EdgeStudySeam!!.status.name)
     }
 
@@ -188,6 +197,20 @@ class L3LearningPipelineAppTest {
         assertEquals(L3RecordingStatus.SAVED, viewModel.ui.recordingRecords.single().status)
         assertEquals(L3AsrStatus.ASR_NOT_CONFIGURED, viewModel.ui.recordingRecords.single().asrStatus)
         assertFalse(viewModel.ui.audioCaptureMessage.orEmpty().contains("ASR 成功"))
+    }
+
+    @Test
+    fun asrTranscriptReadyFillsPipelineAndCreatesTimelineEvidence() {
+        val viewModel = vm()
+
+        assertFalse(viewModel.importSuperhubFile(byteArrayOf(1, 2), "lecture.m4a", "audio/mp4", now))
+        val job = viewModel.ui.asrLongJobs.last()
+        assertTrue(viewModel.applyAsrLongTranscript(job.id, "第一段讲电磁感应。\n第二段讲磁通量变化。", now + 10))
+
+        assertEquals(L3AsrStatus.TRANSCRIPT_READY, viewModel.ui.asrLongStatus)
+        assertTrue(viewModel.ui.l3Pipeline.transcriptSegments.isNotEmpty())
+        assertTrue(viewModel.ui.l3Pipeline.evidence.isNotEmpty())
+        assertTrue(viewModel.ui.l3Pipeline.reviewQueue.isNotEmpty())
     }
 
     @Test

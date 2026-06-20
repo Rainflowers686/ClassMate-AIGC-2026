@@ -22,11 +22,17 @@ enum class L3MasteryState {
 enum class L3AsrStatus {
     PENDING_ASR_CONFIG,
     ASR_NOT_CONFIGURED,
+    OFFICIAL_ASR_CONFIG_MISSING,
+    OFFICIAL_ASR_ADAPTER_READY,
+    UPLOAD_PENDING,
+    UPLOAD_FAILED,
+    POLLING_PENDING,
     QUEUED,
     PROCESSING,
     ASR_FAILED,
     TRANSCRIPT_READY,
     MANUAL_TRANSCRIPT_FALLBACK,
+    HARD_BLOCKED_MISSING_SCHEMA,
 }
 
 enum class KnowledgeGraphRelation {
@@ -74,7 +80,11 @@ enum class ExamStatus {
 enum class PdfPageStatus {
     PDF_ARTIFACT_READY,
     PDF_TEXT_PARSER_PENDING,
+    PAGE_READY,
     PAGE_OCR_SEAM_READY,
+    OCR_PENDING,
+    OCR_FAILED,
+    OCR_TEXT_READY,
     MANUAL_PAGE_TEXT_READY,
 }
 
@@ -84,6 +94,81 @@ enum class PracticeGradingStatus {
     PARTIAL,
     SELF_ASSESSMENT_REQUIRED,
     AI_GRADING_SEAM_ONLY,
+}
+
+enum class PdfDocumentStatus {
+    PDF_ARTIFACT_READY,
+    PDF_TEXT_PARSER_PENDING,
+    PAGE_OCR_SEAM_READY,
+    MANUAL_PAGE_TEXT_READY,
+}
+
+enum class TtsPlaybackSourceType {
+    SUMMARY,
+    WRONG_QUESTION_EXPLANATION,
+    REVIEW_CARD,
+}
+
+enum class TtsPlaybackProvider {
+    OFFICIAL_TTS,
+    ANDROID_LOCAL_TTS,
+    NONE,
+}
+
+enum class TtsPlaybackStatus {
+    OFFICIAL_TTS_READY,
+    OFFICIAL_TTS_NOT_CONFIGURED,
+    LOCAL_TTS_AVAILABLE,
+    LOCAL_TTS_UNAVAILABLE,
+    PLAYING,
+    STOPPED,
+    FAILED,
+}
+
+enum class TranslationTargetLanguage {
+    ENGLISH,
+    CHINESE,
+    JAPANESE,
+    KOREAN,
+}
+
+enum class TranslationProductStatus {
+    OFFICIAL_TRANSLATION_READY,
+    OFFICIAL_TRANSLATION_NOT_CONFIGURED,
+    HARD_BLOCKED_MISSING_SCHEMA,
+    PENDING,
+    FAILED,
+}
+
+enum class ToolInputType {
+    TEXT,
+    IMAGE,
+    AUDIO,
+    PDF,
+    QUESTION_BANK,
+}
+
+enum class ToolProviderMode {
+    OFFICIAL,
+    LOCAL_FALLBACK,
+    SEAM_ONLY,
+    NOT_CONFIGURED,
+}
+
+enum class ToolStepStatus {
+    PLANNED,
+    EXECUTED,
+    SKIPPED,
+    FAILED,
+}
+
+enum class MasteryHistoryEventType {
+    ANSWER_CORRECT,
+    ANSWER_WRONG,
+    REVIEW_DONE,
+    SELF_ASSESSED,
+    MASTERED,
+    DECAYED,
 }
 
 data class LessonSource(
@@ -241,6 +326,34 @@ data class SemanticIndexChunk(
     val status: String,
 )
 
+data class LocalSemanticIndexRecord(
+    val id: String,
+    val sourceType: String,
+    val sourceId: String,
+    val ownerType: String,
+    val ownerId: String,
+    val text: String,
+    val embeddingStatus: String,
+    val vector: List<Double>,
+    val tokens: List<String>,
+    val createdAt: Long,
+)
+
+data class SemanticSearchHit(
+    val recordId: String,
+    val ownerType: String,
+    val ownerId: String,
+    val text: String,
+    val score: Double,
+    val providerStatus: String,
+)
+
+data class SemanticSearchResult(
+    val query: String,
+    val hits: List<SemanticSearchHit>,
+    val status: String,
+)
+
 data class KnowledgeGraphEdge(
     val id: String,
     val fromKnowledgePointId: String,
@@ -262,6 +375,11 @@ data class AsrLongJob(
     val audioArtifactId: String,
     val status: L3AsrStatus,
     val transcriptText: String = "",
+    val providerStatus: String = "",
+    val uploadStatus: String = "",
+    val pollingStatus: String = "",
+    val transcriptSegments: List<TranscriptSegment> = emptyList(),
+    val errorCode: String? = null,
     val errorMessage: String? = null,
     val createdAt: Long,
     val updatedAt: Long,
@@ -281,6 +399,17 @@ data class PdfPageArtifact(
     val manualText: String = "",
     val ocrStatus: String = "PAGE_OCR_SEAM_READY",
     val evidenceId: String? = null,
+)
+
+data class PdfDocumentArtifact(
+    val id: String,
+    val artifactId: String,
+    val fileName: String,
+    val pageCount: Int,
+    val status: PdfDocumentStatus,
+    val parserStatus: String,
+    val createdAt: Long,
+    val message: String,
 )
 
 data class ImportReport(
@@ -320,6 +449,13 @@ data class ExamResultReport(
     val weakKnowledgePointIds: List<String>,
     val wrongQuestionIds: List<String>,
     val evidenceIds: List<String>,
+    val accuracy: Double = if (correctCount + wrongCount == 0) 0.0 else correctCount.toDouble() / (correctCount + wrongCount),
+    val questionBreakdown: List<String> = emptyList(),
+    val knowledgePointBreakdown: Map<String, String> = emptyMap(),
+    val evidenceCoverage: Double = 0.0,
+    val recommendedReviewItems: List<String> = emptyList(),
+    val markdownReport: String = "",
+    val generatedAt: Long = 0L,
 )
 
 data class ReviewDailyStats(
@@ -330,6 +466,64 @@ data class ReviewDailyStats(
     val overdueCount: Int,
     val totalKnowledgePoints: Int,
     val distribution: Map<L3MasteryState, Int>,
+)
+
+data class MasteryHistoryEvent(
+    val id: String,
+    val knowledgePointId: String,
+    val eventType: MasteryHistoryEventType,
+    val oldState: L3MasteryState,
+    val newState: L3MasteryState,
+    val createdAt: Long,
+    val sourceQuestionId: String? = null,
+    val sourceLessonId: String? = null,
+)
+
+data class MasteryTrendStats(
+    val dailyCorrectCount: Int,
+    val dailyWrongCount: Int,
+    val weakCountTrend: List<Int>,
+    val masteredCountTrend: List<Int>,
+    val reviewCompletionStreak: Int,
+    val lapseCount: Int,
+    val recentSevenDaySummary: String,
+)
+
+data class TtsPlaybackState(
+    val id: String,
+    val text: String,
+    val sourceType: TtsPlaybackSourceType,
+    val provider: TtsPlaybackProvider,
+    val status: TtsPlaybackStatus,
+    val message: String,
+    val createdAt: Long,
+)
+
+data class TranslationRequestRecord(
+    val id: String,
+    val sourceText: String,
+    val sourceLanguage: String,
+    val targetLanguage: TranslationTargetLanguage,
+    val keepTerms: List<String>,
+    val createdAt: Long,
+)
+
+data class TranslationResultRecord(
+    val request: TranslationRequestRecord,
+    val status: TranslationProductStatus,
+    val translatedText: String = "",
+    val errorMessage: String? = null,
+    val evidenceId: String? = null,
+)
+
+data class ToolStepRecord(
+    val id: String,
+    val toolName: String,
+    val status: ToolStepStatus,
+    val inputSummary: String,
+    val outputSummary: String,
+    val providerMode: ToolProviderMode,
+    val createdAt: Long,
 )
 
 data class ClassroomRecordingRecord(
@@ -383,15 +577,31 @@ data class L3PipelineSnapshot(
     val stepLogs: List<PipelineStepLog> = emptyList(),
     val embeddingRecords: List<EmbeddingRecord> = emptyList(),
     val semanticIndexChunks: List<SemanticIndexChunk> = emptyList(),
+    val semanticIndexRecords: List<LocalSemanticIndexRecord> = emptyList(),
+    val semanticSearchResults: List<SemanticSearchResult> = emptyList(),
     val similarityMatches: List<TextSimilarityMatch> = emptyList(),
     val knowledgeGraphEdges: List<KnowledgeGraphEdge> = emptyList(),
     val similarQuestionRecommendations: List<SimilarQuestionRecommendation> = emptyList(),
     val inputArtifacts: List<InputArtifact> = emptyList(),
     val inputReports: List<ImportReport> = emptyList(),
+    val pdfDocuments: List<PdfDocumentArtifact> = emptyList(),
     val pdfPages: List<PdfPageArtifact> = emptyList(),
     val asrJobs: List<AsrLongJob> = emptyList(),
     val officialToolSeams: List<OfficialToolSeam> = emptyList(),
     val toolOrchestrationPlan: ToolOrchestrationPlan? = null,
+    val toolStepRecords: List<ToolStepRecord> = emptyList(),
+    val ttsPlaybackStates: List<TtsPlaybackState> = emptyList(),
+    val translationResults: List<TranslationResultRecord> = emptyList(),
+    val masteryHistory: List<MasteryHistoryEvent> = emptyList(),
+    val masteryTrendStats: MasteryTrendStats = MasteryTrendStats(
+        dailyCorrectCount = 0,
+        dailyWrongCount = 0,
+        weakCountTrend = emptyList(),
+        masteredCountTrend = emptyList(),
+        reviewCompletionStreak = 0,
+        lapseCount = 0,
+        recentSevenDaySummary = "",
+    ),
     val reviewDailyStats: ReviewDailyStats = ReviewDailyStats(
         dueToday = 0,
         weakCount = 0,

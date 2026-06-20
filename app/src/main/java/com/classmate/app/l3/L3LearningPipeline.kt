@@ -327,7 +327,21 @@ class L3LearningPipeline {
             reviewQueue = queue,
             knowledgePoints = knowledge,
         )
-        return updated.copy(reviewDailyStats = ReviewStatsEngine.daily(updated, now))
+        val oldState = snapshot.masteryStats.firstOrNull { it.knowledgePointId == question.knowledgePointId }?.state ?: L3MasteryState.UNKNOWN
+        val newState = mastery.firstOrNull { it.knowledgePointId == question.knowledgePointId }?.state ?: oldState
+        val history = snapshot.masteryHistory + MasteryTrendEngine.eventForAttempt(
+            question = question,
+            oldState = oldState,
+            newState = newState,
+            correct = correct,
+            now = now,
+            index = snapshot.masteryHistory.size + 1,
+        )
+        return updated.copy(
+            masteryHistory = history,
+            reviewDailyStats = ReviewStatsEngine.daily(updated, now),
+            masteryTrendStats = MasteryTrendEngine.trend(history, updated, now),
+        )
     }
 
     fun toCourseArtifacts(snapshot: L3PipelineSnapshot, now: Long): L3CourseArtifacts? {
@@ -432,6 +446,15 @@ class L3LearningPipeline {
             )
         }
         val providerLogs = providerStepLogs(source.id, source.type, providerSummary, now)
+        val semanticChunks = SemanticIndexEngine.build(
+            L3PipelineSnapshot(
+                lessonSource = source,
+                evidence = evidence,
+                knowledgePoints = knowledge,
+                questions = questions,
+            ),
+            providerSummary,
+        )
         val base = L3PipelineSnapshot(
             lessonSource = source,
             transcriptSegments = transcriptSegments,
@@ -446,15 +469,7 @@ class L3LearningPipeline {
             masteryStats = mastery,
             stepLogs = providerLogs,
             embeddingRecords = embeddingRecords(source.id, evidence, knowledge, questions, providerSummary),
-            semanticIndexChunks = SemanticIndexEngine.build(
-                L3PipelineSnapshot(
-                    lessonSource = source,
-                    evidence = evidence,
-                    knowledgePoints = knowledge,
-                    questions = questions,
-                ),
-                providerSummary,
-            ),
+            semanticIndexChunks = semanticChunks,
             similarityMatches = similarityMatches(evidence, knowledge, providerSummary),
             knowledgeGraphEdges = graphEdges(knowledge),
             similarQuestionRecommendations = similarQuestionRecommendations(questions, providerSummary),
@@ -464,9 +479,17 @@ class L3LearningPipeline {
             supportSeams = supportSeams(source.id, providerSummary, now),
             distractorExplanations = DistractorExplanationEngine.build(L3PipelineSnapshot(questions = questions)),
         )
-        return base.copy(
+        val withPlan = base.copy(
             toolOrchestrationPlan = L3OfficialToolSeams.orchestrate("L3 learning package", base, providerSummary, now),
             reviewDailyStats = ReviewStatsEngine.daily(base, now),
+        )
+        val semanticRecords = LocalSemanticIndexEngine.records(withPlan, providerSummary, now)
+        val searchQuery = knowledge.firstOrNull()?.title ?: summary
+        return withPlan.copy(
+            semanticIndexRecords = semanticRecords,
+            semanticSearchResults = if (searchQuery.isBlank()) emptyList() else listOf(LocalSemanticIndexEngine.search(semanticRecords, searchQuery)),
+            toolStepRecords = withPlan.toolOrchestrationPlan?.stepRecords.orEmpty(),
+            masteryTrendStats = MasteryTrendEngine.trend(withPlan.masteryHistory, withPlan, now),
         )
     }
 
@@ -532,10 +555,10 @@ class L3LearningPipeline {
             L3CapabilityStatus("QUERY_REWRITE", log("QUERY_REWRITE").ifBlank { "LOCAL_SAFE_REWRITE" }, "用于学习问题标准化和检索 query seam。"),
             L3CapabilityStatus("EMBEDDING", if (official.embeddingConfigured) "RECORD_CREATED" else "LOCAL_FALLBACK", "Lesson/Evidence/KP/Question 均有 embedding record。"),
             L3CapabilityStatus("TEXT_SIMILARITY", if (official.textSimilarityConfigured) "MATCH_CREATED" else "LOCAL_FALLBACK", "用于 evidence 归因和相似题 seam。"),
-            L3CapabilityStatus("TRANSLATION", if (official.translationConfigured) "READY" else "SEAM_ONLY", "多语言资料辅助；未配置时不改原文证据。"),
-            L3CapabilityStatus("TTS", if (official.ttsConfigured) "READY" else "OFFICIAL_TTS_NOT_CONFIGURED", "听读复习 seam；未配置时使用脚本文本。"),
+            L3CapabilityStatus("TRANSLATION", if (official.translationConfigured) "OFFICIAL_TRANSLATION_READY" else "OFFICIAL_TRANSLATION_NOT_CONFIGURED", "多语言资料辅助；未配置时不改原文证据。"),
+            L3CapabilityStatus("TTS", if (official.ttsConfigured) "OFFICIAL_TTS_READY" else "LOCAL_TTS_AVAILABLE", "听读复习：官方未配置时使用 Android local TTS fallback 或脚本文本。"),
             L3CapabilityStatus("FUNCTION_CALLING", if (official.functionCallingConfigured) "READY" else "LOCAL_ORCHESTRATOR", "本地工具链 step log，不伪装官方 Function Calling。"),
-            L3CapabilityStatus("ASR_LONG", if (sourceType == L3SourceType.MANUAL_TRANSCRIPT) "MANUAL_TRANSCRIPT_FALLBACK" else if (official.asrLongConfigured) "PENDING_ASR_CONFIG" else "ASR_NOT_CONFIGURED", "长音频 artifact + ASR seam；未配置时走手动转写。"),
+            L3CapabilityStatus("ASR_LONG", if (sourceType == L3SourceType.MANUAL_TRANSCRIPT) "MANUAL_TRANSCRIPT_FALLBACK" else if (official.asrLongConfigured) "HARD_BLOCKED_MISSING_SCHEMA" else "OFFICIAL_ASR_CONFIG_MISSING", "长音频 artifact + ASR job lifecycle；缺上传/轮询/结果 schema 时走手动转写。"),
             L3CapabilityStatus("EDGE_MODEL", "LOCAL_RULE_FALLBACK", "端侧不可用时保留本地规则摘要/微测 fallback。"),
             L3CapabilityStatus("WORD_EXCEL", "BEST_EFFORT", "DOCX/XLSX 使用轻量 ZIP/XML 解析，复杂格式提示模板。"),
             L3CapabilityStatus("PDF_PPT", "PARSER_PENDING", "PPTX 可 best-effort 抽文字；PDF 保留 artifact/manual fallback。"),

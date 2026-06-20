@@ -41,7 +41,10 @@ class L3LearningPipelineTest {
         assertTrue(snapshot.knowledgeGraphEdges.isNotEmpty())
         assertTrue(snapshot.similarQuestionRecommendations.isNotEmpty())
         assertTrue(snapshot.semanticIndexChunks.any { it.ownerType == "EVIDENCE" })
+        assertTrue(snapshot.semanticIndexRecords.any { it.ownerType == "EVIDENCE" })
+        assertTrue(snapshot.semanticSearchResults.isNotEmpty())
         assertTrue(snapshot.toolOrchestrationPlan!!.plannedTools.contains("REVIEW_UPDATE"))
+        assertTrue(snapshot.toolStepRecords.any { it.toolName == "REVIEW_UPDATE" })
         assertTrue(snapshot.reviewDailyStats.totalKnowledgePoints > 0)
         assertTrue(snapshot.distractorExplanations.isNotEmpty())
         assertTrue(snapshot.diagnostics.any { it.capability == "FUNCTION_CALLING" && it.status == "LOCAL_ORCHESTRATOR" })
@@ -63,6 +66,8 @@ class L3LearningPipelineTest {
         assertEquals(L3MasteryState.WEAK, updated.reviewQueue.first { it.knowledgePointId == question.knowledgePointId }.masteryState)
         assertEquals(now + 1, updated.reviewQueue.first { it.knowledgePointId == question.knowledgePointId }.dueAt)
         assertEquals(3, updated.reviewQueue.first { it.knowledgePointId == question.knowledgePointId }.priority)
+        assertTrue(updated.masteryHistory.any { it.eventType == MasteryHistoryEventType.ANSWER_WRONG })
+        assertEquals(1, updated.masteryTrendStats.dailyWrongCount)
     }
 
     @Test
@@ -139,8 +144,50 @@ class L3LearningPipelineTest {
 
         assertEquals(50, examReport.score)
         assertTrue(examReport.wrongQuestionIds.isNotEmpty())
+        assertTrue(examReport.markdownReport.contains("Exam Report"))
+        assertTrue(examReport.recommendedReviewItems.isNotEmpty())
+        assertTrue(examReport.accuracy in 0.0..1.0)
         assertTrue(daily.dueToday > 0)
         assertEquals(snapshot.masteryStats.size, daily.totalKnowledgePoints)
+    }
+
+    @Test
+    fun finalProductizationEnginesExposeHonestAsrTtsTranslationSemanticAndToolStates() {
+        val snapshot = L3LearningPipeline().buildFromText(L3DemoSeeds.lessonTitle, L3DemoSeeds.lessonText, L3SourceType.TEXT, providerSummary, now)
+
+        val missingAsr = AsrLongProductizationEngine.createJob("audio_1", ProviderConfigSummary.defaults(), now)
+        assertEquals(L3AsrStatus.ASR_NOT_CONFIGURED, missingAsr.status)
+        assertEquals("OFFICIAL_ASR_CONFIG_MISSING", missingAsr.providerStatus)
+
+        val configuredAsr = AsrLongProductizationEngine.createJob(
+            "audio_2",
+            ProviderConfigSummary.defaults().copy(
+                officialProviders = OfficialProviderConfigSummary(asrLongConfigured = true),
+            ),
+            now + 1,
+        )
+        assertEquals(L3AsrStatus.HARD_BLOCKED_MISSING_SCHEMA, configuredAsr.status)
+        assertTrue(configuredAsr.errorCode!!.contains("MISSING_ASR_LONG"))
+
+        val filled = AsrLongProductizationEngine.applyTranscript(missingAsr, "第一段讲电磁感应。\n第二段讲楞次定律。", "manual_audio", now + 2)
+        assertEquals(L3AsrStatus.TRANSCRIPT_READY, filled.status)
+        assertTrue(filled.transcriptSegments.isNotEmpty())
+
+        val tts = TtsPlaybackEngine.prepare(snapshot.summary, TtsPlaybackSourceType.SUMMARY, ProviderConfigSummary.defaults(), now)
+        assertEquals(TtsPlaybackStatus.LOCAL_TTS_AVAILABLE, tts.status)
+        assertEquals(TtsPlaybackProvider.ANDROID_LOCAL_TTS, tts.provider)
+
+        val translation = TranslationProductEngine.prepare(snapshot.evidence.first().text, TranslationTargetLanguage.ENGLISH, snapshot.evidence.first().id, ProviderConfigSummary.defaults(), now)
+        assertEquals(TranslationProductStatus.OFFICIAL_TRANSLATION_NOT_CONFIGURED, translation.status)
+        assertEquals(snapshot.evidence.first().id, translation.evidenceId)
+
+        val search = LocalSemanticIndexEngine.search(snapshot.semanticIndexRecords, snapshot.knowledgePoints.first().title)
+        assertTrue(search.hits.isNotEmpty())
+        assertTrue(search.status == "OFFICIAL_EMBEDDING_READY_SEAM" || search.status == "LOCAL_FALLBACK")
+
+        val toolSteps = ToolOrchestratorProductizationEngine.stepRecords(ToolInputType.PDF, snapshot.copy(pdfPages = listOf(PdfPageArtifact("p1", "a1", 1, PdfPageStatus.PAGE_OCR_SEAM_READY))), providerSummary, now)
+        assertTrue(toolSteps.any { it.toolName == "PDF_PAGE_OCR" })
+        assertTrue(toolSteps.any { it.providerMode == ToolProviderMode.LOCAL_FALLBACK || it.providerMode == ToolProviderMode.OFFICIAL || it.providerMode == ToolProviderMode.SEAM_ONLY })
     }
 
     @Test
