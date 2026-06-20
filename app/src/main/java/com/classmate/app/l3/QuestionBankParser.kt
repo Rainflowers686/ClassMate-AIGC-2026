@@ -47,17 +47,16 @@ object QuestionBankParser {
                 ?.trim()
                 .orEmpty()
             val options = lines.mapNotNull { optionLine.find(it)?.let { m -> m.groupValues[1].uppercase() to m.groupValues[2].trim() } }
-            val answer = lines.firstOrNull { it.startsWith("Answer:", ignoreCase = true) || it.startsWith("答案:", ignoreCase = true) }
+            val rawAnswer = lines.firstOrNull { it.startsWith("Answer:", ignoreCase = true) || it.startsWith("答案:", ignoreCase = true) }
                 ?.substringAfter(':')
                 ?.trim()
-                ?.take(1)
-                ?.uppercase()
                 .orEmpty()
+            val answer = normalizeAnswer(rawAnswer)
             val explanation = lines.firstOrNull { it.startsWith("Explanation:", ignoreCase = true) || it.startsWith("解析:", ignoreCase = true) }
                 ?.substringAfter(':')
                 ?.trim()
                 .orEmpty()
-            buildQuestion(index, now, title, stem, options, answer, explanation)
+            buildQuestion(index, now, title, stem, options.ifEmpty { trueFalseOptions(rawAnswer) }, answer, explanation)
         }
     }
 
@@ -75,7 +74,8 @@ object QuestionBankParser {
             val cols = splitCsv(line)
             val stem = cols.getOrNull(stemAt).orEmpty().trim()
             val options = optionIndices.mapIndexed { i, col -> ('A' + i).toString() to cols.getOrNull(col).orEmpty().trim() }
-            val answer = cols.getOrNull(answerAt).orEmpty().trim().take(1).uppercase()
+            val rawAnswer = cols.getOrNull(answerAt).orEmpty().trim()
+            val answer = normalizeAnswer(rawAnswer)
             val explanation = cols.getOrNull(explanationAt).orEmpty().trim()
             buildQuestion(index, now, title, stem, options, answer, explanation)
         }
@@ -106,6 +106,19 @@ object QuestionBankParser {
             difficulty = Difficulty.MEDIUM,
         )
     }
+
+    private fun normalizeAnswer(raw: String): String = when (raw.trim().lowercase()) {
+        "true", "t", "正确", "对", "yes", "y" -> "A"
+        "false", "f", "错误", "错", "no", "n" -> "B"
+        else -> raw.trim().take(1).uppercase()
+    }
+
+    private fun trueFalseOptions(raw: String): List<Pair<String, String>> =
+        if (normalizeAnswer(raw) in listOf("A", "B") && raw.isNotBlank()) {
+            listOf("A" to "正确", "B" to "错误")
+        } else {
+            emptyList()
+        }
 
     private fun splitCsv(line: String): List<String> {
         val out = mutableListOf<String>()

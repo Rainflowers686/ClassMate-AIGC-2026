@@ -7,6 +7,7 @@ enum class L3SourceType {
     OCR_IMAGE,
     AUDIO_TRANSCRIPT,
     MANUAL_TRANSCRIPT,
+    RECORDING_ARTIFACT,
     QUESTION_BANK,
 }
 
@@ -21,9 +22,18 @@ enum class L3MasteryState {
 enum class L3AsrStatus {
     PENDING_ASR_CONFIG,
     ASR_NOT_CONFIGURED,
+    QUEUED,
+    PROCESSING,
     ASR_FAILED,
     TRANSCRIPT_READY,
     MANUAL_TRANSCRIPT_FALLBACK,
+}
+
+enum class KnowledgeGraphRelation {
+    PREREQUISITE,
+    RELATED,
+    CONTRAST,
+    EXAMPLE,
 }
 
 enum class L3RecordingStatus {
@@ -78,6 +88,7 @@ data class TranscriptSegment(
     val text: String,
     val sourceType: L3SourceType,
     val confidence: Double? = null,
+    val fallbackGenerated: Boolean = false,
 )
 
 data class Evidence(
@@ -166,6 +177,8 @@ data class ReviewQueueItem(
     val dueAt: Long,
     val masteryState: L3MasteryState,
     val sourceLessonId: String,
+    val priority: Int = 1,
+    val source: String = "L3_PIPELINE",
 )
 
 data class MasteryStat(
@@ -174,6 +187,8 @@ data class MasteryStat(
     val correctCount: Int,
     val wrongCount: Int,
     val lastReviewedAt: Long? = null,
+    val nextReviewAt: Long? = null,
+    val sourceLessonId: String = "",
 )
 
 data class PipelineStepLog(
@@ -201,6 +216,38 @@ data class TextSimilarityMatch(
     val providerStatus: String,
 )
 
+data class KnowledgeGraphEdge(
+    val id: String,
+    val fromKnowledgePointId: String,
+    val toKnowledgePointId: String,
+    val relation: KnowledgeGraphRelation,
+    val evidenceIds: List<String>,
+)
+
+data class SimilarQuestionRecommendation(
+    val id: String,
+    val sourceQuestionId: String,
+    val recommendedQuestionId: String,
+    val score: Double,
+    val status: String,
+)
+
+data class AsrLongJob(
+    val id: String,
+    val audioArtifactId: String,
+    val status: L3AsrStatus,
+    val transcriptText: String = "",
+    val errorMessage: String? = null,
+    val createdAt: Long,
+    val updatedAt: Long,
+)
+
+data class L3CapabilityStatus(
+    val capability: String,
+    val status: String,
+    val message: String,
+)
+
 data class ClassroomRecordingRecord(
     val id: String,
     val title: String,
@@ -209,6 +256,7 @@ data class ClassroomRecordingRecord(
     val durationMs: Long = 0L,
     val status: L3RecordingStatus = L3RecordingStatus.IDLE,
     val artifactFileName: String? = null,
+    val artifactPath: String? = artifactFileName,
     val asrStatus: L3AsrStatus = L3AsrStatus.PENDING_ASR_CONFIG,
     val message: String = "",
 )
@@ -240,6 +288,7 @@ data class L3PipelineSnapshot(
     val summary: String = "",
     val keyTakeaways: List<String> = emptyList(),
     val reviewFocus: List<String> = emptyList(),
+    val actionItems: List<String> = emptyList(),
     val evidence: List<Evidence> = emptyList(),
     val knowledgePoints: List<L3KnowledgePoint> = emptyList(),
     val questions: List<L3GeneratedQuestion> = emptyList(),
@@ -250,6 +299,12 @@ data class L3PipelineSnapshot(
     val stepLogs: List<PipelineStepLog> = emptyList(),
     val embeddingRecords: List<EmbeddingRecord> = emptyList(),
     val similarityMatches: List<TextSimilarityMatch> = emptyList(),
+    val knowledgeGraphEdges: List<KnowledgeGraphEdge> = emptyList(),
+    val similarQuestionRecommendations: List<SimilarQuestionRecommendation> = emptyList(),
+    val inputArtifacts: List<InputArtifact> = emptyList(),
+    val asrJobs: List<AsrLongJob> = emptyList(),
+    val officialToolSeams: List<OfficialToolSeam> = emptyList(),
+    val diagnostics: List<L3CapabilityStatus> = emptyList(),
     val questionBank: L3QuestionBank? = null,
     val supportSeams: List<PipelineStepLog> = emptyList(),
 ) {

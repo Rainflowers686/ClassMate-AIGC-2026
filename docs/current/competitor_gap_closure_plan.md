@@ -32,11 +32,20 @@ Completed in L3 Function Closure v1.1:
 - ExamSession v1 starts, submits, scores, and writes wrong answers into the wrong book/review queue/mastery loop.
 - Review exposes wrong book records, mastery counts, and evidence text so the loop is reachable, not only modeled.
 
+Completed / installed in Full Feature Closure v1.2:
+
+- Input Superhub covers text, TXT/MD/CSV, DOCX/XLSX/PPTX best-effort, PDF artifact fallback, image/OCR seam, and audio/ASR seam.
+- Lecture mode has recording artifact, ASR Long job seam, manual transcript fallback, segment timeline, summary, knowledge graph edges, micro questions, review queue, and evidence chain.
+- Practice adds random quiz and similar-question recommendation seam.
+- Review adds rule-based next-review policy and stronger diagnostics for official tool statuses.
+
 Remaining:
 
-- Native Word/Excel question bank parsing.
+- Robust native Word/Excel question bank parsing beyond the simple best-effort template.
 - Rich exam mode with timer, sections, and per-topic score analytics.
 - Similar-question recommendation UI backed by persisted embeddings.
+- Full ASR Long upload/poll/result product flow.
+- PDF parser or OCR-per-page pipeline.
 
 ## Current Mainline
 

@@ -2,6 +2,8 @@
 
 Date: 2026-06-20
 
+Superseded note: Full Feature Closure v1.2 extends this pass with Input Superhub, best-effort Office import, ASR Long job seam, knowledge graph edges, diagnostics matrix, random quiz, similar-question recommendation seam, and NextReviewPolicy. Keep this file as the v1.1 evidence trail.
+
 ## Status Legend
 
 - COMPLETE: implemented in app code and covered by tests.

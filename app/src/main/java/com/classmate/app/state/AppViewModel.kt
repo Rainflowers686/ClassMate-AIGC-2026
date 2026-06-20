@@ -39,6 +39,10 @@ import com.classmate.app.l3.ClassroomAudioRecorder
 import com.classmate.app.l3.ClassroomRecordingRecord
 import com.classmate.app.l3.ExamSession
 import com.classmate.app.l3.ExamStatus
+import com.classmate.app.l3.AsrLongJob
+import com.classmate.app.l3.InputArtifactStatus
+import com.classmate.app.l3.InputFileKind
+import com.classmate.app.l3.InputSuperhub
 import com.classmate.app.l3.L3AsrStatus
 import com.classmate.app.l3.L3DemoSeeds
 import com.classmate.app.l3.L3LearningPipeline
@@ -170,6 +174,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
+import kotlin.random.Random
 
 /**
  * The single source of truth for the UI. Holds the in-memory back stack and the learning-loop
@@ -1146,6 +1151,80 @@ class AppViewModel(
         }
     }
 
+    fun importSuperhubFile(
+        bytes: ByteArray,
+        fileName: String,
+        mimeType: String = "",
+        now: Long = System.currentTimeMillis(),
+    ): Boolean {
+        val artifact = InputSuperhub.parseFile(bytes, fileName, mimeType, now)
+        ui = ui.copy(inputArtifacts = (ui.inputArtifacts + artifact).takeLast(20))
+        val text = artifact.extractedText
+        return when {
+            artifact.status in setOf(InputArtifactStatus.EMPTY_FILE, InputArtifactStatus.READ_FAILED, InputArtifactStatus.UNSUPPORTED_FORMAT, InputArtifactStatus.FORMAT_ERROR) -> {
+                ui = ui.copy(toast = artifact.message)
+                false
+            }
+            artifact.kind == InputFileKind.AUDIO -> {
+                createAsrLongJobForArtifact(artifact.id, now)
+                ui = ui.copy(toast = artifact.message)
+                false
+            }
+            artifact.kind == InputFileKind.IMAGE -> {
+                ui = ui.copy(toast = artifact.message)
+                false
+            }
+            artifact.kind == InputFileKind.PDF && text.isBlank() -> {
+                ui = ui.copy(toast = artifact.message)
+                false
+            }
+            text.isNotBlank() -> {
+                val parsedBank = if (artifact.kind in setOf(InputFileKind.CSV, InputFileKind.XLSX, InputFileKind.DOCX)) {
+                    QuestionBankParser.parse(text, ui.courseTitle.ifBlank { artifact.fileName.substringBeforeLast('.') }, now)
+                } else {
+                    null
+                }
+                if (parsedBank?.accepted == true && parsedBank.bank != null) {
+                    ui = ui.copy(questionBankDraft = text, questionBankParseResult = parsedBank)
+                    importQuestionBankDraft(now)
+                } else {
+                    ui = ui.copy(
+                        courseTitle = ui.courseTitle.ifBlank { artifact.fileName.substringBeforeLast('.') },
+                        courseText = text,
+                        importSourceType = if (artifact.kind == InputFileKind.MARKDOWN) ImportSourceType.MARKDOWN_FILE else ImportSourceType.TXT_FILE,
+                        toast = artifact.message,
+                    )
+                    true
+                }
+            }
+            else -> {
+                ui = ui.copy(toast = artifact.message)
+                false
+            }
+        }
+    }
+
+    private fun createAsrLongJobForArtifact(artifactId: String, now: Long) {
+        val status = if (ui.providerConfigSummary.officialProviders.asrLongConfigured) {
+            L3AsrStatus.PENDING_ASR_CONFIG
+        } else {
+            L3AsrStatus.ASR_NOT_CONFIGURED
+        }
+        val job = AsrLongJob(
+            id = "asr_job_$now",
+            audioArtifactId = artifactId,
+            status = status,
+            errorMessage = if (status == L3AsrStatus.ASR_NOT_CONFIGURED) "官方 ASR Long 未配置，请使用手动转写 fallback。" else null,
+            createdAt = now,
+            updatedAt = now,
+        )
+        ui = ui.copy(
+            asrLongJobs = (ui.asrLongJobs + job).takeLast(20),
+            asrLongStatus = status,
+            audioCaptureMessage = job.errorMessage ?: "ASR Long job 已进入等待配置/输入状态。",
+        )
+    }
+
     fun loadL3DemoSeed() {
         ui = ui.copy(
             courseTitle = L3DemoSeeds.lessonTitle,
@@ -1236,13 +1315,23 @@ class AppViewModel(
             asrStatus = if (ui.providerConfigSummary.officialProviders.asrLongConfigured) L3AsrStatus.PENDING_ASR_CONFIG else L3AsrStatus.ASR_NOT_CONFIGURED,
             message = artifact.safeMessage,
         )
+        val audioArtifact = com.classmate.app.l3.InputArtifact(
+            id = "audio_artifact_$now",
+            fileName = saved.artifactFileName ?: "${saved.id}.m4a",
+            kind = InputFileKind.AUDIO,
+            status = if (saved.asrStatus == L3AsrStatus.ASR_NOT_CONFIGURED) InputArtifactStatus.ASR_NOT_CONFIGURED else InputArtifactStatus.PENDING_ASR_CONFIG,
+            message = "课堂录音 artifact 已保存；ASR Long 按配置启用，未配置时走手动转写。",
+            createdAt = now,
+        )
         ui = ui.copy(
             currentRecording = null,
             recordingRecords = ui.recordingRecords + saved,
+            inputArtifacts = (ui.inputArtifacts + audioArtifact).takeLast(20),
             asrLongStatus = saved.asrStatus,
             audioCaptureMessage = if (saved.asrStatus == L3AsrStatus.ASR_NOT_CONFIGURED) "官方 ASR Long 未配置，可粘贴转写文本继续。" else "录音已保存，等待 ASR Long 配置或手动转写。",
             toast = artifact.safeMessage,
         )
+        createAsrLongJobForArtifact(audioArtifact.id, now)
     }
 
     fun showImportPlaceholder(sourceType: ImportSourceType) {
@@ -1271,9 +1360,13 @@ class AppViewModel(
     }
 
     private fun publishL3Snapshot(snapshot: L3PipelineSnapshot, now: Long, toast: String): Boolean {
-        val artifacts = l3Pipeline.toCourseArtifacts(snapshot, now)
+        val enrichedSnapshot = snapshot.copy(
+            inputArtifacts = ui.inputArtifacts,
+            asrJobs = ui.asrLongJobs,
+        )
+        val artifacts = l3Pipeline.toCourseArtifacts(enrichedSnapshot, now)
         if (artifacts == null) {
-            ui = ui.copy(l3Pipeline = snapshot, toast = "L3 资料不足，未生成完整闭环。")
+            ui = ui.copy(l3Pipeline = enrichedSnapshot, toast = "L3 资料不足，未生成完整闭环。")
             return false
         }
         val outcome = AnalysisOutcome.Success(
@@ -1292,7 +1385,7 @@ class AppViewModel(
         ui = ui.copy(
             session = artifacts.session,
             result = artifacts.result,
-            l3Pipeline = snapshot,
+            l3Pipeline = enrichedSnapshot,
             learningState = LearningState.seed(artifacts.result.sessionId, artifacts.result.knowledgePoints, now),
             learningSnapshot = learningStore.snapshot(),
             history = updatedHistory,
@@ -2413,6 +2506,27 @@ class AppViewModel(
 
     fun startExam(mode: PracticeMode = PracticeMode.QUICK_REVIEW) {
         startPracticeInternal(mode, PracticeQuestionMode.EXAM)
+    }
+
+    fun startRandomQuiz(questionCount: Int = 5, now: Long = System.currentTimeMillis()) {
+        startPracticeInternal(PracticeMode.QUICK_REVIEW, PracticeQuestionMode.REAL_QUIZ)
+        val session = ui.practiceSession ?: return
+        val picked = session.items
+            .filter { it.options.isNotEmpty() }
+            .shuffled(Random(now))
+            .take(questionCount.coerceIn(1, 10))
+            .ifEmpty { session.items.filter { it.options.isNotEmpty() }.take(questionCount.coerceIn(1, 10)) }
+        if (picked.isNotEmpty()) {
+            ui = ui.copy(
+                practiceSession = session.copy(items = picked, routeReason = "random quiz from current lesson/question bank"),
+                practiceIndex = 0,
+                practiceSelectedAnswers = emptyMap(),
+                practiceSubmittedAnswers = emptyMap(),
+                practiceAttempts = emptyList(),
+                practiceResult = null,
+                toast = "已生成 ${picked.size} 题随机小测。",
+            )
+        }
     }
 
     private fun startPracticeInternal(mode: PracticeMode, questionMode: PracticeQuestionMode) {

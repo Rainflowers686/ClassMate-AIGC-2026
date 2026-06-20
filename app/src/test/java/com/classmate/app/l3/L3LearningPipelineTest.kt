@@ -38,6 +38,11 @@ class L3LearningPipelineTest {
         assertTrue(snapshot.stepLogs.any { it.step == "QUERY_REWRITE" && it.status == "READY_SEAM_USED" })
         assertTrue(snapshot.embeddingRecords.any { it.ownerType == "QUESTION" && it.providerStatus == "PROVIDER_READY_RECORD" })
         assertTrue(snapshot.similarityMatches.any { it.providerStatus == "PROVIDER_READY_MATCH" })
+        assertTrue(snapshot.knowledgeGraphEdges.isNotEmpty())
+        assertTrue(snapshot.similarQuestionRecommendations.isNotEmpty())
+        assertTrue(snapshot.diagnostics.any { it.capability == "FUNCTION_CALLING" && it.status == "LOCAL_ORCHESTRATOR" })
+        assertTrue(snapshot.actionItems.isNotEmpty())
+        assertTrue(snapshot.masteryStats.all { it.nextReviewAt != null && it.sourceLessonId.isNotBlank() })
     }
 
     @Test
@@ -52,6 +57,8 @@ class L3LearningPipelineTest {
         assertEquals(question.id, updated.wrongBook.single().questionId)
         assertEquals(L3MasteryState.WEAK, updated.masteryStats.first { it.knowledgePointId == question.knowledgePointId }.state)
         assertEquals(L3MasteryState.WEAK, updated.reviewQueue.first { it.knowledgePointId == question.knowledgePointId }.masteryState)
+        assertEquals(now + 1, updated.reviewQueue.first { it.knowledgePointId == question.knowledgePointId }.dueAt)
+        assertEquals(3, updated.reviewQueue.first { it.knowledgePointId == question.knowledgePointId }.priority)
     }
 
     @Test
@@ -72,6 +79,18 @@ class L3LearningPipelineTest {
         )
         assertTrue(csv.message, csv.accepted)
         assertEquals("A", csv.bank!!.questions.single().correctAnswer)
+
+        val tf = QuestionBankParser.parse(
+            """
+            Q: 法拉第定律和磁通量变化有关。
+            Answer: True
+            Explanation: 该判断正确。
+            """.trimIndent(),
+            "判断题",
+            now + 2,
+        )
+        assertTrue(tf.message, tf.accepted)
+        assertEquals(listOf("A. 正确", "B. 错误"), tf.bank!!.questions.single().options)
     }
 
     @Test
@@ -89,5 +108,29 @@ class L3LearningPipelineTest {
         assertNotNull(artifacts)
         assertTrue(artifacts!!.result.knowledgePoints.all { it.hasEvidence })
         assertTrue(artifacts.result.quizQuestions.all { it.hasEvidence })
+    }
+
+    @Test
+    fun officialToolSeamsExposeTranslationTtsOrchestratorAndEdgeFallback() {
+        val snapshot = L3LearningPipeline().buildFromText(L3DemoSeeds.lessonTitle, L3DemoSeeds.lessonText, L3SourceType.TEXT, providerSummary, now)
+
+        assertTrue(snapshot.officialToolSeams.map { it.capability }.containsAll(listOf("TRANSLATION", "TTS", "FUNCTION_CALLING", "ASR_LONG", "EDGE_MODEL")))
+
+        val translation = L3OfficialToolSeams.translate("hello", "en", "zh-CHS", providerSummary)
+        assertEquals(OfficialToolSeamStatus.NOT_CONFIGURED, translation.status)
+        assertTrue(translation.translatedText.isBlank())
+
+        val tts = L3OfficialToolSeams.prepareListenReview(snapshot.summary, providerSummary)
+        assertEquals(OfficialToolSeamStatus.OFFICIAL_TTS_NOT_CONFIGURED, tts.status)
+        assertFalse(tts.officialConfigured)
+
+        val plan = L3OfficialToolSeams.orchestrate("L3 study pipeline", snapshot, providerSummary, now + 10)
+        assertEquals(OfficialToolSeamStatus.LOCAL_ORCHESTRATOR, plan.status)
+        assertTrue(plan.plannedTools.containsAll(listOf("QUERY_REWRITE", "EMBEDDING", "TEXT_SIMILARITY", "QUESTION_GENERATION", "REVIEW_UPDATE")))
+        assertTrue(plan.executedSteps.all { it.provider == "local.orchestrator" })
+
+        val edge = L3OfficialToolSeams.edgeStudyFallback(snapshot.summary)
+        assertEquals(OfficialToolSeamStatus.LOCAL_RULE_FALLBACK, edge.status)
+        assertTrue(edge.output.isNotBlank())
     }
 }

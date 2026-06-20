@@ -10,6 +10,8 @@ Input material -> text/evidence -> summary -> knowledge points -> micro question
 
 Update 2026-06-20 / v1.1: Practice is now split into real quiz, self-assessment review, and exam modes. "专项练习" defaults to real answer selection and does not reveal answers, explanations, or evidence until submit.
 
+Update 2026-06-20 / v1.2: Input Superhub adds TXT/MD/CSV/DOCX/XLSX/PPTX best-effort ingestion, PDF/audio/image artifact states, ASR Long jobs, knowledge graph edges, diagnostics matrix, similar-question recommendations, and rule-based next-review policy.
+
 ## Completed In This Pass
 
 - Text classroom material can be converted into an L3 snapshot with summary, evidence, knowledge points, 3-5 micro questions, review queue items, and mastery stats.
@@ -29,7 +31,9 @@ Update 2026-06-20 / v1.1: Practice is now split into real quiz, self-assessment 
 | Text / Markdown material | completed | Enters L3 pipeline and existing CourseAnalysis path. |
 | OCR image material | completed path / provider-dependent | OCR text enters the same evidence pipeline. Failures keep manual fallback. |
 | Question bank text | completed | Markdown and CSV style parsing. |
-| Word / Excel question bank | seam only | Template/planning only; copy/export to text first. |
+| Word / Excel question bank | best-effort | DOCX/XLSX ZIP/XML extraction supports simple templates; complex formatting remains TEMPLATE_REQUIRED/PARSER_PENDING. |
+| PPTX | best-effort | Slide XML text extraction, complex decks remain limited. |
+| PDF | parser pending | Artifact/manual text fallback only. |
 | Classroom recording | partial completed | Start/stop record creates app-private audio artifact record. |
 | ASR Long | seam only | Status is ASR_NOT_CONFIGURED/PENDING_ASR_CONFIG unless configured; manual transcript fallback is explicit. |
 

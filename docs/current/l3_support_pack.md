@@ -59,3 +59,11 @@ The seed data does not replace real parsing or pipeline logic.
 - Wrong book reachability: COMPLETE. Review shows recent wrong answers with user answer, correct answer, explanation, and evidence.
 - Word/Excel bank import: SEAM_ONLY / PARSER_PENDING. The UI points users to Markdown/CSV templates until a native parser is added.
 - Manual transcript fallback: COMPLETE. It is marked MANUAL_TRANSCRIPT_FALLBACK and enters the same evidence pipeline without claiming official ASR success.
+
+## v1.2 Additions
+
+- Input Superhub: COMPLETE/PARTIAL. TXT/MD/CSV are real; DOCX/XLSX/PPTX are BEST_EFFORT; PDF is PARSER_PENDING; audio/image are artifact/seam paths.
+- Knowledge graph: PARTIAL. Related/example edges are generated and visible as a lightweight knowledge map.
+- Similar question recommendation: SEAM_ONLY / LOCAL_FALLBACK. It creates recommendation records but not a full recommendation product page.
+- NextReviewPolicy: COMPLETE rule seam. WEAK/LEARNING due today; REVIEWING tomorrow; MASTERED after three days.
+- Diagnostics matrix: COMPLETE. Shows capability/status labels only; no key, auth, or endpoint values.

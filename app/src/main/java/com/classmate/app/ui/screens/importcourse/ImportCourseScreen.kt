@@ -81,7 +81,6 @@ import com.classmate.app.ui.product.QuietCard
 import com.classmate.app.platform.CaptureConfigLoader
 import com.classmate.app.ui.design.Dimens
 import com.classmate.app.ui.i18n.appStrings
-import com.classmate.core.importing.FileImportText
 import com.classmate.core.importing.ImportSourceType
 import com.classmate.core.transcript.TranscriptLabels
 import java.io.ByteArrayOutputStream
@@ -94,19 +93,13 @@ fun ImportCourseScreen(viewModel: AppViewModel) {
     val fileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         if (uri != null) {
             val name = readDisplayName(context, uri)
+            val mimeType = context.contentResolver.getType(uri).orEmpty()
             val bytes = runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } }.getOrNull()
             if (bytes == null) {
                 viewModel.toast("无法读取该文件，请重试。")
             } else {
-                // Stage 6 fix: decode UTF-8 / UTF-8 BOM / GB18030, and normalize Markdown to clean text.
-                val result = FileImportText.fromBytes(bytes, name)
-                if (!result.accepted) {
-                    viewModel.toast(result.message)
-                } else {
-                    val source = if (result.isMarkdown) ImportSourceType.MARKDOWN_FILE else pendingFileSource.value
-                    viewModel.importTextDraft(ui.courseTitle, result.text, source, name.ifBlank { null })
-                    viewModel.navigateTo(Screen.IMPORT_TRAY)
-                }
+                val accepted = viewModel.importSuperhubFile(bytes, name, mimeType)
+                if (accepted) viewModel.navigateTo(Screen.IMPORT_TRAY)
             }
         }
     }
@@ -206,6 +199,20 @@ fun ImportCourseScreen(viewModel: AppViewModel) {
                                 pendingFileSource.value = ImportSourceType.TXT_FILE
                                 fileLauncher.launch(arrayOf("text/plain", "text/markdown", "text/*"))
                             }),
+                            ProductRow("PDF / Word / PPT / Excel", "DOCX/XLSX/PPTX 轻量抽取；PDF 记录 artifact 并提示手动文本 fallback", Icons.Filled.List, onClick = {
+                                fileLauncher.launch(
+                                    arrayOf(
+                                        "application/pdf",
+                                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                        "text/csv",
+                                    ),
+                                )
+                            }),
+                            ProductRow("音频文件（ASR Long seam）", "保存 artifact；未配置官方 ASR Long 时粘贴转写文本继续", Icons.Filled.PlayArrow, onClick = {
+                                fileLauncher.launch(arrayOf("audio/*"))
+                            }),
                             ProductRow("课件 / 板书 / PDF OCR", "官方 OCR 未配置时可粘贴识别文字；文件不上传、不爬取平台", Icons.Filled.Edit, onClick = {
                                 viewModel.navigateTo(Screen.IMPORT_TRAY)
                             }),
@@ -248,6 +255,22 @@ private fun ClassroomRecordingCard(viewModel: AppViewModel, onStartRecording: ()
             Spacer(Modifier.height(Dimens.xs))
             Text(
                 "${record.title} · ${record.status.name} · ${record.asrStatus.name}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        ui.inputArtifacts.takeLast(3).forEach { artifact ->
+            Spacer(Modifier.height(Dimens.xs))
+            Text(
+                "${artifact.fileName} · ${artifact.kind.name} · ${artifact.status.name}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        ui.asrLongJobs.takeLast(2).forEach { job ->
+            Spacer(Modifier.height(Dimens.xs))
+            Text(
+                "ASR Long job · ${job.status.name}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

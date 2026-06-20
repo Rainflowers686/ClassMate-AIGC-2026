@@ -61,6 +61,7 @@ class L3LearningPipeline {
                     endMs = ev.segmentEndMs,
                     text = ev.text,
                     sourceType = sourceType,
+                    fallbackGenerated = sourceType == L3SourceType.MANUAL_TRANSCRIPT,
                 )
             } else {
                 null
@@ -101,6 +102,7 @@ class L3LearningPipeline {
             summary = summaryFrom(paragraphs),
             keyTakeaways = knowledge.map { it.title }.take(4),
             reviewFocus = knowledge.take(3).map { "复习：${it.title}" },
+            actionItems = knowledge.take(3).map { "用自己的话解释：${it.title}" },
             evidence = evidence,
             knowledge = knowledge,
             questions = questions,
@@ -154,6 +156,7 @@ class L3LearningPipeline {
             summary = "已导入 ${questions.size} 道题，形成小测、错题和复习队列。",
             keyTakeaways = knowledge.map { it.title }.take(4),
             reviewFocus = knowledge.map { "先做题，再回看解析：${it.title}" }.take(3),
+            actionItems = listOf("先完成专项练习", "错题进入复习队列", "复盘解析和来源证据"),
             evidence = evidence,
             knowledge = knowledge,
             questions = questions,
@@ -221,6 +224,7 @@ class L3LearningPipeline {
             summary = result.knowledgePoints.take(3).joinToString("；") { it.summary }.ifBlank { "已生成课程摘要。" },
             keyTakeaways = result.knowledgePoints.map { it.title }.take(4),
             reviewFocus = result.knowledgePoints.take(3).map { "回看证据：${it.title}" },
+            actionItems = result.knowledgePoints.take(3).map { "复述并验证：${it.title}" },
             evidence = evidence,
             knowledge = knowledge,
             questions = questions,
@@ -280,12 +284,25 @@ class L3LearningPipeline {
                     correctCount = correctCount,
                     wrongCount = wrongCount,
                     lastReviewedAt = now,
+                    nextReviewAt = NextReviewPolicy.nextReviewAt(
+                        when {
+                            !correct -> L3MasteryState.WEAK
+                            correctCount >= 2 && wrongCount == 0 -> L3MasteryState.MASTERED
+                            else -> L3MasteryState.REVIEWING
+                        },
+                        now,
+                    ),
                 )
             }
         }
         val queue = snapshot.reviewQueue.map { item ->
             if (item.knowledgePointId == question.knowledgePointId) {
-                item.copy(masteryState = if (correct) L3MasteryState.REVIEWING else L3MasteryState.WEAK, dueAt = now)
+                val nextState = if (correct) L3MasteryState.REVIEWING else L3MasteryState.WEAK
+                item.copy(
+                    masteryState = nextState,
+                    dueAt = NextReviewPolicy.nextReviewAt(nextState, now),
+                    priority = NextReviewPolicy.priority(nextState),
+                )
             } else {
                 item
             }
@@ -374,6 +391,7 @@ class L3LearningPipeline {
         summary: String,
         keyTakeaways: List<String>,
         reviewFocus: List<String>,
+        actionItems: List<String>,
         evidence: List<Evidence>,
         knowledge: List<L3KnowledgePoint>,
         questions: List<L3GeneratedQuestion>,
@@ -388,10 +406,19 @@ class L3LearningPipeline {
                 dueAt = now,
                 masteryState = kp.masteryState,
                 sourceLessonId = source.id,
+                priority = NextReviewPolicy.priority(kp.masteryState),
+                source = "L3_PIPELINE",
             )
         }
         val mastery = knowledge.map {
-            MasteryStat(it.id, it.masteryState, correctCount = 0, wrongCount = 0)
+            MasteryStat(
+                knowledgePointId = it.id,
+                state = it.masteryState,
+                correctCount = 0,
+                wrongCount = 0,
+                nextReviewAt = NextReviewPolicy.nextReviewAt(it.masteryState, now),
+                sourceLessonId = source.id,
+            )
         }
         val providerLogs = providerStepLogs(source.id, source.type, providerSummary, now)
         return L3PipelineSnapshot(
@@ -400,6 +427,7 @@ class L3LearningPipeline {
             summary = summary,
             keyTakeaways = keyTakeaways,
             reviewFocus = reviewFocus,
+            actionItems = actionItems,
             evidence = evidence,
             knowledgePoints = knowledge,
             questions = questions,
@@ -408,6 +436,10 @@ class L3LearningPipeline {
             stepLogs = providerLogs,
             embeddingRecords = embeddingRecords(source.id, evidence, knowledge, questions, providerSummary),
             similarityMatches = similarityMatches(evidence, knowledge, providerSummary),
+            knowledgeGraphEdges = graphEdges(knowledge),
+            similarQuestionRecommendations = similarQuestionRecommendations(questions, providerSummary),
+            officialToolSeams = L3OfficialToolSeams.seams(providerSummary),
+            diagnostics = diagnostics(source.type, providerSummary, providerLogs, now),
             questionBank = questionBank,
             supportSeams = supportSeams(source.id, providerSummary, now),
         )
@@ -469,6 +501,29 @@ class L3LearningPipeline {
         )
     }
 
+    private fun diagnostics(
+        sourceType: L3SourceType,
+        summary: ProviderConfigSummary,
+        providerLogs: List<PipelineStepLog>,
+        now: Long,
+    ): List<L3CapabilityStatus> {
+        val official = summary.officialProviders
+        fun log(step: String) = providerLogs.firstOrNull { it.step == step }?.status.orEmpty()
+        return listOf(
+            L3CapabilityStatus("OCR", log("OCR").ifBlank { "PENDING" }, "图片/拍照文字进入 evidence pipeline；失败时保留手动 OCR 文本。"),
+            L3CapabilityStatus("QUERY_REWRITE", log("QUERY_REWRITE").ifBlank { "LOCAL_SAFE_REWRITE" }, "用于学习问题标准化和检索 query seam。"),
+            L3CapabilityStatus("EMBEDDING", if (official.embeddingConfigured) "RECORD_CREATED" else "LOCAL_FALLBACK", "Lesson/Evidence/KP/Question 均有 embedding record。"),
+            L3CapabilityStatus("TEXT_SIMILARITY", if (official.textSimilarityConfigured) "MATCH_CREATED" else "LOCAL_FALLBACK", "用于 evidence 归因和相似题 seam。"),
+            L3CapabilityStatus("TRANSLATION", if (official.translationConfigured) "READY" else "SEAM_ONLY", "多语言资料辅助；未配置时不改原文证据。"),
+            L3CapabilityStatus("TTS", if (official.ttsConfigured) "READY" else "OFFICIAL_TTS_NOT_CONFIGURED", "听读复习 seam；未配置时使用脚本文本。"),
+            L3CapabilityStatus("FUNCTION_CALLING", if (official.functionCallingConfigured) "READY" else "LOCAL_ORCHESTRATOR", "本地工具链 step log，不伪装官方 Function Calling。"),
+            L3CapabilityStatus("ASR_LONG", if (sourceType == L3SourceType.MANUAL_TRANSCRIPT) "MANUAL_TRANSCRIPT_FALLBACK" else if (official.asrLongConfigured) "PENDING_ASR_CONFIG" else "ASR_NOT_CONFIGURED", "长音频 artifact + ASR seam；未配置时走手动转写。"),
+            L3CapabilityStatus("EDGE_MODEL", "LOCAL_RULE_FALLBACK", "端侧不可用时保留本地规则摘要/微测 fallback。"),
+            L3CapabilityStatus("WORD_EXCEL", "BEST_EFFORT", "DOCX/XLSX 使用轻量 ZIP/XML 解析，复杂格式提示模板。"),
+            L3CapabilityStatus("PDF_PPT", "PARSER_PENDING", "PPTX 可 best-effort 抽文字；PDF 保留 artifact/manual fallback。"),
+        )
+    }
+
     private fun embeddingRecords(
         lessonId: String,
         evidence: List<Evidence>,
@@ -500,6 +555,33 @@ class L3LearningPipeline {
                     providerStatus = status,
                 )
             }
+        }
+    }
+
+    private fun graphEdges(knowledge: List<L3KnowledgePoint>): List<KnowledgeGraphEdge> =
+        knowledge.zipWithNext().mapIndexed { index, pair ->
+            KnowledgeGraphEdge(
+                id = "kg_edge_${index + 1}_${pair.first.id}_${pair.second.id}",
+                fromKnowledgePointId = pair.first.id,
+                toKnowledgePointId = pair.second.id,
+                relation = if (index % 2 == 0) KnowledgeGraphRelation.RELATED else KnowledgeGraphRelation.EXAMPLE,
+                evidenceIds = (pair.first.sourceEvidenceIds + pair.second.sourceEvidenceIds).distinct(),
+            )
+        }
+
+    private fun similarQuestionRecommendations(
+        questions: List<L3GeneratedQuestion>,
+        summary: ProviderConfigSummary,
+    ): List<SimilarQuestionRecommendation> {
+        val status = if (summary.officialProviders.textSimilarityConfigured) "TEXT_SIMILARITY_SEAM" else "LOCAL_FALLBACK"
+        return questions.zipWithNext().mapIndexed { index, pair ->
+            SimilarQuestionRecommendation(
+                id = "similar_q_${index + 1}_${pair.first.id}_${pair.second.id}",
+                sourceQuestionId = pair.first.id,
+                recommendedQuestionId = pair.second.id,
+                score = tokenScore(pair.first.stem, pair.second.stem),
+                status = status,
+            )
         }
     }
 

@@ -136,7 +136,10 @@ fun CourseDetailScreen(viewModel: AppViewModel) {
                     SecondaryButton("专项练习", onClick = { viewModel.startPractice(PracticeMode.QUICK_REVIEW) }, modifier = Modifier.weight(1f))
                     SecondaryButton("错题重练", onClick = { viewModel.startPractice(PracticeMode.WRONG_ANSWER_RETRY) }, modifier = Modifier.weight(1f))
                 }
-                SecondaryButton("模拟考试", onClick = { viewModel.startExam() }, modifier = Modifier.fillMaxWidth())
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+                    SecondaryButton("随机小测", onClick = { viewModel.startRandomQuiz() }, modifier = Modifier.weight(1f))
+                    SecondaryButton("模拟考试", onClick = { viewModel.startExam() }, modifier = Modifier.weight(1f))
+                }
                 // Restrained entry into the immersive Flow companion (sound scenes + focus timer).
                 SecondaryButton("心流复习 · 沉浸专注", onClick = { viewModel.navigateTo(Screen.LIVE) }, modifier = Modifier.fillMaxWidth())
 
@@ -222,6 +225,32 @@ private fun L3PipelineStatusCard(viewModel: AppViewModel) {
                     StatusChip("${step.step}: ${step.status}", tone = ChipTone.INFO)
                 }
             }
+        }
+        if (l3.knowledgeGraphEdges.isNotEmpty()) {
+            Spacer(Modifier.height(Dimens.s))
+            Text("知识点地图", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            l3.knowledgeGraphEdges.take(3).forEach { edge ->
+                val from = l3.knowledgePoints.firstOrNull { it.id == edge.fromKnowledgePointId }?.title.orEmpty()
+                val to = l3.knowledgePoints.firstOrNull { it.id == edge.toKnowledgePointId }?.title.orEmpty()
+                Text("$from → $to · ${edge.relation.name}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        if (l3.diagnostics.isNotEmpty()) {
+            Spacer(Modifier.height(Dimens.s))
+            Text("L3 能力诊断", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+                l3.diagnostics.take(12).forEach { status ->
+                    StatusChip("${status.capability}: ${status.status}", tone = ChipTone.NEUTRAL)
+                }
+            }
+        }
+        if (l3.inputArtifacts.isNotEmpty() || l3.asrJobs.isNotEmpty()) {
+            Spacer(Modifier.height(Dimens.s))
+            Text("输入状态：${l3.inputArtifacts.size} 个 artifact · ${l3.asrJobs.size} 个 ASR job", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (l3.similarQuestionRecommendations.isNotEmpty()) {
+            Spacer(Modifier.height(Dimens.s))
+            Text("相似题推荐（实验）：${l3.similarQuestionRecommendations.size} 条 · ${l3.similarQuestionRecommendations.first().status}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

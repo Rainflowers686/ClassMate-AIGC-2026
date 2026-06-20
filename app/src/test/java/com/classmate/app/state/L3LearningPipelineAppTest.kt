@@ -7,6 +7,10 @@ import com.classmate.app.l3.L3DemoSeeds
 import com.classmate.app.l3.L3RecordingStatus
 import com.classmate.app.l3.PracticeQuestionMode
 import com.classmate.app.l3.RecordingArtifactResult
+import com.classmate.app.importing.OcrImportKind
+import java.io.ByteArrayOutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 import com.classmate.app.platform.ConfigRepository
 import com.classmate.core.learning.InMemoryLearningStore
 import java.nio.file.Files
@@ -66,6 +70,53 @@ class L3LearningPipelineAppTest {
     }
 
     @Test
+    fun inputSuperhubTextDocxXlsxPdfAndAudioStatusesAreReachable() {
+        val viewModel = vm()
+
+        assertTrue(viewModel.importSuperhubFile("课堂材料文本".toByteArray(), "lesson.txt", "text/plain", now))
+        assertTrue(viewModel.ui.courseText.contains("课堂材料"))
+
+        assertTrue(
+            viewModel.importSuperhubFile(
+                zip("word/document.xml" to "<w:document><w:t>DOCX 课堂知识点</w:t></w:document>"),
+                "lesson.docx",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                now + 1,
+            ),
+        )
+        assertTrue(viewModel.ui.inputArtifacts.any { it.fileName == "lesson.docx" && it.status.name == "BEST_EFFORT" })
+
+        viewModel.importSuperhubFile(
+            zip(
+                "xl/sharedStrings.xml" to "<sst><si><t>stem</t></si><si><t>a</t></si><si><t>b</t></si><si><t>c</t></si><si><t>d</t></si><si><t>answer</t></si><si><t>explanation</t></si><si><t>题干</t></si><si><t>甲</t></si><si><t>乙</t></si><si><t>丙</t></si><si><t>丁</t></si><si><t>A</t></si><si><t>解析</t></si></sst>",
+                "xl/worksheets/sheet1.xml" to "<worksheet><sheetData><row><c t=\"s\"><v>0</v></c><c t=\"s\"><v>1</v></c><c t=\"s\"><v>2</v></c><c t=\"s\"><v>3</v></c><c t=\"s\"><v>4</v></c><c t=\"s\"><v>5</v></c><c t=\"s\"><v>6</v></c></row><row><c t=\"s\"><v>7</v></c><c t=\"s\"><v>8</v></c><c t=\"s\"><v>9</v></c><c t=\"s\"><v>10</v></c><c t=\"s\"><v>11</v></c><c t=\"s\"><v>12</v></c><c t=\"s\"><v>13</v></c></row></sheetData></worksheet>",
+            ),
+            "bank.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            now + 2,
+        )
+        assertTrue(viewModel.ui.questionBankParseResult?.accepted == true)
+
+        assertFalse(viewModel.importSuperhubFile("%PDF".toByteArray(), "handout.pdf", "application/pdf", now + 3))
+        assertTrue(viewModel.ui.inputArtifacts.any { it.fileName == "handout.pdf" && it.status.name == "PARSER_PENDING" })
+
+        assertFalse(viewModel.importSuperhubFile(byteArrayOf(1, 2), "lecture.m4a", "audio/mp4", now + 4))
+        assertEquals(L3AsrStatus.ASR_NOT_CONFIGURED, viewModel.ui.asrLongJobs.last().status)
+    }
+
+    @Test
+    fun imageOcrManualTextEntersEvidencePipeline() {
+        val viewModel = vm()
+        viewModel.updateCourseTitle("板书课")
+
+        assertTrue(viewModel.addOcrImport(OcrImportKind.BLACKBOARD_PHOTO, "板书照片", "板书写着磁通量变化会产生感应电动势。", now = now))
+        assertTrue(viewModel.generateL3PipelineFromCurrentMaterial(now + 1))
+
+        assertTrue(viewModel.ui.l3Pipeline.evidence.any { it.sourceType.name == "OCR_IMAGE" && it.text.contains("磁通量") })
+        assertTrue(viewModel.ui.l3Pipeline.stepLogs.any { it.step == "OCR" })
+    }
+
+    @Test
     fun realPracticeAnswerLinksWrongBookMasteryReviewQueueAndEvidence() {
         val viewModel = vm()
         viewModel.updateCourseTitle(L3DemoSeeds.lessonTitle)
@@ -100,6 +151,10 @@ class L3LearningPipelineAppTest {
         assertTrue(supportSteps.containsAll(listOf("TRANSLATION", "TTS", "FUNCTION_CALLING", "ASR_LONG")))
         assertTrue(viewModel.ui.l3Pipeline.embeddingRecords.isNotEmpty())
         assertTrue(viewModel.ui.l3Pipeline.similarityMatches.isNotEmpty())
+        assertTrue(viewModel.ui.l3Pipeline.diagnostics.any { it.capability == "TTS" && it.status == "OFFICIAL_TTS_NOT_CONFIGURED" })
+        assertTrue(viewModel.ui.l3Pipeline.knowledgeGraphEdges.isNotEmpty())
+        assertTrue(viewModel.ui.l3Pipeline.similarQuestionRecommendations.isNotEmpty())
+        assertTrue(viewModel.ui.l3Pipeline.officialToolSeams.map { it.capability }.containsAll(listOf("TRANSLATION", "TTS", "FUNCTION_CALLING", "ASR_LONG", "EDGE_MODEL")))
     }
 
     @Test
@@ -132,6 +187,21 @@ class L3LearningPipelineAppTest {
         assertTrue(viewModel.generateL3PipelineFromCurrentMaterial(now + 1))
         assertTrue(viewModel.ui.l3Pipeline.transcriptSegments.isNotEmpty())
         assertTrue(viewModel.ui.l3Pipeline.evidence.any { it.sourceType.name == "MANUAL_TRANSCRIPT" })
+        assertTrue(viewModel.ui.l3Pipeline.transcriptSegments.all { it.fallbackGenerated })
+    }
+
+    @Test
+    fun randomQuizUsesRealQuizMode() {
+        val viewModel = vm()
+        viewModel.updateCourseTitle(L3DemoSeeds.lessonTitle)
+        viewModel.updateCourseText(L3DemoSeeds.lessonText)
+        assertTrue(viewModel.generateL3PipelineFromCurrentMaterial(now))
+
+        viewModel.startRandomQuiz(questionCount = 2, now = now + 7)
+
+        assertEquals(PracticeQuestionMode.REAL_QUIZ, viewModel.ui.practiceQuestionMode)
+        assertEquals(2, viewModel.ui.practiceSession!!.items.size)
+        assertTrue(viewModel.ui.practiceSession!!.items.all { it.options.isNotEmpty() })
     }
 
     private class FakeRecorder : ClassroomAudioRecorder {
@@ -140,5 +210,17 @@ class L3LearningPipelineAppTest {
 
         override fun stop(): RecordingArtifactResult =
             RecordingArtifactResult(success = true, fileName = null, safeMessage = "fake recording saved")
+    }
+
+    private fun zip(vararg entries: Pair<String, String>): ByteArray {
+        val out = ByteArrayOutputStream()
+        ZipOutputStream(out).use { zip ->
+            entries.forEach { (name, text) ->
+                zip.putNextEntry(ZipEntry(name))
+                zip.write(text.toByteArray(Charsets.UTF_8))
+                zip.closeEntry()
+            }
+        }
+        return out.toByteArray()
     }
 }

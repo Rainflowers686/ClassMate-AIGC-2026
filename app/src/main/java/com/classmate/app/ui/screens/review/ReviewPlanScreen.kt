@@ -207,6 +207,7 @@ private fun PracticeEntryCard(viewModel: AppViewModel) {
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
             ActionChip("开始练习") { viewModel.startPractice(PracticeMode.QUICK_REVIEW) }
             ActionChip("错题重练") { viewModel.startPractice(PracticeMode.WRONG_ANSWER_RETRY) }
+            ActionChip("随机小测") { viewModel.startRandomQuiz() }
             ActionChip("模拟考试") { viewModel.startExam() }
             ActionChip("回忆复盘") { viewModel.startSelfAssessment() }
             ActionChip("需要多练") { viewModel.startPractice(PracticeMode.NEED_MORE_PRACTICE) }
