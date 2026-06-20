@@ -43,7 +43,7 @@ class L3PersistenceRepository(private val file: File? = null) {
                 appendLine(row("lesson", s.id, b64(s.title), s.type.name, s.createdAt.toString(), b64(s.rawText), s.status))
             }
             snapshot.evidence.forEach { ev ->
-                appendLine(row("evidence", ev.id, ev.sourceId, ev.sourceType.name, b64(ev.text), ev.segmentStartMs.s(), ev.segmentEndMs.s(), ev.page.s(), ev.blockIndex.s()))
+                appendLine(row("evidence", ev.id, ev.sourceId, ev.sourceType.name, b64(ev.text), ev.segmentStartMs.s(), ev.segmentEndMs.s(), ev.page.s(), ev.blockIndex.s(), ev.providerProvenance))
             }
             snapshot.questions.forEach { q ->
                 appendLine(row("question", q.id, q.lessonId, q.knowledgePointId, b64(q.stem), q.options.joinToString(",") { b64(it) }, b64(q.correctAnswer), b64(q.explanation), q.evidenceIds.joinToString(","), q.difficulty.name))
@@ -86,7 +86,7 @@ class L3PersistenceRepository(private val file: File? = null) {
                         lesson = LessonSource(p[1], unb64(p[2]), enumOr(p[3], L3SourceType.TEXT), p[4].toLongOrNull() ?: 0L, unb64(p[5]), p[6])
                     }
                     "evidence" -> if (p.size >= 9) {
-                        evidence += Evidence(p[1], p[2], enumOr(p[3], L3SourceType.TEXT), unb64(p[4]), p[5].toLongOrNullOrNull(), p[6].toLongOrNullOrNull(), p[7].toIntOrNullOrNull(), p[8].toIntOrNullOrNull())
+                        evidence += Evidence(p[1], p[2], enumOr(p[3], L3SourceType.TEXT), unb64(p[4]), p[5].toLongOrNullOrNull(), p[6].toLongOrNullOrNull(), p[7].toIntOrNullOrNull(), p[8].toIntOrNullOrNull(), p.getOrNull(9).orEmpty())
                     }
                     "question" -> if (p.size >= 10) {
                         questions += L3GeneratedQuestion(p[1], p[2], p[3], unb64(p[4]), p[5].splitList().map(::unb64), unb64(p[6]), unb64(p[7]), p[8].splitList(), enumOr(p[9], Difficulty.MEDIUM))

@@ -1,5 +1,7 @@
 # ClassMate
 
+> v1.6 official runtime wiring note (2026-06-20): OCR remains the app-level official product path for image/photo/OCR text. Query Rewrite, Embedding, and Text Similarity now have a unified official runtime gateway in the L3 learning-pipeline publish path; when a real app adapter succeeds, provenance is recorded as `OFFICIAL_RUNTIME_USED`, and when config/adapter/runtime is missing or fails, the same pipeline falls back to local rewrite, lexical semantic index, and local similarity without blocking study output. This note does not claim a live official network call was run in this task.
+
 ClassMate 是面向 vivo AIGC 创新赛应用赛道的课堂学习助手。它不是普通录音总结工具，而是把课堂资料整理成可追溯、可练习、可复习、可导出的学习闭环。
 
 当前稳定基线：

@@ -59,18 +59,25 @@ import com.classmate.app.l3.LocalTtsPlayer
 import com.classmate.app.l3.LocalSemanticIndexEngine
 import com.classmate.app.l3.NoOpClassroomAudioRecorder
 import com.classmate.app.l3.NoOpLocalTtsPlayer
+import com.classmate.app.l3.OfficialRuntimeGateway
+import com.classmate.app.l3.OfficialRuntimeIntegrator
+import com.classmate.app.l3.OfficialRuntimeStatus
 import com.classmate.app.l3.PdfProcessingEngine
 import com.classmate.app.l3.PracticeGradingEngine
 import com.classmate.app.l3.PracticeAnswerState
 import com.classmate.app.l3.PracticeAnswerSubmission
 import com.classmate.app.l3.PracticeQuestionMode
+import com.classmate.app.l3.ProviderBackedOfficialRuntimeGateway
 import com.classmate.app.l3.QuestionBankParser
 import com.classmate.app.l3.ReviewStatsEngine
 import com.classmate.app.l3.ToolInputType
 import com.classmate.app.l3.ToolOrchestratorProductizationEngine
 import com.classmate.app.l3.TranslationProductEngine
+import com.classmate.app.l3.TranslationProductStatus
 import com.classmate.app.l3.TranslationTargetLanguage
 import com.classmate.app.l3.TtsPlaybackEngine
+import com.classmate.app.l3.TtsPlaybackProvider
+import com.classmate.app.l3.TtsPlaybackStatus
 import com.classmate.app.l3.TtsPlaybackSourceType
 import com.classmate.app.material.LessonMaterialAssembler
 import com.classmate.core.material.LessonContextHints
@@ -218,6 +225,7 @@ class AppViewModel(
     // App-private L3 state. Stores study artifacts only: no credentials, keys, endpoints, or local config.
     private val l3PersistenceRepository: L3PersistenceRepository = L3PersistenceRepository.disabled(),
     private val localTtsPlayer: LocalTtsPlayer = NoOpLocalTtsPlayer(),
+    private val officialRuntimeGateway: OfficialRuntimeGateway = ProviderBackedOfficialRuntimeGateway(),
     // On-device BlueLM 3B owner. Defaults to the honest missing-SDK bridge until the AAR is bundled.
     private val onDeviceController: OnDeviceLlmController = OnDeviceLlmController(),
     // Lazy so constructing the VM never reads capture credentials; OCR/ASR config is loaded only when
@@ -1459,13 +1467,8 @@ class AppViewModel(
         val toolSteps = toolPlan.stepRecords.ifEmpty {
             ToolOrchestratorProductizationEngine.stepRecords(inputType, snapshot, ui.providerConfigSummary, now)
         }
-        val semanticRecords = LocalSemanticIndexEngine.records(snapshot, ui.providerConfigSummary, now)
-        semanticIndexRepository.save(semanticRecords)
-        val reloadedSemanticRecords = semanticIndexRepository.load().ifEmpty { semanticRecords }
-        val semanticSearch = snapshot.knowledgePoints.firstOrNull()?.title
-            ?.let { listOf(LocalSemanticIndexEngine.search(reloadedSemanticRecords, it)) }
-            ?: emptyList()
-        val enrichedSnapshot = snapshot.copy(
+        val localSemanticRecords = LocalSemanticIndexEngine.records(snapshot, ui.providerConfigSummary, now)
+        val baseSnapshot = snapshot.copy(
             inputArtifacts = ui.inputArtifacts,
             inputReports = ui.importReports,
             pdfDocuments = ui.pdfDocuments,
@@ -1473,11 +1476,29 @@ class AppViewModel(
             asrJobs = ui.asrLongJobs,
             toolOrchestrationPlan = toolPlan.copy(stepRecords = toolSteps),
             toolStepRecords = toolSteps,
-            semanticIndexRecords = reloadedSemanticRecords,
-            semanticSearchResults = semanticSearch,
+            semanticIndexRecords = localSemanticRecords,
             translationResults = ui.l3TranslationResults,
             ttsPlaybackStates = listOfNotNull(ui.l3TtsPlaybackState),
             reviewDailyStats = ReviewStatsEngine.daily(snapshot, now),
+        )
+        val runtimeSnapshot = OfficialRuntimeIntegrator.enrich(
+            snapshot = baseSnapshot,
+            summary = ui.providerConfigSummary,
+            gateway = officialRuntimeGateway,
+            inputType = inputType,
+            now = now,
+            localTtsAvailable = localTtsPlayer.canAttemptLocalPlayback(),
+            edgeModelAvailable = onDeviceController.isAvailable(),
+        )
+        semanticIndexRepository.save(runtimeSnapshot.semanticIndexRecords)
+        val reloadedSemanticRecords = semanticIndexRepository.load().ifEmpty { runtimeSnapshot.semanticIndexRecords }
+        val searchQuery = runtimeSnapshot.semanticSearchResults.firstOrNull()?.query
+            ?: runtimeSnapshot.knowledgePoints.firstOrNull()?.title
+            ?: runtimeSnapshot.summary
+        val enrichedSnapshot = runtimeSnapshot.copy(
+            semanticIndexRecords = reloadedSemanticRecords,
+            semanticSearchResults = if (searchQuery.isBlank()) emptyList() else listOf(LocalSemanticIndexEngine.search(reloadedSemanticRecords, searchQuery)),
+            reviewDailyStats = ReviewStatsEngine.daily(runtimeSnapshot, now),
         )
         val artifacts = l3Pipeline.toCourseArtifacts(enrichedSnapshot, now)
         if (artifacts == null) {
@@ -1542,20 +1563,42 @@ class AppViewModel(
             targetLanguage = targetLanguage,
             summary = ui.providerConfigSummary,
         )
+        val runtime = officialRuntimeGateway.translate(
+            sourceText = text,
+            sourceLanguage = "auto",
+            targetLanguage = targetLanguage,
+            summary = ui.providerConfigSummary,
+            now = System.currentTimeMillis(),
+        )
         val productResult = TranslationProductEngine.prepare(
             sourceText = text,
             targetLanguage = targetLanguageFrom(targetLanguage),
             evidenceId = evidence?.id,
             summary = ui.providerConfigSummary,
             now = System.currentTimeMillis(),
-        )
+        ).let { prepared ->
+            if (runtime.status == OfficialRuntimeStatus.OFFICIAL_RUNTIME_USED && runtime.output.orEmpty().isNotBlank()) {
+                prepared.copy(
+                    status = TranslationProductStatus.OFFICIAL_TRANSLATION_READY,
+                    translatedText = runtime.output.orEmpty(),
+                    errorMessage = null,
+                )
+            } else {
+                prepared.copy(errorMessage = runtime.errorMessage ?: prepared.errorMessage ?: runtime.errorCode)
+            }
+        }
         ui = ui.copy(
             l3TranslationSeams = (ui.l3TranslationSeams + result).takeLast(10),
             l3TranslationResults = (ui.l3TranslationResults + productResult).takeLast(10),
             l3Pipeline = ui.l3Pipeline.copy(translationResults = (ui.l3Pipeline.translationResults + productResult).takeLast(10)),
-            toast = result.message,
+            toast = if (runtime.status == OfficialRuntimeStatus.OFFICIAL_RUNTIME_USED) {
+                "Official translation runtime produced a derived translation artifact."
+            } else {
+                result.message
+            },
         )
-        return result.status != com.classmate.app.l3.OfficialToolSeamStatus.NOT_CONFIGURED
+        return runtime.status == OfficialRuntimeStatus.OFFICIAL_RUNTIME_USED ||
+            result.status != com.classmate.app.l3.OfficialToolSeamStatus.NOT_CONFIGURED
     }
 
     fun prepareL3ListenReview(sourceType: TtsPlaybackSourceType = TtsPlaybackSourceType.SUMMARY): Boolean {
@@ -1565,6 +1608,12 @@ class AppViewModel(
             return false
         }
         val result = L3OfficialToolSeams.prepareListenReview(text, ui.providerConfigSummary)
+        val runtime = officialRuntimeGateway.prepareTts(
+            text = text,
+            summary = ui.providerConfigSummary,
+            now = System.currentTimeMillis(),
+            localTtsAvailable = localTtsPlayer.canAttemptLocalPlayback(),
+        )
         val playback = TtsPlaybackEngine.prepare(
             text = text,
             sourceType = sourceType,
@@ -1572,14 +1621,20 @@ class AppViewModel(
             now = System.currentTimeMillis(),
             localTtsAvailable = localTtsPlayer.canAttemptLocalPlayback(),
         )
-        val playbackAfterAttempt = if (playback.provider == com.classmate.app.l3.TtsPlaybackProvider.ANDROID_LOCAL_TTS) {
+        val playbackAfterAttempt = if (runtime.status == OfficialRuntimeStatus.OFFICIAL_RUNTIME_USED) {
+            playback.copy(
+                provider = TtsPlaybackProvider.OFFICIAL_TTS,
+                status = TtsPlaybackStatus.OFFICIAL_TTS_READY,
+                message = "Official TTS runtime produced an audio artifact; local fallback remains available if playback fails.",
+            )
+        } else if (playback.provider == com.classmate.app.l3.TtsPlaybackProvider.ANDROID_LOCAL_TTS) {
             if (localTtsPlayer.speak(playback.id, text)) {
                 playback.copy(status = com.classmate.app.l3.TtsPlaybackStatus.PLAYING, message = "Android local TextToSpeech playback started.")
             } else {
-                playback.copy(message = "${playback.message} Playback may require device initialization.")
+                playback.copy(message = "${playback.message} Runtime=${runtime.status.name}; playback may require device initialization.")
             }
         } else {
-            playback
+            playback.copy(message = "${playback.message} Runtime=${runtime.status.name}; ${runtime.errorCode.orEmpty()}")
         }
         ui = ui.copy(
             l3TtsReviewSeam = result,

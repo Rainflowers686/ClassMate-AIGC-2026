@@ -6,15 +6,15 @@ No secrets, endpoint URLs, or Authorization values are recorded here.
 
 | Capability | Smoke status | App-level status | Product path |
 | --- | --- | --- | --- |
-| OCR | PASS | COMPLETE path / config-gated | Image/photo OCR text and PDF page OCR seam can enter LessonSource and Evidence; manual OCR text fallback remains. |
-| QUERY_REWRITE | PASS | OFFICIAL_SMOKE_PASS_LOCAL_PLANNING | Pipeline step logs and local tool orchestration standardize learning questions, retrieval query planning, and wrong-question follow-up intent. This is not claimed as live official Query Rewrite execution in the app. |
-| EMBEDDING | PASS | LOCAL_LEXICAL_INDEX_OFFICIAL_SMOKE_PASS | Embedding records and lightweight lexical semantic index chunks are created for lesson, evidence, knowledge points, and questions. Official vectors are not claimed in the app path. |
-| TEXT_SIMILARITY | PASS | LOCAL_SIMILARITY_OFFICIAL_SMOKE_PASS | Local similarity supports evidence matching and similar-question recommendation. Official rerank/similarity execution remains app-validation work. |
-| TRANSLATION | not product-smoked in app | SEAM_ONLY / NOT_CONFIGURED | Translation request/result seam is reachable for multilingual material aid; original evidence remains unchanged when not configured. |
-| TTS | not product-smoked in app | LOCAL_FALLBACK / OFFICIAL_TTS_NOT_CONFIGURED | Listen-review uses an Android local TextToSpeech port for summary, wrong-answer explanation, and review card when available. Official TTS remains unclaimed unless configured. No voice clone. |
-| FUNCTION_CALLING | not product-smoked in app | LOCAL_ORCHESTRATOR | Structured tool step records now explain each local/official/seam-only tool in the L3 plan; official Function Calling is not claimed. |
-| ASR_LONG | not product-smoked in app | CORE_CONTRACT_PRESENT_APP_WIRING_PENDING / NOT_CONFIGURED / MANUAL_FALLBACK | Recording/audio artifacts create ASR Long jobs. Core VivoAsrProvider 1739 create/upload/run/progress/result contract exists, but app-level upload/poll/result validation is pending, so manual transcript fallback is the demo path. |
-| Edge model | local availability dependent | LOCAL_RULE_FALLBACK / PARTIAL | Offline summary/practice/review fallback output is recorded when edge model is unavailable. |
+| OCR | PASS | `OFFICIAL_RUNTIME_USED` for OCR evidence / config-gated | Image/photo OCR text and PDF page OCR seam can enter LessonSource and Evidence with provider provenance; manual OCR text fallback remains. |
+| QUERY_REWRITE | PASS | runtime gateway wired; `OFFICIAL_RUNTIME_USED` only when app adapter succeeds | L3 publish path now asks the runtime gateway for study/retrieval query normalization. Missing adapter/config falls back to local query planning. |
+| EMBEDDING | PASS | runtime gateway wired; official vector path tested with fake adapter | Semantic records store `officialVector`, `localVector`, and `vectorSource`; missing adapter/config persists local lexical vectors. |
+| TEXT_SIMILARITY | PASS | runtime gateway wired; official score path tested with fake adapter | Evidence matching and similar-question recommendations record `scoreSource`; missing adapter/config uses local similarity fallback. |
+| TRANSLATION | not product-smoked in app | runtime gateway wired / usually NOT_CONFIGURED | Lesson/evidence translation first checks official runtime; original evidence remains unchanged when not configured or failed. |
+| TTS | not product-smoked in app | runtime gateway wired / LOCAL_FALLBACK | Listen-review checks official runtime first, then uses Android local TextToSpeech or script text. No voice clone. |
+| FUNCTION_CALLING | not product-smoked in app | runtime gateway wired / LOCAL_ORCHESTRATOR fallback | Tool plan proposal can use official Function Calling when adapter succeeds; local ToolOrchestrator remains active. |
+| ASR_LONG | not product-smoked in app | CORE_CONTRACT_PRESENT / APP_WIRING_PENDING / manual fallback | Recording/audio artifacts create ASR Long jobs. Core VivoAsrProvider 1739 create/upload/run/progress/result contract exists, but app-level upload/poll/result validation is pending. |
+| Edge model | local availability dependent | EDGE_MODEL_USED when available / LOCAL_RULE_FALLBACK | On-device availability now feeds the runtime fallback strategy for offline summary/practice/review; unavailable devices use local rules. |
 
 ## v1.3 Additions
 
@@ -32,9 +32,18 @@ No secrets, endpoint URLs, or Authorization values are recorded here.
 - `TranslationResultRecord` keeps translation as a derived artifact and preserves original evidence.
 - `MasteryHistoryEvent`, `MasteryTrendStats`, and enriched `ExamResultReport` make long-term review and exam diagnostics concrete.
 
+## v1.6 Additions
+
+- `OfficialRuntimeGateway` and `OfficialRuntimeIntegrator` run in the L3 publish path.
+- Query Rewrite, Embedding, and Text Similarity have official app-runtime success paths with injected adapters and tests; default demo path still falls back when adapters/config are absent.
+- `LocalSemanticIndexRecord` now stores official/local vectors plus `vectorSource`.
+- `TextSimilarityMatch` now stores `scoreSource`.
+- OCR evidence carries provider provenance.
+- Runtime diagnostics include configured/used/fallback/blocker/redaction fields.
+
 ## Diagnostics Contract
 
-The app may show capability and status labels such as `OFFICIAL_SMOKE_PASS_LOCAL_PLANNING`, `LOCAL_INDEX_RECORD_CREATED`, `LOCAL_MATCH_CREATED`, `LOCAL_ORCHESTRATOR`, `OFFICIAL_ASR_CONFIG_MISSING`, `CORE_CONTRACT_PRESENT_APP_WIRING_PENDING`, `LOCAL_TTS_AVAILABLE`, or `MANUAL_TRANSCRIPT_FALLBACK`.
+The app may show capability and status labels such as `OFFICIAL_RUNTIME_USED`, `OFFICIAL_RUNTIME_READY`, `OFFICIAL_APP_WIRING_PENDING`, `LOCAL_FALLBACK_USED`, `OFFICIAL_RUNTIME_NOT_CONFIGURED`, `LOCAL_ORCHESTRATOR`, `CORE_CONTRACT_PRESENT_APP_WIRING_PENDING`, `LOCAL_TTS_AVAILABLE`, or `MANUAL_TRANSCRIPT_FALLBACK`.
 
 Diagnostics must not display:
 

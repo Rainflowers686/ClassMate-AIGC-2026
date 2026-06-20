@@ -207,7 +207,7 @@ object ToolOrchestratorProductizationEngine {
             val mode = when (tool) {
                 "OCR" -> if (official.ocrConfigured) ToolProviderMode.OFFICIAL else ToolProviderMode.SEAM_ONLY
                 "ASR_LONG" -> if (official.asrLongConfigured) ToolProviderMode.SEAM_ONLY else ToolProviderMode.NOT_CONFIGURED
-                "QUERY_REWRITE" -> if (official.queryRewriteConfigured) ToolProviderMode.OFFICIAL else ToolProviderMode.LOCAL_FALLBACK
+                "QUERY_REWRITE" -> if (official.queryRewriteConfigured) ToolProviderMode.SEAM_ONLY else ToolProviderMode.LOCAL_FALLBACK
                 "EMBEDDING" -> if (official.embeddingConfigured) ToolProviderMode.SEAM_ONLY else ToolProviderMode.LOCAL_FALLBACK
                 "TEXT_SIMILARITY" -> if (official.textSimilarityConfigured) ToolProviderMode.SEAM_ONLY else ToolProviderMode.LOCAL_FALLBACK
                 "TRANSLATION" -> if (official.translationConfigured) ToolProviderMode.SEAM_ONLY else ToolProviderMode.NOT_CONFIGURED
@@ -234,6 +234,7 @@ object ToolOrchestratorProductizationEngine {
             } else {
                 "Core VivoAsrProvider 1739 contract is present; app upload/poll/result validation is pending."
             }
+            "QUERY_REWRITE" -> "Official rewrite runtime can be used when an app adapter is injected; local rewrite remains the fallback."
             "EMBEDDING" -> "Local semantic record is created; official vector is not faked."
             "TEXT_SIMILARITY" -> "Local similarity fallback can rank evidence and similar questions."
             "TTS" -> "Local Android TTS fallback can handle listen-review when official TTS is missing."
@@ -257,6 +258,8 @@ object LocalSemanticIndexEngine {
                 vector = vectorFor(chunk.text),
                 tokens = tokensFor(chunk.text),
                 createdAt = now,
+                localVector = vectorFor(chunk.text),
+                vectorSource = "LOCAL_FALLBACK",
             )
         }
     }
@@ -270,13 +273,13 @@ object LocalSemanticIndexEngine {
                 ownerId = record.ownerId,
                 text = record.text,
                 score = cosine(queryVector, record.vector),
-                providerStatus = record.embeddingStatus,
+                providerStatus = record.vectorSource,
             )
         }.sortedByDescending { it.score }.take(topK)
         return SemanticSearchResult(
             query = query,
             hits = hits,
-            status = if (records.any { it.embeddingStatus.contains("OFFICIAL_SMOKE_PASS") }) "LOCAL_FALLBACK_OFFICIAL_SMOKE_PASS" else "LOCAL_FALLBACK",
+            status = if (records.any { it.vectorSource == "OFFICIAL" }) "OFFICIAL_VECTOR_SEARCH" else "LOCAL_FALLBACK",
         )
     }
 
@@ -291,7 +294,7 @@ object LocalSemanticIndexEngine {
                     ownerId = it.ownerId,
                     text = it.text,
                     score = cosine(source.vector, it.vector),
-                    providerStatus = it.embeddingStatus,
+                    providerStatus = it.vectorSource,
                 )
             }
             .sortedByDescending { it.score }

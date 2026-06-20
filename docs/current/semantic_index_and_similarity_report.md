@@ -4,16 +4,18 @@ Date: 2026-06-20
 
 ## Current Status
 
-Local semantic index is `COMPLETE` for lightweight lexical retrieval and `LOCAL_FALLBACK` for similarity. Official embedding/similarity providers remain smoke-verified but are not called in this sprint.
+Local semantic index is `COMPLETE` for lightweight lexical retrieval and `LOCAL_FALLBACK` for similarity. v1.6 wires official Embedding and Text Similarity through `OfficialRuntimeGateway`; an injected adapter success is recorded as official provenance, while missing config/adapter/runtime falls back to local vectors and local similarity.
 
 ## Implemented
 
-- `LocalSemanticIndexRecord` stores source type, owner id, text, vector, tokens, embedding status, and timestamp.
+- `LocalSemanticIndexRecord` stores source type, owner id, text, vector, tokens, embedding status, timestamp, `officialVector`, `localVector`, and `vectorSource`.
 - `LocalSemanticIndexRepository` persists records to app-private storage.
 - `LocalSemanticIndexEngine.search` returns top local hits.
 - Similar-question lookup uses the same local vector fallback.
+- `TextSimilarityMatch` stores `scoreSource`, so official rerank scores and local fallback scores are distinguishable.
+- Runtime diagnostics report whether official Embedding/Text Similarity were used, fell back, or were not configured.
 - Course detail and Review can expose semantic search status.
 
 ## Honest Limits
 
-The local vector is lexical and deterministic. It is not a persistent vector database and it does not pretend to be an official embedding result.
+The local vector is lexical and deterministic. It is not a persistent vector database and it does not pretend to be an official embedding result. Official vectors are only recorded when the official runtime adapter returns a vector successfully.

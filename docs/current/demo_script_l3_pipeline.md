@@ -16,10 +16,10 @@ Target length: 2-3 minutes.
    - summary
    - knowledge map
    - L3 学习闭环 card
-   - honest provider chips: OCR app-level path, Query Rewrite local planning seam, Embedding local lexical index, Text Similarity local similarity fallback
+   - honest provider chips: OCR app-level path, official runtime gateway status, local fallback status
    - L3 能力诊断
    - transcript timeline when using manual transcript fallback
-   - semantic index record/search status and local tool orchestration plan
+   - semantic index record/search status, vector source, similarity score source, and tool orchestration plan
 8. Tap `专项练习`.
 9. Show that only stem/options are visible before submit.
 10. Choose a wrong option and tap `提交答案`.
@@ -46,20 +46,20 @@ Target length: 2-3 minutes.
 
 ## Honest Notes
 
-- OCR / Query Rewrite / Text Similarity / Embedding have passed provider smoke, but this demo does not run network smoke and does not claim live official calls for Query Rewrite, Embedding, or Text Similarity.
+- OCR / Query Rewrite / Text Similarity / Embedding have passed provider smoke, but this demo does not run network smoke.
 - OCR is the app-level official product path for image/photo/OCR text into LessonSource/Evidence. It remains config-gated and has manual OCR text fallback.
-- Query Rewrite is shown as learning query planning/local fallback seam, not a live official Query Rewrite call.
-- Embedding is shown as local persistent lexical semantic index + embedding record seam, not live official vectors.
-- Text Similarity is shown as local similarity fallback/seam, not live official rerank.
+- Query Rewrite now runs through the v1.6 official runtime gateway. Show `OFFICIAL_RUNTIME_USED` only if later validation proves the injected app adapter succeeded; otherwise show app-wiring-pending or fallback.
+- Embedding now stores official/local vector provenance. Show official vectors only when the runtime adapter returns vectors; otherwise show `LOCAL_FALLBACK`.
+- Text Similarity now stores score provenance. Show official rerank only when the runtime adapter returns scores; otherwise show local similarity fallback.
 - ASR Long is not presented as completed. Recording produces an app-private audio artifact record; core VivoAsrProvider 1739 contract exists, but app upload/poll/result validation is pending; manual transcript fallback remains available.
 - Word/Excel/PPTX are best-effort with quality guards. Use Markdown/CSV for stable question-bank demo, and use DOCX/XLSX/PPTX only as controlled import demos.
 - `回忆复盘 / 自评复习` is separate from `专项练习`; do not demo self-report buttons as real practice.
 - PDF remains artifact/page OCR seam/manual fallback unless OCR text is supplied.
-- Translation / official TTS / official Function Calling / official ASR Long must be shown as `SEAM_ONLY`, `NOT_CONFIGURED`, `LOCAL_ORCHESTRATOR`, `LOCAL_TTS_AVAILABLE`, `CORE_CONTRACT_PRESENT_APP_WIRING_PENDING`, or `OFFICIAL_TTS_NOT_CONFIGURED` unless a later validation actually proves them.
+- Translation / official TTS / official Function Calling / official ASR Long must be shown as `SEAM_ONLY`, `NOT_CONFIGURED`, `LOCAL_ORCHESTRATOR`, `LOCAL_TTS_AVAILABLE`, `OFFICIAL_APP_WIRING_PENDING`, `CORE_CONTRACT_PRESENT_APP_WIRING_PENDING`, or `OFFICIAL_TTS_NOT_CONFIGURED` unless a later validation actually proves the injected runtime adapter succeeded.
 
 ## Do Not Demo Live
 
 - recording to automatic transcription
 - complex PDF automatic text extraction
-- official Embedding / Text Similarity / Translation / TTS / Function Calling live calls
+- official Embedding / Text Similarity / Translation / TTS / Function Calling runtime success unless a later cloud-device validation proves it
 - on-device model behavior unless `ON_DEVICE_MODEL_PRESENT` and storage permission are both GO

@@ -39,6 +39,9 @@ class LocalSemanticIndexRepository(private val file: File? = null) {
                             record.vector.joinToString(","),
                             record.tokens.joinToString("|") { token -> token.replace("|", "") },
                             Base64.getEncoder().encodeToString(record.text.toByteArray(Charsets.UTF_8)),
+                            record.vectorSource,
+                            record.localVector.joinToString(","),
+                            record.officialVector.joinToString(","),
                         ).joinToString("\t"),
                     )
                 }
@@ -64,6 +67,11 @@ class LocalSemanticIndexRepository(private val file: File? = null) {
                             vector = parts[7].split(",").mapNotNull { it.toDoubleOrNull() },
                             tokens = parts[8].split("|").filter { it.isNotBlank() },
                             createdAt = parts[6].toLongOrNull() ?: 0L,
+                            vectorSource = parts.getOrNull(10).orEmpty().ifBlank { parts[5] },
+                            localVector = parts.getOrNull(11)?.split(",")?.mapNotNull { it.toDoubleOrNull() }
+                                ?.takeIf { it.isNotEmpty() }
+                                ?: parts[7].split(",").mapNotNull { it.toDoubleOrNull() },
+                            officialVector = parts.getOrNull(12)?.split(",")?.mapNotNull { it.toDoubleOrNull() }.orEmpty(),
                         )
                     }
                 }

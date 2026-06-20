@@ -166,7 +166,7 @@ class L3LearningPipelineAppTest {
         assertNotNull(viewModel.ui.l3ToolOrchestrationPlan)
         assertTrue(viewModel.ui.l3ToolOrchestrationPlan!!.plannedTools.contains("REVIEW_UPDATE"))
         assertTrue(viewModel.ui.l3ToolStepRecords.any { it.toolName == "REVIEW_UPDATE" })
-        assertTrue(viewModel.ui.l3Pipeline.diagnostics.any { it.capability == "TTS" && it.status == "LOCAL_TTS_AVAILABLE" })
+        assertTrue(viewModel.ui.l3Pipeline.diagnostics.any { it.capability == "TTS" && it.status in setOf("LOCAL_TTS_AVAILABLE", "LOCAL_FALLBACK_USED") })
         assertTrue(viewModel.ui.l3Pipeline.knowledgeGraphEdges.isNotEmpty())
         assertTrue(viewModel.ui.l3Pipeline.similarQuestionRecommendations.isNotEmpty())
         assertTrue(viewModel.ui.l3Pipeline.officialToolSeams.map { it.capability }.containsAll(listOf("TRANSLATION", "TTS", "FUNCTION_CALLING", "ASR_LONG", "EDGE_MODEL")))

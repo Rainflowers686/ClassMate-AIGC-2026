@@ -22,8 +22,10 @@ enum class L3MasteryState {
 enum class L3AsrStatus {
     PENDING_ASR_CONFIG,
     ASR_NOT_CONFIGURED,
+    OFFICIAL_ASR_NOT_CONFIGURED,
     OFFICIAL_ASR_CONFIG_MISSING,
     OFFICIAL_ASR_ADAPTER_READY,
+    OFFICIAL_ASR_APP_WIRING_PENDING,
     CORE_CONTRACT_PRESENT_APP_WIRING_PENDING,
     UPLOAD_PENDING,
     UPLOAD_FAILED,
@@ -208,6 +210,7 @@ data class Evidence(
     val segmentEndMs: Long? = null,
     val page: Int? = null,
     val blockIndex: Int? = null,
+    val providerProvenance: String = "",
 )
 
 data class L3KnowledgePoint(
@@ -322,6 +325,7 @@ data class TextSimilarityMatch(
     val rightId: String,
     val score: Double,
     val providerStatus: String,
+    val scoreSource: String = providerStatus,
 )
 
 data class SemanticIndexChunk(
@@ -345,6 +349,9 @@ data class LocalSemanticIndexRecord(
     val vector: List<Double>,
     val tokens: List<String>,
     val createdAt: Long,
+    val officialVector: List<Double> = emptyList(),
+    val localVector: List<Double> = vector,
+    val vectorSource: String = embeddingStatus,
 )
 
 data class SemanticSearchHit(
