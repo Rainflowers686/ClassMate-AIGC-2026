@@ -23,12 +23,11 @@ data class OnDevicePermissionSnapshot(
     val recordAudio: Boolean,
     val postNotifications: Boolean,
     val camera: Boolean,
-    val bluetoothConnect: Boolean,
 ) {
     companion object {
         /** Conservative default before the first device query (used as the initial UI state). */
         fun unknown(): OnDevicePermissionSnapshot =
-            OnDevicePermissionSnapshot(false, false, false, false, false, false, false, false)
+            OnDevicePermissionSnapshot(false, false, false, false, false, false, false)
     }
 }
 
@@ -47,18 +46,9 @@ class OnDevicePermissions(private val context: Context) {
         recordAudio = granted(Manifest.permission.RECORD_AUDIO),
         postNotifications = postNotificationsGranted(),
         camera = granted(Manifest.permission.CAMERA),
-        bluetoothConnect = bluetoothConnectGranted(),
     )
 
     fun cameraGranted(): Boolean = granted(Manifest.permission.CAMERA)
-
-    /** BLUETOOTH_CONNECT on Android 12+; legacy BLUETOOTH is an install-time permission below that. */
-    fun bluetoothConnectGranted(): Boolean =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            granted(Manifest.permission.BLUETOOTH_CONNECT)
-        } else {
-            true
-        }
 
     /** All-files access (MANAGE_EXTERNAL_STORAGE) on R+; legacy READ_EXTERNAL_STORAGE below. */
     fun allFilesAccessGranted(): Boolean =
@@ -116,8 +106,4 @@ class OnDevicePermissions(private val context: Context) {
 
     /** The runtime camera permission (capture study material). */
     fun cameraPermission(): String = Manifest.permission.CAMERA
-
-    /** Bluetooth audio-device runtime permission on Android 12+ (null below — legacy is install-time). */
-    fun bluetoothRequestPermission(): String? =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) Manifest.permission.BLUETOOTH_CONNECT else null
 }

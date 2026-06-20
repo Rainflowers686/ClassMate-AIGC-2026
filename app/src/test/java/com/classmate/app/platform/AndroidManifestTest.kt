@@ -33,6 +33,14 @@ class AndroidManifestTest {
         assertTrue(cappedAt32(manifest, "WRITE_EXTERNAL_STORAGE"))
     }
 
+    @Test
+    fun bluetoothPermissionsAreNotRequestedWithoutARealBluetoothFeature() {
+        val manifest = manifest()
+        assertFalse(manifest.contains("android.permission.BLUETOOTH_CONNECT"))
+        assertFalse(manifest.contains("android.permission.BLUETOOTH_ADMIN"))
+        assertFalse(manifest.contains("android.permission.BLUETOOTH\""))
+    }
+
     private fun cappedAt32(manifest: String, perm: String): Boolean =
         Regex("""<uses-permission\s+android:name="android\.permission\.$perm"\s+android:maxSdkVersion="32"\s*/>""")
             .containsMatchIn(manifest)

@@ -7,6 +7,7 @@ enum class OfficialToolSeamStatus {
     NOT_CONFIGURED,
     SEAM_ONLY,
     HARD_BLOCKED,
+    APP_WIRING_PENDING,
     LOCAL_ORCHESTRATOR,
     LOCAL_TTS_AVAILABLE,
     OFFICIAL_TTS_NOT_CONFIGURED,
@@ -74,12 +75,12 @@ object L3OfficialToolSeams {
             ),
             OfficialToolSeam(
                 capability = "ASR_LONG",
-                status = if (official.asrLongConfigured) OfficialToolSeamStatus.HARD_BLOCKED else OfficialToolSeamStatus.NOT_CONFIGURED,
+                status = if (official.asrLongConfigured) OfficialToolSeamStatus.APP_WIRING_PENDING else OfficialToolSeamStatus.NOT_CONFIGURED,
                 plannedUse = "Long-audio upload, polling, and transcript result flow.",
                 fallback = if (official.asrLongConfigured) {
-                    "Config is present but upload/poll/result schema is missing in the app mapping; manual transcript fallback enters the same L3 pipeline."
+                    "Core VivoAsrProvider doc 1739 contract is present, but app-level upload/poll/result validation is pending; manual transcript fallback enters the same L3 pipeline."
                 } else {
-                    "Recording/audio artifacts stay available; manual transcript fallback enters the same L3 pipeline."
+                    "Core ASR contract is present, but official app config is missing. Recording/audio artifacts stay available; manual transcript fallback enters the same L3 pipeline."
                 },
             ),
             OfficialToolSeam(

@@ -4,19 +4,33 @@ Date: 2026-06-20
 
 ## Current Status
 
-ASR Long is `HARD_BLOCKED_MISSING_SCHEMA` for the official network path and `LOCAL_FALLBACK` for manual transcript entry.
+Core contract: PRESENT.
+App-level wiring: PARTIAL.
+Network smoke in this task: NOT RUN.
+Demo status: recording artifact + ASR job seam + Manual transcript fallback.
 
 ## Implemented
 
 - `AsrLongJob` now records provider status, upload status, polling status, transcript text, transcript segments, error code, and timestamps.
 - Recording/audio artifact import creates an ASR Long job.
-- Missing official config maps to `OFFICIAL_ASR_CONFIG_MISSING`.
-- Present config without upload/poll/result schema maps to `HARD_BLOCKED_MISSING_SCHEMA`.
+- Missing official app config maps to `OFFICIAL_ASR_CONFIG_MISSING`.
+- Present official app config maps to `CORE_CONTRACT_PRESENT_APP_WIRING_PENDING` until non-sensitive audio upload/poll/result validation is completed.
 - Transcript fill-in maps to `TRANSCRIPT_READY` and enters the same L3 pipeline with transcript timeline, summary, evidence, knowledge points, questions, review queue, and mastery.
 
-## Precise Blocker
+## Core Evidence
 
-The current app mapping does not include the official ASR Long upload API shape, polling API shape, or transcript result schema. Without those schemas the app must not claim official ASR success.
+- Core provider contract exists in `VivoAsrProvider`.
+- Official doc 1739 task flow is represented as create/upload/run/progress/result.
+- App demo path has not validated real upload, polling, result parsing, cancellation, timeout, or classroom-audio privacy behavior.
+
+## Exact Remaining Gap
+
+The blocker is not missing schema. The blocker is app-level wiring and validation:
+
+- app adapter not validated with a non-sensitive audio file
+- local config may not be provisioned on demo/cloud device
+- upload/polling/result lifecycle is not exercised in the current demo app
+- recording is not presented as automatic transcription
 
 ## Fallback
 

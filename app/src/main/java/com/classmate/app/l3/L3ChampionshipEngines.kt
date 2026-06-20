@@ -7,6 +7,9 @@ import kotlin.math.sqrt
 object InputReportEngine {
     fun reportFor(artifact: InputArtifact): ImportReport {
         val hasText = artifact.extractedText.isNotBlank()
+        val hasQualityWarning = artifact.qualityReport?.recommendedStatus
+            ?.let { it != ExtractedTextRecommendedStatus.COMPLETE }
+            ?: false
         val success = when {
             hasText -> extractedUnitCount(artifact)
             artifact.status in listOf(InputArtifactStatus.OCR_READY_SEAM, InputArtifactStatus.ASR_NOT_CONFIGURED, InputArtifactStatus.PARSER_PENDING) -> 1
@@ -30,11 +33,13 @@ object InputReportEngine {
             id = "import_report_${artifact.id}",
             sourceType = artifact.kind,
             successCount = success,
-            warningCount = if (fallback || failed.isNotEmpty()) 1 else 0,
+            warningCount = if (fallback || failed.isNotEmpty() || hasQualityWarning) 1 else 0,
             failedItems = failed,
             fallbackUsed = fallback,
             nextAction = nextAction(artifact),
             createdAt = artifact.createdAt,
+            qualityStatus = artifact.qualityReport?.recommendedStatus?.name.orEmpty(),
+            qualityMessage = qualityMessage(artifact),
         )
     }
 
@@ -68,11 +73,16 @@ object InputReportEngine {
             InputArtifactStatus.TEMPLATE_REQUIRED -> "USE_TEMPLATE_OR_PASTE_TEXT"
             else -> "RETRY_OR_USE_TEXT_PASTE"
         }
+
+    private fun qualityMessage(artifact: InputArtifact): String {
+        val quality = artifact.qualityReport ?: return ""
+        return "quality=${quality.recommendedStatus.name}, chars=${quality.nonWhitespaceCount}, suspicious=${"%.2f".format(quality.suspiciousCharRatio)}"
+    }
 }
 
 object SemanticIndexEngine {
     fun build(snapshot: L3PipelineSnapshot, summary: ProviderConfigSummary): List<SemanticIndexChunk> {
-        val status = if (summary.officialProviders.embeddingConfigured) "EMBEDDING_PROVIDER_READY_SEAM" else "LOCAL_INDEX"
+        val status = if (summary.officialProviders.embeddingConfigured) "LOCAL_INDEX_OFFICIAL_EMBEDDING_SMOKE_PASS" else "LOCAL_INDEX"
         val sourceId = snapshot.lessonSource?.id.orEmpty()
         val evidenceChunks = snapshot.evidence.map {
             SemanticIndexChunk(

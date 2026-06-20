@@ -1517,9 +1517,6 @@ private fun PermissionCenterCard(viewModel: AppViewModel) {
     val cameraLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { viewModel.refreshOnDevicePermissions(perms.snapshot()) }
-    val bluetoothLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { viewModel.refreshOnDevicePermissions(perms.snapshot()) }
 
     ClassMateCard {
         Text("权限与能力诊断", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -1585,25 +1582,7 @@ private fun PermissionCenterCard(viewModel: AppViewModel) {
         )
 
         Spacer(Modifier.height(Dimens.m))
-        // 5) Bluetooth audio devices (paired headset / mic) + audio routing.
-        PermissionStatusRow("蓝牙音频设备", snap.bluetoothConnect)
-        Text(
-            "用于与已配对蓝牙耳机 / 蓝牙麦克风交互：蓝牙麦克风课堂录音输入、蓝牙耳机播报设备状态诊断、音频路由优化（MODIFY_AUDIO_SETTINGS）。不扫描附近设备。",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(Dimens.xs))
-        SecondaryButton(
-            text = "申请蓝牙音频权限",
-            onClick = {
-                val perm = perms.bluetoothRequestPermission()
-                if (perm != null) bluetoothLauncher.launch(perm) else viewModel.toast("当前系统蓝牙权限在安装时授予。")
-            },
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        Spacer(Modifier.height(Dimens.m))
-        // 6) Review notifications (Android 13+).
+        // 5) Review notifications (Android 13+).
         PermissionStatusRow("通知", snap.postNotifications)
         Text("用于复习提醒、学习任务提醒（功能逐步接入，未实现前不会推送）。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(Dimens.xs))

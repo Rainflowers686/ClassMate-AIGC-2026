@@ -10,12 +10,12 @@ object AsrLongProductizationEngine {
             AsrLongJob(
                 id = "asr_job_$now",
                 audioArtifactId = audioArtifactId,
-                status = L3AsrStatus.HARD_BLOCKED_MISSING_SCHEMA,
-                providerStatus = "HARD_BLOCKED_MISSING_SCHEMA",
-                uploadStatus = "UPLOAD_API_SCHEMA_MISSING",
-                pollingStatus = "POLLING_API_SCHEMA_MISSING",
-                errorCode = "MISSING_ASR_LONG_UPLOAD_POLL_RESULT_SCHEMA",
-                errorMessage = "ASR Long official config exists, but upload/polling/result schema is not present in the current app mapping. Use manual transcript fallback.",
+                status = L3AsrStatus.CORE_CONTRACT_PRESENT_APP_WIRING_PENDING,
+                providerStatus = "CORE_CONTRACT_PRESENT_APP_WIRING_PENDING",
+                uploadStatus = "CORE_PROVIDER_CONTRACT_PRESENT",
+                pollingStatus = "APP_ADAPTER_NOT_VALIDATED",
+                errorCode = "APP_ASR_WIRING_PENDING",
+                errorMessage = "Core VivoAsrProvider doc 1739 contract exists, but app-level upload/poll/result validation is pending. Use manual transcript fallback for demo.",
                 createdAt = now,
                 updatedAt = now,
             )
@@ -24,11 +24,11 @@ object AsrLongProductizationEngine {
                 id = "asr_job_$now",
                 audioArtifactId = audioArtifactId,
                 status = L3AsrStatus.ASR_NOT_CONFIGURED,
-                providerStatus = "OFFICIAL_ASR_CONFIG_MISSING",
+                providerStatus = "CORE_CONTRACT_PRESENT_CONFIG_MISSING",
                 uploadStatus = "UPLOAD_NOT_STARTED",
                 pollingStatus = "POLLING_NOT_STARTED",
                 errorCode = "OFFICIAL_ASR_CONFIG_MISSING",
-                errorMessage = "Official ASR Long is not configured; use manual transcript fallback.",
+                errorMessage = "Core ASR Long contract exists, but official app config is missing; use manual transcript fallback.",
                 createdAt = now,
                 updatedAt = now,
             )
@@ -229,7 +229,11 @@ object ToolOrchestratorProductizationEngine {
 
     private fun outputSummaryFor(tool: String, mode: ToolProviderMode): String =
         when (tool) {
-            "ASR_LONG" -> if (mode == ToolProviderMode.NOT_CONFIGURED) "Manual transcript fallback remains available." else "Official upload/poll/result schema requires validation before live use."
+            "ASR_LONG" -> if (mode == ToolProviderMode.NOT_CONFIGURED) {
+                "Manual transcript fallback remains available; core ASR contract is present but config is missing."
+            } else {
+                "Core VivoAsrProvider 1739 contract is present; app upload/poll/result validation is pending."
+            }
             "EMBEDDING" -> "Local semantic record is created; official vector is not faked."
             "TEXT_SIMILARITY" -> "Local similarity fallback can rank evidence and similar questions."
             "TTS" -> "Local Android TTS fallback can handle listen-review when official TTS is missing."
@@ -240,7 +244,7 @@ object ToolOrchestratorProductizationEngine {
 
 object LocalSemanticIndexEngine {
     fun records(snapshot: L3PipelineSnapshot, summary: ProviderConfigSummary, now: Long): List<LocalSemanticIndexRecord> {
-        val status = if (summary.officialProviders.embeddingConfigured) "OFFICIAL_EMBEDDING_READY_SEAM" else "LOCAL_LEXICAL_VECTOR"
+        val status = if (summary.officialProviders.embeddingConfigured) "LOCAL_LEXICAL_VECTOR_OFFICIAL_SMOKE_PASS" else "LOCAL_LEXICAL_VECTOR"
         return snapshot.semanticIndexChunks.map { chunk ->
             LocalSemanticIndexRecord(
                 id = "local_${chunk.id}",
@@ -272,7 +276,7 @@ object LocalSemanticIndexEngine {
         return SemanticSearchResult(
             query = query,
             hits = hits,
-            status = if (records.any { it.embeddingStatus.startsWith("OFFICIAL") }) "OFFICIAL_EMBEDDING_READY_SEAM" else "LOCAL_FALLBACK",
+            status = if (records.any { it.embeddingStatus.contains("OFFICIAL_SMOKE_PASS") }) "LOCAL_FALLBACK_OFFICIAL_SMOKE_PASS" else "LOCAL_FALLBACK",
         )
     }
 

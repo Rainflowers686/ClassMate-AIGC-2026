@@ -88,12 +88,13 @@ class AppInformationArchitectureTest {
 
         assertFalse(home.contains("Debug", ignoreCase = true))
         assertFalse(home.contains("调试"))
-        // Stage 8A-2.2: functional-first permissions are intentional (on-device model, media import,
-        // camera capture, bluetooth audio, review notifications).
+        // Functional-first permissions are intentional (on-device model, media import,
+        // camera capture, local audio/TTS/ASR UX, review notifications). Bluetooth stays out
+        // until there is a real Bluetooth device feature.
         assertTrue(manifest.contains("RECORD_AUDIO"))
         assertTrue(manifest.contains("MANAGE_EXTERNAL_STORAGE"))
         assertTrue(manifest.contains("android.permission.CAMERA"))
-        assertTrue(manifest.contains("android.permission.BLUETOOTH_CONNECT"))
+        assertFalse(manifest.contains("android.permission.BLUETOOTH_CONNECT"))
         // Legacy storage perms are present but capped at API 32.
         assertTrue(manifest.contains("android:maxSdkVersion=\"32\""))
         // Unrelated dangerous permissions remain out.

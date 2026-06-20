@@ -27,7 +27,7 @@ class InputSuperhubTest {
     @Test
     fun docxPptxAndXlsxUseBestEffortExtraction() {
         val docx = InputSuperhub.parseFile(
-            zip("word/document.xml" to "<w:document><w:body><w:p><w:t>法拉第定律</w:t></w:p></w:body></w:document>"),
+            zip("word/document.xml" to "<w:document><w:body><w:p><w:t>法拉第定律说明感应电动势与磁通量变化率相关</w:t></w:p></w:body></w:document>"),
             "lesson.docx",
             now = now,
         )
@@ -47,10 +47,33 @@ class InputSuperhubTest {
 
         assertEquals(InputArtifactStatus.BEST_EFFORT, docx.status)
         assertTrue(docx.extractedText.contains("法拉第"))
+        assertEquals(ExtractedTextRecommendedStatus.COMPLETE, docx.qualityReport!!.recommendedStatus)
         assertEquals(InputArtifactStatus.BEST_EFFORT, pptx.status)
         assertTrue(pptx.extractedText.contains("课件"))
         assertEquals(InputArtifactStatus.BEST_EFFORT, xlsx.status)
         assertTrue(xlsx.extractedText.contains("stem,a,b,c,d,answer,explanation"))
+    }
+
+    @Test
+    fun officeExtractionQualityGuardFlagsEmptyPartialAndSuspiciousText() {
+        val emptyDocx = InputSuperhub.parseFile(
+            zip("word/document.xml" to "<w:document><w:body><w:p><w:t></w:t></w:p></w:body></w:document>"),
+            "empty.docx",
+            now = now,
+        )
+        val shortPptx = InputSuperhub.parseFile(
+            zip("ppt/slides/slide1.xml" to "<p:sld><a:t>短</a:t></p:sld>"),
+            "short.pptx",
+            now = now,
+        )
+        val suspicious = InputSuperhub.qualityFor("������@@@@@%%%%%")
+
+        assertEquals(InputArtifactStatus.EMPTY_FILE, emptyDocx.status)
+        assertEquals(ExtractedTextRecommendedStatus.EMPTY_FILE, emptyDocx.qualityReport!!.recommendedStatus)
+        assertEquals(InputArtifactStatus.BEST_EFFORT, shortPptx.status)
+        assertEquals(ExtractedTextRecommendedStatus.PARTIAL, shortPptx.qualityReport!!.recommendedStatus)
+        assertEquals(ExtractedTextRecommendedStatus.TEMPLATE_REQUIRED, suspicious.recommendedStatus)
+        assertTrue(suspicious.suspiciousCharRatio > 0.0)
     }
 
     @Test
@@ -60,6 +83,7 @@ class InputSuperhubTest {
         val audio = InputSuperhub.parseFile(byteArrayOf(1, 2), "lecture.m4a", "audio/mp4", now)
 
         assertEquals(InputArtifactStatus.PARSER_PENDING, pdf.status)
+        assertEquals(ExtractedTextRecommendedStatus.PARSER_PENDING, pdf.qualityReport!!.recommendedStatus)
         assertEquals(InputArtifactStatus.OCR_READY_SEAM, image.status)
         assertEquals(InputArtifactStatus.ASR_NOT_CONFIGURED, audio.status)
     }

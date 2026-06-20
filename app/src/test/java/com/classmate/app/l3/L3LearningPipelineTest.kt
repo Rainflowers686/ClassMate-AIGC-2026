@@ -35,9 +35,9 @@ class L3LearningPipelineTest {
         assertTrue(snapshot.questions.size in 3..5)
         assertEquals(snapshot.knowledgePoints.size, snapshot.reviewQueue.size)
         assertTrue(snapshot.questions.all { it.correctAnswer.isNotBlank() && it.evidenceIds.isNotEmpty() })
-        assertTrue(snapshot.stepLogs.any { it.step == "QUERY_REWRITE" && it.status == "READY_SEAM_USED" })
-        assertTrue(snapshot.embeddingRecords.any { it.ownerType == "QUESTION" && it.providerStatus == "PROVIDER_READY_RECORD" })
-        assertTrue(snapshot.similarityMatches.any { it.providerStatus == "PROVIDER_READY_MATCH" })
+        assertTrue(snapshot.stepLogs.any { it.step == "QUERY_REWRITE" && it.status == "OFFICIAL_SMOKE_PASS_LOCAL_PLANNING" })
+        assertTrue(snapshot.embeddingRecords.any { it.ownerType == "QUESTION" && it.providerStatus == "OFFICIAL_SMOKE_PASS_RECORD_SEAM" })
+        assertTrue(snapshot.similarityMatches.any { it.providerStatus == "LOCAL_TOKEN_MATCH_OFFICIAL_SMOKE_PASS" })
         assertTrue(snapshot.knowledgeGraphEdges.isNotEmpty())
         assertTrue(snapshot.similarQuestionRecommendations.isNotEmpty())
         assertTrue(snapshot.semanticIndexChunks.any { it.ownerType == "EVIDENCE" })
@@ -157,7 +157,7 @@ class L3LearningPipelineTest {
 
         val missingAsr = AsrLongProductizationEngine.createJob("audio_1", ProviderConfigSummary.defaults(), now)
         assertEquals(L3AsrStatus.ASR_NOT_CONFIGURED, missingAsr.status)
-        assertEquals("OFFICIAL_ASR_CONFIG_MISSING", missingAsr.providerStatus)
+        assertEquals("CORE_CONTRACT_PRESENT_CONFIG_MISSING", missingAsr.providerStatus)
 
         val configuredAsr = AsrLongProductizationEngine.createJob(
             "audio_2",
@@ -166,8 +166,8 @@ class L3LearningPipelineTest {
             ),
             now + 1,
         )
-        assertEquals(L3AsrStatus.HARD_BLOCKED_MISSING_SCHEMA, configuredAsr.status)
-        assertTrue(configuredAsr.errorCode!!.contains("MISSING_ASR_LONG"))
+        assertEquals(L3AsrStatus.CORE_CONTRACT_PRESENT_APP_WIRING_PENDING, configuredAsr.status)
+        assertEquals("APP_ASR_WIRING_PENDING", configuredAsr.errorCode)
 
         val filled = AsrLongProductizationEngine.applyTranscript(missingAsr, "第一段讲电磁感应。\n第二段讲楞次定律。", "manual_audio", now + 2)
         assertEquals(L3AsrStatus.TRANSCRIPT_READY, filled.status)
@@ -183,7 +183,7 @@ class L3LearningPipelineTest {
 
         val search = LocalSemanticIndexEngine.search(snapshot.semanticIndexRecords, snapshot.knowledgePoints.first().title)
         assertTrue(search.hits.isNotEmpty())
-        assertTrue(search.status == "OFFICIAL_EMBEDDING_READY_SEAM" || search.status == "LOCAL_FALLBACK")
+        assertTrue(search.status == "LOCAL_FALLBACK_OFFICIAL_SMOKE_PASS" || search.status == "LOCAL_FALLBACK")
 
         val toolSteps = ToolOrchestratorProductizationEngine.stepRecords(ToolInputType.PDF, snapshot.copy(pdfPages = listOf(PdfPageArtifact("p1", "a1", 1, PdfPageStatus.PAGE_OCR_SEAM_READY))), providerSummary, now)
         assertTrue(toolSteps.any { it.toolName == "PDF_PAGE_OCR" })

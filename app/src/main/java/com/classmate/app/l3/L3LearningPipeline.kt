@@ -514,8 +514,8 @@ class L3LearningPipeline {
                 lessonId = lessonId,
                 step = "QUERY_REWRITE",
                 provider = "officialProviders.queryRewrite",
-                status = if (official.queryRewriteConfigured) "READY_SEAM_USED" else "LOCAL_SAFE_REWRITE",
-                message = "用于标准化学习问题和检索 query；未配置时保留直接检索 fallback。",
+                status = if (official.queryRewriteConfigured) "OFFICIAL_SMOKE_PASS_LOCAL_PLANNING" else "LOCAL_SAFE_REWRITE",
+                message = "官方 Query Rewrite smoke 已通过；App 内当前用于学习 query planning/local fallback seam，不声明实时官方调用。",
                 createdAt = now,
             ),
             PipelineStepLog(
@@ -523,8 +523,8 @@ class L3LearningPipeline {
                 lessonId = lessonId,
                 step = "EMBEDDING",
                 provider = "officialProviders.embedding",
-                status = if (official.embeddingConfigured) "READY_INDEX_RECORDS" else "LOCAL_INDEX_ONLY",
-                message = "Lesson chunks、KnowledgePoint、Question、Evidence 均生成 embedding record seam。",
+                status = if (official.embeddingConfigured) "LOCAL_LEXICAL_INDEX_OFFICIAL_SMOKE_PASS" else "LOCAL_INDEX_ONLY",
+                message = "官方 Embedding smoke 已通过；App 内当前使用本地 lexical semantic index + embedding record seam，不伪造官方向量。",
                 createdAt = now,
             ),
             PipelineStepLog(
@@ -532,8 +532,8 @@ class L3LearningPipeline {
                 lessonId = lessonId,
                 step = "TEXT_SIMILARITY",
                 provider = "officialProviders.textSimilarity",
-                status = if (official.textSimilarityConfigured) "READY_MATCHED_EVIDENCE" else "LOCAL_SIMILARITY_ONLY",
-                message = "用于 evidence 匹配、相似知识点和错题归因。",
+                status = if (official.textSimilarityConfigured) "LOCAL_SIMILARITY_OFFICIAL_SMOKE_PASS" else "LOCAL_SIMILARITY_ONLY",
+                message = "官方 Text Similarity smoke 已通过；App 内当前使用 local similarity fallback/seam 做 evidence 与相似题匹配。",
                 createdAt = now,
             ),
         )
@@ -552,13 +552,13 @@ class L3LearningPipeline {
         fun log(step: String) = providerLogs.firstOrNull { it.step == step }?.status.orEmpty()
         return listOf(
             L3CapabilityStatus("OCR", log("OCR").ifBlank { "PENDING" }, "图片/拍照文字进入 evidence pipeline；失败时保留手动 OCR 文本。"),
-            L3CapabilityStatus("QUERY_REWRITE", log("QUERY_REWRITE").ifBlank { "LOCAL_SAFE_REWRITE" }, "用于学习问题标准化和检索 query seam。"),
-            L3CapabilityStatus("EMBEDDING", if (official.embeddingConfigured) "RECORD_CREATED" else "LOCAL_FALLBACK", "Lesson/Evidence/KP/Question 均有 embedding record。"),
-            L3CapabilityStatus("TEXT_SIMILARITY", if (official.textSimilarityConfigured) "MATCH_CREATED" else "LOCAL_FALLBACK", "用于 evidence 归因和相似题 seam。"),
+            L3CapabilityStatus("QUERY_REWRITE", log("QUERY_REWRITE").ifBlank { "LOCAL_SAFE_REWRITE" }, "官方 smoke PASS；App 内为学习 query planning/local fallback seam。"),
+            L3CapabilityStatus("EMBEDDING", if (official.embeddingConfigured) "LOCAL_INDEX_RECORD_CREATED" else "LOCAL_FALLBACK", "官方 smoke PASS；App 内使用本地 lexical index 和 embedding record seam。"),
+            L3CapabilityStatus("TEXT_SIMILARITY", if (official.textSimilarityConfigured) "LOCAL_MATCH_CREATED" else "LOCAL_FALLBACK", "官方 smoke PASS；App 内使用 local similarity fallback/seam。"),
             L3CapabilityStatus("TRANSLATION", if (official.translationConfigured) "OFFICIAL_TRANSLATION_READY" else "OFFICIAL_TRANSLATION_NOT_CONFIGURED", "多语言资料辅助；未配置时不改原文证据。"),
             L3CapabilityStatus("TTS", if (official.ttsConfigured) "OFFICIAL_TTS_READY" else "LOCAL_TTS_AVAILABLE", "听读复习：官方未配置时使用 Android local TTS fallback 或脚本文本。"),
             L3CapabilityStatus("FUNCTION_CALLING", if (official.functionCallingConfigured) "READY" else "LOCAL_ORCHESTRATOR", "本地工具链 step log，不伪装官方 Function Calling。"),
-            L3CapabilityStatus("ASR_LONG", if (sourceType == L3SourceType.MANUAL_TRANSCRIPT) "MANUAL_TRANSCRIPT_FALLBACK" else if (official.asrLongConfigured) "HARD_BLOCKED_MISSING_SCHEMA" else "OFFICIAL_ASR_CONFIG_MISSING", "长音频 artifact + ASR job lifecycle；缺上传/轮询/结果 schema 时走手动转写。"),
+            L3CapabilityStatus("ASR_LONG", if (sourceType == L3SourceType.MANUAL_TRANSCRIPT) "MANUAL_TRANSCRIPT_FALLBACK" else if (official.asrLongConfigured) "CORE_CONTRACT_PRESENT_APP_WIRING_PENDING" else "OFFICIAL_ASR_CONFIG_MISSING", "core VivoAsrProvider 1739 合约存在；App demo 仍是录音 artifact + ASR job seam + 手动转写 fallback。"),
             L3CapabilityStatus("EDGE_MODEL", "LOCAL_RULE_FALLBACK", "端侧不可用时保留本地规则摘要/微测 fallback。"),
             L3CapabilityStatus("WORD_EXCEL", "BEST_EFFORT", "DOCX/XLSX 使用轻量 ZIP/XML 解析，复杂格式提示模板。"),
             L3CapabilityStatus("PDF_PPT", "PARSER_PENDING", "PPTX 可 best-effort 抽文字；PDF 保留 artifact/manual fallback。"),
@@ -572,7 +572,7 @@ class L3LearningPipeline {
         questions: List<L3GeneratedQuestion>,
         summary: ProviderConfigSummary,
     ): List<EmbeddingRecord> {
-        val status = if (summary.officialProviders.embeddingConfigured) "PROVIDER_READY_RECORD" else "LOCAL_RECORD_ONLY"
+        val status = if (summary.officialProviders.embeddingConfigured) "OFFICIAL_SMOKE_PASS_RECORD_SEAM" else "LOCAL_RECORD_ONLY"
         return listOf(EmbeddingRecord("emb_lesson_$lessonId", "LESSON", lessonId, status)) +
             evidence.map { EmbeddingRecord("emb_${it.id}", "EVIDENCE", it.id, status) } +
             knowledge.map { EmbeddingRecord("emb_${it.id}", "KNOWLEDGE_POINT", it.id, status) } +
@@ -584,7 +584,7 @@ class L3LearningPipeline {
         knowledge: List<L3KnowledgePoint>,
         summary: ProviderConfigSummary,
     ): List<TextSimilarityMatch> {
-        val status = if (summary.officialProviders.textSimilarityConfigured) "PROVIDER_READY_MATCH" else "LOCAL_TOKEN_MATCH"
+        val status = if (summary.officialProviders.textSimilarityConfigured) "LOCAL_TOKEN_MATCH_OFFICIAL_SMOKE_PASS" else "LOCAL_TOKEN_MATCH"
         return knowledge.mapNotNull { kp ->
             val ev = evidence.firstOrNull { it.id in kp.sourceEvidenceIds } ?: evidence.firstOrNull()
             ev?.let {
@@ -614,7 +614,7 @@ class L3LearningPipeline {
         questions: List<L3GeneratedQuestion>,
         summary: ProviderConfigSummary,
     ): List<SimilarQuestionRecommendation> {
-        val status = if (summary.officialProviders.textSimilarityConfigured) "TEXT_SIMILARITY_SEAM" else "LOCAL_FALLBACK"
+        val status = if (summary.officialProviders.textSimilarityConfigured) "LOCAL_FALLBACK_OFFICIAL_SMOKE_PASS" else "LOCAL_FALLBACK"
         return questions.zipWithNext().mapIndexed { index, pair ->
             SimilarQuestionRecommendation(
                 id = "similar_q_${index + 1}_${pair.first.id}_${pair.second.id}",

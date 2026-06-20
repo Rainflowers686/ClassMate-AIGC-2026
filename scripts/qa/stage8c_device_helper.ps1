@@ -156,7 +156,6 @@ function Invoke-Preflight {
             "android.permission.INTERNET",
             "android.permission.CAMERA",
             "android.permission.RECORD_AUDIO",
-            "android.permission.BLUETOOTH",
             "android.permission.POST_NOTIFICATIONS",
             "android.permission.MANAGE_EXTERNAL_STORAGE",
             "android.permission.READ_EXTERNAL_STORAGE",

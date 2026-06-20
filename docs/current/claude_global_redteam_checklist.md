@@ -12,8 +12,10 @@ Date: 2026-06-20
 ## Official Tool Authenticity
 
 - OCR / Query Rewrite / Embedding / Text Similarity provider smoke status remains PASS in docs.
+- OCR may be described as app-level productized for image/photo/OCR text into evidence, with config-gated fallback.
+- Query Rewrite / Embedding / Text Similarity must be described as app local/seam usage, not live official calls.
 - No real network smoke is run in this checklist.
-- ASR Long official path must show HARD_BLOCKED when upload/poll/result schema is missing.
+- ASR Long official path must show core contract present but app wiring/validation pending unless a later non-sensitive audio validation proves the path.
 - Translation and official TTS must not claim success when not configured.
 - Function Calling must identify local orchestrator vs official path.
 
@@ -41,6 +43,7 @@ Date: 2026-06-20
 - Validate recording permission flow.
 - Validate file picker MIME behavior across PDF/DOCX/XLSX/PPTX/audio/image.
 - Validate app-private persistence after process restart.
+- Validate `scripts\qa\demo_device_provision.ps1` GO/NO-GO before any cloud device recording.
 
 ## Demo Readiness
 

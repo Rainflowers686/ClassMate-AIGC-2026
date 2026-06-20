@@ -37,17 +37,17 @@ Update 2026-06-20 / v1.3: Championship Upgrade adds ImportReport, PDF page fallb
 | PPTX | best-effort | Slide XML text extraction, complex decks remain limited. |
 | PDF | partial / parser pending | Artifact plus page OCR seam and manual page text fallback; native parser remains pending. |
 | Classroom recording | partial completed | Start/stop record creates app-private audio artifact record. |
-| ASR Long | seam only | Status is ASR_NOT_CONFIGURED/PENDING_ASR_CONFIG unless configured; manual transcript fallback is explicit. |
+| ASR Long | seam only / app wiring pending | Core VivoAsrProvider 1739 contract exists; app demo remains recording artifact + ASR job seam + manual transcript fallback until non-sensitive upload/poll/result validation. |
 
 ## Provider App-Level Usage
 
 | Provider | App-Level Role | Current Behavior |
 | --- | --- | --- |
 | OCR | Image text -> lesson source/evidence | Used when configured; manual fallback otherwise. |
-| QUERY_REWRITE | Standardize study/retrieval queries | Seam records READY_SEAM_USED when configured; local safe rewrite otherwise. |
-| EMBEDDING | Lesson/evidence/KP/question index records | Builds embedding record model; provider-ready status when configured. |
-| EMBEDDING local index | Evidence/KP/question semantic chunks | Builds lightweight local vector placeholders; persistent real vector DB remains future work. |
-| TEXT_SIMILARITY | Evidence match, similar KP/question attribution | Builds similarity match model and local similar-question fallback; provider-ready status when configured. |
+| QUERY_REWRITE | Standardize study/retrieval queries | Official smoke PASS; App uses learning query planning/local fallback seam, not a live official call. |
+| EMBEDDING | Lesson/evidence/KP/question index records | Official smoke PASS; App builds local lexical semantic index and embedding record seam, not live official vectors. |
+| EMBEDDING local index | Evidence/KP/question semantic chunks | Builds lightweight persistent local lexical vectors; real official vector use remains future validation work. |
+| TEXT_SIMILARITY | Evidence match, similar KP/question attribution | Official smoke PASS; App uses local similarity fallback/seam, not live official rerank. |
 | TRANSLATION | Multilingual material support | SEAM_ONLY unless configured; not part of the main L3 blocker path. |
 | TTS | Listen-review / course essence playback | SEAM_ONLY unless configured; no voice clone. |
 | FUNCTION_CALLING | Local tool orchestration plan | Step-log skeleton only unless official provider is configured. |

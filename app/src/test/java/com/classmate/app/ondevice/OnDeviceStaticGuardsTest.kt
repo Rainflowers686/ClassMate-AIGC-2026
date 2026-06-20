@@ -59,7 +59,6 @@ class OnDeviceStaticGuardsTest {
             "android.permission.READ_MEDIA_AUDIO",
             "android.permission.POST_NOTIFICATIONS",
             "android.permission.CAMERA",
-            "android.permission.BLUETOOTH_CONNECT",
             "android.permission.MODIFY_AUDIO_SETTINGS",
             "mediatek.permission.ACCESS_APU_SYS",
         ).forEach { assertTrue("Manifest must declare $it", manifest.contains(it)) }
@@ -67,10 +66,6 @@ class OnDeviceStaticGuardsTest {
         // Legacy storage perms must be present AND capped at API 32.
         assertTrue("READ_EXTERNAL_STORAGE must be capped at 32", cappedAt(manifest, "READ_EXTERNAL_STORAGE", 32))
         assertTrue("WRITE_EXTERNAL_STORAGE must be capped at 32", cappedAt(manifest, "WRITE_EXTERNAL_STORAGE", 32))
-        // Legacy Bluetooth perms present AND capped at API 30.
-        assertTrue("BLUETOOTH must be capped at 30", cappedAt(manifest, "BLUETOOTH", 30))
-        assertTrue("BLUETOOTH_ADMIN must be capped at 30", cappedAt(manifest, "BLUETOOTH_ADMIN", 30))
-
         // Camera hardware declared optional so camera-less devices still install.
         assertTrue(
             "camera uses-feature must be required=false",
@@ -82,12 +77,12 @@ class OnDeviceStaticGuardsTest {
         assertTrue(nativeLibOptional(manifest, "libdmabufheap.so"))
         assertTrue(nativeLibOptional(manifest, "libvcap_npu_network_v1.so"))
 
-        // Unrelated permissions stay OUT (functional-first ≠ everything). BLUETOOTH_SCAN omitted
-        // because we do not scan for nearby devices this round.
+        // Unrelated permissions stay OUT (functional-first != everything). Bluetooth permissions
+        // stay out because ClassMate has no real Bluetooth device feature.
         listOf(
             "CONTACTS", "ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION",
             "READ_SMS", "SEND_SMS", "READ_PHONE_STATE", "CALL_PHONE", "READ_CALL_LOG",
-            "BODY_SENSORS", "BLUETOOTH_SCAN",
+            "BODY_SENSORS", "BLUETOOTH_CONNECT", "BLUETOOTH_ADMIN", "BLUETOOTH_SCAN",
         ).forEach { assertFalse("Manifest must NOT contain $it", manifest.contains(it)) }
     }
 

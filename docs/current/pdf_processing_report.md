@@ -13,7 +13,12 @@ PDF is `PARTIAL`: artifact and page-level workflow are installed, native text pa
 - Page-level statuses include `PAGE_READY`, `PAGE_OCR_SEAM_READY`, `OCR_PENDING`, `OCR_FAILED`, `OCR_TEXT_READY`, and `MANUAL_PAGE_TEXT_READY`.
 - Manual page text can enter the L3 pipeline.
 - PDF page OCR seam is visible without claiming OCR execution.
+- `ExtractedTextQuality` marks native PDF text parsing as `PARSER_PENDING`; the app does not label PDF text as extracted unless page OCR/manual text actually supplies content.
 
 ## Honest Limits
 
 No large PDF parsing dependency was added. Native PDF text extraction and full page rendering/OCR execution remain Task 5 work unless an existing lightweight capability is selected and validated.
+
+## Demo Guard
+
+Use PDF only for artifact/page-status/manual-page-text fallback during cloud device validation. Do not demo complex PDF automatic parsing as complete.

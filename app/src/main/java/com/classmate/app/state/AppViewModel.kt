@@ -20,6 +20,7 @@ import com.classmate.app.data.HistoryRecord
 import com.classmate.app.data.HistoryStore
 import com.classmate.app.data.InMemoryExportStore
 import com.classmate.app.data.InMemoryHistoryStore
+import com.classmate.app.data.L3PersistenceRepository
 import com.classmate.app.data.LocalSemanticIndexRepository
 import com.classmate.app.data.ThemePreferenceRepository
 import com.classmate.app.exporting.ExportArtifact
@@ -197,8 +198,8 @@ import kotlin.random.Random
  * The single source of truth for the UI. Holds the in-memory back stack and the learning-loop
  * state, and is the ONLY thing that touches the core pipeline — screens never see a provider.
  *
- * Round 1 keeps everything in memory (great for a demo; no persistence yet). Real BlueLM
- * credentials would be injected here by rebuilding [configBundle] from the debug import entry.
+ * L3 study state is persisted through app-private repositories. Real BlueLM credentials are
+ * injected through the config pipeline and never stored in the L3 snapshot.
  */
 class AppViewModel(
     private val configRepository: ConfigRepository = ConfigRepository(),
@@ -214,6 +215,8 @@ class AppViewModel(
     private val themePreferenceRepository: ThemePreferenceRepository = ThemePreferenceRepository.disabled(),
     // App-private semantic index. Stores local lexical vectors only; no provider secrets or endpoint data.
     private val semanticIndexRepository: LocalSemanticIndexRepository = LocalSemanticIndexRepository.disabled(),
+    // App-private L3 state. Stores study artifacts only: no credentials, keys, endpoints, or local config.
+    private val l3PersistenceRepository: L3PersistenceRepository = L3PersistenceRepository.disabled(),
     private val localTtsPlayer: LocalTtsPlayer = NoOpLocalTtsPlayer(),
     // On-device BlueLM 3B owner. Defaults to the honest missing-SDK bridge until the AAR is bundled.
     private val onDeviceController: OnDeviceLlmController = OnDeviceLlmController(),
@@ -300,7 +303,12 @@ class AppViewModel(
         // Small one-time read of local history + cross-course learning state. Synchronous on
         // purpose so construction needs no Main dispatcher (keeps the ViewModel unit-testable);
         // both files are tiny. Home/Review/History then share this one snapshot.
-        ui = ui.copy(history = historyStore.load(), learningSnapshot = learningStore.snapshot())
+        val persistedL3 = l3PersistenceRepository.loadSnapshot()
+        ui = ui.copy(
+            history = historyStore.load(),
+            learningSnapshot = learningStore.snapshot(),
+            l3Pipeline = persistedL3,
+        )
     }
 
     private fun syncLearning(toast: String? = null) {
@@ -1474,6 +1482,7 @@ class AppViewModel(
         val artifacts = l3Pipeline.toCourseArtifacts(enrichedSnapshot, now)
         if (artifacts == null) {
             ui = ui.copy(l3Pipeline = enrichedSnapshot, toast = "L3 资料不足，未生成完整闭环。")
+            persistL3(enrichedSnapshot)
             return false
         }
         val outcome = AnalysisOutcome.Success(
@@ -1511,8 +1520,13 @@ class AppViewModel(
             toast = toast,
         )
         persistHistory(updatedHistory)
+        persistL3(enrichedSnapshot)
         navigateTo(Screen.COURSE_DETAIL)
         return true
+    }
+
+    private fun persistL3(snapshot: L3PipelineSnapshot) {
+        l3PersistenceRepository.saveSnapshot(snapshot)
     }
 
     fun prepareL3Translation(targetLanguage: String = "zh-CHS"): Boolean {
@@ -2911,6 +2925,7 @@ class AppViewModel(
             learningSnapshot = learningStore.snapshot(),
             toast = if (correct) "回答正确，已更新掌握度。" else "回答错误，已加入错题本和今日复习。",
         )
+        persistL3(updatedL3)
         return true
     }
 
@@ -2989,6 +3004,7 @@ class AppViewModel(
         }
         if (examReport != null) {
             ui = ui.copy(l3Pipeline = nextL3)
+            persistL3(nextL3)
         }
         ui = ui.copy(
             practiceResult = result,

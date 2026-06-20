@@ -24,6 +24,7 @@ enum class L3AsrStatus {
     ASR_NOT_CONFIGURED,
     OFFICIAL_ASR_CONFIG_MISSING,
     OFFICIAL_ASR_ADAPTER_READY,
+    CORE_CONTRACT_PRESENT_APP_WIRING_PENDING,
     UPLOAD_PENDING,
     UPLOAD_FAILED,
     POLLING_PENDING,
@@ -32,7 +33,15 @@ enum class L3AsrStatus {
     ASR_FAILED,
     TRANSCRIPT_READY,
     MANUAL_TRANSCRIPT_FALLBACK,
-    HARD_BLOCKED_MISSING_SCHEMA,
+}
+
+enum class ExtractedTextRecommendedStatus {
+    COMPLETE,
+    PARTIAL,
+    TEMPLATE_REQUIRED,
+    PARSER_PENDING,
+    EMPTY_FILE,
+    FORMAT_ERROR,
 }
 
 enum class KnowledgeGraphRelation {
@@ -135,7 +144,6 @@ enum class TranslationTargetLanguage {
 enum class TranslationProductStatus {
     OFFICIAL_TRANSLATION_READY,
     OFFICIAL_TRANSLATION_NOT_CONFIGURED,
-    HARD_BLOCKED_MISSING_SCHEMA,
     PENDING,
     FAILED,
 }
@@ -421,6 +429,18 @@ data class ImportReport(
     val fallbackUsed: Boolean,
     val nextAction: String,
     val createdAt: Long,
+    val qualityStatus: String = "",
+    val qualityMessage: String = "",
+)
+
+data class ExtractedTextQuality(
+    val textLength: Int,
+    val nonWhitespaceCount: Int,
+    val suspiciousCharRatio: Double,
+    val replacementCharCount: Int,
+    val lineCount: Int,
+    val isLikelyReadable: Boolean,
+    val recommendedStatus: ExtractedTextRecommendedStatus,
 )
 
 data class PracticeGrade(

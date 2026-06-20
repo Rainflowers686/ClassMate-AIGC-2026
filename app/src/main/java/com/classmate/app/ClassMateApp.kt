@@ -50,6 +50,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.classmate.app.data.FileHistoryStore
 import com.classmate.app.data.FileExportStore
 import com.classmate.app.data.FileSnapshotIo
+import com.classmate.app.data.L3PersistenceRepository
 import com.classmate.app.data.LocalSemanticIndexRepository
 import com.classmate.app.data.ThemePreferenceRepository
 import com.classmate.app.l3.AndroidClassroomAudioRecorder
@@ -86,6 +87,7 @@ fun ClassMateApp() {
                     modelConfigRepository = ModelConfigRepository(File(context.filesDir, "classmate_model_config.json")),
                     themePreferenceRepository = ThemePreferenceRepository(File(context.filesDir, "classmate_theme_preferences.json")),
                     semanticIndexRepository = LocalSemanticIndexRepository(File(context.filesDir, "classmate_semantic_index.json")),
+                    l3PersistenceRepository = L3PersistenceRepository(File(context.filesDir, "classmate_l3_store.json")),
                     classroomAudioRecorder = AndroidClassroomAudioRecorder(File(context.filesDir, "classmate_recordings")),
                     localTtsPlayer = AndroidLocalTtsPlayer(context),
                     // Real reflection bridge: drives the vivo on-device SDK when app/libs/llm-sdk-release.aar

@@ -12,7 +12,7 @@ Task 4 finishes the remaining L3 productization work before Claude global red-te
 
 | Area | Status | User-visible path | Honest limit |
 | --- | --- | --- | --- |
-| ASR Long official path | HARD_BLOCKED | Recording/audio artifact creates ASR job lifecycle; manual transcript fallback still enters L3 pipeline. | Current app mapping lacks upload, polling, and result schema. |
+| ASR Long official path | PARTIAL / APP_WIRING_PENDING | Recording/audio artifact creates ASR job lifecycle; manual transcript fallback still enters L3 pipeline. | Core VivoAsrProvider 1739 contract exists, but app upload/poll/result validation and demo config are pending. |
 | PDF processing | PARTIAL | PDF artifact, page record, page OCR seam, manual page text fallback, L3 pipeline entry. | Native PDF text parsing remains parser-pending. |
 | TTS | LOCAL_FALLBACK | Listen-review can invoke Android local TextToSpeech through a `LocalTtsPlayer` port for summary/wrong-answer/review-card text. | Official TTS network path is not claimed; device validation still owns actual engine availability. |
 | Translation | NOT_CONFIGURED / SEAM_ONLY | Translation request/result is reachable and preserves original evidence. | No fake local translation is generated. |
@@ -30,6 +30,14 @@ Task 4 finishes the remaining L3 productization work before Claude global red-te
 - `MasteryHistoryEvent` records answer-driven state transitions.
 - `ExamResultReport` now includes accuracy, weak knowledge points, evidence coverage, recommendations, and Markdown text.
 - `PdfDocumentArtifact` and `PdfPageArtifact` make PDF page OCR/manual fallback explicit.
+
+## Red-team v1.5 Corrections
+
+- OCR remains the only app-level official product path among the four product-facing provider smokes.
+- Query Rewrite, Embedding, and Text Similarity are recorded as provider smoke PASS plus app local/seam usage; they are not described as live official calls inside the app.
+- ASR Long is corrected from schema-missing language to core-contract-present/app-wiring-pending language.
+- DOCX/XLSX/PPTX extraction now requires quality guard status before demo use.
+- L3 wrong book, review queue, mastery history, attempts, lesson source/evidence/questions, and exam reports are persisted to app-private storage.
 
 ## Protected Areas
 

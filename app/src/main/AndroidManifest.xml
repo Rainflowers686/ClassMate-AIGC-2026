@@ -46,18 +46,9 @@
         android:name="android.hardware.camera"
         android:required="false" />
 
-    <!-- ============ Bluetooth audio + audio routing ============ -->
-    <!-- Android 12+ interaction with already-paired Bluetooth headsets / mics: Bluetooth-mic classroom
-         recording input and Bluetooth-headset knowledge-point playback device-state diagnostics. We do
-         NOT scan for nearby devices (nearby-device scanning is intentionally not requested). -->
-    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-    <uses-permission
-        android:name="android.permission.BLUETOOTH"
-        android:maxSdkVersion="30" />
-    <uses-permission
-        android:name="android.permission.BLUETOOTH_ADMIN"
-        android:maxSdkVersion="30" />
-    <!-- Adapt audio input/output, Bluetooth mic/speaker routing diagnostics, and TTS/ASR audio UX. -->
+    <!-- ============ Audio routing ============ -->
+    <!-- Adapt audio input/output for local TTS / ASR UX. No Bluetooth nearby-device or connection
+         permission is requested because ClassMate does not implement a Bluetooth device feature. -->
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
     <!-- ============ Live ASR ============ -->
