@@ -7,8 +7,11 @@ import com.classmate.app.glossary.CourseGlossary
 import com.classmate.app.importing.OcrImportDraft
 import com.classmate.app.importing.SelectedLocalFileMetadata
 import com.classmate.app.l3.ClassroomRecordingRecord
+import com.classmate.app.l3.ExamSession
 import com.classmate.app.l3.L3AsrStatus
 import com.classmate.app.l3.L3PipelineSnapshot
+import com.classmate.app.l3.PracticeAnswerSubmission
+import com.classmate.app.l3.PracticeQuestionMode
 import com.classmate.app.l3.QuestionBankParseResult
 import com.classmate.app.material.MaterialSourceSummary
 import com.classmate.app.platform.MaskedModelProfile
@@ -106,6 +109,10 @@ data class ClassMateUiState(
     val practiceResult: PracticeResult? = null,
     val practiceStartedAt: Long = 0L,
     val practiceRevealed: Boolean = false,
+    val practiceQuestionMode: PracticeQuestionMode = PracticeQuestionMode.REAL_QUIZ,
+    val practiceSelectedAnswers: Map<String, Set<String>> = emptyMap(),
+    val practiceSubmittedAnswers: Map<String, PracticeAnswerSubmission> = emptyMap(),
+    val examSession: ExamSession? = null,
     val courseEssenceScript: CourseEssenceScript? = null,
     val courseEssenceAudioResult: CourseEssenceAudioResult? = null,
     val translationNotes: List<TranslationNote> = emptyList(),

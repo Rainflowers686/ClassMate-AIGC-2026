@@ -12,7 +12,7 @@ object QuestionBankParser {
         if (questions.isEmpty()) {
             return QuestionBankParseResult(
                 accepted = false,
-                errors = listOf("未解析出题目，请使用 Q:/Answer:/Explanation: 或 CSV 模板。"),
+                errors = listOf("第 1 行：未解析出题目，请使用 Q:/Answer:/Explanation: 或 CSV 模板。"),
             )
         }
         val bank = L3QuestionBank(

@@ -230,7 +230,15 @@ class L3LearningPipeline {
         )
     }
 
-    fun submitAnswer(snapshot: L3PipelineSnapshot, questionId: String, userAnswer: String, now: Long): L3PipelineSnapshot {
+    fun submitAnswer(
+        snapshot: L3PipelineSnapshot,
+        questionId: String,
+        userAnswer: String,
+        now: Long,
+        selectedAnswers: List<String> = if (userAnswer.isBlank()) emptyList() else listOf(userAnswer),
+        elapsedMs: Long? = null,
+        mode: PracticeQuestionMode = PracticeQuestionMode.REAL_QUIZ,
+    ): L3PipelineSnapshot {
         val question = snapshot.questions.firstOrNull { it.id == questionId } ?: return snapshot
         val correct = question.correctAnswer.equals(userAnswer, ignoreCase = true)
         val attempt = L3PracticeAttempt(
@@ -239,6 +247,9 @@ class L3LearningPipeline {
             userAnswer = userAnswer,
             correct = correct,
             createdAt = now,
+            selectedAnswers = selectedAnswers,
+            elapsedMs = elapsedMs,
+            mode = mode,
         )
         val wrongBook = if (correct) {
             snapshot.wrongBook

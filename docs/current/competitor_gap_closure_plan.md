@@ -25,6 +25,13 @@ Completed in L3 v1:
 - Wrong answers update a wrong book, review queue, and mastery stats.
 - Questions and explanations cite evidence.
 
+Completed in L3 Function Closure v1.1:
+
+- "专项练习" is now a real quiz path: answer options are shown first, and answer/explanation/evidence appear only after submit.
+- The old self-report flow is separated as "回忆复盘 / 自评复习" and no longer masquerades as practice.
+- ExamSession v1 starts, submits, scores, and writes wrong answers into the wrong book/review queue/mastery loop.
+- Review exposes wrong book records, mastery counts, and evidence text so the loop is reachable, not only modeled.
+
 Remaining:
 
 - Native Word/Excel question bank parsing.

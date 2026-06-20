@@ -143,19 +143,31 @@ private fun L3LearningLoopCard(viewModel: AppViewModel) {
     val l3 = viewModel.ui.l3Pipeline
     if (l3.lessonSource == null) return
     val weak = l3.masteryStats.count { it.state.name == "WEAK" }
+    val reviewing = l3.masteryStats.count { it.state.name == "REVIEWING" }
+    val mastered = l3.masteryStats.count { it.state.name == "MASTERED" }
     ClassMateCard {
         Text("L3 闭环统计", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.s))
-        Row(horizontalArrangement = Arrangement.spacedBy(Dimens.xl)) {
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.xl)) {
             Stat("${l3.wrongBook.size}", "错题")
             Stat("${l3.reviewQueue.size}", "复习项")
             Stat("$weak", "薄弱")
-            Stat("${l3.evidence.size}", "证据")
+            Stat("$reviewing", "复习中")
+            Stat("$mastered", "掌握")
         }
         if (l3.wrongBook.isNotEmpty()) {
             Spacer(Modifier.height(Dimens.s))
-            Text("最近错题：${l3.wrongBook.last().explanation}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("错题本", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            l3.wrongBook.takeLast(3).reversed().forEach { wrong ->
+                val evidence = l3.evidence.firstOrNull { it.id in wrong.evidenceIds }?.text ?: "暂无证据"
+                Spacer(Modifier.height(Dimens.xs))
+                Text("用户答案：${wrong.userAnswer} · 正确答案：${wrong.correctAnswer}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("解析：${wrong.explanation}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("证据：$evidence", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
+        Spacer(Modifier.height(Dimens.s))
+        Text("Evidence chain：${l3.evidence.size} 条证据已绑定到题目和解析。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -195,6 +207,8 @@ private fun PracticeEntryCard(viewModel: AppViewModel) {
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
             ActionChip("开始练习") { viewModel.startPractice(PracticeMode.QUICK_REVIEW) }
             ActionChip("错题重练") { viewModel.startPractice(PracticeMode.WRONG_ANSWER_RETRY) }
+            ActionChip("模拟考试") { viewModel.startExam() }
+            ActionChip("回忆复盘") { viewModel.startSelfAssessment() }
             ActionChip("需要多练") { viewModel.startPractice(PracticeMode.NEED_MORE_PRACTICE) }
             ActionChip("薄弱点专项") { viewModel.startPractice(PracticeMode.WEAKNESS_DRILL) }
         }

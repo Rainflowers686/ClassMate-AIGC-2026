@@ -23,6 +23,7 @@ enum class L3AsrStatus {
     ASR_NOT_CONFIGURED,
     ASR_FAILED,
     TRANSCRIPT_READY,
+    MANUAL_TRANSCRIPT_FALLBACK,
 }
 
 enum class L3RecordingStatus {
@@ -30,6 +31,34 @@ enum class L3RecordingStatus {
     RECORDING,
     SAVED,
     FAILED,
+}
+
+enum class PracticeQuestionMode {
+    REAL_QUIZ,
+    SELF_ASSESSMENT,
+    EXAM,
+}
+
+enum class PracticeQuestionType {
+    SINGLE_CHOICE,
+    TRUE_FALSE,
+    MULTI_CHOICE,
+    SHORT_ANSWER,
+}
+
+enum class PracticeAnswerState {
+    NOT_ANSWERED,
+    ANSWER_SELECTED,
+    SUBMITTED_CORRECT,
+    SUBMITTED_WRONG,
+    REVEALED,
+    SKIPPED,
+}
+
+enum class ExamStatus {
+    NOT_STARTED,
+    IN_PROGRESS,
+    SUBMITTED,
 }
 
 data class LessonSource(
@@ -88,6 +117,35 @@ data class L3PracticeAttempt(
     val userAnswer: String,
     val correct: Boolean,
     val createdAt: Long,
+    val selectedAnswers: List<String> = if (userAnswer.isBlank()) emptyList() else listOf(userAnswer),
+    val textAnswer: String? = null,
+    val elapsedMs: Long? = null,
+    val mode: PracticeQuestionMode = PracticeQuestionMode.REAL_QUIZ,
+)
+
+data class PracticeAnswerSubmission(
+    val itemId: String,
+    val questionId: String,
+    val selectedAnswers: List<String>,
+    val textAnswer: String? = null,
+    val correct: Boolean,
+    val submittedAt: Long,
+    val elapsedMs: Long? = null,
+    val mode: PracticeQuestionMode,
+    val state: PracticeAnswerState,
+)
+
+data class ExamSession(
+    val id: String,
+    val sourceLessonId: String? = null,
+    val questionBankId: String? = null,
+    val questionIds: List<String>,
+    val startedAt: Long,
+    val submittedAt: Long? = null,
+    val status: ExamStatus = ExamStatus.IN_PROGRESS,
+    val score: Int = 0,
+    val correctCount: Int = 0,
+    val wrongCount: Int = 0,
 )
 
 data class WrongQuestionRecord(

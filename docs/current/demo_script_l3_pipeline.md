@@ -16,17 +16,25 @@ Target length: 2-3 minutes.
    - knowledge map
    - L3 学习闭环 card
    - provider seam chips for OCR / Query Rewrite / Embedding / Text Similarity
-7. Tap `做微测`.
-8. Choose a wrong option.
-9. Show explanation and evidence.
-10. Open `复习计划`.
-11. Show:
+7. Tap `专项练习`.
+8. Show that only stem/options are visible before submit.
+9. Choose a wrong option and tap `提交答案`.
+10. Show:
+    - user answer
+    - correct answer
+    - explanation
+    - source evidence
+11. Tap `完成练习`, then open `复习计划`.
+12. Show:
     - wrong book count
+    - wrong question detail
     - review queue item
     - weak mastery state
+13. Optional: return to the course page and tap `模拟考试` to show ExamSession v1 scoring.
 
 ## Honest Notes
 
 - OCR / Query Rewrite / Text Similarity / Embedding have passed provider smoke, but this demo does not run network smoke.
 - ASR Long is not presented as completed. Recording produces an app-private audio artifact record; manual transcript fallback remains available.
 - Word/Excel import is seam-only; use Markdown/CSV text for this demo.
+- `回忆复盘 / 自评复习` is separate from `专项练习`; do not demo self-report buttons as real practice.

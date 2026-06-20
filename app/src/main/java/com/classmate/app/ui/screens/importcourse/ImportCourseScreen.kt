@@ -12,6 +12,7 @@ import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.PickVisualMediaRequest
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -475,6 +476,12 @@ private fun QuestionBankImportCard(viewModel: AppViewModel) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        Spacer(Modifier.height(Dimens.xs))
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+            StatusChip("Markdown READY", tone = ChipTone.SUCCESS)
+            StatusChip("CSV READY", tone = ChipTone.SUCCESS)
+            StatusChip("Word/Excel PARSER_PENDING", tone = ChipTone.WARNING)
+        }
         Spacer(Modifier.height(Dimens.s))
         OutlinedTextField(
             value = ui.questionBankDraft,

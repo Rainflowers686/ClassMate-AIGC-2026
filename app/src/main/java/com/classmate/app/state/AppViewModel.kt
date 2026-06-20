@@ -37,6 +37,8 @@ import com.classmate.app.importing.OcrImportKind
 import com.classmate.app.importing.SelectedLocalFileMetadata
 import com.classmate.app.l3.ClassroomAudioRecorder
 import com.classmate.app.l3.ClassroomRecordingRecord
+import com.classmate.app.l3.ExamSession
+import com.classmate.app.l3.ExamStatus
 import com.classmate.app.l3.L3AsrStatus
 import com.classmate.app.l3.L3DemoSeeds
 import com.classmate.app.l3.L3LearningPipeline
@@ -44,6 +46,9 @@ import com.classmate.app.l3.L3PipelineSnapshot
 import com.classmate.app.l3.L3RecordingStatus
 import com.classmate.app.l3.L3SourceType
 import com.classmate.app.l3.NoOpClassroomAudioRecorder
+import com.classmate.app.l3.PracticeAnswerState
+import com.classmate.app.l3.PracticeAnswerSubmission
+import com.classmate.app.l3.PracticeQuestionMode
 import com.classmate.app.l3.QuestionBankParser
 import com.classmate.app.material.LessonMaterialAssembler
 import com.classmate.core.material.LessonContextHints
@@ -1563,6 +1568,7 @@ class AppViewModel(
             transcriptSourceType = TranscriptSourceType.PASTED_TRANSCRIPT,
             transcriptParseWarnings = emptyList(),
             audioCaptureRunning = false,
+            asrLongStatus = L3AsrStatus.MANUAL_TRANSCRIPT_FALLBACK,
             audioCaptureMessage = "已生成手动转写草稿，请确认后加入资料篮。",
             aiProcessing = AiProcessingUiState.hidden(),
             toast = "已生成手动转写草稿。",
@@ -1686,6 +1692,11 @@ class AppViewModel(
             transcriptPasteDraft = "",
             transcriptFileMetadata = null,
             transcriptParseWarnings = emptyList(),
+            asrLongStatus = if (usable.sourceType == TranscriptSourceType.AUDIO_TRANSCRIPT || usable.sourceType == TranscriptSourceType.LIVE_ASR) {
+                L3AsrStatus.TRANSCRIPT_READY
+            } else {
+                L3AsrStatus.MANUAL_TRANSCRIPT_FALLBACK
+            },
             toast = "已加入资料篮：${com.classmate.core.transcript.TranscriptLabels.of(usable.sourceType)} · ${usable.segments.size} 段",
         )
     }
@@ -2391,8 +2402,20 @@ class AppViewModel(
 
     // --- adaptive practice (Stage 7C): in-app drill that writes back through ReviewEngine rules ---
 
-    /** Start a practice session in [mode] for the current course (or load a course if none is open). */
+    /** Start a real quiz session in [mode] for the current course (or load a course if none is open). */
     fun startPractice(mode: PracticeMode) {
+        startPracticeInternal(mode, PracticeQuestionMode.REAL_QUIZ)
+    }
+
+    fun startSelfAssessment(mode: PracticeMode = PracticeMode.EVIDENCE_RECALL) {
+        startPracticeInternal(mode, PracticeQuestionMode.SELF_ASSESSMENT)
+    }
+
+    fun startExam(mode: PracticeMode = PracticeMode.QUICK_REVIEW) {
+        startPracticeInternal(mode, PracticeQuestionMode.EXAM)
+    }
+
+    private fun startPracticeInternal(mode: PracticeMode, questionMode: PracticeQuestionMode) {
         var result = ui.result
         var session = ui.session
         if (result == null || session == null) {
@@ -2439,10 +2462,34 @@ class AppViewModel(
                 courseTitle = s.title,
             ),
         )
-        val practice = generated.value?.session ?: PracticeSessionEngine.build(r, ui.learningSnapshot, mode, now, courseTitle = s.title)
+        val generatedPractice = generated.value?.session ?: PracticeSessionEngine.build(r, ui.learningSnapshot, mode, now, courseTitle = s.title)
+        val practice = when (questionMode) {
+            PracticeQuestionMode.REAL_QUIZ, PracticeQuestionMode.EXAM -> {
+                val quizItems = generatedPractice.items.filter { it.options.isNotEmpty() }
+                generatedPractice.copy(items = quizItems)
+            }
+            PracticeQuestionMode.SELF_ASSESSMENT -> generatedPractice
+        }
         if (practice.items.isEmpty()) {
-            ui = ui.copy(toast = "暂时没有可练习的内容。", aiProcessing = AiProcessingUiState.hidden())
+            val message = if (questionMode == PracticeQuestionMode.SELF_ASSESSMENT) {
+                "暂时没有可复盘的内容。"
+            } else {
+                "暂时没有可答题的题目，请先生成微测题或导入题库。"
+            }
+            ui = ui.copy(toast = message, aiProcessing = AiProcessingUiState.hidden())
             return
+        }
+        val exam = if (questionMode == PracticeQuestionMode.EXAM) {
+            ExamSession(
+                id = "exam_$now",
+                sourceLessonId = s.id,
+                questionBankId = ui.l3Pipeline.questionBank?.id,
+                questionIds = practice.items.mapNotNull { it.quizId ?: it.id },
+                startedAt = now,
+                status = ExamStatus.IN_PROGRESS,
+            )
+        } else {
+            null
         }
         ui = ui.copy(
             practiceSession = practice,
@@ -2451,6 +2498,10 @@ class AppViewModel(
             practiceResult = null,
             practiceStartedAt = now,
             practiceRevealed = false,
+            practiceQuestionMode = questionMode,
+            practiceSelectedAnswers = emptyMap(),
+            practiceSubmittedAnswers = emptyMap(),
+            examSession = exam,
             aiProcessing = AiProcessingUiState.hidden(),
         )
         navigateTo(Screen.PRACTICE)
@@ -2477,7 +2528,105 @@ class AppViewModel(
 
     fun revealPracticeAnswer() { ui = ui.copy(practiceRevealed = true) }
 
+    fun selectPracticeAnswer(optionId: String) {
+        val session = ui.practiceSession ?: return
+        val item = session.items.getOrNull(ui.practiceIndex) ?: return
+        if (item.id in ui.practiceSubmittedAnswers) return
+        val correctCount = item.correctOptionIds.size
+        val previous = ui.practiceSelectedAnswers[item.id].orEmpty()
+        val next = if (correctCount > 1) {
+            if (optionId in previous) previous - optionId else previous + optionId
+        } else {
+            setOf(optionId)
+        }
+        ui = ui.copy(practiceSelectedAnswers = ui.practiceSelectedAnswers + (item.id to next))
+    }
+
+    fun submitPracticeAnswer(now: Long = System.currentTimeMillis()): Boolean {
+        val session = ui.practiceSession ?: return false
+        val item = session.items.getOrNull(ui.practiceIndex) ?: return false
+        if (item.id in ui.practiceSubmittedAnswers) return true
+        val selected = ui.practiceSelectedAnswers[item.id].orEmpty().toList().sorted()
+        if (selected.isEmpty()) {
+            ui = ui.copy(toast = "请先选择一个答案。")
+            return false
+        }
+        val correctAnswers = item.correctOptionIds.sorted()
+        val correct = selected == correctAnswers
+        val mode = ui.practiceQuestionMode
+        val elapsedMs = (now - ui.practiceStartedAt).coerceAtLeast(0L)
+        val outcome = if (correct) PracticeOutcome.CORRECT else PracticeOutcome.WRONG
+        val feedback = PracticeFeedbackEngine.evaluateSelfReported(item, outcome)
+        val attempt = PracticeAttempt(
+            itemId = item.id,
+            knowledgePointId = item.knowledgePointId,
+            taskId = item.taskId,
+            outcome = outcome,
+            submittedAnswer = selected.joinToString(","),
+            feedback = feedback,
+        )
+        val quizId = item.quizId
+        val submission = PracticeAnswerSubmission(
+            itemId = item.id,
+            questionId = quizId ?: item.id,
+            selectedAnswers = selected,
+            correct = correct,
+            submittedAt = now,
+            elapsedMs = elapsedMs,
+            mode = mode,
+            state = if (correct) PracticeAnswerState.SUBMITTED_CORRECT else PracticeAnswerState.SUBMITTED_WRONG,
+        )
+        val updatedL3 = quizId?.let { questionId ->
+            l3Pipeline.submitAnswer(
+                snapshot = ui.l3Pipeline,
+                questionId = questionId,
+                userAnswer = selected.firstOrNull().orEmpty(),
+                now = now,
+                selectedAnswers = selected,
+                elapsedMs = elapsedMs,
+                mode = mode,
+            )
+        } ?: ui.l3Pipeline
+        if (quizId != null && item.knowledgePointId.isNotBlank()) {
+            learningStore.recordQuizAttempt(
+                courseSessionId = session.courseSessionId,
+                knowledgePointId = item.knowledgePointId,
+                quizId = quizId,
+                selectedAnswer = selected.joinToString(","),
+                correctAnswer = correctAnswers.joinToString(","),
+                isCorrect = correct,
+            )
+        }
+        ui = ui.copy(
+            practiceAttempts = ui.practiceAttempts + attempt,
+            practiceSubmittedAnswers = ui.practiceSubmittedAnswers + (item.id to submission),
+            l3Pipeline = updatedL3,
+            learningSnapshot = learningStore.snapshot(),
+            toast = if (correct) "回答正确，已更新掌握度。" else "回答错误，已加入错题本和今日复习。",
+        )
+        return true
+    }
+
+    fun nextPracticeQuestion() {
+        val session = ui.practiceSession ?: return
+        val item = session.items.getOrNull(ui.practiceIndex) ?: return
+        if (ui.practiceQuestionMode != PracticeQuestionMode.SELF_ASSESSMENT && item.id !in ui.practiceSubmittedAnswers) {
+            ui = ui.copy(toast = "请先提交当前题。")
+            return
+        }
+        val nextIndex = ui.practiceIndex + 1
+        if (nextIndex >= session.items.size) {
+            finishPractice()
+        } else {
+            ui = ui.copy(practiceIndex = nextIndex, practiceRevealed = false)
+        }
+    }
+
     fun answerPractice(outcome: PracticeOutcome) {
+        if (ui.practiceQuestionMode != PracticeQuestionMode.SELF_ASSESSMENT) {
+            ui = ui.copy(toast = "专项练习请先选择答案并提交；自评请进入回忆复盘。")
+            return
+        }
         val session = ui.practiceSession ?: return
         val item = session.items.getOrNull(ui.practiceIndex) ?: return
         val feedback = PracticeFeedbackEngine.evaluateSelfReported(item, outcome)
@@ -2499,7 +2648,11 @@ class AppViewModel(
         val result = PracticeSessionEngine.summarize(session, ui.practiceAttempts, now - ui.practiceStartedAt)
         // Reuse the existing ReviewEngine rules: correct lowers priority, wrong raises + re-queues,
         // mastered defers, need-more-practice keeps it due. No schema or provider changes.
-        val after = PracticeSessionEngine.writeBack(learningStore.snapshot(), session.courseSessionId, ui.practiceAttempts, now)
+        val after = if (ui.practiceQuestionMode == PracticeQuestionMode.SELF_ASSESSMENT) {
+            PracticeSessionEngine.writeBack(learningStore.snapshot(), session.courseSessionId, ui.practiceAttempts, now)
+        } else {
+            learningStore.snapshot()
+        }
         val record = PracticeHistoryRecord(
             id = "ph_$now",
             courseSessionId = session.courseSessionId,
@@ -2514,14 +2667,36 @@ class AppViewModel(
             relatedKnowledgePointTitles = result.relatedKnowledgePointTitles.take(10),
         )
         learningStore.recordPracticeSession(after, record)
-        ui = ui.copy(practiceResult = result, learningSnapshot = learningStore.snapshot(), toast = "本轮练习完成。")
+        val submittedExam = ui.examSession?.takeIf { ui.practiceQuestionMode == PracticeQuestionMode.EXAM }?.copy(
+            submittedAt = now,
+            status = ExamStatus.SUBMITTED,
+            score = if (result.itemCount == 0) 0 else (result.correctCount * 100 / result.itemCount),
+            correctCount = result.correctCount,
+            wrongCount = result.wrongCount,
+        )
+        ui = ui.copy(
+            practiceResult = result,
+            learningSnapshot = learningStore.snapshot(),
+            examSession = submittedExam ?: ui.examSession,
+            toast = if (ui.practiceQuestionMode == PracticeQuestionMode.EXAM) "模拟考试已提交。" else "本轮练习完成。",
+        )
     }
 
     fun currentPracticeItem() = ui.practiceSession?.items?.getOrNull(ui.practiceIndex)
     fun isPracticeComplete(): Boolean = ui.practiceResult != null
 
     fun exitPractice() {
-        ui = ui.copy(practiceSession = null, practiceIndex = 0, practiceAttempts = emptyList(), practiceResult = null, practiceRevealed = false)
+        ui = ui.copy(
+            practiceSession = null,
+            practiceIndex = 0,
+            practiceAttempts = emptyList(),
+            practiceResult = null,
+            practiceRevealed = false,
+            practiceQuestionMode = PracticeQuestionMode.REAL_QUIZ,
+            practiceSelectedAnswers = emptyMap(),
+            practiceSubmittedAnswers = emptyMap(),
+            examSession = null,
+        )
         goBack()
     }
 

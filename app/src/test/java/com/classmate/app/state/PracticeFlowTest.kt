@@ -4,6 +4,7 @@ import com.classmate.app.data.HistoryRecord
 import com.classmate.app.data.InMemoryExportStore
 import com.classmate.app.data.InMemoryHistoryStore
 import com.classmate.app.exporting.ExportFileFormat
+import com.classmate.app.l3.PracticeQuestionMode
 import com.classmate.app.platform.ConfigRepository
 import com.classmate.core.learning.InMemoryLearningStore
 import com.classmate.core.audio.CourseEssenceAudioStatus
@@ -53,6 +54,8 @@ class PracticeFlowTest {
 
         assertNotNull(viewModel.ui.practiceSession)
         assertTrue(viewModel.ui.practiceSession!!.items.isNotEmpty())
+        assertEquals(PracticeQuestionMode.REAL_QUIZ, viewModel.ui.practiceQuestionMode)
+        assertTrue(viewModel.ui.practiceSession!!.items.all { it.options.isNotEmpty() })
         assertEquals(Screen.PRACTICE, viewModel.currentScreen)
     }
 
@@ -73,13 +76,65 @@ class PracticeFlowTest {
         viewModel.startPractice(PracticeMode.QUICK_REVIEW)
         val itemCount = viewModel.ui.practiceSession!!.items.size
 
-        repeat(itemCount) { viewModel.answerPractice(PracticeOutcome.CORRECT) }
+        repeat(itemCount) { index ->
+            val item = viewModel.currentPracticeItem()!!
+            viewModel.selectPracticeAnswer(item.correctOptionIds.first())
+            assertTrue(viewModel.submitPracticeAnswer(now + index))
+            viewModel.nextPracticeQuestion()
+        }
 
         assertNotNull(viewModel.ui.practiceResult)
         assertEquals(itemCount, viewModel.ui.practiceResult!!.correctCount)
         assertEquals(1, viewModel.ui.learningSnapshot.practiceHistory.size)
         assertTrue(viewModel.isPracticeComplete())
         assertTrue(viewModel.ui.practiceAttempts.all { it.feedback != null })
+    }
+
+    @Test
+    fun realQuizWrongAnswerWritesBackBeforeSummary() {
+        val viewModel = vm()
+        viewModel.openHistory(viewModel.ui.history.first())
+        viewModel.startPractice(PracticeMode.QUICK_REVIEW)
+        val item = viewModel.currentPracticeItem()!!
+        val wrong = item.options.first { !it.correct }.id
+
+        viewModel.selectPracticeAnswer(wrong)
+        assertTrue(viewModel.submitPracticeAnswer(now))
+
+        assertEquals(PracticeQuestionMode.REAL_QUIZ, viewModel.ui.practiceQuestionMode)
+        assertTrue(viewModel.ui.practiceSubmittedAnswers[item.id]!!.correct.not())
+        assertTrue(viewModel.ui.learningSnapshot.attempts.any { !it.isCorrect })
+    }
+
+    @Test
+    fun selfAssessmentModeKeepsSelfReportedButtonsSeparateFromPracticeDefault() {
+        val viewModel = vm()
+        viewModel.openHistory(viewModel.ui.history.first())
+        viewModel.startSelfAssessment(PracticeMode.EVIDENCE_RECALL)
+
+        assertEquals(PracticeQuestionMode.SELF_ASSESSMENT, viewModel.ui.practiceQuestionMode)
+        viewModel.answerPractice(PracticeOutcome.WRONG)
+        assertEquals(1, viewModel.ui.practiceAttempts.size)
+    }
+
+    @Test
+    fun examSessionStartSubmitAndScores() {
+        val viewModel = vm()
+        viewModel.openHistory(viewModel.ui.history.first())
+        viewModel.startExam()
+        val itemCount = viewModel.ui.practiceSession!!.items.size
+
+        repeat(itemCount) { index ->
+            val item = viewModel.currentPracticeItem()!!
+            viewModel.selectPracticeAnswer(item.correctOptionIds.first())
+            assertTrue(viewModel.submitPracticeAnswer(now + index))
+            viewModel.nextPracticeQuestion()
+        }
+
+        assertEquals(PracticeQuestionMode.EXAM, viewModel.ui.practiceQuestionMode)
+        assertNotNull(viewModel.ui.examSession)
+        assertEquals("SUBMITTED", viewModel.ui.examSession!!.status.name)
+        assertEquals(100, viewModel.ui.examSession!!.score)
     }
 
     @Test
@@ -129,7 +184,7 @@ class PracticeFlowTest {
         val review = source("app/src/main/java/com/classmate/app/ui/screens/review/ReviewPlanScreen.kt")
         listOf("开始练习", "错题重练", "需要多练").forEach { assertTrue("Review missing $it", review.contains(it)) }
         val practice = source("app/src/main/java/com/classmate/app/ui/screens/practice/PracticeSessionScreen.kt")
-        listOf("我答对了", "我答错了", "已掌握", "需要多练", "本轮结果").forEach { assertTrue("Practice screen missing $it", practice.contains(it)) }
+        listOf("提交答案", "回忆复盘", "掌握度自评", "我答对了", "我答错了", "已掌握", "本轮结果").forEach { assertTrue("Practice screen missing $it", practice.contains(it)) }
         // Stage 6 guarantee still holds: no "需要例题" in user-visible review/practice copy.
         assertFalse(review.contains("需要例题"))
         assertFalse(practice.contains("需要例题"))

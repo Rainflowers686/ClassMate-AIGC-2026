@@ -50,3 +50,12 @@ The seed data does not replace real parsing or pipeline logic.
 | Function Calling | local orchestrator step-log skeleton |
 | ASR Long | seam only until official config and task flow are wired |
 | On-device fallback | present for local suggestions/diagnostics; L3 uses explicit local pipeline fallback |
+
+## Function Closure v1.1 Support Notes
+
+- Practice default: COMPLETE. "专项练习" now requires answer selection and submit before showing answer/explanation/evidence.
+- Self-assessment: COMPLETE as separate "回忆复盘 / 自评复习" path. It keeps the old self-report buttons but is not the practice default.
+- ExamSession: PARTIAL. It starts, records answers, submits, scores, and writes wrong answers back; advanced timer/sections are TASK_3_FUTURE.
+- Wrong book reachability: COMPLETE. Review shows recent wrong answers with user answer, correct answer, explanation, and evidence.
+- Word/Excel bank import: SEAM_ONLY / PARSER_PENDING. The UI points users to Markdown/CSV templates until a native parser is added.
+- Manual transcript fallback: COMPLETE. It is marked MANUAL_TRANSCRIPT_FALLBACK and enters the same evidence pipeline without claiming official ASR success.
