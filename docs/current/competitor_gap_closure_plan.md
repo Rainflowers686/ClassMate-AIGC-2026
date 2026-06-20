@@ -53,7 +53,7 @@ Red-team P0 fix v1.5:
 
 - Official capability wording is narrowed: smoke PASS is separated from live app official calls.
 - OCR is the app-level official path for image/photo/OCR text into evidence, config-gated with fallback.
-- Query Rewrite, Embedding, and Text Similarity remain local/seam usage in the app path.
+- Query Rewrite, Embedding, and Text Similarity now have the v1.6 official runtime gateway in the app path; they remain local fallback unless an injected app adapter returns official rewrite/vector/rerank output.
 - ASR Long is corrected to core contract present / app wiring pending / manual transcript fallback.
 - DOCX/XLSX/PPTX imports have extraction quality guards before demo use.
 - Wrong book, review queue, mastery history, attempts, evidence/questions, and exam reports persist through app-private L3 storage.
@@ -64,7 +64,7 @@ Remaining:
 - Native PDF parser or real per-page OCR execution.
 - Rich Word/Excel/PPT rich-format parsing beyond the simple ZIP/XML best-effort templates.
 - Provider-backed vector store and large-scale similar-question recommendation.
-- Official TTS playback, Translation execution, and official Function Calling validation.
+- Official TTS playback, Translation execution, and official Function Calling runtime validation.
 - Rich exam mode with sections, timer enforcement, and per-topic score analytics.
 - Long-term mastery trend charts, streak/lapse tracking, and smarter spaced repetition.
 

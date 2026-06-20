@@ -39,6 +39,12 @@ Task 4 finishes the remaining L3 productization work before Claude global red-te
 - DOCX/XLSX/PPTX extraction now requires quality guard status before demo use.
 - L3 wrong book, review queue, mastery history, attempts, lesson source/evidence/questions, and exam reports are persisted to app-private storage.
 
+## v1.6 Runtime Wiring Update
+
+- `OfficialRuntimeGateway` now sits in the L3 publish path for Query Rewrite, Embedding, Text Similarity, Translation, TTS, Function Calling, ASR Long status, OCR provenance, and Edge fallback.
+- Query Rewrite / Embedding / Text Similarity can be marked `OFFICIAL_RUNTIME_USED` only when an injected app runtime adapter returns success; otherwise diagnostics stay app-wiring-pending, not-configured, or local fallback.
+- The v1.6 work still did not run provider network smoke and still does not claim unvalidated live official runtime success.
+
 ## Protected Areas
 
 Provider smoke logic, `config.local.json`, Home main CTA, Theme/Advanced Appearance, Settings appearance, Gradle, `.github`, `.codex_work`, and `app/libs` were not part of this sprint.

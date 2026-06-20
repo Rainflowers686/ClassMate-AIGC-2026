@@ -44,10 +44,10 @@ Update 2026-06-20 / v1.3: Championship Upgrade adds ImportReport, PDF page fallb
 | Provider | App-Level Role | Current Behavior |
 | --- | --- | --- |
 | OCR | Image text -> lesson source/evidence | Used when configured; manual fallback otherwise. |
-| QUERY_REWRITE | Standardize study/retrieval queries | Official smoke PASS; App uses learning query planning/local fallback seam, not a live official call. |
-| EMBEDDING | Lesson/evidence/KP/question index records | Official smoke PASS; App builds local lexical semantic index and embedding record seam, not live official vectors. |
+| QUERY_REWRITE | Standardize study/retrieval queries | Official smoke PASS; v1.6 App runtime gateway is wired. It records `OFFICIAL_RUNTIME_USED` only when an app adapter succeeds; otherwise local query planning fallback is used. |
+| EMBEDDING | Lesson/evidence/KP/question index records | Official smoke PASS; v1.6 App runtime gateway can store official vectors when an adapter succeeds. Otherwise the persistent local lexical index remains the fallback. |
 | EMBEDDING local index | Evidence/KP/question semantic chunks | Builds lightweight persistent local lexical vectors; real official vector use remains future validation work. |
-| TEXT_SIMILARITY | Evidence match, similar KP/question attribution | Official smoke PASS; App uses local similarity fallback/seam, not live official rerank. |
+| TEXT_SIMILARITY | Evidence match, similar KP/question attribution | Official smoke PASS; v1.6 App runtime gateway can store official score provenance when an adapter succeeds. Otherwise local similarity fallback is used. |
 | TRANSLATION | Multilingual material support | SEAM_ONLY unless configured; not part of the main L3 blocker path. |
 | TTS | Listen-review / course essence playback | SEAM_ONLY unless configured; no voice clone. |
 | FUNCTION_CALLING | Local tool orchestration plan | Step-log skeleton only unless official provider is configured. |

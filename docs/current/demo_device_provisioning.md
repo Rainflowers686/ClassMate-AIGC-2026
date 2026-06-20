@@ -44,5 +44,5 @@ GO means every required status is ready. NO-GO means the demo should switch to t
 ## Do Not Claim
 
 - Do not claim recording automatically transcribes.
-- Do not claim official Embedding, Text Similarity, Translation, TTS, Function Calling, or ASR Long live app calls unless later validation proves them.
+- Do not claim official Embedding, Text Similarity, Translation, TTS, Function Calling, or ASR Long runtime success unless later validation proves the injected app adapter path.
 - Do not run provider network smoke from the provisioning script.

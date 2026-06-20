@@ -6,7 +6,7 @@ Date: 2026-06-20
 
 This pass installs the remaining Lecture / Practice / Review / Official Tool capabilities at code level before unified device validation. It does not run real provider network smoke and does not read `config.local.json`.
 
-Current status note (v1.5): official wording has been narrowed after red-team review. OCR is the app-level official product path. Query Rewrite, Embedding, and Text Similarity are smoke PASS but app usage is local/seam/fallback until live app validation proves otherwise. ASR Long core contract exists, but app wiring and non-sensitive audio validation are pending.
+Current status note (v1.6): official wording remains narrowed after red-team review. OCR is the app-level official product path. Query Rewrite, Embedding, and Text Similarity now have an app-runtime gateway in the L3 publish path; they become `OFFICIAL_RUNTIME_USED` only when an injected app adapter succeeds, and otherwise fall back locally. ASR Long core contract exists, but upload/poll/result validation is still pending.
 
 ## Input Superhub
 
@@ -49,7 +49,7 @@ Current status note (v1.5): official wording has been narrowed after red-team re
 
 ## Official Tool Productization
 
-See `official_tool_productization_matrix.md`. OCR has the app-level official path for image/photo/OCR text. Query Rewrite, Embedding, and Text Similarity have app local/seam/fallback paths despite provider smoke PASS. Translation, TTS, Function Calling, ASR Long, and Edge model are represented by honest seam/fallback states unless configured and validated later.
+See `official_tool_productization_matrix.md`. OCR has the app-level official path for image/photo/OCR text. Query Rewrite, Embedding, and Text Similarity now have v1.6 official runtime gateway paths plus local fallback. Translation, TTS, Function Calling, ASR Long, and Edge model are represented by honest runtime/seam/fallback states unless configured and validated later.
 
 ## Task 3 Future
 
