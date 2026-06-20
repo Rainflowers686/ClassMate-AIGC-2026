@@ -6,6 +6,10 @@ import com.classmate.app.data.ExportReceipt
 import com.classmate.app.glossary.CourseGlossary
 import com.classmate.app.importing.OcrImportDraft
 import com.classmate.app.importing.SelectedLocalFileMetadata
+import com.classmate.app.l3.ClassroomRecordingRecord
+import com.classmate.app.l3.L3AsrStatus
+import com.classmate.app.l3.L3PipelineSnapshot
+import com.classmate.app.l3.QuestionBankParseResult
 import com.classmate.app.material.MaterialSourceSummary
 import com.classmate.app.platform.MaskedModelProfile
 import com.classmate.core.importing.ImportSourceType
@@ -78,6 +82,12 @@ data class ClassMateUiState(
     val ocrImports: List<OcrImportDraft> = emptyList(),
     val importSourceType: ImportSourceType = ImportSourceType.PASTE_TEXT,
     val lastMaterialSummary: MaterialSourceSummary? = null,
+    val l3Pipeline: L3PipelineSnapshot = L3PipelineSnapshot.Empty,
+    val questionBankDraft: String = "",
+    val questionBankParseResult: QuestionBankParseResult? = null,
+    val currentRecording: ClassroomRecordingRecord? = null,
+    val recordingRecords: List<ClassroomRecordingRecord> = emptyList(),
+    val asrLongStatus: L3AsrStatus = L3AsrStatus.PENDING_ASR_CONFIG,
 
     // transcript / subtitle intake (Stage 5B)
     val transcriptSourceType: TranscriptSourceType = TranscriptSourceType.PASTED_TRANSCRIPT,

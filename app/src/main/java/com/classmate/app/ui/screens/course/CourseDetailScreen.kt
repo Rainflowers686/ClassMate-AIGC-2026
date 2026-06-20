@@ -34,6 +34,7 @@ import com.classmate.app.ui.components.LearningActionDock
 import com.classmate.app.ui.components.Pill
 import com.classmate.app.ui.components.SecondaryButton
 import com.classmate.app.ui.components.SourceBadge
+import com.classmate.app.ui.components.StatusChip
 import com.classmate.app.ui.product.ProductCanvas
 import com.classmate.app.ui.product.ProductCollapse
 import com.classmate.app.ui.product.ProductHero
@@ -95,6 +96,7 @@ fun CourseDetailScreen(viewModel: AppViewModel) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                L3PipelineStatusCard(viewModel)
 
                 // FIRST-SCREEN CORE — a visual learning map (connected nodes), not a list.
                 if (result != null && result.knowledgePoints.isNotEmpty()) {
@@ -185,6 +187,38 @@ fun CourseDetailScreen(viewModel: AppViewModel) {
                             LessonRecordCard(record, onOpen = { viewModel.openHistoryTimeline(record) })
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun L3PipelineStatusCard(viewModel: AppViewModel) {
+    val l3 = viewModel.ui.l3Pipeline
+    if (l3.lessonSource == null) return
+    QuietCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("L3 学习闭环", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "${l3.evidence.size} 条证据 · ${l3.questions.size} 道微测 · ${l3.reviewQueue.size} 个复习项",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            StatusChip(if (l3.wrongBook.isEmpty()) "错题 0" else "错题 ${l3.wrongBook.size}", tone = if (l3.wrongBook.isEmpty()) ChipTone.NEUTRAL else ChipTone.WARNING)
+        }
+        if (l3.summary.isNotBlank()) {
+            Spacer(Modifier.height(Dimens.s))
+            Text(l3.summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+        }
+        val providerSteps = l3.stepLogs.filter { it.step in listOf("OCR", "QUERY_REWRITE", "EMBEDDING", "TEXT_SIMILARITY") }
+        if (providerSteps.isNotEmpty()) {
+            Spacer(Modifier.height(Dimens.s))
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+                providerSteps.forEach { step ->
+                    StatusChip("${step.step}: ${step.status}", tone = ChipTone.INFO)
                 }
             }
         }

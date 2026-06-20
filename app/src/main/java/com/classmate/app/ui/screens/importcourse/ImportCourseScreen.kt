@@ -1,6 +1,8 @@
 package com.classmate.app.ui.screens.importcourse
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.net.Uri
@@ -33,6 +35,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.core.content.ContextCompat
+import com.classmate.app.l3.L3RecordingStatus
 import com.classmate.app.glossary.CourseGlossary
 import com.classmate.app.ondevice.BitmapToRgb
 import com.classmate.app.ondevice.OnDevicePermissions
@@ -47,6 +51,7 @@ import com.classmate.app.state.AppViewModel
 import com.classmate.app.state.Screen
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.PlayArrow
@@ -124,6 +129,13 @@ fun ImportCourseScreen(viewModel: AppViewModel) {
             viewModel.toast("未拍摄到图片。")
         }
     }
+    val recordingPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) viewModel.startClassroomRecording() else viewModel.toast("未授权麦克风，仍可粘贴手动转写文本。")
+    }
+    fun startRecordingWithPermission() {
+        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+        if (granted) viewModel.startClassroomRecording() else recordingPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+    }
 
     AiProcessingDialog(
         state = ui.aiProcessing,
@@ -200,10 +212,50 @@ fun ImportCourseScreen(viewModel: AppViewModel) {
                                 SampleLessonLibrary.lessons.firstOrNull()?.let { viewModel.loadSampleLesson(it.id) }
                                 viewModel.navigateTo(Screen.IMPORT_TRAY)
                             }),
+                            ProductRow("L3 演示包", "加载课堂材料和题库模板，用于 2–3 分钟闭环演示", Icons.Filled.CheckCircle, onClick = {
+                                viewModel.loadL3DemoSeed()
+                                viewModel.navigateTo(Screen.IMPORT_TRAY)
+                            }),
                         ),
                     )
                 }
+                ClassroomRecordingCard(viewModel, onStartRecording = { startRecordingWithPermission() })
             }
+        }
+    }
+}
+
+@Composable
+private fun ClassroomRecordingCard(viewModel: AppViewModel, onStartRecording: () -> Unit) {
+    val ui = viewModel.ui
+    val active = ui.currentRecording?.status == L3RecordingStatus.RECORDING
+    QuietCard {
+        Text("课堂录音记录", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(Dimens.xs))
+        Text(
+            "录音保存在 App 私有目录。官方 ASR Long 未配置时，录音后请粘贴手动转写文本进入学习闭环。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(Dimens.s))
+        ui.currentRecording?.let {
+            StatusChip("录音中", tone = ChipTone.PRIMARY)
+            Spacer(Modifier.height(Dimens.xs))
+            Text(it.title, style = MaterialTheme.typography.bodyMedium)
+        }
+        ui.recordingRecords.takeLast(2).forEach { record ->
+            Spacer(Modifier.height(Dimens.xs))
+            Text(
+                "${record.title} · ${record.status.name} · ${record.asrStatus.name}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(Modifier.height(Dimens.s))
+        if (active) {
+            PrimaryButton("停止并保存录音", onClick = { viewModel.stopClassroomRecording() }, modifier = Modifier.fillMaxWidth())
+        } else {
+            PrimaryButton("开始课堂录音", onClick = onStartRecording, modifier = Modifier.fillMaxWidth())
         }
     }
 }
@@ -383,6 +435,8 @@ fun MaterialTrayScreen(viewModel: AppViewModel) {
                 )
             }
 
+            QuestionBankImportCard(viewModel)
+
             OcrTrayEditor(
                 selectedKind = selectedOcrKind,
                 onKindSelected = { selectedOcrKind = it },
@@ -406,6 +460,43 @@ fun MaterialTrayScreen(viewModel: AppViewModel) {
                 SecondaryButton("上一步", onClick = { viewModel.goBack() }, modifier = Modifier.weight(1f))
                 PrimaryButton("下一步：分析设置", onClick = { viewModel.navigateTo(Screen.IMPORT_SETTINGS) }, modifier = Modifier.weight(1f))
             }
+        }
+    }
+}
+
+@Composable
+private fun QuestionBankImportCard(viewModel: AppViewModel) {
+    val ui = viewModel.ui
+    ClassMateCard {
+        Text("题库导入 v1", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(Dimens.xs))
+        Text(
+            "支持 Markdown / CSV 风格粘贴。Word / Excel 先作为 seam：请按模板复制为文本后导入。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(Dimens.s))
+        OutlinedTextField(
+            value = ui.questionBankDraft,
+            onValueChange = viewModel::updateQuestionBankDraft,
+            label = { Text("Q: ... / A. ... / Answer: B / Explanation: ...") },
+            minLines = 5,
+            maxLines = 10,
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.medium,
+        )
+        ui.questionBankParseResult?.let { result ->
+            Spacer(Modifier.height(Dimens.xs))
+            Text(
+                result.message,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (result.accepted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+            )
+        }
+        Spacer(Modifier.height(Dimens.s))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+            SecondaryButton("加载题库模板", onClick = { viewModel.loadL3DemoSeed() }, modifier = Modifier.weight(1f))
+            PrimaryButton("导入题库小测", onClick = { viewModel.importQuestionBankDraft() }, enabled = ui.questionBankDraft.isNotBlank(), modifier = Modifier.weight(1f))
         }
     }
 }
@@ -463,6 +554,12 @@ fun ImportSettingsScreen(viewModel: AppViewModel) {
                 text = "生成知识时间线",
                 onClick = { viewModel.startAnalysis() },
                 enabled = ui.courseText.isNotBlank() || ui.ocrImports.any { it.pastedText.isNotBlank() },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            SecondaryButton(
+                text = "生成 L3 本地学习闭环",
+                onClick = { viewModel.generateL3PipelineFromCurrentMaterial() },
+                enabled = ui.courseText.isNotBlank() || ui.ocrImports.any { it.pastedText.isNotBlank() } || ui.transcripts.any { it.segments.any { seg -> seg.text.isNotBlank() } },
                 modifier = Modifier.fillMaxWidth(),
             )
         }

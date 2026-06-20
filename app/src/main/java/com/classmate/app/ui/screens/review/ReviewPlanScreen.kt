@@ -86,6 +86,7 @@ fun ReviewPlanScreen(viewModel: AppViewModel) {
                 weak = ReviewEngine.weakCount(snapshot),
                 needsReview = ReviewEngine.needsHumanReviewCount(snapshot),
             )
+            L3LearningLoopCard(viewModel)
             WeaknessCard(viewModel)
             PracticeEntryCard(viewModel)
             OnDeviceReviewSuggestionCard(viewModel)
@@ -134,6 +135,27 @@ fun ReviewPlanScreen(viewModel: AppViewModel) {
             }
         }
       }
+    }
+}
+
+@Composable
+private fun L3LearningLoopCard(viewModel: AppViewModel) {
+    val l3 = viewModel.ui.l3Pipeline
+    if (l3.lessonSource == null) return
+    val weak = l3.masteryStats.count { it.state.name == "WEAK" }
+    ClassMateCard {
+        Text("L3 闭环统计", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(Dimens.s))
+        Row(horizontalArrangement = Arrangement.spacedBy(Dimens.xl)) {
+            Stat("${l3.wrongBook.size}", "错题")
+            Stat("${l3.reviewQueue.size}", "复习项")
+            Stat("$weak", "薄弱")
+            Stat("${l3.evidence.size}", "证据")
+        }
+        if (l3.wrongBook.isNotEmpty()) {
+            Spacer(Modifier.height(Dimens.s))
+            Text("最近错题：${l3.wrongBook.last().explanation}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 

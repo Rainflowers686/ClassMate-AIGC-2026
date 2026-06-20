@@ -35,6 +35,16 @@ import com.classmate.app.importing.OcrImportDraft
 import com.classmate.app.importing.OcrImportFileMeta
 import com.classmate.app.importing.OcrImportKind
 import com.classmate.app.importing.SelectedLocalFileMetadata
+import com.classmate.app.l3.ClassroomAudioRecorder
+import com.classmate.app.l3.ClassroomRecordingRecord
+import com.classmate.app.l3.L3AsrStatus
+import com.classmate.app.l3.L3DemoSeeds
+import com.classmate.app.l3.L3LearningPipeline
+import com.classmate.app.l3.L3PipelineSnapshot
+import com.classmate.app.l3.L3RecordingStatus
+import com.classmate.app.l3.L3SourceType
+import com.classmate.app.l3.NoOpClassroomAudioRecorder
+import com.classmate.app.l3.QuestionBankParser
 import com.classmate.app.material.LessonMaterialAssembler
 import com.classmate.core.material.LessonContextHints
 import com.classmate.app.sample.SampleLessonLibrary
@@ -180,6 +190,7 @@ class AppViewModel(
     // Lazy so constructing the VM never reads capture credentials; OCR/ASR config is loaded only when
     // the user actually invokes those capture paths. Tests inject a fake gateway.
     private val captureGatewayProvider: () -> CaptureGatewayPort = { CaptureGateway() },
+    private val classroomAudioRecorder: ClassroomAudioRecorder = NoOpClassroomAudioRecorder,
     // Stage 8D-2: optional override of the all-files-access signal (tests inject false/true). Used
     // ONLY to CLASSIFY an on-device availability failure (PERMISSION_MISSING vs files/init) — it
     // never blocks the crash-safe generate attempt. Production (null) combines the live permission
@@ -194,6 +205,7 @@ class AppViewModel(
     private val practiceGeneration = RoutedPracticeGenerationUseCase()
     private val internalTools = InternalFunctionRouter(practiceGeneration)
     private val aiConfigPromptedFeatures = mutableSetOf<String>()
+    private val l3Pipeline = L3LearningPipeline()
 
     // THE single active provider config — one source of truth. The Settings model-config
     // summary, CourseAnalyzer (analyzer()) and the BlueLM diagnostic ALL read this exact field,
@@ -1129,8 +1141,169 @@ class AppViewModel(
         }
     }
 
+    fun loadL3DemoSeed() {
+        ui = ui.copy(
+            courseTitle = L3DemoSeeds.lessonTitle,
+            courseText = L3DemoSeeds.lessonText,
+            questionBankDraft = L3DemoSeeds.questionBankMarkdown,
+            importSourceType = ImportSourceType.PASTE_TEXT,
+            toast = "已加载 L3 演示课堂与题库模板。",
+        )
+    }
+
+    fun updateQuestionBankDraft(value: String) {
+        ui = ui.copy(questionBankDraft = value, questionBankParseResult = null)
+    }
+
+    fun importQuestionBankDraft(now: Long = System.currentTimeMillis()): Boolean {
+        val parsed = QuestionBankParser.parse(
+            raw = ui.questionBankDraft,
+            title = ui.courseTitle.ifBlank { "导入题库" },
+            now = now,
+        )
+        if (!parsed.accepted || parsed.bank == null) {
+            ui = ui.copy(questionBankParseResult = parsed, toast = parsed.message)
+            return false
+        }
+        val snapshot = l3Pipeline.buildFromQuestionBank(
+            title = ui.courseTitle.ifBlank { parsed.bank.title },
+            bank = parsed.bank,
+            providerSummary = ui.providerConfigSummary,
+            now = now,
+        )
+        val published = publishL3Snapshot(snapshot, now, parsed.message)
+        ui = ui.copy(questionBankParseResult = parsed)
+        return published
+    }
+
+    fun generateL3PipelineFromCurrentMaterial(now: Long = System.currentTimeMillis()): Boolean {
+        val text = l3MaterialText()
+        if (text.isBlank()) {
+            ui = ui.copy(toast = "请先导入课堂材料、OCR 文本或转写稿。")
+            return false
+        }
+        val snapshot = l3Pipeline.buildFromText(
+            title = ui.courseTitle.ifBlank { "L3 学习资料" },
+            text = text,
+            sourceType = currentL3SourceType(),
+            providerSummary = ui.providerConfigSummary,
+            now = now,
+        )
+        return publishL3Snapshot(snapshot, now, "已生成 L3 学习闭环：摘要、知识点、微测、错题和复习队列。")
+    }
+
+    fun startClassroomRecording(now: Long = System.currentTimeMillis()) {
+        if (ui.currentRecording?.status == L3RecordingStatus.RECORDING) {
+            ui = ui.copy(toast = "课堂录音已在进行中。")
+            return
+        }
+        val id = "recording_$now"
+        val artifact = classroomAudioRecorder.start(id)
+        val record = ClassroomRecordingRecord(
+            id = id,
+            title = ui.courseTitle.ifBlank { "课堂录音" },
+            createdAt = now,
+            status = if (artifact.success) L3RecordingStatus.RECORDING else L3RecordingStatus.FAILED,
+            artifactFileName = artifact.fileName,
+            asrStatus = if (ui.providerConfigSummary.officialProviders.asrLongConfigured) L3AsrStatus.PENDING_ASR_CONFIG else L3AsrStatus.ASR_NOT_CONFIGURED,
+            message = artifact.safeMessage,
+        )
+        ui = ui.copy(
+            currentRecording = if (artifact.success) record else null,
+            recordingRecords = if (artifact.success) ui.recordingRecords else ui.recordingRecords + record,
+            asrLongStatus = record.asrStatus,
+            toast = artifact.safeMessage,
+        )
+    }
+
+    fun stopClassroomRecording(now: Long = System.currentTimeMillis()) {
+        val current = ui.currentRecording
+        if (current == null || current.status != L3RecordingStatus.RECORDING) {
+            ui = ui.copy(toast = "当前没有正在进行的课堂录音。")
+            return
+        }
+        val artifact = classroomAudioRecorder.stop()
+        val saved = current.copy(
+            endedAt = now,
+            durationMs = (now - current.createdAt).coerceAtLeast(0L),
+            status = if (artifact.success) L3RecordingStatus.SAVED else L3RecordingStatus.FAILED,
+            artifactFileName = artifact.fileName ?: current.artifactFileName,
+            asrStatus = if (ui.providerConfigSummary.officialProviders.asrLongConfigured) L3AsrStatus.PENDING_ASR_CONFIG else L3AsrStatus.ASR_NOT_CONFIGURED,
+            message = artifact.safeMessage,
+        )
+        ui = ui.copy(
+            currentRecording = null,
+            recordingRecords = ui.recordingRecords + saved,
+            asrLongStatus = saved.asrStatus,
+            audioCaptureMessage = if (saved.asrStatus == L3AsrStatus.ASR_NOT_CONFIGURED) "官方 ASR Long 未配置，可粘贴转写文本继续。" else "录音已保存，等待 ASR Long 配置或手动转写。",
+            toast = artifact.safeMessage,
+        )
+    }
+
     fun showImportPlaceholder(sourceType: ImportSourceType) {
         ui = ui.copy(toast = ImportHub.placeholderMessage(sourceType))
+    }
+
+    private fun l3MaterialText(): String =
+        buildString {
+            if (ui.courseText.isNotBlank()) appendLine(ui.courseText.trim())
+            ui.ocrImports.filter { it.pastedText.isNotBlank() }.forEach { appendLine(it.pastedText.trim()) }
+            ui.transcripts.forEach { transcript ->
+                transcript.segments.filter { it.text.isNotBlank() }.forEach { appendLine(it.text.trim()) }
+            }
+        }.trim()
+
+    private fun currentL3SourceType(): L3SourceType = when {
+        ui.transcripts.any { it.segments.any { seg -> seg.text.isNotBlank() } } -> {
+            if (ui.transcripts.any { it.sourceType == TranscriptSourceType.AUDIO_TRANSCRIPT || it.sourceType == TranscriptSourceType.LIVE_ASR }) {
+                L3SourceType.AUDIO_TRANSCRIPT
+            } else {
+                L3SourceType.MANUAL_TRANSCRIPT
+            }
+        }
+        ui.ocrImports.any { it.pastedText.isNotBlank() } -> L3SourceType.OCR_IMAGE
+        else -> L3SourceType.TEXT
+    }
+
+    private fun publishL3Snapshot(snapshot: L3PipelineSnapshot, now: Long, toast: String): Boolean {
+        val artifacts = l3Pipeline.toCourseArtifacts(snapshot, now)
+        if (artifacts == null) {
+            ui = ui.copy(l3Pipeline = snapshot, toast = "L3 资料不足，未生成完整闭环。")
+            return false
+        }
+        val outcome = AnalysisOutcome.Success(
+            result = artifacts.result,
+            report = com.classmate.core.validation.ValidationReport.PASS,
+            logs = listOf(RedactedLogEntry("L3_PIPELINE", "OK", 0, "PASS", false, null)),
+        )
+        learningStore.addTasksFromAnalysis(
+            result = artifacts.result,
+            courseTitle = artifacts.session.title.ifBlank { "未命名课程" },
+            sourceProvider = "L3_PIPELINE",
+            sourceProfile = ui.providerConfigSummary.profileLabel,
+            sourceModel = "local-learning-pipeline",
+        )
+        val updatedHistory = (listOf(buildHistoryRecord(artifacts.session, outcome, now)) + ui.history).take(MAX_HISTORY)
+        ui = ui.copy(
+            session = artifacts.session,
+            result = artifacts.result,
+            l3Pipeline = snapshot,
+            learningState = LearningState.seed(artifacts.result.sessionId, artifacts.result.knowledgePoints, now),
+            learningSnapshot = learningStore.snapshot(),
+            history = updatedHistory,
+            answers = emptyMap(),
+            revealedQuestionIds = emptySet(),
+            currentQuestionIndex = 0,
+            feedbackEvents = emptyList(),
+            reviewPlan = null,
+            analysisStatus = AnalysisStatus.SUCCESS,
+            analysisError = null,
+            selectedCourseKey = CourseLibraryBuilder.normalizeCourseName(artifacts.session.title).lowercase(),
+            toast = toast,
+        )
+        persistHistory(updatedHistory)
+        navigateTo(Screen.COURSE_DETAIL)
+        return true
     }
 
     // --- live companion ---
@@ -1643,6 +1816,13 @@ class AppViewModel(
             when (outcome) {
                 is AnalysisOutcome.Success -> {
                     val learning = LearningState.seed(outcome.result.sessionId, outcome.result.knowledgePoints, now)
+                    val l3Snapshot = l3Pipeline.buildFromAnalysis(
+                        session = session,
+                        result = outcome.result,
+                        sourceType = currentL3SourceType(),
+                        providerSummary = ui.providerConfigSummary,
+                        now = now,
+                    )
                     val updatedHistory = (listOf(buildHistoryRecord(session, outcome, now)) + ui.history).take(MAX_HISTORY)
                     // Cross-course review tasks: one per kept knowledge point (idempotent per session).
                     val provider = outcome.result.provenance.provider
@@ -1660,6 +1840,7 @@ class AppViewModel(
                         logs = outcome.logs,
                         history = updatedHistory,
                         learningSnapshot = learningStore.snapshot(),
+                        l3Pipeline = l3Snapshot,
                         analysisSourceReport = sourceReport,
                         onDeviceAnalysisReason = onDeviceReason ?: ui.onDeviceAnalysisReason,
                         onDeviceAnalysisDiagnostic = onDeviceDiag ?: ui.onDeviceAnalysisDiagnostic,
@@ -1763,10 +1944,12 @@ class AppViewModel(
             answeredAtEpochMs = now,
         )
         val updated = LearningStateUpdater().applyAttempt(baseState, attempt)
+        val updatedL3 = l3Pipeline.submitAnswer(ui.l3Pipeline, question.id, optionId, now)
         ui = ui.copy(
             answers = ui.answers + (question.id to optionId),
             revealedQuestionIds = ui.revealedQuestionIds + question.id,
             learningState = updated,
+            l3Pipeline = updatedL3,
             reviewPlan = null, // answers changed -> plan must regenerate
         )
         // Feed the cross-course review queue: records the attempt + WRONG/CORRECT_ANSWER rule.
@@ -2556,10 +2739,18 @@ class AppViewModel(
 
     private fun loadHistoryRecord(record: HistoryRecord) {
         val now = System.currentTimeMillis()
+        val l3Snapshot = l3Pipeline.buildFromAnalysis(
+            session = record.session,
+            result = record.result,
+            sourceType = L3SourceType.TEXT,
+            providerSummary = ui.providerConfigSummary,
+            now = now,
+        )
         ui = ui.copy(
             selectedCourseKey = CourseLibraryBuilder.normalizeCourseName(record.title).lowercase(),
             session = record.session,
             result = record.result,
+            l3Pipeline = l3Snapshot,
             learningState = LearningState.seed(record.result.sessionId, record.result.knowledgePoints, now),
             reviewPlan = null,
             answers = emptyMap(),

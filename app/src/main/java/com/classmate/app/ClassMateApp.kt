@@ -51,6 +51,7 @@ import com.classmate.app.data.FileHistoryStore
 import com.classmate.app.data.FileExportStore
 import com.classmate.app.data.FileSnapshotIo
 import com.classmate.app.data.ThemePreferenceRepository
+import com.classmate.app.l3.AndroidClassroomAudioRecorder
 import com.classmate.app.navigation.ClassMateNavHost
 import com.classmate.app.ondevice.OnDeviceLlmController
 import com.classmate.app.platform.ModelConfigRepository
@@ -82,6 +83,7 @@ fun ClassMateApp() {
                     // missing-SDK bridge until app/libs/llm-sdk-release.aar is bundled.
                     modelConfigRepository = ModelConfigRepository(File(context.filesDir, "classmate_model_config.json")),
                     themePreferenceRepository = ThemePreferenceRepository(File(context.filesDir, "classmate_theme_preferences.json")),
+                    classroomAudioRecorder = AndroidClassroomAudioRecorder(File(context.filesDir, "classmate_recordings")),
                     // Real reflection bridge: drives the vivo on-device SDK when app/libs/llm-sdk-release.aar
                     // is bundled, and honestly reports SDK_MISSING (no crash) when it is absent.
                     onDeviceController = OnDeviceLlmController.real(),
