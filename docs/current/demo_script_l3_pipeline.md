@@ -4,51 +4,31 @@ Date: 2026-06-20
 
 Target length: 2-3 minutes.
 
-## Script
+## Final Route
 
-1. Open ClassMate Home.
-2. Tap `整理一份新资料`.
-3. Before recording, run `scripts\qa\demo_device_provision.ps1` and keep the result as GO/NO-GO evidence. If it is NO-GO, use the fallback route below.
-4. Open `L3 演示包` or paste a short classroom material.
-5. In the material tray, confirm the text and optional question bank.
-6. Tap `生成 L3 本地学习闭环`.
-7. On the course page, show:
-   - summary
-   - knowledge map
-   - L3 学习闭环 card
-   - honest provider chips: OCR app-level path, official runtime gateway status, local fallback status
-   - L3 能力诊断
-   - transcript timeline when using manual transcript fallback
-   - semantic index record/search status, vector source, similarity score source, and tool orchestration plan
-8. Tap `专项练习`.
-9. Show that only stem/options are visible before submit.
-10. Choose a wrong option and tap `提交答案`.
-11. Show:
-    - user answer
-    - correct answer
-    - explanation
-    - source evidence
-12. Tap `完成练习`, then open `复习计划`.
-13. Show:
-    - wrong book count
-    - wrong question detail
-    - review queue item
-    - weak mastery state
-14. Optional: return to the course page and tap `模拟考试` to show score, accuracy, weak knowledge points, evidence coverage, and Markdown report text availability.
-15. Optional: tap `随机 3 题`, `随机 5 题`, or `随机 10 题` to show question sampling from the same generated/imported pool.
-16. Optional: import a Markdown multi-choice question with `Answer: A,B`, choose only one correct option, and show `PARTIAL` grading path in tests / diagnostics.
-17. Optional: import a PDF file, show `PDF document ... PDF_TEXT_PARSER_PENDING` and `PDF page ... PAGE_OCR_SEAM_READY`, then paste manual page text and generate the same L3 pipeline.
-18. Optional: import DOCX/PPTX/XLSX demo files and show extraction quality: `COMPLETE`, `PARTIAL`, `TEMPLATE_REQUIRED`, or `EMPTY_FILE`.
-19. Optional: create a classroom recording artifact, show `OFFICIAL_ASR_CONFIG_MISSING` or `CORE_CONTRACT_PRESENT_APP_WIRING_PENDING`, paste manual transcript fallback, then show transcript timeline + evidence chain.
-20. Optional: request listen-review and show `LOCAL_TTS_AVAILABLE` when Android local TTS fallback is prepared.
-21. Optional: request translation and show `OFFICIAL_TRANSLATION_NOT_CONFIGURED` when official translation is not configured.
-22. Optional: show diagnostics for Translation / TTS / Function Calling / Edge model without claiming official success.
+| Step | Operation | Expected screen | Behind capability | Risk / fallback |
+| --- | --- | --- | --- | --- |
+| 1 | Run `scripts\qa\demo_device_provision.ps1`. | GO/NO-GO list for config presence, model directory, storage, audio, camera, app install, demo data. | Demo readiness guard. | If NO-GO, use local/manual fallback route and do not claim official runtime success. |
+| 2 | Open Home and tap `整理一份新资料`. | Input Superhub / import entry. | Stable Home CTA. | Do not modify or reframe Home during demo. |
+| 3 | Paste short Markdown classroom material. | Material confirmation. | Text paste -> L3 pipeline. | Use text/Markdown as the stable route; avoid complex PDF first. |
+| 4 | Generate learning package. | Summary, knowledge map, evidence, generated questions, review queue. | L3 pipeline, tool plan, semantic index. | If cloud model unavailable, show explicit fallback status. |
+| 5 | Ask an evidence-grounded question. | Answer with evidence or "not found in this lesson". | Evidence retrieval; Query Rewrite official-first path if configured. | If Query Rewrite fallback is used, say local planning fallback, not official success. |
+| 6 | Show official runtime diagnostics. | OCR used/ready; QR/Embedding/Similarity ready/used/fallback with exact blocker. | v1.7 production official retrieval injection. | Only say `OFFICIAL_RUNTIME_USED` when diagnostics prove successful runtime output. |
+| 7 | Show official OCR single-point demo. | OCR text enters LessonSource/Evidence or fallback status appears. | OCR official app-level path, config-gated. | If config missing/fails, show manual OCR text fallback. |
+| 8 | Open `专项练习`. | Stem/options only before submit. | Real Practice Engine. | Do not use self-assessment buttons as practice. |
+| 9 | Choose a wrong answer and submit. | User answer, correct answer, explanation, evidence. | Grading, explanation, evidence chain. | If evidence missing, show explicit "no evidence" state. |
+| 10 | Open Review / Wrong Book / Mastery. | Wrong record, review queue item, weak mastery state. | Wrong book, review queue, mastery history. | Restart validation should confirm persistence. |
+| 11 | Open simulated exam report. | Score, accuracy, weak knowledge points, evidence coverage, report text. | ExamReport. | Keep as a controlled short exam. |
+| 12 | Optional: edge fallback. | Edge available/used or unavailable/local-rule fallback. | Edge model fallback strategy. | Only demo if `/sdcard/1225` and permissions are GO. |
+| 13 | Optional: audio artifact. | Recording artifact, ASR job status, manual transcript fallback, timeline/evidence. | ASR Long seam and transcript fallback. | Do not present automatic ASR unless live validation has been completed. |
+| 14 | Optional: local TTS. | Summary/wrong explanation/review card playback or local unavailable status. | Android local TTS fallback. | Do not claim official TTS. |
+| 15 | Close with diagnostics matrix. | Honest statuses for official/runtime/fallback/blocker. | Status matrix. | Leave validation-pending items visible. |
 
 ## Honest Notes
 
 - OCR / Query Rewrite / Text Similarity / Embedding have passed provider smoke, but this demo does not run network smoke.
 - OCR is the app-level official product path for image/photo/OCR text into LessonSource/Evidence. It remains config-gated and has manual OCR text fallback.
-- Query Rewrite now runs through the v1.6 official runtime gateway. Show `OFFICIAL_RUNTIME_USED` only if later validation proves the injected app adapter succeeded; otherwise show app-wiring-pending or fallback.
+- Query Rewrite now runs through the v1.7 production official retrieval factory. Show `OFFICIAL_RUNTIME_USED` only if demo/cloud validation proves the injected Vivo adapter succeeded; otherwise show validation-pending, not-configured, or local fallback.
 - Embedding now stores official/local vector provenance. Show official vectors only when the runtime adapter returns vectors; otherwise show `LOCAL_FALLBACK`.
 - Text Similarity now stores score provenance. Show official rerank only when the runtime adapter returns scores; otherwise show local similarity fallback.
 - ASR Long is not presented as completed. Recording produces an app-private audio artifact record; core VivoAsrProvider 1739 contract exists, but app upload/poll/result validation is pending; manual transcript fallback remains available.
@@ -61,5 +41,5 @@ Target length: 2-3 minutes.
 
 - recording to automatic transcription
 - complex PDF automatic text extraction
-- official Embedding / Text Similarity / Translation / TTS / Function Calling runtime success unless a later cloud-device validation proves it
+- official Query Rewrite / Embedding / Text Similarity / Translation / TTS / Function Calling runtime success unless a later cloud-device validation proves it
 - on-device model behavior unless `ON_DEVICE_MODEL_PRESENT` and storage permission are both GO

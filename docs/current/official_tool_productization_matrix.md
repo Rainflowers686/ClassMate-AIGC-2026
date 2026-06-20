@@ -7,9 +7,9 @@ No secrets, endpoint URLs, or Authorization values are recorded here.
 | Capability | Smoke status | App-level status | Product path |
 | --- | --- | --- | --- |
 | OCR | PASS | `OFFICIAL_RUNTIME_USED` for OCR evidence / config-gated | Image/photo OCR text and PDF page OCR seam can enter LessonSource and Evidence with provider provenance; manual OCR text fallback remains. |
-| QUERY_REWRITE | PASS | runtime gateway wired; `OFFICIAL_RUNTIME_USED` only when app adapter succeeds | L3 publish path now asks the runtime gateway for study/retrieval query normalization. Missing adapter/config falls back to local query planning. |
-| EMBEDDING | PASS | runtime gateway wired; official vector path tested with fake adapter | Semantic records store `officialVector`, `localVector`, and `vectorSource`; missing adapter/config persists local lexical vectors. |
-| TEXT_SIMILARITY | PASS | runtime gateway wired; official score path tested with fake adapter | Evidence matching and similar-question recommendations record `scoreSource`; missing adapter/config uses local similarity fallback. |
+| QUERY_REWRITE | PASS | `OFFICIAL_RUNTIME_READY / VALIDATION_PENDING` after v1.7 production adapter injection | L3 publish path now asks the production runtime gateway for study/retrieval query normalization. Official success records `OFFICIAL_RUNTIME_USED`; missing config/runtime failure falls back to local query planning. |
+| EMBEDDING | PASS | `OFFICIAL_RUNTIME_READY / VALIDATION_PENDING` after v1.7 production adapter injection | Semantic records store `officialVector`, `localVector`, and `vectorSource`; official success saves `vectorSource=OFFICIAL`; missing config/runtime failure persists local lexical vectors. |
+| TEXT_SIMILARITY | PASS | `OFFICIAL_RUNTIME_READY / VALIDATION_PENDING` after v1.7 production adapter injection | Evidence matching and similar-question recommendations record `scoreSource`; official success saves `scoreSource=OFFICIAL`; missing config/runtime failure uses local similarity fallback. |
 | TRANSLATION | not product-smoked in app | runtime gateway wired / usually NOT_CONFIGURED | Lesson/evidence translation first checks official runtime; original evidence remains unchanged when not configured or failed. |
 | TTS | not product-smoked in app | runtime gateway wired / LOCAL_FALLBACK | Listen-review checks official runtime first, then uses Android local TextToSpeech or script text. No voice clone. |
 | FUNCTION_CALLING | not product-smoked in app | runtime gateway wired / LOCAL_ORCHESTRATOR fallback | Tool plan proposal can use official Function Calling when adapter succeeds; local ToolOrchestrator remains active. |
@@ -35,11 +35,18 @@ No secrets, endpoint URLs, or Authorization values are recorded here.
 ## v1.6 Additions
 
 - `OfficialRuntimeGateway` and `OfficialRuntimeIntegrator` run in the L3 publish path.
-- Query Rewrite, Embedding, and Text Similarity have official app-runtime success paths with injected adapters and tests; default demo path still falls back when adapters/config are absent.
+- Query Rewrite, Embedding, and Text Similarity gained official app-runtime success paths, but v1.6 still allowed the production default to be ConfigMissing-only if no adapter was injected.
 - `LocalSemanticIndexRecord` now stores official/local vectors plus `vectorSource`.
 - `TextSimilarityMatch` now stores `scoreSource`.
 - OCR evidence carries provider provenance.
 - Runtime diagnostics include configured/used/fallback/blocker/redaction fields.
+
+## v1.7 / v1.8 Status Freeze
+
+- v1.7 fixed the production injection gap found by Claude v2: `AppViewModel` now uses `OfficialRuntimeGatewayFactory.production()` instead of directly constructing a no-argument `ProviderBackedOfficialRuntimeGateway()`.
+- Production injection now uses `VivoQueryRewriteProvider -> VivoQueryRewriteLearningProvider`, `VivoEmbeddingProvider -> VivoEmbeddingLearningProvider`, and `VivoTextSimilarityProvider -> VivoTextSimilarityLearningProvider`.
+- The retrieval trio is now `OFFICIAL_RUNTIME_READY / VALIDATION_PENDING`, not `OFFICIAL_RUNTIME_USED` until a demo/cloud device proves the runtime call succeeds.
+- Translation, official TTS, official Function Calling, and ASR Long remain honest seam/not-configured/validation-pending paths.
 
 ## Diagnostics Contract
 

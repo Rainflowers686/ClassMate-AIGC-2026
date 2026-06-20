@@ -49,7 +49,7 @@ Current status note (v1.6): official wording remains narrowed after red-team rev
 
 ## Official Tool Productization
 
-See `official_tool_productization_matrix.md`. OCR has the app-level official path for image/photo/OCR text. Query Rewrite, Embedding, and Text Similarity now have v1.6 official runtime gateway paths plus local fallback. Translation, TTS, Function Calling, ASR Long, and Edge model are represented by honest runtime/seam/fallback states unless configured and validated later.
+See `official_tool_productization_matrix.md`. OCR has the app-level official path for image/photo/OCR text. Query Rewrite, Embedding, and Text Similarity now have v1.7 production official-first runtime injection plus local fallback; live `OFFICIAL_RUNTIME_USED` still requires configured demo/cloud validation. Translation, TTS, Function Calling, ASR Long, and Edge model are represented by honest runtime/seam/fallback states unless configured and validated later.
 
 ## Task 3 Future
 

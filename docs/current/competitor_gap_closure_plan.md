@@ -53,17 +53,25 @@ Red-team P0 fix v1.5:
 
 - Official capability wording is narrowed: smoke PASS is separated from live app official calls.
 - OCR is the app-level official path for image/photo/OCR text into evidence, config-gated with fallback.
-- Query Rewrite, Embedding, and Text Similarity now have the v1.6 official runtime gateway in the app path; they remain local fallback unless an injected app adapter returns official rewrite/vector/rerank output.
+- Query Rewrite, Embedding, and Text Similarity now have the v1.7 production official runtime factory in the app path; they are official-first and validation-pending, with local fallback unless the configured Vivo runtime returns official rewrite/vector/rerank output.
 - ASR Long is corrected to core contract present / app wiring pending / manual transcript fallback.
 - DOCX/XLSX/PPTX imports have extraction quality guards before demo use.
 - Wrong book, review queue, mastery history, attempts, evidence/questions, and exam reports persist through app-private L3 storage.
+
+Official retrieval runtime injection v1.7:
+
+- Claude v2 found that v1.6 gateway plumbing still defaulted production `AppViewModel` to ConfigMissing retrieval providers.
+- v1.7 moves production wiring to `OfficialRuntimeGatewayFactory.production()` and injects Vivo Query Rewrite, Embedding, and Text Similarity learning adapters.
+- The retrieval trio is now official-first and validation-pending; runtime success still requires configured demo/cloud device validation.
+- Local fallback remains the stable route when official config is missing or runtime calls fail.
 
 Remaining:
 
 - Official ASR Long upload/poll/result app validation with non-sensitive audio.
 - Native PDF parser or real per-page OCR execution.
 - Rich Word/Excel/PPT rich-format parsing beyond the simple ZIP/XML best-effort templates.
-- Provider-backed vector store and large-scale similar-question recommendation.
+- Cloud/device validation of official Query Rewrite, Embedding, and Text Similarity runtime usage.
+- Provider-backed vector store and large-scale similar-question recommendation beyond current official-first/local-fallback path.
 - Official TTS playback, Translation execution, and official Function Calling runtime validation.
 - Rich exam mode with sections, timer enforcement, and per-topic score analytics.
 - Long-term mastery trend charts, streak/lapse tracking, and smarter spaced repetition.

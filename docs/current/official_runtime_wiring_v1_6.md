@@ -2,6 +2,8 @@
 
 Date: 2026-06-20
 
+Superseded note: v1.6 introduced the runtime gateway and integrator, but Claude v2 later found that production `AppViewModel` still defaulted to a no-argument ConfigMissing-only retrieval gateway. v1.7 fixes that with `OfficialRuntimeGatewayFactory.production()`. Keep this file as v1.6 history; use `docs/current/official_runtime_injection_v1_7.md` and `docs/current/project_current_status_v1_8.md` for current retrieval status.
+
 No AppKey, Authorization value, full endpoint URL, request body, or local `config.local.json` content is recorded here.
 
 ## Scope
@@ -82,5 +84,5 @@ New coverage proves:
 - No live provider network call was run in this task.
 - No local config content was read.
 - Provider smoke scripts were not changed.
-- Query Rewrite / Embedding / Text Similarity runtime success requires a real app adapter to be injected and validated later.
+- Query Rewrite / Embedding / Text Similarity runtime success requires the v1.7 production adapter injection plus demo/cloud validation.
 - Official ASR Long remains pending non-sensitive upload/poll/result validation.

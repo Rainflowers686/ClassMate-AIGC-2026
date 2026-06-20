@@ -13,7 +13,7 @@ Date: 2026-06-20
 
 - OCR / Query Rewrite / Embedding / Text Similarity provider smoke status remains PASS in docs.
 - OCR may be described as app-level productized for image/photo/OCR text into evidence, with config-gated fallback.
-- Query Rewrite / Embedding / Text Similarity must be described with v1.6 runtime provenance: `OFFICIAL_RUNTIME_USED` only when an injected app adapter succeeds; otherwise app-wiring-pending, not-configured, or local fallback.
+- Query Rewrite / Embedding / Text Similarity must be described with v1.7 production runtime injection: `OFFICIAL_RUNTIME_READY / VALIDATION_PENDING` until a demo/cloud device proves `OFFICIAL_RUNTIME_USED`; otherwise not-configured or local fallback.
 - No real network smoke is run in this checklist.
 - ASR Long official path must show core contract present but app wiring/validation pending unless a later non-sensitive audio validation proves the path.
 - Translation and official TTS must not claim success when not configured.
@@ -50,3 +50,4 @@ Date: 2026-06-20
 
 - Run the demo script once without network smoke.
 - Capture failures with exact status labels, not vague pass/fail summaries.
+- Produce GO / NO-GO for cloud-device validation and list P0/P1/P2 issues for the next Codex patch if needed.

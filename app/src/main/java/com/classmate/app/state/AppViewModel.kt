@@ -60,6 +60,7 @@ import com.classmate.app.l3.LocalSemanticIndexEngine
 import com.classmate.app.l3.NoOpClassroomAudioRecorder
 import com.classmate.app.l3.NoOpLocalTtsPlayer
 import com.classmate.app.l3.OfficialRuntimeGateway
+import com.classmate.app.l3.OfficialRuntimeGatewayFactory
 import com.classmate.app.l3.OfficialRuntimeIntegrator
 import com.classmate.app.l3.OfficialRuntimeStatus
 import com.classmate.app.l3.PdfProcessingEngine
@@ -67,7 +68,6 @@ import com.classmate.app.l3.PracticeGradingEngine
 import com.classmate.app.l3.PracticeAnswerState
 import com.classmate.app.l3.PracticeAnswerSubmission
 import com.classmate.app.l3.PracticeQuestionMode
-import com.classmate.app.l3.ProviderBackedOfficialRuntimeGateway
 import com.classmate.app.l3.QuestionBankParser
 import com.classmate.app.l3.ReviewStatsEngine
 import com.classmate.app.l3.ToolInputType
@@ -225,7 +225,7 @@ class AppViewModel(
     // App-private L3 state. Stores study artifacts only: no credentials, keys, endpoints, or local config.
     private val l3PersistenceRepository: L3PersistenceRepository = L3PersistenceRepository.disabled(),
     private val localTtsPlayer: LocalTtsPlayer = NoOpLocalTtsPlayer(),
-    private val officialRuntimeGateway: OfficialRuntimeGateway = ProviderBackedOfficialRuntimeGateway(),
+    private val officialRuntimeGateway: OfficialRuntimeGateway = OfficialRuntimeGatewayFactory.production(),
     // On-device BlueLM 3B owner. Defaults to the honest missing-SDK bridge until the AAR is bundled.
     private val onDeviceController: OnDeviceLlmController = OnDeviceLlmController(),
     // Lazy so constructing the VM never reads capture credentials; OCR/ASR config is loaded only when

@@ -245,12 +245,44 @@ class VivoQueryRewriteProvider(
     override fun rewrite(question: String, history: List<Pair<String, String>>): CaptureResult<String> {
         if (!config.isConfigured) return CaptureResult.fail(CaptureError.ConfigMissing)
         return safeCall {
-            val body = captureJson.encodeToString(JsonObject.serializer(), buildJson { put("query", question) })
+            val body = captureJson.encodeToString(JsonObject.serializer(), queryRewriteBody(question, history))
             val resp = transport.postJson("https://${config.domain}/query-rewrite-api/predict", mapOf("Authorization" to config.authHeader(), "Content-Type" to "application/json"), body, timeoutMs)
             if (resp.status !in 200..299) return@safeCall CaptureResult.fail(CaptureError.fromHttpStatus(resp.status, resp.body), resp.status)
-            val rewritten = (parseObject(resp.body)?.get("data") as? JsonObject)?.strField("query")
+            val rewritten = parseQueryRewrite(resp.body)
             if (rewritten.isNullOrBlank()) CaptureResult.fail(CaptureError.ParseFailed) else CaptureResult.Success(rewritten)
         }
+    }
+
+    private fun queryRewriteBody(question: String, history: List<Pair<String, String>>): JsonObject {
+        val qa = history.takeLast(3).flatMap { listOf(it.first, it.second) }
+        val padded = (List((6 - qa.size).coerceAtLeast(0)) { "" } + qa).takeLast(6)
+        return JsonObject(
+            mapOf(
+                "prompts" to JsonArray(
+                    listOf(
+                        JsonArray(padded.map { JsonPrimitive(it) }),
+                        JsonArray(listOf(JsonPrimitive(question))),
+                    ),
+                ),
+            ),
+        )
+    }
+
+    private fun parseQueryRewrite(body: String): String? {
+        val root = parseObject(body) ?: return null
+        val data = root["data"]
+        return when (data) {
+            is JsonObject -> data.strField("query")
+                ?: data.strField("rewritten_query")
+                ?: data.strField("rewrite")
+                ?: data.strField("result")
+            is JsonArray -> data.firstNotNullOfOrNull { (it as? JsonPrimitive)?.contentOrNull?.takeIf { value -> value.isNotBlank() } }
+            is JsonPrimitive -> data.contentOrNull
+            else -> null
+        } ?: root.strField("query")
+            ?: root.strField("rewritten_query")
+            ?: root.strField("rewrite")
+            ?: root.strField("result")
     }
 }
 
