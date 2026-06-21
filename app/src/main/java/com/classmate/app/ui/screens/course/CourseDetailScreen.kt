@@ -32,6 +32,7 @@ import com.classmate.app.ui.components.ExportCenterCard
 import com.classmate.app.ui.components.KnowledgePathNode
 import com.classmate.app.ui.components.LearningActionDock
 import com.classmate.app.ui.components.Pill
+import com.classmate.app.ui.components.PrimaryButton
 import com.classmate.app.ui.components.SecondaryButton
 import com.classmate.app.ui.components.SourceBadge
 import com.classmate.app.ui.components.StatusChip
@@ -199,7 +200,8 @@ fun CourseDetailScreen(viewModel: AppViewModel) {
 
 @Composable
 private fun L3PipelineStatusCard(viewModel: AppViewModel) {
-    val l3 = viewModel.ui.l3Pipeline
+    val ui = viewModel.ui
+    val l3 = ui.l3Pipeline
     if (l3.lessonSource == null) return
     QuietCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -273,9 +275,82 @@ private fun L3PipelineStatusCard(viewModel: AppViewModel) {
                 }
             }
         }
+        if (l3.officialCapabilityContributions.isNotEmpty() || l3.capabilityPlans.isNotEmpty()) {
+            Spacer(Modifier.height(Dimens.s))
+            Text("学习闭环能力贡献", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            l3.capabilityPlans.lastOrNull()?.userVisibleSummary.orEmpty().take(4).forEach { summary ->
+                Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+                l3.officialCapabilityContributions.take(8).forEach { contribution ->
+                    StatusChip("${contribution.capabilityId.name}: ${contribution.runtimeAvailability.name}", tone = ChipTone.INFO)
+                }
+            }
+        }
+        Spacer(Modifier.height(Dimens.s))
+        Text("学习增强入口", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.xs)) {
+            if (ui.enableExperimentalImageGeneration) {
+                SecondaryButton(
+                    "生成学习图解提示词",
+                    onClick = { viewModel.generateVisualStudyPrompt() },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            if (ui.enableExperimentalVideoGeneration) {
+                SecondaryButton(
+                    "生成复习短视频分镜",
+                    onClick = { viewModel.generateReviewVideoStoryboard() },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            if (ui.enableExperimentalSimultaneousInterpretation) {
+                SecondaryButton(
+                    "生成双语转写草稿",
+                    onClick = { viewModel.generateBilingualTranscriptDraft() },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            SecondaryButton(
+                "生成听背复习脚本",
+                onClick = { viewModel.generateAudioReviewScript() },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        l3.visualStudyAssets.lastOrNull()?.let { asset ->
+            Spacer(Modifier.height(Dimens.xs))
+            Text("Study diagram prompt: ${asset.status.name} · ${asset.prompt.take(80)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        l3.reviewVideoPlans.lastOrNull()?.let { plan ->
+            Spacer(Modifier.height(Dimens.xs))
+            Text("Review video storyboard: ${plan.status.name} · scenes ${plan.scenes.size}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (l3.bilingualTranscriptSegments.isNotEmpty()) {
+            Spacer(Modifier.height(Dimens.xs))
+            Text("Bilingual transcript draft: ${l3.bilingualTranscriptSegments.size} segments · interpretation pending/config required", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        l3.audioReviewAssets.lastOrNull()?.let { asset ->
+            Spacer(Modifier.height(Dimens.xs))
+            Text("Audio review script: ${asset.status.name} · ${asset.script.take(80)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (l3.qualityWarnings.isNotEmpty()) {
+            Spacer(Modifier.height(Dimens.s))
+            Text("质量护栏", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            l3.qualityWarnings.take(3).forEach { warning ->
+                Text(warning.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
         if (l3.inputArtifacts.isNotEmpty() || l3.asrJobs.isNotEmpty()) {
             Spacer(Modifier.height(Dimens.s))
             Text("输入状态：${l3.inputArtifacts.size} 个 artifact · ${l3.asrJobs.size} 个 ASR job", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        l3.asrQualityEvaluations.lastOrNull()?.let { eval ->
+            Spacer(Modifier.height(Dimens.s))
+            Text(
+                "ASR quality: CER ${"%.2f".format(eval.charErrorRate)} 路 glossary ${"%.0f".format(eval.glossaryHitRate * 100)}%",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         if (l3.inputReports.isNotEmpty() || l3.pdfPages.isNotEmpty()) {
             Spacer(Modifier.height(Dimens.s))

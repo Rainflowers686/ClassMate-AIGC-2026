@@ -15,11 +15,12 @@ object AsrLongProductizationEngine {
                 uploadStatus = "CORE_PROVIDER_CONTRACT_PRESENT",
                 pollingStatus = "APP_ADAPTER_NOT_VALIDATED",
                 errorCode = "APP_ASR_WIRING_PENDING",
-                errorMessage = "Core VivoAsrProvider doc 1739 contract exists, but app-level upload/poll/result validation is pending. Use manual transcript fallback for demo.",
-                createdAt = now,
-                updatedAt = now,
-            )
-        } else {
+	                errorMessage = "Core VivoAsrProvider doc 1739 contract exists, but app-level upload/poll/result validation is pending. Use manual transcript fallback for demo.",
+	                createdAt = now,
+	                updatedAt = now,
+	                chunks = AudioSessionEngine.chunksFor(audioArtifactId, 1L),
+	            )
+	        } else {
             AsrLongJob(
                 id = "asr_job_$now",
                 audioArtifactId = audioArtifactId,
@@ -28,25 +29,61 @@ object AsrLongProductizationEngine {
                 uploadStatus = "UPLOAD_NOT_STARTED",
                 pollingStatus = "POLLING_NOT_STARTED",
                 errorCode = "OFFICIAL_ASR_CONFIG_MISSING",
-                errorMessage = "Core ASR Long contract exists, but official app config is missing; use manual transcript fallback.",
-                createdAt = now,
-                updatedAt = now,
-            )
-        }
-    }
+	                errorMessage = "Core ASR Long contract exists, but official app config is missing; use manual transcript fallback.",
+	                createdAt = now,
+	                updatedAt = now,
+	                chunks = AudioSessionEngine.chunksFor(audioArtifactId, 1L),
+	            )
+	        }
+	    }
 
-    fun applyTranscript(job: AsrLongJob, transcript: String, sourceId: String, now: Long): AsrLongJob {
-        val segments = TranscriptTimelineEngine.segmentsForManualTranscript(sourceId, transcript, now)
-        return job.copy(
-            status = L3AsrStatus.TRANSCRIPT_READY,
-            providerStatus = "TRANSCRIPT_READY",
-            uploadStatus = job.uploadStatus.ifBlank { "UPLOAD_SKIPPED_MANUAL_TRANSCRIPT" },
-            pollingStatus = "RESULT_FILLED_FROM_MANUAL_OR_PROVIDER_TRANSCRIPT",
-            transcriptText = transcript.trim(),
-            transcriptSegments = segments,
-            errorCode = null,
-            errorMessage = null,
-            updatedAt = now,
+    fun applyTranscript(
+        job: AsrLongJob,
+        transcript: String,
+        sourceId: String,
+        now: Long,
+        glossary: List<String> = emptyList(),
+        expectedTranscript: String = "",
+        dialectMode: DialectMode = DialectMode.AUTO,
+    ): AsrLongJob {
+        val processed = TranscriptPostProcessor.process(
+            rawTranscript = transcript,
+            sourceId = sourceId,
+            sourceType = L3SourceType.AUDIO_TRANSCRIPT,
+            now = now,
+            glossary = glossary.ifEmpty { TranscriptGlossaryExtractor.extract() },
+            dialectMode = dialectMode,
+        )
+	        val quality = AsrQualityEvaluator.evaluate(
+	            expectedTranscript = expectedTranscript.ifBlank { transcript },
+	            actualTranscript = processed.correctedTranscript,
+	            glossary = processed.glossary,
+	            id = "asr_eval_${job.id}_$now",
+	            now = now,
+	        )
+	        val chunks = job.chunks.ifEmpty {
+	            AudioSessionEngine.chunksFor(job.audioArtifactId, processed.segments.lastOrNull()?.endMs ?: 1L)
+	        }.mapIndexed { index, chunk ->
+	            if (index < processed.segments.size) {
+	                chunk.copy(status = AudioChunkStatus.TRANSCRIPT_READY, errorMessage = "")
+	            } else {
+	                chunk.copy(status = AudioChunkStatus.SKIPPED_MANUAL_FALLBACK)
+	            }
+	        }
+	        return job.copy(
+	            status = L3AsrStatus.TRANSCRIPT_READY,
+	            providerStatus = "TRANSCRIPT_READY",
+	            uploadStatus = job.uploadStatus.ifBlank { "UPLOAD_SKIPPED_MANUAL_TRANSCRIPT" },
+	            pollingStatus = "RESULT_FILLED_FROM_MANUAL_OR_PROVIDER_TRANSCRIPT",
+	            transcriptText = processed.correctedTranscript.trim(),
+	            transcriptSegments = processed.segments,
+	            errorCode = null,
+	            errorMessage = null,
+	            updatedAt = now,
+            chunks = chunks,
+            qualityEvaluation = quality,
+            glossary = processed.glossary,
+            dialectMode = dialectMode,
         )
     }
 }
@@ -64,12 +101,14 @@ object TranscriptTimelineEngine {
                 startMs = index * 30_000L,
                 endMs = (index + 1) * 30_000L,
                 text = chunk.take(220),
-                sourceType = L3SourceType.MANUAL_TRANSCRIPT,
-                confidence = null,
-                fallbackGenerated = true,
-            )
-        }
-    }
+	                sourceType = L3SourceType.MANUAL_TRANSCRIPT,
+	                confidence = null,
+	                fallbackGenerated = true,
+	                rawText = chunk,
+	                correctedText = chunk,
+	            )
+	        }
+	    }
 }
 
 object PdfProcessingEngine {

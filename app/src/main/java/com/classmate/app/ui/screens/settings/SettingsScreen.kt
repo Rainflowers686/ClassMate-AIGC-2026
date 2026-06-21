@@ -52,6 +52,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -133,6 +134,7 @@ private enum class SettingsPage(val title: String, val subtitle: String) {
     PRIVACY_PERMISSIONS("隐私与权限", "本地数据、导入权限和用户确认说明"),
     LEARNING_EXPORT("学习与导出", "练习、复习和导出默认项"),
     AMBIENT_SOUND("沉浸式背景音", "授权循环背景音、音量和播放说明"),
+    EXPERIMENTAL_FEATURES("实验性功能", "学习图解、复习短视频和双语课堂入口"),
     DEVELOPER_SETTINGS("开发者设置", "诊断、smoke、端侧状态与脱敏日志"),
 }
 
@@ -143,6 +145,7 @@ private enum class SettingsEntryIcon {
     PRIVACY_PERMISSIONS,
     LEARNING_EXPORT,
     AMBIENT_SOUND,
+    EXPERIMENTAL_FEATURES,
     GENERAL_SETTINGS,
     DEVELOPER_SETTINGS,
 }
@@ -154,6 +157,7 @@ private fun SettingsEntryIcon.imageVector(): ImageVector = when (this) {
     SettingsEntryIcon.PRIVACY_PERMISSIONS -> Icons.Filled.CheckCircle
     SettingsEntryIcon.LEARNING_EXPORT -> Icons.Filled.DateRange
     SettingsEntryIcon.AMBIENT_SOUND -> Icons.Filled.Add
+    SettingsEntryIcon.EXPERIMENTAL_FEATURES -> Icons.Filled.Star
     SettingsEntryIcon.GENERAL_SETTINGS -> Icons.Filled.Settings
     SettingsEntryIcon.DEVELOPER_SETTINGS -> Icons.Filled.Edit
 }
@@ -206,6 +210,7 @@ fun SettingsScreen(viewModel: AppViewModel) {
                         onPrivacy = { page = SettingsPage.PRIVACY_PERMISSIONS },
                         onLearningExport = { page = SettingsPage.LEARNING_EXPORT },
                         onAmbientAudio = { page = SettingsPage.AMBIENT_SOUND },
+                        onExperimentalFeatures = { page = SettingsPage.EXPERIMENTAL_FEATURES },
                     )
                 }
 
@@ -247,6 +252,11 @@ fun SettingsScreen(viewModel: AppViewModel) {
                 SettingsPage.AMBIENT_SOUND -> {
                     SettingsPageHeader(page = page, onBack = { page = SettingsPage.GENERAL_SETTINGS })
                     BackgroundAudioPolicyCard()
+                }
+
+                SettingsPage.EXPERIMENTAL_FEATURES -> {
+                    SettingsPageHeader(page = page, onBack = { page = SettingsPage.GENERAL_SETTINGS })
+                    ExperimentalFeaturesSettingsCard(viewModel)
                 }
 
                 SettingsPage.DEVELOPER_SETTINGS -> {
@@ -427,6 +437,7 @@ private fun GeneralSettingsListCard(
     onPrivacy: () -> Unit,
     onLearningExport: () -> Unit,
     onAmbientAudio: () -> Unit,
+    onExperimentalFeatures: () -> Unit,
 ) {
     SettingsGroupedListCard {
         SettingsEntryRow("外观与主题", "默认学习、活力学习、沉浸学习、强调色和阅读密度", SettingsEntryIcon.APPEARANCE_THEME, onAppearance, grouped = true)
@@ -434,6 +445,7 @@ private fun GeneralSettingsListCard(
         SettingsEntryRow("隐私与权限", "本地数据、用户确认、导入内容和相机 / 文件 / 音频权限", SettingsEntryIcon.PRIVACY_PERMISSIONS, onPrivacy, grouped = true)
         SettingsEntryRow("学习与导出", "练习、复习和 PDF / DOCX / HTML / Markdown / Text / 音频脚本", SettingsEntryIcon.LEARNING_EXPORT, onLearningExport, grouped = true)
         SettingsEntryRow("沉浸式背景音", "6 种授权循环背景音、音量和播放说明", SettingsEntryIcon.AMBIENT_SOUND, onAmbientAudio, grouped = true)
+        SettingsEntryRow("实验性功能", "学习图解、复习短视频和双语课堂同声传译入口", SettingsEntryIcon.EXPERIMENTAL_FEATURES, onExperimentalFeatures, grouped = true)
     }
 }
 
@@ -452,6 +464,58 @@ private fun SettingsGroupedListCard(content: @Composable ColumnScope.() -> Unit)
             verticalArrangement = Arrangement.spacedBy(3.dp),
             content = content,
         )
+    }
+}
+
+@Composable
+private fun ExperimentalFeaturesSettingsCard(viewModel: AppViewModel) {
+    val ui = viewModel.ui
+    ClassMateCard {
+        Text("实验性功能", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(Dimens.xs))
+        ClassMateTwoLineDescription("默认关闭；开启后才会在学习页面显示相关入口，主学习闭环仍按稳定路径运行。")
+        Spacer(Modifier.height(Dimens.s))
+        ExperimentalFeatureToggleRow(
+            title = "实验性：学习图解生成",
+            description = "根据知识点生成概念图提示词；图片生成服务未配置时只保留提示词。",
+            checked = ui.enableExperimentalImageGeneration,
+            onCheckedChange = viewModel::setExperimentalImageGeneration,
+        )
+        ExperimentalFeatureToggleRow(
+            title = "实验性：复习短视频生成",
+            description = "根据错题和复习任务生成短视频脚本/分镜；不伪装真实视频生成。",
+            checked = ui.enableExperimentalVideoGeneration,
+            onCheckedChange = viewModel::setExperimentalVideoGeneration,
+        )
+        ExperimentalFeatureToggleRow(
+            title = "实验性：双语课堂同声传译",
+            description = "用于英文授课和双语课堂；当前优先保留双语转写草稿和翻译证据。",
+            checked = ui.enableExperimentalSimultaneousInterpretation,
+            onCheckedChange = viewModel::setExperimentalSimultaneousInterpretation,
+        )
+    }
+}
+
+@Composable
+private fun ExperimentalFeatureToggleRow(
+    title: String,
+    description: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = Dimens.xs),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Dimens.s),
+    ) {
+        Column(Modifier.weight(1f)) {
+            ClassMateSingleLineText(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(Dimens.xxs))
+            ClassMateTwoLineDescription(description)
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 

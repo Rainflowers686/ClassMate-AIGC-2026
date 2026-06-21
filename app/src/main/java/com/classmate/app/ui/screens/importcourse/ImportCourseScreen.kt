@@ -38,6 +38,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.core.content.ContextCompat
 import com.classmate.app.l3.L3RecordingStatus
+import com.classmate.app.l3.DialectMode
 import com.classmate.app.l3.InputFileKind
 import com.classmate.app.glossary.CourseGlossary
 import com.classmate.app.ondevice.BitmapToRgb
@@ -317,6 +318,37 @@ private fun ClassroomRecordingCard(viewModel: AppViewModel, onStartRecording: ()
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(Dimens.s))
+        Text("课堂语音模式", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(Dimens.xs))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(Dimens.xs),
+        ) {
+            DialectModeButton(
+                label = "普通课堂",
+                selected = ui.audioDialectMode == DialectMode.STANDARD_MANDARIN,
+                onClick = { viewModel.setAudioDialectMode(DialectMode.STANDARD_MANDARIN) },
+            )
+            DialectModeButton(
+                label = "口音/方言增强",
+                selected = ui.audioDialectMode == DialectMode.DIALECT_OR_ACCENT_ENHANCED,
+                onClick = { viewModel.setAudioDialectMode(DialectMode.DIALECT_OR_ACCENT_ENHANCED) },
+            )
+            DialectModeButton(
+                label = "多人课堂/混合口音",
+                selected = ui.audioDialectMode == DialectMode.CLASSROOM_MIXED_SPEAKERS,
+                onClick = { viewModel.setAudioDialectMode(DialectMode.CLASSROOM_MIXED_SPEAKERS) },
+            )
+        }
+        Spacer(Modifier.height(Dimens.xs))
+        Text(
+            "方言/口音增强会保留 raw transcript，并把低置信片段标记给你确认；不会胡编课堂外内容。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(Dimens.s))
         ui.currentRecording?.let {
             StatusChip("录音中", tone = ChipTone.PRIMARY)
             Spacer(Modifier.height(Dimens.xs))
@@ -419,6 +451,15 @@ private fun ClassroomRecordingCard(viewModel: AppViewModel, onStartRecording: ()
         } else {
             PrimaryButton("开始课堂录音", onClick = onStartRecording, modifier = Modifier.fillMaxWidth())
         }
+    }
+}
+
+@Composable
+private fun DialectModeButton(label: String, selected: Boolean, onClick: () -> Unit) {
+    if (selected) {
+        PrimaryButton(label, onClick = onClick)
+    } else {
+        SecondaryButton(label, onClick = onClick)
     }
 }
 

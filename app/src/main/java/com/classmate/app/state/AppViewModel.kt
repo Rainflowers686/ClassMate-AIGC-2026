@@ -40,12 +40,14 @@ import com.classmate.app.importing.OcrImportKind
 import com.classmate.app.importing.SelectedLocalFileMetadata
 import com.classmate.app.l3.ClassroomAudioRecorder
 import com.classmate.app.l3.ClassroomRecordingRecord
+import com.classmate.app.l3.DialectMode
 import com.classmate.app.l3.EvidenceAsset
 import com.classmate.app.l3.EvidenceAssetType
 import com.classmate.app.l3.ExamSession
 import com.classmate.app.l3.ExamStatus
 import com.classmate.app.l3.AsrLongJob
 import com.classmate.app.l3.AsrLongProductizationEngine
+import com.classmate.app.l3.AudioSessionEngine
 import com.classmate.app.l3.ExamReportEngine
 import com.classmate.app.l3.InputArtifactStatus
 import com.classmate.app.l3.InputFileKind
@@ -61,14 +63,18 @@ import com.classmate.app.l3.L3SourceType
 import com.classmate.app.l3.LearningLoopInput
 import com.classmate.app.l3.LearningLoopInputKind
 import com.classmate.app.l3.LearningDiagnosisEngine
+import com.classmate.app.l3.LearningLoopCapabilityOrchestrator
 import com.classmate.app.l3.LocalTtsPlayer
 import com.classmate.app.l3.LocalSemanticIndexEngine
+import com.classmate.app.l3.DeviceReadinessEngine
+import com.classmate.app.l3.ExperimentalStudyAssetEngine
 import com.classmate.app.l3.NoOpClassroomAudioRecorder
 import com.classmate.app.l3.NoOpLocalTtsPlayer
 import com.classmate.app.l3.OfficialRuntimeGateway
 import com.classmate.app.l3.OfficialRuntimeGatewayFactory
 import com.classmate.app.l3.OfficialRuntimeIntegrator
 import com.classmate.app.l3.OfficialRuntimeStatus
+import com.classmate.app.l3.OfficialCapabilityRegistry
 import com.classmate.app.l3.PdfProcessingEngine
 import com.classmate.app.l3.PracticeGradingEngine
 import com.classmate.app.l3.PracticeAnswerState
@@ -76,6 +82,7 @@ import com.classmate.app.l3.PracticeAnswerSubmission
 import com.classmate.app.l3.PracticeQuestionMode
 import com.classmate.app.l3.QuestionBankParser
 import com.classmate.app.l3.ReviewStatsEngine
+import com.classmate.app.l3.SafetyGuardEngine
 import com.classmate.app.l3.ToolInputType
 import com.classmate.app.l3.ToolOrchestratorProductizationEngine
 import com.classmate.app.l3.TranslationProductEngine
@@ -86,6 +93,7 @@ import com.classmate.app.l3.TtsPlaybackProvider
 import com.classmate.app.l3.TtsPlaybackStatus
 import com.classmate.app.l3.TtsPlaybackSourceType
 import com.classmate.app.l3.TranscriptSegment
+import com.classmate.app.l3.TranscriptGlossaryExtractor
 import com.classmate.app.material.LessonMaterialAssembler
 import com.classmate.core.material.LessonContextHints
 import com.classmate.app.sample.SampleLessonLibrary
@@ -299,6 +307,9 @@ class AppViewModel(
             accentColor = initialThemePreference.accentColorPreset,
             customPalette = initialThemePreference.customPalette,
             typographyPreset = initialThemePreference.typographyPreset,
+            enableExperimentalImageGeneration = initialThemePreference.enableExperimentalImageGeneration,
+            enableExperimentalVideoGeneration = initialThemePreference.enableExperimentalVideoGeneration,
+            enableExperimentalSimultaneousInterpretation = initialThemePreference.enableExperimentalSimultaneousInterpretation,
             providerConfigSummary = providerSummary(initialConfigSource),
             onDeviceDiagnostic = onDeviceController.diagnostic(),
             onDeviceModelPath = onDeviceController.diagnostic().modelDir,
@@ -413,6 +424,112 @@ class AppViewModel(
     }
     fun setDarkMode(dark: Boolean?) { ui = ui.copy(darkMode = dark) }
     fun setLanguage(language: AppLanguage) { ui = ui.copy(language = language) }
+    fun setExperimentalImageGeneration(enabled: Boolean) {
+        val next = themePreferenceRepository.saveExperimentalImageGeneration(enabled)
+        ui = ui.copy(
+            enableExperimentalImageGeneration = next.enableExperimentalImageGeneration,
+            toast = if (enabled) "实验性学习图解入口已开启。" else "实验性学习图解入口已关闭。",
+        )
+    }
+    fun setExperimentalVideoGeneration(enabled: Boolean) {
+        val next = themePreferenceRepository.saveExperimentalVideoGeneration(enabled)
+        ui = ui.copy(
+            enableExperimentalVideoGeneration = next.enableExperimentalVideoGeneration,
+            toast = if (enabled) "实验性复习短视频入口已开启。" else "实验性复习短视频入口已关闭。",
+        )
+    }
+    fun setExperimentalSimultaneousInterpretation(enabled: Boolean) {
+        val next = themePreferenceRepository.saveExperimentalSimultaneousInterpretation(enabled)
+        ui = ui.copy(
+            enableExperimentalSimultaneousInterpretation = next.enableExperimentalSimultaneousInterpretation,
+            toast = if (enabled) "实验性双语课堂同声传译入口已开启。" else "实验性双语课堂同声传译入口已关闭。",
+        )
+    }
+    fun setAudioDialectMode(mode: DialectMode) {
+        ui = ui.copy(
+            audioDialectMode = mode,
+            toast = when (mode) {
+                DialectMode.AUTO -> "课堂转写模式：自动。"
+                DialectMode.STANDARD_MANDARIN -> "课堂转写模式：普通课堂。"
+                DialectMode.DIALECT_OR_ACCENT_ENHANCED -> "课堂转写模式：口音/方言增强。"
+                DialectMode.CLASSROOM_MIXED_SPEAKERS -> "课堂转写模式：多人课堂/混合口音。"
+            },
+        )
+    }
+
+    fun generateVisualStudyPrompt(now: Long = System.currentTimeMillis()): Boolean {
+        if (!ui.enableExperimentalImageGeneration) {
+            ui = ui.copy(toast = "请先在实验性功能中开启学习图解生成。")
+            return false
+        }
+        val asset = ExperimentalStudyAssetEngine.visualPrompt(ui.l3Pipeline, now)
+        if (asset == null) {
+            ui = ui.copy(toast = "当前缺少知识点或证据，无法生成学习图解提示词。")
+            return false
+        }
+        val next = refreshCapabilityMatrix(
+            ui.l3Pipeline.copy(visualStudyAssets = (ui.l3Pipeline.visualStudyAssets + asset).takeLast(20)),
+        )
+        ui = ui.copy(l3Pipeline = next, toast = "已生成学习图解提示词；图片生成待配置。")
+        persistL3(next)
+        return true
+    }
+
+    fun generateReviewVideoStoryboard(now: Long = System.currentTimeMillis()): Boolean {
+        if (!ui.enableExperimentalVideoGeneration) {
+            ui = ui.copy(toast = "请先在实验性功能中开启复习短视频生成。")
+            return false
+        }
+        val plan = ExperimentalStudyAssetEngine.reviewVideoPlan(ui.l3Pipeline, now)
+        if (plan == null) {
+            ui = ui.copy(toast = "当前缺少知识点或复习任务，无法生成短视频分镜。")
+            return false
+        }
+        val next = refreshCapabilityMatrix(
+            ui.l3Pipeline.copy(reviewVideoPlans = (ui.l3Pipeline.reviewVideoPlans + plan).takeLast(20)),
+        )
+        ui = ui.copy(l3Pipeline = next, toast = "已生成复习短视频分镜；视频生成待配置。")
+        persistL3(next)
+        return true
+    }
+
+    fun generateBilingualTranscriptDraft(now: Long = System.currentTimeMillis()): Boolean {
+        if (!ui.enableExperimentalSimultaneousInterpretation) {
+            ui = ui.copy(toast = "请先在实验性功能中开启双语课堂同声传译。")
+            return false
+        }
+        val segments = ExperimentalStudyAssetEngine.bilingualTranscript(ui.l3Pipeline, now)
+        if (segments.isEmpty()) {
+            ui = ui.copy(toast = "当前没有可用于双语转写的音频或转写证据。")
+            return false
+        }
+        val next = refreshCapabilityMatrix(
+            ui.l3Pipeline.copy(bilingualTranscriptSegments = (ui.l3Pipeline.bilingualTranscriptSegments + segments).takeLast(40)),
+        )
+        ui = ui.copy(l3Pipeline = next, toast = "已生成双语转写草稿；同声传译服务待配置。")
+        persistL3(next)
+        return true
+    }
+
+    fun generateAudioReviewScript(now: Long = System.currentTimeMillis()): Boolean {
+        val asset = ExperimentalStudyAssetEngine.audioReviewScript(ui.l3Pipeline, now)
+        if (asset == null) {
+            ui = ui.copy(toast = "当前缺少复习任务或知识点，无法生成听背脚本。")
+            return false
+        }
+        val next = refreshCapabilityMatrix(
+            ui.l3Pipeline.copy(audioReviewAssets = (ui.l3Pipeline.audioReviewAssets + asset).takeLast(20)),
+        )
+        ui = ui.copy(l3Pipeline = next, toast = "已生成听背复习脚本；音频生成待配置。")
+        persistL3(next)
+        return true
+    }
+
+    private fun refreshCapabilityMatrix(snapshot: L3PipelineSnapshot): L3PipelineSnapshot =
+        snapshot.copy(
+            officialCapabilityContributions = OfficialCapabilityRegistry.officialMatrix(snapshot, ui.providerConfigSummary),
+            qualityWarnings = LearningLoopCapabilityOrchestrator.qualityWarnings(snapshot),
+        )
 
     // --- provider config (single source of truth: configBundle) ---
 
@@ -1387,19 +1504,32 @@ class AppViewModel(
             ui = ui.copy(toast = "转写文本为空，无法回填课堂学习包。")
             return false
         }
-        val filled = AsrLongProductizationEngine.applyTranscript(job, transcriptText, "asr_source_$now", now)
+        val audioArtifact = ui.inputArtifacts.firstOrNull { it.id == job.audioArtifactId }
+        val glossary = TranscriptGlossaryExtractor.extract(
+            courseName = ui.courseTitle,
+            knowledgePoints = ui.l3Pipeline.knowledgePoints,
+            fileName = audioArtifact?.fileName ?: job.audioArtifactId,
+        )
+        val filled = AsrLongProductizationEngine.applyTranscript(
+            job = job,
+            transcript = transcriptText,
+            sourceId = "asr_source_$now",
+            now = now,
+            glossary = glossary,
+            dialectMode = ui.audioDialectMode,
+        )
+        val transcriptForLearning = filled.transcriptText.ifBlank { transcriptText.trim() }
         ui = ui.copy(
             asrLongJobs = ui.asrLongJobs.map { if (it.id == jobId) filled else it },
             asrLongStatus = L3AsrStatus.TRANSCRIPT_READY,
             courseTitle = ui.courseTitle.ifBlank { "课堂转写" },
             courseText = buildString {
                 if (ui.courseText.isNotBlank()) appendLine(ui.courseText.trim())
-                appendLine(transcriptText.trim())
+                appendLine(transcriptForLearning)
             }.trim(),
             toast = "ASR transcript filled; it can now enter the L3 learning package.",
         )
         val sourceTitle = ui.courseTitle.ifBlank { "课堂转写" }
-        val audioArtifact = ui.inputArtifacts.firstOrNull { it.id == job.audioArtifactId }
         val segments = filled.transcriptSegments.ifEmpty {
             listOf(
                 TranscriptSegment(
@@ -1407,18 +1537,22 @@ class AppViewModel(
                     sourceId = "asr_source_$now",
                     startMs = 0L,
                     endMs = null,
-                    text = transcriptText.trim(),
+                    text = transcriptForLearning,
                     sourceType = L3SourceType.AUDIO_TRANSCRIPT,
                     fallbackGenerated = true,
+                    rawText = transcriptText.trim(),
+                    correctedText = transcriptForLearning,
+                    dialectMode = ui.audioDialectMode,
                 ),
             )
         }
         val assets = segments.mapIndexed { index, segment ->
+            val segmentText = segment.correctedText.ifBlank { segment.text }
             EvidenceAsset(
                 id = "asset_${job.id}_${segment.segmentId}",
                 type = EvidenceAssetType.AUDIO,
                 sourceType = L3SourceType.AUDIO_TRANSCRIPT,
-                text = segment.text,
+                text = segmentText,
                 sourceLabel = audioArtifact?.fileName ?: "ASR transcript",
                 fileName = audioArtifact?.fileName ?: job.audioArtifactId,
                 fileExt = (audioArtifact?.fileName ?: job.audioArtifactId).substringAfterLast('.', ""),
@@ -1427,22 +1561,40 @@ class AppViewModel(
                 segmentHint = "segment ${index + 1}",
                 startMs = segment.startMs,
                 endMs = segment.endMs,
-                transcriptSegment = segment.text,
-                snippet = segment.text.take(180),
+                transcriptSegment = segmentText,
+                snippet = segmentText.take(180),
                 createdAt = now,
-                status = "TRANSCRIPT_READY",
+                status = if (segment.lowConfidence) "TRANSCRIPT_READY_NEEDS_CONFIRMATION" else "TRANSCRIPT_READY",
             )
         }
+        val audioSessionArtifact = AudioSessionEngine.artifactFor(
+            id = job.audioArtifactId,
+            fileName = audioArtifact?.fileName ?: job.audioArtifactId,
+            audioRef = audioArtifact?.id ?: job.audioArtifactId,
+            durationMs = segments.lastOrNull()?.endMs ?: 1L,
+            createdAt = audioArtifact?.createdAt ?: now,
+            fileSizeBytes = audioArtifact?.sizeBytes ?: 0L,
+            mimeType = ui.selectedImportFileMetadata?.mimeType ?: "audio/mp4",
+            sourceLabel = audioArtifact?.fileName ?: "ASR transcript",
+        ).copy(
+            segmentCount = segments.size,
+            processingStatus = AudioSessionEngine.overallStatus(filled.chunks),
+        )
         val input = currentLearningLoopInput(
             now = now + 1,
-            text = transcriptText,
+            text = transcriptForLearning,
             sourceType = L3SourceType.AUDIO_TRANSCRIPT,
             title = sourceTitle,
             assets = assets,
             sourceLabel = audioArtifact?.fileName ?: "ASR transcript",
             providerProvenance = providerProvenanceFor(L3SourceType.AUDIO_TRANSCRIPT),
         )
-        val snapshot = l3Pipeline.buildFromLearningLoopInput(input, ui.providerConfigSummary, now + 1)
+        val snapshot = l3Pipeline.buildFromLearningLoopInput(input, ui.providerConfigSummary, now + 1).copy(
+            asrJobs = listOf(filled),
+            audioArtifacts = listOf(audioSessionArtifact),
+            audioChunks = filled.chunks,
+            asrQualityEvaluations = listOfNotNull(filled.qualityEvaluation),
+        )
         return publishL3Snapshot(snapshot, now + 1, "ASR transcript has entered the L3 learning package.")
     }
 
@@ -1802,8 +1954,28 @@ class AppViewModel(
             semanticSearchResults = if (searchQuery.isBlank()) emptyList() else listOf(LocalSemanticIndexEngine.search(reloadedSemanticRecords, searchQuery)),
             reviewDailyStats = ReviewStatsEngine.daily(runtimeSnapshot, now),
         )
-        val enrichedSnapshot = enrichedBase.copy(
-            learningDiagnosis = LearningDiagnosisEngine.build(enrichedBase, now),
+        val guardedBase = enrichedBase.copy(
+            safetyGuardResults = SafetyGuardEngine.results(enrichedBase, now),
+            deviceReadinessResults = DeviceReadinessEngine.results(ui.providerConfigSummary, now),
+        )
+        val plan = LearningLoopCapabilityOrchestrator.plan(
+            inputKind = learningInputKind(guardedBase.lessonSource?.type ?: L3SourceType.TEXT),
+            sourceType = guardedBase.lessonSource?.type ?: L3SourceType.TEXT,
+            snapshot = guardedBase,
+            summary = ui.providerConfigSummary,
+            now = now,
+            dialectMode = ui.audioDialectMode,
+            enableExperimentalImageGeneration = ui.enableExperimentalImageGeneration,
+            enableExperimentalVideoGeneration = ui.enableExperimentalVideoGeneration,
+            enableExperimentalSimultaneousInterpretation = ui.enableExperimentalSimultaneousInterpretation,
+        )
+        val withCapabilityLayer = guardedBase.copy(
+            capabilityPlans = (guardedBase.capabilityPlans + plan).takeLast(5),
+            officialCapabilityContributions = OfficialCapabilityRegistry.officialMatrix(guardedBase, ui.providerConfigSummary),
+            qualityWarnings = LearningLoopCapabilityOrchestrator.qualityWarnings(guardedBase),
+        )
+        val enrichedSnapshot = withCapabilityLayer.copy(
+            learningDiagnosis = LearningDiagnosisEngine.build(withCapabilityLayer, now),
         )
         val artifacts = l3Pipeline.toCourseArtifacts(enrichedSnapshot, now)
         if (artifacts == null) {

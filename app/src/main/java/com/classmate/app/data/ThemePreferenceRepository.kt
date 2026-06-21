@@ -17,6 +17,9 @@ data class ThemePreference(
     val accentColorPreset: AccentColorPreset = AccentColorPreset.Default,
     val customPalette: CustomPalette = CustomPalette.Default,
     val typographyPreset: TypographyPreset = TypographyPreset.Default,
+    val enableExperimentalImageGeneration: Boolean = false,
+    val enableExperimentalVideoGeneration: Boolean = false,
+    val enableExperimentalSimultaneousInterpretation: Boolean = false,
 )
 
 class ThemePreferenceRepository(private val file: File?) {
@@ -37,6 +40,9 @@ class ThemePreferenceRepository(private val file: File?) {
                 tertiaryHex = obj.str("customTertiaryHex") ?: CustomPalette.DEFAULT_TERTIARY,
             ),
             typographyPreset = obj.str("typographyPreset")?.let(::typographyPresetOrNull) ?: TypographyPreset.Default,
+            enableExperimentalImageGeneration = obj.bool("enableExperimentalImageGeneration") ?: false,
+            enableExperimentalVideoGeneration = obj.bool("enableExperimentalVideoGeneration") ?: false,
+            enableExperimentalSimultaneousInterpretation = obj.bool("enableExperimentalSimultaneousInterpretation") ?: false,
         )
     }
 
@@ -53,6 +59,9 @@ class ThemePreferenceRepository(private val file: File?) {
                     put("customSecondaryHex", preference.customPalette.secondaryHex)
                     put("customTertiaryHex", preference.customPalette.tertiaryHex)
                     put("typographyPreset", preference.typographyPreset.name)
+                    put("enableExperimentalImageGeneration", preference.enableExperimentalImageGeneration)
+                    put("enableExperimentalVideoGeneration", preference.enableExperimentalVideoGeneration)
+                    put("enableExperimentalSimultaneousInterpretation", preference.enableExperimentalSimultaneousInterpretation)
                 }.toString(),
             )
             true
@@ -87,6 +96,24 @@ class ThemePreferenceRepository(private val file: File?) {
 
     fun resetAdvancedAppearance(): ThemePreference {
         val next = load().copy(customPalette = CustomPalette.Default, typographyPreset = TypographyPreset.Default)
+        save(next)
+        return next
+    }
+
+    fun saveExperimentalImageGeneration(enabled: Boolean): ThemePreference {
+        val next = load().copy(enableExperimentalImageGeneration = enabled)
+        save(next)
+        return next
+    }
+
+    fun saveExperimentalVideoGeneration(enabled: Boolean): ThemePreference {
+        val next = load().copy(enableExperimentalVideoGeneration = enabled)
+        save(next)
+        return next
+    }
+
+    fun saveExperimentalSimultaneousInterpretation(enabled: Boolean): ThemePreference {
+        val next = load().copy(enableExperimentalSimultaneousInterpretation = enabled)
         save(next)
         return next
     }

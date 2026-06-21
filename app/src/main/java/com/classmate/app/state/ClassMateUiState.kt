@@ -7,6 +7,7 @@ import com.classmate.app.glossary.CourseGlossary
 import com.classmate.app.importing.OcrImportDraft
 import com.classmate.app.importing.SelectedLocalFileMetadata
 import com.classmate.app.l3.ClassroomRecordingRecord
+import com.classmate.app.l3.DialectMode
 import com.classmate.app.l3.ExamSession
 import com.classmate.app.l3.AsrLongJob
 import com.classmate.app.l3.InputArtifact
@@ -89,6 +90,10 @@ data class ClassMateUiState(
     val customPalette: CustomPalette = CustomPalette.Default,
     val typographyPreset: TypographyPreset = TypographyPreset.Default,
     val darkMode: Boolean? = null, // null = follow system
+    val enableExperimentalImageGeneration: Boolean = false,
+    val enableExperimentalVideoGeneration: Boolean = false,
+    val enableExperimentalSimultaneousInterpretation: Boolean = false,
+    val audioDialectMode: DialectMode = DialectMode.AUTO,
 
     // import inputs
     val courseTitle: String = "",
