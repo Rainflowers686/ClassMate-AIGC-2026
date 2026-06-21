@@ -1,5 +1,7 @@
 package com.classmate.app.ui.screens.evidence
 
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,8 +15,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import com.classmate.app.l3.L3SourceType
 import com.classmate.app.state.AppViewModel
 import com.classmate.app.ui.components.ClassMateCard
@@ -83,6 +89,33 @@ fun EvidenceDetailScreen(viewModel: AppViewModel) {
                     if (l3Evidence.sourceType == L3SourceType.OCR_IMAGE || imageRef.isNotBlank()) {
                         Spacer(Modifier.height(Dimens.xs))
                         Text("图片缩略图引用", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                        val previewBitmap = remember(thumbnailRef, imageRef) {
+                            runCatching {
+                                val ref = thumbnailRef.ifBlank { imageRef }
+                                if (ref.isBlank()) null else BitmapFactory.decodeFile(ref)
+                            }.getOrNull()
+                        }
+                        if (previewBitmap != null) {
+                            Spacer(Modifier.height(Dimens.xs))
+                            Image(
+                                bitmap = previewBitmap.asImageBitmap(),
+                                contentDescription = "OCR image evidence preview",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(180.dp),
+                                contentScale = ContentScale.Crop,
+                            )
+                        } else {
+                            Spacer(Modifier.height(Dimens.xs))
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .height(96.dp)
+                                    .padding(Dimens.xs),
+                            ) {
+                                Text("图片预览暂不可用，已保留 OCR 文本和资产引用。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
                         Text(l3AssetLine("Thumbnail", thumbnailRef), style = MaterialTheme.typography.bodyMedium)
                         Text(l3AssetLine("Image ref", imageRef), style = MaterialTheme.typography.bodyMedium)
                         Text("如果真机 bitmap 暂不可解析，将使用 OCR 文本和资产引用降级展示。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

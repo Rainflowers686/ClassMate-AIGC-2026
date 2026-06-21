@@ -116,8 +116,11 @@ fun PracticeSessionScreen(viewModel: AppViewModel) {
                         PracticeAnswerReview(viewModel = viewModel, item = item, selectedAnswers = submitted.selectedAnswers, correct = submitted.correct)
                         Spacer(Modifier.height(Dimens.xs))
                         SecondaryButton(
-                            text = "View evidence",
-                            onClick = { viewModel.openEvidenceForQuestion(item.quizId ?: item.id) },
+                            text = "查看来源证据",
+                            onClick = {
+                                val quizId = item.quizId
+                                if (quizId != null) viewModel.openEvidenceForQuestion(quizId) else viewModel.openEvidenceForKnowledgePoint(item.knowledgePointId)
+                            },
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
@@ -128,6 +131,12 @@ fun PracticeSessionScreen(viewModel: AppViewModel) {
                         item.evidenceQuote?.takeIf { it.isNotBlank() }?.let {
                             Spacer(Modifier.height(Dimens.xxs))
                             Text("证据：「$it」", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.height(Dimens.xs))
+                            SecondaryButton(
+                                text = "查看来源证据",
+                                onClick = { viewModel.openEvidenceForKnowledgePoint(item.knowledgePointId) },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
                         }
                     }
                     SelfAssessmentCard(viewModel = viewModel, itemRevealed = ui.practiceRevealed, itemType = item.type)

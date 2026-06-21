@@ -2330,12 +2330,12 @@ class AppViewModel(
         updateDraftSegments { segs -> segs + TranscriptSegmentDraft(id = "seg_new_$now", text = "") }
 
     /** Commit the working draft into the material tray; it then fuses into analysis like any source. */
-    fun saveTranscriptToTray() {
-        val draft = ui.transcriptDraft ?: return
+    fun saveTranscriptToTray(): Boolean {
+        val draft = ui.transcriptDraft ?: return false
         val usable = draft.copy(segments = draft.segments.filter { it.text.isNotBlank() })
         if (usable.segments.isEmpty()) {
             ui = ui.copy(toast = "转写稿为空，未加入资料篮。")
-            return
+            return false
         }
         val others = ui.transcripts.filterNot { it.id == usable.id }
         ui = ui.copy(
@@ -2351,6 +2351,14 @@ class AppViewModel(
             },
             toast = "已加入资料篮：${com.classmate.core.transcript.TranscriptLabels.of(usable.sourceType)} · ${usable.segments.size} 段",
         )
+        return true
+    }
+
+    fun saveTranscriptToTrayAndGenerateLearningLoop(now: Long = System.currentTimeMillis()): Boolean {
+        if (!saveTranscriptToTray()) return false
+        val generated = generateL3PipelineFromCurrentMaterial(now + 1)
+        if (generated) navigateTo(Screen.COURSE_DETAIL)
+        return generated
     }
 
     fun removeTranscript(id: String) {

@@ -81,6 +81,18 @@ fun TranscriptEditorScreen(viewModel: AppViewModel) {
                         modifier = Modifier.weight(1f),
                     )
                 }
+                Spacer(Modifier.height(Dimens.s))
+                PrimaryButton(
+                    text = "保存并生成课堂学习闭环",
+                    onClick = { viewModel.saveTranscriptToTrayAndGenerateLearningLoop() },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(Dimens.xs))
+                Text(
+                    "确认后会生成课堂时间轴、知识点、微测题、复习计划，并把转写片段作为音频证据回溯。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
 
             draft.segments.forEachIndexed { index, seg ->

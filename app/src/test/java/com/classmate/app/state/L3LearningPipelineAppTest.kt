@@ -156,6 +156,9 @@ class L3LearningPipelineAppTest {
         viewModel.startPractice(com.classmate.core.practice.PracticeMode.QUICK_REVIEW)
         val item = viewModel.currentPracticeItem()!!
         val wrong = item.options.first { !it.correct }.id
+        viewModel.openEvidenceForKnowledgePoint(item.knowledgePointId)
+        assertEquals(Screen.EVIDENCE, viewModel.currentScreen)
+        viewModel.goBack()
 
         viewModel.selectPracticeAnswer(wrong)
         assertTrue(viewModel.submitPracticeAnswer(now + 100))
@@ -254,13 +257,17 @@ class L3LearningPipelineAppTest {
         viewModel.updateTranscriptPaste("00:00 第一段讲法拉第定律。\n00:30 第二段讲磁通量变化。")
 
         assertTrue(viewModel.createManualTranscriptDraftFromPaste(now))
-        viewModel.saveTranscriptToTray()
+        assertTrue(viewModel.saveTranscriptToTrayAndGenerateLearningLoop(now + 1))
 
         assertEquals(L3AsrStatus.MANUAL_TRANSCRIPT_FALLBACK, viewModel.ui.asrLongStatus)
-        assertTrue(viewModel.generateL3PipelineFromCurrentMaterial(now + 1))
+        assertEquals(Screen.COURSE_DETAIL, viewModel.currentScreen)
         assertTrue(viewModel.ui.l3Pipeline.transcriptSegments.isNotEmpty())
         assertTrue(viewModel.ui.l3Pipeline.evidence.any { it.sourceType.name == "MANUAL_TRANSCRIPT" })
         assertTrue(viewModel.ui.l3Pipeline.transcriptSegments.all { it.fallbackGenerated })
+        val evidenceId = viewModel.reviewEvidenceIdForKnowledgePoint(viewModel.ui.l3Pipeline.reviewQueue.first().knowledgePointId)
+        assertNotNull(evidenceId)
+        viewModel.openEvidenceById(evidenceId!!)
+        assertEquals(Screen.EVIDENCE, viewModel.currentScreen)
     }
 
     @Test

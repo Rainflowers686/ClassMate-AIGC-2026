@@ -6,6 +6,7 @@ import com.classmate.core.ondevice.OnDeviceImageDraftResult
 import java.nio.file.Files
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -50,6 +51,24 @@ class ImageDraftFlowTest {
         assertEquals("板书：法拉第电磁感应定律。", viewModel.ui.courseText)
         assertFalse(viewModel.ui.imageDraftActive)
         assertEquals("", viewModel.ui.imageDraftText)
+    }
+
+    @Test
+    fun confirmedDraftPublishesOcrEvidenceAndOpensEvidenceDetail() {
+        val viewModel = vm()
+        viewModel.beginImageDraft("拍照学习输入")
+        viewModel.updateImageDraftText("板书：磁通量变化会产生感应电动势。")
+
+        viewModel.confirmImageDraft()
+
+        assertEquals("OCR_IMAGE", viewModel.ui.l3Pipeline.lessonSource!!.type.name)
+        val evidence = viewModel.ui.l3Pipeline.evidence.firstOrNull { it.sourceType.name == "OCR_IMAGE" }
+        assertNotNull(evidence)
+        assertTrue(evidence!!.imageRef.isNotBlank())
+        assertTrue(evidence.thumbnailRef.isNotBlank())
+        viewModel.openEvidenceById(evidence.id)
+        assertEquals(Screen.EVIDENCE, viewModel.currentScreen)
+        assertEquals(evidence.id, viewModel.ui.selectedEvidenceId)
     }
 
     @Test

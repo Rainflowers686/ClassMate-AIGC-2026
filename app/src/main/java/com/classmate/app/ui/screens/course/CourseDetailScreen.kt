@@ -217,6 +217,22 @@ private fun L3PipelineStatusCard(viewModel: AppViewModel) {
             Spacer(Modifier.height(Dimens.s))
             Text(l3.summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
         }
+        if (l3.evidenceAssets.isNotEmpty()) {
+            Spacer(Modifier.height(Dimens.s))
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+                l3.evidenceAssets.groupBy { it.type }.forEach { (type, assets) ->
+                    StatusChip("${type.name} ${assets.size}", tone = ChipTone.INFO)
+                }
+            }
+            l3.evidence.firstOrNull()?.let { evidence ->
+                Spacer(Modifier.height(Dimens.s))
+                SecondaryButton(
+                    "查看首条证据",
+                    onClick = { viewModel.openEvidenceById(evidence.id) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
         val providerSteps = l3.stepLogs.filter { it.step in listOf("OCR", "QUERY_REWRITE", "EMBEDDING", "TEXT_SIMILARITY") }
         if (providerSteps.isNotEmpty()) {
             Spacer(Modifier.height(Dimens.s))

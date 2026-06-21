@@ -38,6 +38,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.core.content.ContextCompat
 import com.classmate.app.l3.L3RecordingStatus
+import com.classmate.app.l3.InputFileKind
 import com.classmate.app.glossary.CourseGlossary
 import com.classmate.app.ondevice.BitmapToRgb
 import com.classmate.app.ondevice.OnDevicePermissions
@@ -227,8 +228,73 @@ fun ImportCourseScreen(viewModel: AppViewModel) {
                         ),
                     )
                 }
+                DocumentEvidenceIntakeCard(viewModel)
                 ClassroomRecordingCard(viewModel, onStartRecording = { startRecordingWithPermission() })
             }
+        }
+    }
+}
+
+@Composable
+private fun DocumentEvidenceIntakeCard(viewModel: AppViewModel) {
+    val ui = viewModel.ui
+    val documentArtifacts = ui.inputArtifacts.filter {
+        it.kind in setOf(InputFileKind.PDF, InputFileKind.DOCX, InputFileKind.PPTX, InputFileKind.XLSX, InputFileKind.TXT, InputFileKind.MARKDOWN, InputFileKind.CSV)
+    }
+    if (documentArtifacts.isEmpty() && ui.pdfPages.isEmpty()) return
+
+    val latestPage = ui.pdfPages.lastOrNull()
+    var manualPageText by remember(latestPage?.id) { mutableStateOf("") }
+    val documentEvidence = ui.l3Pipeline.evidence.firstOrNull { it.sourceType.name == "DOCUMENT" }
+
+    QuietCard {
+        Text("文档证据与 PDF 页文本", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(Dimens.xs))
+        Text(
+            "TXT/Markdown/CSV 会直接进入学习闭环；DOCX/PPTX/XLSX 为 best-effort 抽取；PDF 可手动添加页文本并保留页码证据。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        documentArtifacts.takeLast(3).forEach { artifact ->
+            Spacer(Modifier.height(Dimens.xs))
+            Text(
+                "${artifact.fileName} · ${artifact.kind.name} · ${artifact.status.name} · ${artifact.message}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        latestPage?.let { page ->
+            Spacer(Modifier.height(Dimens.s))
+            StatusChip("PDF page ${page.pageNumber}: ${page.status.name}", tone = ChipTone.INFO)
+            Spacer(Modifier.height(Dimens.s))
+            OutlinedTextField(
+                value = manualPageText,
+                onValueChange = { manualPageText = it },
+                label = { Text("粘贴 PDF 第 ${page.pageNumber} 页文本") },
+                minLines = 3,
+                maxLines = 6,
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.medium,
+            )
+            Spacer(Modifier.height(Dimens.s))
+            PrimaryButton(
+                text = "添加该页文本并生成学习闭环",
+                onClick = {
+                    if (viewModel.addManualPdfPageText(page.artifactId, page.pageNumber, manualPageText)) {
+                        manualPageText = ""
+                    }
+                },
+                enabled = manualPageText.isNotBlank(),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        if (documentEvidence != null) {
+            Spacer(Modifier.height(Dimens.s))
+            SecondaryButton(
+                text = "查看文档证据",
+                onClick = { viewModel.openEvidenceById(documentEvidence.id) },
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }
@@ -237,6 +303,11 @@ fun ImportCourseScreen(viewModel: AppViewModel) {
 private fun ClassroomRecordingCard(viewModel: AppViewModel, onStartRecording: () -> Unit) {
     val ui = viewModel.ui
     val active = ui.currentRecording?.status == L3RecordingStatus.RECORDING
+    val latestAsrJob = ui.asrLongJobs.lastOrNull()
+    var manualTranscript by remember(latestAsrJob?.id) { mutableStateOf("") }
+    val audioEvidence = ui.l3Pipeline.evidence.firstOrNull {
+        it.sourceType.name == "AUDIO_TRANSCRIPT" || it.sourceType.name == "MANUAL_TRANSCRIPT" || it.audioRef.isNotBlank()
+    }
     QuietCard {
         Text("课堂录音记录", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.xs))
@@ -299,6 +370,49 @@ private fun ClassroomRecordingCard(viewModel: AppViewModel, onStartRecording: ()
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        latestAsrJob?.let { job ->
+            Spacer(Modifier.height(Dimens.s))
+            OutlinedTextField(
+                value = manualTranscript,
+                onValueChange = { manualTranscript = it },
+                label = { Text("粘贴 / 编辑这段录音的转写文本") },
+                minLines = 3,
+                maxLines = 6,
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.medium,
+            )
+            Spacer(Modifier.height(Dimens.s))
+            PrimaryButton(
+                text = "确认转写并生成课堂学习闭环",
+                onClick = {
+                    if (viewModel.applyAsrLongTranscript(job.id, manualTranscript)) {
+                        manualTranscript = ""
+                    }
+                },
+                enabled = manualTranscript.isNotBlank(),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(Dimens.xs))
+            Text(
+                "官方 ASR 未配置时，这条手动转写会进入同一 L3 pipeline，并保留录音文件、时间段和转写片段证据。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (audioEvidence != null) {
+            Spacer(Modifier.height(Dimens.s))
+            SecondaryButton(
+                text = "查看音频 / 转写证据",
+                onClick = { viewModel.openEvidenceById(audioEvidence.id) },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        Spacer(Modifier.height(Dimens.s))
+        SecondaryButton(
+            text = "进入转写编辑器",
+            onClick = { viewModel.navigateTo(Screen.TRANSCRIPT_IMPORT) },
+            modifier = Modifier.fillMaxWidth(),
+        )
         Spacer(Modifier.height(Dimens.s))
         if (active) {
             PrimaryButton("停止并保存录音", onClick = { viewModel.stopClassroomRecording() }, modifier = Modifier.fillMaxWidth())
@@ -333,6 +447,16 @@ private fun ImageDraftCard(viewModel: AppViewModel) {
         ui.imageDraftMeta?.let { meta ->
             Spacer(Modifier.height(Dimens.s))
             Text(meta, style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant)
+        }
+        if (ui.imageDraftImageRef.isNotBlank() || ui.imageDraftThumbnailRef.isNotBlank()) {
+            Spacer(Modifier.height(Dimens.s))
+            StatusChip("图片已保存为 evidence asset", tone = ChipTone.SUCCESS)
+            Spacer(Modifier.height(Dimens.xs))
+            Text(
+                "缩略图引用：${ui.imageDraftThumbnailRef.ifBlank { "待生成" }}",
+                style = MaterialTheme.typography.bodySmall,
+                color = cs.onSurfaceVariant,
+            )
         }
         Spacer(Modifier.height(Dimens.m))
 
@@ -372,7 +496,7 @@ private fun ImageDraftCard(viewModel: AppViewModel) {
         }
         Spacer(Modifier.height(Dimens.s))
         Text(
-            "图片学习输入 / 多模态理解草稿，需你确认后才进入课程分析；不替代 OCR，不调用外部 OCR，不自动写入知识库。",
+            "确认后会生成知识点、微测题和复习计划；题目、错题和复习任务都可以回到这张图片证据。端侧/手动草稿不替代 OCR。",
             style = MaterialTheme.typography.labelSmall,
             color = cs.onSurfaceVariant,
         )
