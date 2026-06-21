@@ -103,10 +103,36 @@ class L3PersistenceRepository(private val file: File? = null) {
                 appendLine(row("attempt", attempt.id, attempt.questionId, b64(attempt.userAnswer), attempt.correct.toString(), attempt.createdAt.toString(), attempt.selectedAnswers.joinToString(",") { b64(it) }, b64(attempt.textAnswer.orEmpty()), attempt.elapsedMs.s(), attempt.mode.name))
             }
             snapshot.wrongBook.forEach { wrong ->
-                appendLine(row("wrong", wrong.id, wrong.questionId, b64(wrong.userAnswer), b64(wrong.correctAnswer), b64(wrong.explanation), wrong.knowledgePointId, wrong.evidenceIds.joinToString(","), wrong.createdAt.toString(), wrong.retryCount.toString()))
+                appendLine(row(
+                    "wrong",
+                    wrong.id,
+                    wrong.questionId,
+                    b64(wrong.userAnswer),
+                    b64(wrong.correctAnswer),
+                    b64(wrong.explanation),
+                    wrong.knowledgePointId,
+                    wrong.evidenceIds.joinToString(","),
+                    wrong.createdAt.toString(),
+                    wrong.retryCount.toString(),
+                    b64(wrong.mistakeReason),
+                    b64(wrong.remediationHint),
+                    wrong.relatedKnowledgePointIds.joinToString(","),
+                ))
             }
             snapshot.reviewQueue.forEach { item ->
-                appendLine(row("review", item.id, item.knowledgePointId, item.dueAt.toString(), item.masteryState.name, item.sourceLessonId, item.priority.toString(), item.source))
+                appendLine(row(
+                    "review",
+                    item.id,
+                    item.knowledgePointId,
+                    item.dueAt.toString(),
+                    item.masteryState.name,
+                    item.sourceLessonId,
+                    item.priority.toString(),
+                    item.source,
+                    b64(item.arrangementReason),
+                    item.evidenceId.orEmpty(),
+                    item.recommendedActions.joinToString(",") { b64(it) },
+                ))
             }
             snapshot.masteryStats.forEach { stat ->
                 appendLine(row("mastery", stat.knowledgePointId, stat.state.name, stat.correctCount.toString(), stat.wrongCount.toString(), stat.lastReviewedAt.s(), stat.nextReviewAt.s(), stat.sourceLessonId))
@@ -194,10 +220,34 @@ class L3PersistenceRepository(private val file: File? = null) {
                         attempts += L3PracticeAttempt(p[1], p[2], unb64(p[3]), p[4].toBoolean(), p[5].toLongOrNull() ?: 0L, p[6].splitList().map(::unb64), unb64(p[7]).ifBlank { null }, p[8].toLongOrNullOrNull(), enumOr(p[9], PracticeQuestionMode.REAL_QUIZ))
                     }
                     "wrong" -> if (p.size >= 10) {
-                        wrongBook += WrongQuestionRecord(p[1], p[2], unb64(p[3]), unb64(p[4]), unb64(p[5]), p[6], p[7].splitList(), p[8].toLongOrNull() ?: 0L, p[9].toIntOrNull() ?: 0)
+                        wrongBook += WrongQuestionRecord(
+                            p[1],
+                            p[2],
+                            unb64(p[3]),
+                            unb64(p[4]),
+                            unb64(p[5]),
+                            p[6],
+                            p[7].splitList(),
+                            p[8].toLongOrNull() ?: 0L,
+                            p[9].toIntOrNull() ?: 0,
+                            p.getOrNull(10)?.let(::unb64).orEmpty(),
+                            p.getOrNull(11)?.let(::unb64).orEmpty(),
+                            p.getOrNull(12)?.splitList().orEmpty(),
+                        )
                     }
                     "review" -> if (p.size >= 7) {
-                        reviewQueue += ReviewQueueItem(p[1], p[2], p[3].toLongOrNull() ?: 0L, enumOr(p[4], L3MasteryState.UNKNOWN), p[5], p[6].toIntOrNull() ?: 1, p.getOrElse(7) { "L3_PIPELINE" })
+                        reviewQueue += ReviewQueueItem(
+                            p[1],
+                            p[2],
+                            p[3].toLongOrNull() ?: 0L,
+                            enumOr(p[4], L3MasteryState.UNKNOWN),
+                            p[5],
+                            p[6].toIntOrNull() ?: 1,
+                            p.getOrElse(7) { "L3_PIPELINE" },
+                            p.getOrNull(8)?.let(::unb64).orEmpty(),
+                            p.getOrNull(9)?.ifBlank { null },
+                            p.getOrNull(10)?.splitList()?.map(::unb64).orEmpty(),
+                        )
                     }
                     "mastery" -> if (p.size >= 8) {
                         masteryStats += MasteryStat(p[1], enumOr(p[2], L3MasteryState.UNKNOWN), p[3].toIntOrNull() ?: 0, p[4].toIntOrNull() ?: 0, p[5].toLongOrNullOrNull(), p[6].toLongOrNullOrNull(), p[7])

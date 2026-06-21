@@ -42,6 +42,7 @@ import com.classmate.app.ui.product.ProductSpace
 import com.classmate.app.ui.components.Pill
 import com.classmate.app.ui.components.PrimaryButton
 import com.classmate.app.ui.design.Dimens
+import com.classmate.app.l3.ReviewPlanEnhancementEngine
 import com.classmate.core.learning.ReviewEngine
 import com.classmate.core.learning.ReviewEventType
 import com.classmate.core.learning.ReviewPriorityLevel
@@ -87,6 +88,7 @@ fun ReviewPlanScreen(viewModel: AppViewModel) {
                 needsReview = ReviewEngine.needsHumanReviewCount(snapshot),
             )
             L3LearningLoopCard(viewModel)
+            LearningDiagnosisCard(viewModel)
             WeaknessCard(viewModel)
             PracticeEntryCard(viewModel)
             OnDeviceReviewSuggestionCard(viewModel)
@@ -185,17 +187,28 @@ private fun L3LearningLoopCard(viewModel: AppViewModel) {
             Text("20 分钟复习计划", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             l3.reviewQueue.take(5).forEach { item ->
                 val kp = l3.knowledgePoints.firstOrNull { it.id == item.knowledgePointId }
-                val evidenceId = viewModel.reviewEvidenceIdForKnowledgePoint(item.knowledgePointId)
+                val evidenceId = item.evidenceId ?: viewModel.reviewEvidenceIdForKnowledgePoint(item.knowledgePointId)
+                val wrongCount = l3.wrongBook.count { it.knowledgePointId == item.knowledgePointId }
                 Spacer(Modifier.height(Dimens.xs))
                 Text(kp?.title ?: item.knowledgePointId, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "安排原因：${item.masteryState.name} · 优先级 ${item.priority}",
+                    "安排原因：${ReviewPlanEnhancementEngine.reasonFor(item, wrongCount)} · 优先级 ${item.priority}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    "推荐动作：${ReviewPlanEnhancementEngine.actionsFor(item, wrongCount).joinToString(" / ")}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 if (evidenceId != null) {
                     Spacer(Modifier.height(Dimens.xxs))
-                    ActionChip("查看证据") { viewModel.openEvidenceById(evidenceId) }
+                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+                        ActionChip("查看证据") { viewModel.openEvidenceById(evidenceId) }
+                        ActionChip("再测一次") { viewModel.startPractice(com.classmate.core.practice.PracticeMode.QUICK_REVIEW) }
+                        if (wrongCount > 0) ActionChip("重练错题") { viewModel.startPractice(com.classmate.core.practice.PracticeMode.WRONG_ANSWER_RETRY) }
+                        ActionChip("复述知识点") { viewModel.startSelfAssessment() }
+                    }
                 }
             }
         }
@@ -204,18 +217,68 @@ private fun L3LearningLoopCard(viewModel: AppViewModel) {
             Text("错题本", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             l3.wrongBook.takeLast(3).reversed().forEach { wrong ->
                 val evidence = l3.evidence.firstOrNull { it.id in wrong.evidenceIds }?.text ?: "暂无证据"
+                val kp = l3.knowledgePoints.firstOrNull { it.id == wrong.knowledgePointId }
                 Spacer(Modifier.height(Dimens.xs))
+                Text(l3.questions.firstOrNull { it.id == wrong.questionId }?.stem ?: wrong.questionId, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                 Text("用户答案：${wrong.userAnswer} · 正确答案：${wrong.correctAnswer}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("关联知识点：${kp?.title ?: wrong.knowledgePointId}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(wrong.mistakeReason.ifBlank { "错因分析：请回到证据核对题干和选项。" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(wrong.remediationHint.ifBlank { "补救建议：先看证据，再重练这题。" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text("解析：${wrong.explanation}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text("证据：$evidence", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                wrong.evidenceIds.firstOrNull()?.let { evidenceId ->
-                    Spacer(Modifier.height(Dimens.xxs))
-                    ActionChip("查看错题证据") { viewModel.openEvidenceById(evidenceId) }
+                Spacer(Modifier.height(Dimens.xxs))
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+                    wrong.evidenceIds.firstOrNull()?.let { evidenceId ->
+                        ActionChip("查看证据") { viewModel.openEvidenceById(evidenceId) }
+                    }
+                    ActionChip("重练这题") { viewModel.retryWrongQuestion(wrong.id) }
+                    ActionChip("复习相关知识点") { viewModel.openEvidenceForKnowledgePoint(wrong.knowledgePointId) }
                 }
             }
         }
         Spacer(Modifier.height(Dimens.s))
         Text("Evidence chain：${l3.evidence.size} 条证据已绑定到题目和解析。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun LearningDiagnosisCard(viewModel: AppViewModel) {
+    val diagnosis = viewModel.ui.l3Pipeline.learningDiagnosis
+    if (diagnosis.generatedAt == 0L && diagnosis.weakKnowledgePoints.isEmpty() && diagnosis.nextStudyTasks.isEmpty()) return
+    ClassMateCard {
+        Text("学习诊断", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(Dimens.s))
+        if (diagnosis.recentReviewPressure.isNotBlank()) {
+            Text(diagnosis.recentReviewPressure, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(Dimens.xs))
+        }
+        if (diagnosis.weakKnowledgePoints.isNotEmpty()) {
+            Text("薄弱知识点 Top ${diagnosis.weakKnowledgePoints.size}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            diagnosis.weakKnowledgePoints.forEach { item ->
+                Spacer(Modifier.height(Dimens.xs))
+                Text(item.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                Text(item.reason, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                item.evidenceIds.firstOrNull()?.let { evidenceId ->
+                    Spacer(Modifier.height(Dimens.xxs))
+                    ActionChip("查看诊断证据") { viewModel.openEvidenceById(evidenceId) }
+                }
+            }
+        }
+        if (diagnosis.commonMistakeTypes.isNotEmpty()) {
+            Spacer(Modifier.height(Dimens.s))
+            Text("常错题型：${diagnosis.commonMistakeTypes.joinToString(" / ")}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (diagnosis.masteredKnowledgePoints.isNotEmpty()) {
+            Spacer(Modifier.height(Dimens.xs))
+            Text("已掌握：${diagnosis.masteredKnowledgePoints.joinToString(" / ")}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (diagnosis.nextStudyTasks.isNotEmpty()) {
+            Spacer(Modifier.height(Dimens.s))
+            Text("建议下一步", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            diagnosis.nextStudyTasks.forEach { task ->
+                Text("• $task", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
     }
 }
 

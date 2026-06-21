@@ -60,6 +60,7 @@ import com.classmate.app.l3.L3RecordingStatus
 import com.classmate.app.l3.L3SourceType
 import com.classmate.app.l3.LearningLoopInput
 import com.classmate.app.l3.LearningLoopInputKind
+import com.classmate.app.l3.LearningDiagnosisEngine
 import com.classmate.app.l3.LocalTtsPlayer
 import com.classmate.app.l3.LocalSemanticIndexEngine
 import com.classmate.app.l3.NoOpClassroomAudioRecorder
@@ -98,7 +99,10 @@ import com.classmate.core.learning.PracticeHistoryRecord
 import com.classmate.core.practice.PracticeAttempt
 import com.classmate.core.practice.PracticeFeedbackEngine
 import com.classmate.core.practice.PracticeGenerationRequest
+import com.classmate.core.practice.PracticeItem
+import com.classmate.core.practice.PracticeItemType
 import com.classmate.core.practice.PracticeMode
+import com.classmate.core.practice.PracticeOption
 import com.classmate.core.practice.PracticeOutcome
 import com.classmate.core.practice.PracticeResult
 import com.classmate.core.practice.PracticeSession
@@ -1793,10 +1797,13 @@ class AppViewModel(
         val searchQuery = runtimeSnapshot.semanticSearchResults.firstOrNull()?.query
             ?: runtimeSnapshot.knowledgePoints.firstOrNull()?.title
             ?: runtimeSnapshot.summary
-        val enrichedSnapshot = runtimeSnapshot.copy(
+        val enrichedBase = runtimeSnapshot.copy(
             semanticIndexRecords = reloadedSemanticRecords,
             semanticSearchResults = if (searchQuery.isBlank()) emptyList() else listOf(LocalSemanticIndexEngine.search(reloadedSemanticRecords, searchQuery)),
             reviewDailyStats = ReviewStatsEngine.daily(runtimeSnapshot, now),
+        )
+        val enrichedSnapshot = enrichedBase.copy(
+            learningDiagnosis = LearningDiagnosisEngine.build(enrichedBase, now),
         )
         val artifacts = l3Pipeline.toCourseArtifacts(enrichedSnapshot, now)
         if (artifacts == null) {
@@ -2677,6 +2684,7 @@ class AppViewModel(
             )
             ui = ui.copy(learningSnapshot = learningStore.snapshot())
         }
+        persistL3(updatedL3)
     }
 
     fun goToQuestion(index: Int) { ui = ui.copy(currentQuestionIndex = index) }
@@ -3134,6 +3142,72 @@ class AppViewModel(
                 toast = "已生成 ${picked.size} 题随机小测。",
             )
         }
+    }
+
+    fun retryWrongQuestion(wrongRecordId: String, now: Long = System.currentTimeMillis()): Boolean {
+        val wrong = ui.l3Pipeline.wrongBook.firstOrNull { it.id == wrongRecordId } ?: run {
+            ui = ui.copy(toast = "没有找到这条错题记录。")
+            return false
+        }
+        val question = ui.l3Pipeline.questions.firstOrNull { it.id == wrong.questionId } ?: run {
+            ui = ui.copy(toast = "错题原题已不可用，先回到课程重新生成练习。")
+            return false
+        }
+        val source = ui.l3Pipeline.lessonSource
+        val courseSessionId = ui.session?.id ?: source?.id ?: question.lessonId
+        val courseTitle = ui.session?.title ?: source?.title ?: "错题重练"
+        val kpTitle = ui.l3Pipeline.knowledgePoints.firstOrNull { it.id == question.knowledgePointId }?.title
+            ?: question.knowledgePointId
+        val correctIds = question.correctAnswer.split(",", ";", "|")
+            .map { it.trim().take(1).uppercase() }
+            .filter { it.isNotBlank() }
+            .toSet()
+        val item = PracticeItem(
+            id = "retry_${wrong.id}_$now",
+            type = PracticeItemType.QUIZ_RETRY,
+            knowledgePointId = question.knowledgePointId,
+            knowledgePointTitle = kpTitle,
+            taskId = wrong.id,
+            question = question.stem,
+            answer = question.explanation,
+            evidenceQuote = ui.l3Pipeline.evidence.firstOrNull { it.id in wrong.evidenceIds }?.text,
+            quizId = question.id,
+            options = question.options.mapIndexed { index, option ->
+                val optionId = option.substringBefore(".").trim().take(1)
+                    .ifBlank { ('A' + index).toString() }
+                    .uppercase()
+                PracticeOption(
+                    id = optionId,
+                    text = option.substringAfter(". ", option),
+                    correct = optionId in correctIds,
+                )
+            },
+            whyThisQuestionMatters = wrong.mistakeReason.ifBlank { "这道错题会影响关联知识点掌握度。" },
+        )
+        ui = ui.copy(
+            practiceSession = PracticeSession(
+                id = "wrong_retry_$now",
+                courseSessionId = courseSessionId,
+                courseTitle = courseTitle,
+                mode = PracticeMode.WRONG_ANSWER_RETRY,
+                items = listOf(item),
+                createdAt = now,
+                source = AiExecutionSource.SAFE_PLACEHOLDER,
+                routeReason = "single wrong question retry from WrongBook",
+            ),
+            practiceIndex = 0,
+            practiceAttempts = emptyList(),
+            practiceResult = null,
+            practiceStartedAt = now,
+            practiceRevealed = false,
+            practiceQuestionMode = PracticeQuestionMode.REAL_QUIZ,
+            practiceSelectedAnswers = emptyMap(),
+            practiceSubmittedAnswers = emptyMap(),
+            examSession = null,
+            toast = "已进入这道错题的重练。",
+        )
+        navigateTo(Screen.PRACTICE)
+        return true
     }
 
     private fun startPracticeInternal(mode: PracticeMode, questionMode: PracticeQuestionMode) {

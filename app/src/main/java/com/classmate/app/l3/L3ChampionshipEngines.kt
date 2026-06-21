@@ -244,6 +244,109 @@ object ReviewStatsEngine {
     }
 }
 
+object WrongAnswerInsightEngine {
+    fun mistakeReason(question: L3GeneratedQuestion, userAnswer: String, correctAnswer: String): String {
+        val type = when {
+            question.correctAnswer.contains(",") -> "multi_choice"
+            question.options.size == 2 -> "true_false"
+            else -> "single_choice"
+        }
+        return "错因分析：本题属于 $type，用户选择 $userAnswer，正确答案是 $correctAnswer；需要回到来源证据核对“${question.stem.take(36)}”。"
+    }
+
+    fun remediationHint(question: L3GeneratedQuestion, evidenceText: String): String {
+        val evidenceHint = evidenceText.take(80).ifBlank { "暂无来源证据，先复习关联知识点。" }
+        return "补救建议：先看证据片段“$evidenceHint”，再用自己的话复述知识点，最后重练这题。"
+    }
+}
+
+object ReviewPlanEnhancementEngine {
+    fun reasonFor(item: ReviewQueueItem, wrongCount: Int = 0): String =
+        item.arrangementReason.ifBlank {
+            when {
+                item.masteryState == L3MasteryState.WEAK -> "做错后自动提高优先级，今天回看证据并重练。"
+                wrongCount > 0 -> "关联错题仍未完全消化，建议先重练错题。"
+                item.masteryState == L3MasteryState.MASTERED -> "已掌握，延后复习以保持记忆。"
+                item.dueAt <= System.currentTimeMillis() -> "到期复习，防止遗忘。"
+                else -> "新知识点进入 20 分钟复习计划。"
+            }
+        }
+
+    fun actionsFor(item: ReviewQueueItem, wrongCount: Int = 0): List<String> =
+        item.recommendedActions.ifEmpty {
+            buildList {
+                add("看证据")
+                if (wrongCount > 0 || item.masteryState == L3MasteryState.WEAK) add("重练错题")
+                add("再测一次")
+                add("复述知识点")
+            }
+        }
+}
+
+object LearningDiagnosisEngine {
+    fun build(snapshot: L3PipelineSnapshot, now: Long): LearningDiagnosis {
+        val questionById = snapshot.questions.associateBy { it.id }
+        val wrongByKp = snapshot.wrongBook.groupBy { it.knowledgePointId }
+        val weakItems = snapshot.masteryStats
+            .filter { stat -> stat.state == L3MasteryState.WEAK || wrongByKp.containsKey(stat.knowledgePointId) }
+            .mapNotNull { stat ->
+                val kp = snapshot.knowledgePoints.firstOrNull { it.id == stat.knowledgePointId }
+                val wrongs = wrongByKp[stat.knowledgePointId].orEmpty()
+                val evidenceIds = (wrongs.flatMap { it.evidenceIds } + kp?.sourceEvidenceIds.orEmpty()).distinct()
+                WeakKnowledgeDiagnosis(
+                    knowledgePointId = stat.knowledgePointId,
+                    title = kp?.title ?: stat.knowledgePointId,
+                    reason = when {
+                        wrongs.isNotEmpty() -> "最近 ${wrongs.size} 道错题指向这个知识点。"
+                        stat.state == L3MasteryState.WEAK -> "掌握度已标记为薄弱，需要优先复习。"
+                        else -> "需要继续观察。"
+                    },
+                    evidenceIds = evidenceIds,
+                    wrongCount = wrongs.size,
+                    reviewPriority = snapshot.reviewQueue.firstOrNull { it.knowledgePointId == stat.knowledgePointId }?.priority ?: 1,
+                )
+            }
+            .sortedWith(compareByDescending<WeakKnowledgeDiagnosis> { it.reviewPriority }.thenByDescending { it.wrongCount })
+            .take(5)
+        val mistakeTypes = snapshot.wrongBook
+            .mapNotNull { wrong -> questionById[wrong.questionId] }
+            .map { question ->
+                when {
+                    question.correctAnswer.contains(",") -> "multi_choice"
+                    question.options.isEmpty() -> "short_answer"
+                    question.options.size == 2 -> "true_false"
+                    else -> "single_choice"
+                }
+            }
+            .groupingBy { it }
+            .eachCount()
+            .entries
+            .sortedByDescending { it.value }
+            .map { "${it.key}:${it.value}" }
+        val mastered = snapshot.masteryStats
+            .filter { it.state == L3MasteryState.MASTERED }
+            .map { stat -> snapshot.knowledgePoints.firstOrNull { it.id == stat.knowledgePointId }?.title ?: stat.knowledgePointId }
+            .take(5)
+        val due = snapshot.reviewQueue.count { it.dueAt <= now }
+        val overdue = snapshot.reviewQueue.count { it.dueAt < now }
+        val nextTasks = buildList {
+            weakItems.firstOrNull()?.let { add("先复习薄弱点：${it.title}") }
+            if (snapshot.wrongBook.isNotEmpty()) add("重练 ${snapshot.wrongBook.size.coerceAtMost(3)} 道错题并查看证据")
+            if (due > 0) add("完成今日 $due 个复习任务")
+            if (isEmpty()) add("做一轮 5 题随机小测，确认掌握度")
+        }
+        return LearningDiagnosis(
+            weakKnowledgePoints = weakItems,
+            commonMistakeTypes = mistakeTypes,
+            recentReviewPressure = "今日待复习 $due，逾期 $overdue，错题 ${snapshot.wrongBook.size}。",
+            masteredKnowledgePoints = mastered,
+            nextStudyTasks = nextTasks,
+            evidenceIds = weakItems.flatMap { it.evidenceIds }.distinct(),
+            generatedAt = now,
+        )
+    }
+}
+
 object DistractorExplanationEngine {
     fun build(snapshot: L3PipelineSnapshot): List<DistractorExplanation> =
         snapshot.questions.flatMap { question ->

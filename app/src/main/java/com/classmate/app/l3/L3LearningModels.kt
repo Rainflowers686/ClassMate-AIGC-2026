@@ -349,6 +349,9 @@ data class WrongQuestionRecord(
     val evidenceIds: List<String>,
     val createdAt: Long,
     val retryCount: Int,
+    val mistakeReason: String = "",
+    val remediationHint: String = "",
+    val relatedKnowledgePointIds: List<String> = if (knowledgePointId.isBlank()) emptyList() else listOf(knowledgePointId),
 )
 
 data class ReviewQueueItem(
@@ -359,6 +362,9 @@ data class ReviewQueueItem(
     val sourceLessonId: String,
     val priority: Int = 1,
     val source: String = "L3_PIPELINE",
+    val arrangementReason: String = "",
+    val evidenceId: String? = null,
+    val recommendedActions: List<String> = emptyList(),
 )
 
 data class MasteryStat(
@@ -585,6 +591,25 @@ data class MasteryTrendStats(
     val recentSevenDaySummary: String,
 )
 
+data class WeakKnowledgeDiagnosis(
+    val knowledgePointId: String,
+    val title: String,
+    val reason: String,
+    val evidenceIds: List<String>,
+    val wrongCount: Int,
+    val reviewPriority: Int,
+)
+
+data class LearningDiagnosis(
+    val weakKnowledgePoints: List<WeakKnowledgeDiagnosis> = emptyList(),
+    val commonMistakeTypes: List<String> = emptyList(),
+    val recentReviewPressure: String = "",
+    val masteredKnowledgePoints: List<String> = emptyList(),
+    val nextStudyTasks: List<String> = emptyList(),
+    val evidenceIds: List<String> = emptyList(),
+    val generatedAt: Long = 0L,
+)
+
 data class TtsPlaybackState(
     val id: String,
     val text: String,
@@ -708,6 +733,7 @@ data class L3PipelineSnapshot(
         totalKnowledgePoints = 0,
         distribution = emptyMap(),
     ),
+    val learningDiagnosis: LearningDiagnosis = LearningDiagnosis(),
     val examReports: List<ExamResultReport> = emptyList(),
     val distractorExplanations: List<DistractorExplanation> = emptyList(),
     val diagnostics: List<L3CapabilityStatus> = emptyList(),

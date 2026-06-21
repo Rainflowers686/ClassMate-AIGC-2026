@@ -168,11 +168,48 @@ class L3LearningPipelineAppTest {
         assertTrue(viewModel.ui.l3Pipeline.masteryStats.any { it.state.name == "WEAK" })
         assertTrue(viewModel.ui.l3Pipeline.reviewQueue.any { it.masteryState.name == "WEAK" })
         val wrongRecord = viewModel.ui.l3Pipeline.wrongBook.single()
+        assertTrue(wrongRecord.mistakeReason.contains("错因分析"))
+        assertTrue(wrongRecord.remediationHint.contains("补救建议"))
+        assertTrue(wrongRecord.relatedKnowledgePointIds.contains(item.knowledgePointId))
+        assertTrue(viewModel.ui.l3Pipeline.learningDiagnosis.weakKnowledgePoints.any { it.knowledgePointId == item.knowledgePointId })
+        assertTrue(viewModel.ui.l3Pipeline.reviewQueue.first { it.knowledgePointId == item.knowledgePointId }.arrangementReason.isNotBlank())
         assertTrue(wrongRecord.evidenceIds.isNotEmpty())
         assertNotNull(viewModel.ui.l3Pipeline.evidence.firstOrNull { it.id in wrongRecord.evidenceIds })
         viewModel.openEvidenceById(wrongRecord.evidenceIds.first())
         assertEquals(Screen.EVIDENCE, viewModel.currentScreen)
         assertEquals(wrongRecord.evidenceIds.first(), viewModel.ui.selectedEvidenceId)
+    }
+
+    @Test
+    fun wrongQuestionRetryUpdatesMasteryReviewQueueAndKeepsEvidenceRoute() {
+        val viewModel = vm()
+        viewModel.updateCourseTitle(L3DemoSeeds.lessonTitle)
+        viewModel.updateCourseText(L3DemoSeeds.lessonText)
+        assertTrue(viewModel.generateL3PipelineFromCurrentMaterial(now))
+        viewModel.startPractice(com.classmate.core.practice.PracticeMode.QUICK_REVIEW)
+        val first = viewModel.currentPracticeItem()!!
+        val wrong = first.options.first { !it.correct }.id
+        viewModel.selectPracticeAnswer(wrong)
+        assertTrue(viewModel.submitPracticeAnswer(now + 100))
+        val wrongRecord = viewModel.ui.l3Pipeline.wrongBook.single()
+
+        assertTrue(viewModel.retryWrongQuestion(wrongRecord.id, now + 200))
+        val retry = viewModel.currentPracticeItem()!!
+        val correct = retry.options.first { it.correct }.id
+        viewModel.selectPracticeAnswer(correct)
+        assertTrue(viewModel.submitPracticeAnswer(now + 300))
+
+        val updatedWrong = viewModel.ui.l3Pipeline.wrongBook.single { it.id == wrongRecord.id }
+        assertEquals(2, updatedWrong.retryCount)
+        val mastery = viewModel.ui.l3Pipeline.masteryStats.first { it.knowledgePointId == retry.knowledgePointId }
+        assertTrue(mastery.state.name == "REVIEWING" || mastery.state.name == "MASTERED")
+        val review = viewModel.ui.l3Pipeline.reviewQueue.first { it.knowledgePointId == retry.knowledgePointId }
+        assertTrue(review.priority <= 1)
+        assertTrue(review.arrangementReason.contains("重练"))
+        val evidenceId = viewModel.reviewEvidenceIdForKnowledgePoint(retry.knowledgePointId)
+        assertNotNull(evidenceId)
+        viewModel.openEvidenceById(evidenceId!!)
+        assertEquals(Screen.EVIDENCE, viewModel.currentScreen)
     }
 
     @Test

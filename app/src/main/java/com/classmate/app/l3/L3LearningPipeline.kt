@@ -361,9 +361,21 @@ class L3LearningPipeline {
             mode = mode,
         )
         val wrongBook = if (correct) {
-            snapshot.wrongBook
+            snapshot.wrongBook.map { wrong ->
+                if (wrong.questionId == questionId) {
+                    wrong.copy(
+                        retryCount = wrong.retryCount + 1,
+                        remediationHint = wrong.remediationHint.ifBlank {
+                            "重练已答对：继续按复习计划回看证据，避免同类题复发。"
+                        },
+                    )
+                } else {
+                    wrong
+                }
+            }
         } else {
             val previous = snapshot.wrongBook.firstOrNull { it.questionId == questionId }
+            val evidenceText = snapshot.evidence.firstOrNull { it.id in question.evidenceIds }?.text.orEmpty()
             snapshot.wrongBook.filterNot { it.questionId == questionId } + WrongQuestionRecord(
                 id = previous?.id ?: "wrong_${now}_${snapshot.wrongBook.size + 1}",
                 questionId = question.id,
@@ -374,6 +386,9 @@ class L3LearningPipeline {
                 evidenceIds = question.evidenceIds,
                 createdAt = previous?.createdAt ?: now,
                 retryCount = (previous?.retryCount ?: 0) + 1,
+                mistakeReason = WrongAnswerInsightEngine.mistakeReason(question, userAnswer, correctAnswers.joinToString(",")),
+                remediationHint = WrongAnswerInsightEngine.remediationHint(question, evidenceText),
+                relatedKnowledgePointIds = listOf(question.knowledgePointId).filter { it.isNotBlank() },
             )
         }
         val mastery = snapshot.masteryStats.map { stat ->
@@ -407,11 +422,40 @@ class L3LearningPipeline {
                     masteryState = nextState,
                     dueAt = NextReviewPolicy.nextReviewAt(nextState, now),
                     priority = NextReviewPolicy.priority(nextState),
+                    evidenceId = item.evidenceId ?: question.evidenceIds.firstOrNull(),
+                    arrangementReason = if (correct) {
+                        "重练答对，降低为间隔复习，继续保持。"
+                    } else {
+                        "答错后自动加入今日复习，优先回看证据并重练。"
+                    },
+                    recommendedActions = if (correct) {
+                        listOf("看证据", "再测一次", "复述知识点")
+                    } else {
+                        listOf("看证据", "重练错题", "再测一次", "复述知识点")
+                    },
                 )
             } else {
                 item
             }
         }
+            .let { items ->
+                if (items.any { it.knowledgePointId == question.knowledgePointId } || correct) {
+                    items
+                } else {
+                    items + ReviewQueueItem(
+                        id = "rq_retry_${now}_${items.size + 1}",
+                        knowledgePointId = question.knowledgePointId,
+                        dueAt = now,
+                        masteryState = L3MasteryState.WEAK,
+                        sourceLessonId = question.lessonId,
+                        priority = NextReviewPolicy.priority(L3MasteryState.WEAK),
+                        source = "WRONG_ANSWER",
+                        arrangementReason = "答错后补入今日复习队列，先看证据再重练。",
+                        evidenceId = question.evidenceIds.firstOrNull(),
+                        recommendedActions = listOf("看证据", "重练错题", "再测一次", "复述知识点"),
+                    )
+                }
+            }
         val knowledge = snapshot.knowledgePoints.map { kp ->
             if (kp.id == question.knowledgePointId) kp.copy(masteryState = if (correct) L3MasteryState.REVIEWING else L3MasteryState.WEAK) else kp
         }
@@ -432,10 +476,13 @@ class L3LearningPipeline {
             now = now,
             index = snapshot.masteryHistory.size + 1,
         )
-        return updated.copy(
+        val withHistory = updated.copy(
             masteryHistory = history,
             reviewDailyStats = ReviewStatsEngine.daily(updated, now),
             masteryTrendStats = MasteryTrendEngine.trend(history, updated, now),
+        )
+        return withHistory.copy(
+            learningDiagnosis = LearningDiagnosisEngine.build(withHistory, now),
         )
     }
 
@@ -529,6 +576,9 @@ class L3LearningPipeline {
                 sourceLessonId = source.id,
                 priority = NextReviewPolicy.priority(kp.masteryState),
                 source = "L3_PIPELINE",
+                arrangementReason = "新知识点进入 20 分钟复习计划，先看证据再做微测。",
+                evidenceId = kp.sourceEvidenceIds.firstOrNull(),
+                recommendedActions = listOf("看证据", "再测一次", "复述知识点"),
             )
         }
         val mastery = knowledge.map {
@@ -587,6 +637,7 @@ class L3LearningPipeline {
             semanticSearchResults = if (searchQuery.isBlank()) emptyList() else listOf(LocalSemanticIndexEngine.search(semanticRecords, searchQuery)),
             toolStepRecords = withPlan.toolOrchestrationPlan?.stepRecords.orEmpty(),
             masteryTrendStats = MasteryTrendEngine.trend(withPlan.masteryHistory, withPlan, now),
+            learningDiagnosis = LearningDiagnosisEngine.build(withPlan, now),
         )
     }
 

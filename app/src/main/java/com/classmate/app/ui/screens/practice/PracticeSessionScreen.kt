@@ -217,7 +217,21 @@ private fun PracticeAnswerReview(viewModel: AppViewModel, item: com.classmate.co
             Text(if (correct) "回答正确" else "回答错误", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Text("你的答案：${selectedAnswers.joinToString(", ")}", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
             Text("正确答案：${item.correctOptionIds.joinToString(", ")}", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+            Text("本题考点：${item.knowledgePointTitle}", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
             Text("解析：${item.answer.ifBlank { "暂无解析" }}", style = MaterialTheme.typography.bodyMedium, color = cs.onSurface)
+            item.options.forEach { option ->
+                val note = when {
+                    option.correct -> "正确项：与来源证据和知识点一致。"
+                    option.id in selectedAnswers -> "你选择了这个干扰项：请回到证据核对题干限定。"
+                    else -> "错误项：与本课证据不一致。"
+                }
+                Text("${option.id}. $note", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+            }
+            if (!correct) {
+                Text("错题状态：已加入错题本，关联知识点会进入今日复习队列。", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+            } else {
+                Text("掌握状态：已记录正确作答，掌握度会随连续答对提升。", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+            }
             Text("来源证据：${item.evidenceQuote?.takeIf { it.isNotBlank() } ?: "暂无证据"}", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
         }
     }

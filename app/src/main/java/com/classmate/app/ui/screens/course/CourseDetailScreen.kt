@@ -327,6 +327,23 @@ private fun L3PipelineStatusCard(viewModel: AppViewModel) {
             Spacer(Modifier.height(Dimens.s))
             Text("Mastery trend: ${l3.masteryTrendStats.recentSevenDaySummary}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        if (l3.learningDiagnosis.generatedAt > 0L) {
+            Spacer(Modifier.height(Dimens.s))
+            Text("学习诊断", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(
+                l3.learningDiagnosis.recentReviewPressure.ifBlank { "暂无复习压力。" },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            l3.learningDiagnosis.weakKnowledgePoints.firstOrNull()?.let { weak ->
+                Spacer(Modifier.height(Dimens.xs))
+                Text("优先处理：${weak.title} · ${weak.reason}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                weak.evidenceIds.firstOrNull()?.let { evidenceId ->
+                    Spacer(Modifier.height(Dimens.xs))
+                    SecondaryButton("查看诊断证据", onClick = { viewModel.openEvidenceById(evidenceId) }, modifier = Modifier.fillMaxWidth())
+                }
+            }
+        }
         if (l3.distractorExplanations.isNotEmpty()) {
             Spacer(Modifier.height(Dimens.s))
             Text(

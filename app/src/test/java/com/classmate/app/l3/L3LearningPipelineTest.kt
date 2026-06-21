@@ -106,6 +106,34 @@ class L3LearningPipelineTest {
         assertEquals(3, updated.reviewQueue.first { it.knowledgePointId == question.knowledgePointId }.priority)
         assertTrue(updated.masteryHistory.any { it.eventType == MasteryHistoryEventType.ANSWER_WRONG })
         assertEquals(1, updated.masteryTrendStats.dailyWrongCount)
+        assertTrue(updated.wrongBook.single().mistakeReason.contains("错因分析"))
+        assertTrue(updated.wrongBook.single().remediationHint.contains("补救建议"))
+        assertTrue(updated.wrongBook.single().relatedKnowledgePointIds.contains(question.knowledgePointId))
+        assertTrue(updated.reviewQueue.first { it.knowledgePointId == question.knowledgePointId }.arrangementReason.contains("答错"))
+        assertEquals(question.evidenceIds.first(), updated.reviewQueue.first { it.knowledgePointId == question.knowledgePointId }.evidenceId)
+        assertTrue(updated.learningDiagnosis.weakKnowledgePoints.any { it.knowledgePointId == question.knowledgePointId })
+        assertTrue(updated.learningDiagnosis.nextStudyTasks.isNotEmpty())
+    }
+
+    @Test
+    fun diagnosisAndReviewPlanDegradeWhenEvidenceIsMissing() {
+        val pipeline = L3LearningPipeline()
+        val snapshot = pipeline.buildFromText(L3DemoSeeds.lessonTitle, L3DemoSeeds.lessonText, L3SourceType.TEXT, providerSummary, now)
+            .let { base ->
+                base.copy(
+                    evidence = emptyList(),
+                    knowledgePoints = base.knowledgePoints.map { it.copy(sourceEvidenceIds = emptyList()) },
+                    questions = base.questions.map { it.copy(evidenceIds = emptyList()) },
+                    reviewQueue = base.reviewQueue.map { it.copy(evidenceId = null) },
+                )
+            }
+        val updated = pipeline.submitAnswer(snapshot, snapshot.questions.first().id, "B", now + 2)
+
+        assertEquals(1, updated.wrongBook.size)
+        assertTrue(updated.wrongBook.single().evidenceIds.isEmpty())
+        assertTrue(updated.wrongBook.single().remediationHint.isNotBlank())
+        assertTrue(updated.learningDiagnosis.weakKnowledgePoints.isNotEmpty())
+        assertTrue(updated.learningDiagnosis.weakKnowledgePoints.first().evidenceIds.isEmpty())
     }
 
     @Test
