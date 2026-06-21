@@ -1,4 +1,4 @@
-# P0 Claude Engineering Batch Pack
+﻿# P0 Claude Engineering Batch Pack
 
 Status: ready for Claude implementation planning  
 Scope: P0 Integrated Release, Learning AI Main Chain  
@@ -11,7 +11,7 @@ P0 is one integrated release: make ClassMate's learning AI main chain explicit, 
 
 The target chain is:
 
-资料输入 -> AI Capability Router -> CourseAnalysis / Ask -> Evidence validation -> Knowledge Timeline -> user-visible source and fallback state.
+璧勬枡杈撳叆 -> AI Capability Router -> CourseAnalysis / Ask -> Evidence validation -> Knowledge Timeline -> user-visible source and fallback state.
 
 This batch is not a broad product sprint. It only covers:
 
@@ -28,7 +28,7 @@ This batch is not a broad product sprint. It only covers:
 
 Out of P0:
 
-Practice Generation, Weakness Hub, Export Study Report, Course Essence Audio Export, Image Generation, Video Generation, Ambient Loop Audio Player, Fast App, Final UI Optimization, Voice Clone, and LBS / POI.
+Practice Generation, Weakness Hub, Export Study Report, Course Essence Audio Export, Image Generation, Video Generation, Ambient Loop Audio Player, Fast App, Final UI Optimization.
 
 ## Current Repo State Summary
 
@@ -333,13 +333,11 @@ Required states:
 
 Example step labels:
 
-- 正在提炼课堂精华
-- 正在识别图片文字
-- 正在生成知识地图
-- 云端处理中
-- 切换端侧蓝心继续处理
-- 等待你确认学习资料
-
+- 姝ｅ湪鎻愮偧璇惧爞绮惧崕
+- 姝ｅ湪璇嗗埆鍥剧墖鏂囧瓧
+- 姝ｅ湪鐢熸垚鐭ヨ瘑鍦板浘
+- 浜戠澶勭悊涓?- 鍒囨崲绔晶钃濆績缁х画澶勭悊
+- 绛夊緟浣犵‘璁ゅ涔犺祫鏂?
 Required fields:
 
 - Capability: CourseAnalysis / Ask / OCR / ASR.
@@ -363,10 +361,10 @@ Do not show:
 
 Every AI-visible output must show a safe source label:
 
-- 云端蓝心 for `CLOUD`.
-- 端侧蓝心 for `ON_DEVICE`.
-- 手动 for `MANUAL`.
-- 安全占位 for `SAFE_PLACEHOLDER`.
+- 浜戠钃濆績 for `CLOUD`.
+- 绔晶钃濆績 for `ON_DEVICE`.
+- 鎵嬪姩 for `MANUAL`.
+- 瀹夊叏鍗犱綅 for `SAFE_PLACEHOLDER`.
 
 ### User Confirmation
 
@@ -473,12 +471,11 @@ Avoid obsolete or exaggerated current-baseline wording. In UI, docs, logs, and d
 
 Use safe wording:
 
-- 安全占位
-- 手动编辑
-- 端侧语义草稿
-- 官方 OCR 尝试
-- 长语音转写任务
-- 待配置 / 待验证 / 实验模式
+- 瀹夊叏鍗犱綅
+- 鎵嬪姩缂栬緫
+- 绔晶璇箟鑽夌
+- 瀹樻柟 OCR 灏濊瘯
+- 闀胯闊宠浆鍐欎换鍔?- 寰呴厤缃?/ 寰呴獙璇?/ 瀹為獙妯″紡
 
 ## Tests Required
 

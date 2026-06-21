@@ -1,4 +1,4 @@
-# Official Provider Network Smoke Run
+﻿# Official Provider Network Smoke Run
 
 ## Date / Branch / Commit
 
@@ -151,7 +151,7 @@ Result expected: setup help lists env names, placeholders, and `-TimeoutSeconds`
 - The local AAR presence was checked only by path existence; content was not read.
 - No network request was sent.
 - `.codex_work` output is local-only and not intended for Git.
-- Excluded capabilities remain outside this smoke workflow.
+- Non-ClassMate Product Boundary remain outside this smoke workflow.
 
 ## Next Recommended Smoke Order
 
@@ -495,5 +495,5 @@ Fix (Query-Rewrite-specific, allowed harness file, rollback-able):
 
 Live run (one attempt, `-TimeoutSeconds 15`):
 
-- `QUERY_REWRITE | NETWORK | PASS` — `smoke_result.json` written, no hang.
+- `QUERY_REWRITE | NETWORK | PASS` 鈥?`smoke_result.json` written, no hang.
 - No secret leaked (config presence only; no AppKey/Authorization/full endpoint printed).

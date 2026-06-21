@@ -1,4 +1,4 @@
-# Official Provider Smoke Setup v5
+﻿# Official Provider Smoke Setup v5
 
 This note explains how to run the official provider smoke harness safely. v5 is deliberately conservative: generic cloud model config can describe the large-model path, but it cannot make OCR, ASR, retrieval, translation, TTS, or function-calling smoke `READY`. v5 also validates composed URLs before any network request is sent.
 
@@ -287,12 +287,12 @@ Product fallback for Query Rewrite remains available even though live smoke now 
 - Use cloud large model rewriting via qwen3.5-plus when available.
 - Otherwise use local safe rewrite or direct local evidence retrieval.
 
-## Excluded Capabilities
+## Non-ClassMate Product Boundary
 
-- Voice clone / sound cloning: excluded. Do not prepare smoke, entry, or task.
-- LBS / POI / geocoding: excluded. Do not prepare smoke, entry, or task.
+- Non-ClassMate product abilities: do not prepare smoke, entry, or task.
+- Use only the ClassMate 18-capability product matrix for current tasks.
 
-These excluded capabilities must not appear in `-AllSafe` or as product-facing smoke targets.
+These Non-ClassMate Product Boundary must not appear in `-AllSafe` or as product-facing smoke targets.
 
 ## Security Notes
 

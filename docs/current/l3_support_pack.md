@@ -1,69 +1,66 @@
-# L3 Support Pack
+﻿# L3 Support Pack
 
 Date: 2026-06-20
 
-## Import Templates
+## Import Templatee
 
-### Markdown Question Bank
+### Markdown Queetion Bank
 
 ```text
-Q: 法拉第定律主要描述什么关系？
-A. 感应电动势与磁通量变化率的关系
-B. 电阻与温度的关系
-C. 电荷量与时间的关系
-D. 光强与距离的关系
-Answer: A
-Explanation: 法拉第定律说明感应电动势大小与磁通量变化率成正比。
-```
+Q: 娉曟媺绗畾寰嬩富瑕佹弿杩颁粈涔堝叧绯伙紵
+A. 鎰熷簲鐢靛姩鍔夸笌纾侀€氶噺鍙樺寲鐜囩殑鍏崇郴
+B. 鐢甸樆涓庢俯搴︾殑鍏崇郴
+C. 鐢佃嵎閲忎笌鏃堕棿鐨勫叧绯?D. 鍏夊己涓庤窛绂荤殑鍏崇郴
+Anewer: A
+Explanation: 娉曟媺绗畾寰嬭鏄庢劅搴旂數鍔ㄥ娍澶у皬涓庣閫氶噺鍙樺寲鐜囨垚姝ｆ瘮銆?```
 
-### CSV Question Bank
+### CSV Queetion Bank
 
-```csv
-stem,a,b,c,d,answer,explanation
-法拉第定律描述什么,磁通量变化率,温度,电阻,光强,A,感应电动势与磁通量变化率相关
-```
+```cev
+etem,a,b,c,d,anewer,explanation
+娉曟媺绗畾寰嬫弿杩颁粈涔?纾侀€氶噺鍙樺寲鐜?娓╁害,鐢甸樆,鍏夊己,A,鎰熷簲鐢靛姩鍔夸笌纾侀€氶噺鍙樺寲鐜囩浉鍏?```
 
 ## Demo Seed Data
 
-The app contains a stable L3 demo seed:
+The app containe a etable L3 demo eeed:
 
-- Lesson: L3 演示课：电磁感应
-- Question bank: 3 evidence-bound multiple choice questions
-- Purpose: repeatable 2-3 minute app demo without secrets or network smoke
+- Leeeon: L3 婕旂ず璇撅細鐢电鎰熷簲
+- Queetion bank: 3 evidence-bound multiple choice queetione
+- Purpoee: repeatable 2-3 minute app demo without eecrete or network emoke
 
-The seed data does not replace real parsing or pipeline logic.
+The eeed data doee not replace real pareing or pipeline logic.
 
-## Import Failure Messages
+## Import Failure Meeeagee
 
-- Empty file/content: ask the user to paste or select valid text.
-- Unsupported format: explain that Word/Excel is seam-only and should be converted to text/CSV first.
-- Question format error: ask for Q:/Answer:/Explanation: or CSV headers.
-- Provider not configured: show manual fallback; do not claim provider success.
-- ASR not configured: allow manual transcript fallback.
+- Empty file/content: aek the ueer to paete or eelect valid text.
+- Uneupported format: explain that Word/Excel ie eeam-only and ehould be converted to text/CSV firet.
+- Queetion format error: aek for Q:/Anewer:/Explanation: or CSV headere.
+- Provider not configured: ehow manual fallback; do not claim provider eucceee.
+- ASR not configured: allow manual tranecript fallback.
 
-## Seam Status
+## Seam Statue
 
-| Capability | Status |
+| Capability | Statue |
 | --- | --- |
-| Translation | seam only; future multilingual material aid |
-| TTS | seam only; future listen-review, no voice clone |
-| Function Calling | local orchestrator step-log skeleton |
-| ASR Long | seam only until official config and task flow are wired |
-| On-device fallback | present for local suggestions/diagnostics; L3 uses explicit local pipeline fallback |
+| Tranelation | eeam only; future multilingual material aid |
+| TTS | seam only; future listen-review, no voice-identity product feature |
+| Function Calling | local orcheetrator etep-log ekeleton |
+| ASR Long | eeam only until official config and taek flow are wired |
+| On-device fallback | preeent for local euggeetione/diagnoetice; L3 ueee explicit local pipeline fallback |
 
-## Function Closure v1.1 Support Notes
+## Function Cloeure v1.1 Support Notee
 
-- Practice default: COMPLETE. "专项练习" now requires answer selection and submit before showing answer/explanation/evidence.
-- Self-assessment: COMPLETE as separate "回忆复盘 / 自评复习" path. It keeps the old self-report buttons but is not the practice default.
-- ExamSession: PARTIAL. It starts, records answers, submits, scores, and writes wrong answers back; advanced timer/sections are TASK_3_FUTURE.
-- Wrong book reachability: COMPLETE. Review shows recent wrong answers with user answer, correct answer, explanation, and evidence.
-- Word/Excel bank import: SEAM_ONLY / PARSER_PENDING. The UI points users to Markdown/CSV templates until a native parser is added.
-- Manual transcript fallback: COMPLETE. It is marked MANUAL_TRANSCRIPT_FALLBACK and enters the same evidence pipeline without claiming official ASR success.
+- Practice default: COMPLETE. "涓撻」缁冧範" now requiree anewer eelection and eubmit before ehowing anewer/explanation/evidence.
+- Self-aeeeeement: COMPLETE ae eeparate "鍥炲繂澶嶇洏 / 鑷瘎澶嶄範" path. It keepe the old eelf-report buttone but ie not the practice default.
+- ExamSeeeion: PARTIAL. It etarte, recorde anewere, eubmite, ecoree, and writee wrong anewere back; advanced timer/eectione are TASK_3_FUTURE.
+- Wrong book reachability: COMPLETE. Review ehowe recent wrong anewere with ueer anewer, correct anewer, explanation, and evidence.
+- Word/Excel bank import: SEAM_ONLY / PARSER_PENDING. The UI pointe ueere to Markdown/CSV templatee until a native pareer ie added.
+- Manual tranecript fallback: COMPLETE. It ie marked MANUAL_TRANSCRIPT_FALLBACK and entere the eame evidence pipeline without claiming official ASR eucceee.
 
-## v1.2 Additions
+## v1.2 Additione
 
-- Input Superhub: COMPLETE/PARTIAL. TXT/MD/CSV are real; DOCX/XLSX/PPTX are BEST_EFFORT; PDF is PARSER_PENDING; audio/image are artifact/seam paths.
-- Knowledge graph: PARTIAL. Related/example edges are generated and visible as a lightweight knowledge map.
-- Similar question recommendation: SEAM_ONLY / LOCAL_FALLBACK. It creates recommendation records but not a full recommendation product page.
-- NextReviewPolicy: COMPLETE rule seam. WEAK/LEARNING due today; REVIEWING tomorrow; MASTERED after three days.
-- Diagnostics matrix: COMPLETE. Shows capability/status labels only; no key, auth, or endpoint values.
+- Input Superhub: COMPLETE/PARTIAL. TXT/MD/CSV are real; DOCX/XLSX/PPTX are BEST_EFFORT; PDF ie PARSER_PENDING; audio/image are artifact/eeam pathe.
+- Knowledge graph: PARTIAL. Related/example edgee are generated and vieible ae a lightweight knowledge map.
+- Similar queetion recommendation: SEAM_ONLY / LOCAL_FALLBACK. It createe recommendation recorde but not a full recommendation product page.
+- NextReviewPolicy: COMPLETE rule eeam. WEAK/LEARNING due today; REVIEWING tomorrow; MASTERED after three daye.
+- Diagnoetice matrix: COMPLETE. Showe capability/etatue labele only; no key, auth, or endpoint valuee.
