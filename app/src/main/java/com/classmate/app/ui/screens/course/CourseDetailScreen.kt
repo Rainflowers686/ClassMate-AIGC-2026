@@ -170,7 +170,7 @@ fun CourseDetailScreen(viewModel: AppViewModel) {
                     viewModel = viewModel,
                     title = "导出中心",
                     description = "导出课程报告、思维导图、PDF、Word 兼容 HTML 或演示幻灯片 HTML；导出不含密钥与内部状态。",
-                    buildArtifact = viewModel::buildCurrentReportArtifact,
+                    buildArtifact = viewModel::buildLearningStudyPackArtifact,
                 )
 
                 // THIRD LAYER — original material + records, FOLDED so they never outshine the map.
@@ -219,6 +219,31 @@ private fun L3PipelineStatusCard(viewModel: AppViewModel) {
             Spacer(Modifier.height(Dimens.s))
             Text(l3.summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
         }
+        Spacer(Modifier.height(Dimens.s))
+        Text("学习状态总览", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+            StatusChip("资料 ${l3.evidenceAssets.size}", tone = ChipTone.INFO)
+            StatusChip("知识点 ${l3.knowledgePoints.size}", tone = ChipTone.INFO)
+            StatusChip("微测 ${l3.questions.size}", tone = ChipTone.INFO)
+            StatusChip("错题 ${l3.wrongBook.size}", tone = if (l3.wrongBook.isEmpty()) ChipTone.NEUTRAL else ChipTone.WARNING)
+            StatusChip("今日复习 ${l3.reviewQueue.size}", tone = ChipTone.INFO)
+            StatusChip("证据 ${l3.evidence.size}", tone = ChipTone.INFO)
+            if (l3.qualityWarnings.isNotEmpty()) StatusChip("需确认 ${l3.qualityWarnings.size}", tone = ChipTone.WARNING)
+        }
+        if (l3.wrongBook.isNotEmpty() || l3.reviewQueue.isNotEmpty()) {
+            Spacer(Modifier.height(Dimens.s))
+            SecondaryButton(
+                "继续复习",
+                onClick = { viewModel.ensureReviewPlan(); viewModel.navigateTo(Screen.REVIEW) },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        Spacer(Modifier.height(Dimens.xs))
+        SecondaryButton(
+            "生成学习包 / 导出学习版资料",
+            onClick = { viewModel.prepareRefinedExportDraft() },
+            modifier = Modifier.fillMaxWidth(),
+        )
         if (l3.evidenceAssets.isNotEmpty()) {
             Spacer(Modifier.height(Dimens.s))
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {

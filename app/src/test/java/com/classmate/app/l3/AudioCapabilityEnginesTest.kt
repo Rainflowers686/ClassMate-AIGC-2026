@@ -127,7 +127,7 @@ class AudioCapabilityEnginesTest {
     }
 
     @Test
-    fun officialCapabilityRegistryContainsOfficialTwentyAndClassMateEighteen() {
+    fun officialCapabilityRegistryContainsClassMateEighteenEffectiveCapabilities() {
         val snapshot = L3LearningPipeline().buildFromText(
             title = L3DemoSeeds.lessonTitle,
             text = L3DemoSeeds.lessonText,
@@ -140,15 +140,18 @@ class AudioCapabilityEnginesTest {
         )
         val contributions = OfficialCapabilityRegistry.officialMatrix(snapshot, providerSummary)
 
-        assertEquals(20, contributions.size)
+        assertEquals(18, contributions.size)
         assertEquals(18, contributions.count { it.includedInClassMate })
-        assertEquals(2, contributions.count { it.priority == OfficialCapabilityPriority.EXCLUDED })
-        assertEquals(3, contributions.count { it.priority == OfficialCapabilityPriority.P1_EXPERIMENTAL })
-        assertTrue(contributions.first { it.capabilityId == OfficialCapabilityId.DIALECT_FREE_SPEECH }.priority == OfficialCapabilityPriority.P0)
+        assertEquals(3, contributions.count { it.priority == OfficialCapabilityPriority.EXPERIMENTAL })
+        assertEquals(2, contributions.count { it.priority == OfficialCapabilityPriority.ENHANCEMENT })
+        assertTrue(contributions.first { it.capabilityId == OfficialCapabilityId.DIALECT_FREE_SPEECH }.priority == OfficialCapabilityPriority.CORE)
         assertFalse(contributions.any { it.capabilityId.name.contains("UNKNOWN") })
-        assertTrue(contributions.filter { it.includedInClassMate }.all { it.learningSurfaces.isNotEmpty() })
-        assertTrue(contributions.first { it.capabilityId == OfficialCapabilityId.VOICE_CLONING }.exclusionReason.contains("privacy"))
-        assertTrue(contributions.first { it.capabilityId == OfficialCapabilityId.GEO_POI_SEARCH }.exclusionReason.contains("Weak relevance"))
+        assertFalse(contributions.any { it.capabilityId.name.contains("VOICE") })
+        assertFalse(contributions.any { it.capabilityId.name.contains("GEO") || it.capabilityId.name.contains("POI") })
+        assertTrue(contributions.all { it.learningSurfaces.isNotEmpty() })
+        assertTrue(contributions.all { it.cloudModelRole.isNotBlank() })
+        assertTrue(contributions.all { it.edgeModelRole.isNotBlank() })
+        assertTrue(contributions.all { it.fallbackStrategy.isNotBlank() })
     }
 
     @Test
@@ -264,6 +267,9 @@ class AudioCapabilityEnginesTest {
         assertTrue(plan.steps.any { it.capabilityId == OfficialCapabilityId.IMAGE_GENERATION })
         assertTrue(plan.steps.any { it.capabilityId == OfficialCapabilityId.VIDEO_GENERATION })
         assertTrue(plan.steps.any { it.providerMode == ToolProviderMode.LOCAL_FALLBACK || it.providerMode == ToolProviderMode.SEAM_ONLY || it.providerMode == ToolProviderMode.NOT_CONFIGURED })
+        assertTrue(plan.steps.all { it.userVisibleBenefit.isNotBlank() })
+        assertTrue(plan.steps.any { it.primaryModelRoute == LearningModelRoute.EDGE_3B || it.fallbackModelRoute == LearningModelRoute.LOCAL_RULE })
+        assertTrue(plan.steps.any { it.requiresConfirmation })
         assertTrue(warnings.any { it.level == LearningLoopQualityLevel.ASSET_MISSING })
     }
 }

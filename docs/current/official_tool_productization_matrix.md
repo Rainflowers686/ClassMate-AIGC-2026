@@ -4,6 +4,33 @@ Date: 2026-06-20
 
 No secrets, endpoint URLs, or Authorization values are recorded here.
 
+## ClassMate Effective Capability Matrix
+
+ClassMate product capability matrix has exactly 18 learning-loop capabilities:
+
+1. Large model
+2. Function calling
+3. Image generation
+4. Video generation
+5. General OCR
+6. Text translation
+7. Text embedding
+8. Text similarity
+9. Query rewrite
+10. Realtime short ASR
+11. Long audio dictation
+12. Long audio transcription
+13. Dialect free speech
+14. Simultaneous interpretation
+15. Audio generation
+16. Edge 3B large model
+17. Edge text audit
+18. Edge capability files
+
+Image generation, video generation, and simultaneous interpretation are experimental and hidden by default. They produce prompts, storyboards, scripts, or bilingual transcript drafts unless a real configured runtime succeeds.
+
+## Runtime Status
+
 | Capability | Smoke status | App-level status | Product path |
 | --- | --- | --- | --- |
 | OCR | PASS | `OFFICIAL_RUNTIME_USED` for OCR evidence / config-gated | Image/photo OCR text and PDF page OCR seam can enter LessonSource and Evidence with provider provenance; manual OCR text fallback remains. |
@@ -11,7 +38,7 @@ No secrets, endpoint URLs, or Authorization values are recorded here.
 | EMBEDDING | PASS | `OFFICIAL_RUNTIME_READY / VALIDATION_PENDING` after v1.7 production adapter injection | Semantic records store `officialVector`, `localVector`, and `vectorSource`; official success saves `vectorSource=OFFICIAL`; missing config/runtime failure persists local lexical vectors. |
 | TEXT_SIMILARITY | PASS | `OFFICIAL_RUNTIME_READY / VALIDATION_PENDING` after v1.7 production adapter injection | Evidence matching and similar-question recommendations record `scoreSource`; official success saves `scoreSource=OFFICIAL`; missing config/runtime failure uses local similarity fallback. |
 | TRANSLATION | not product-smoked in app | runtime gateway wired / usually NOT_CONFIGURED | Lesson/evidence translation first checks official runtime; original evidence remains unchanged when not configured or failed. |
-| TTS | not product-smoked in app | runtime gateway wired / LOCAL_FALLBACK | Listen-review checks official runtime first, then uses Android local TextToSpeech or script text. No voice clone. |
+| TTS | not product-smoked in app | runtime gateway wired / LOCAL_FALLBACK | Listen-review checks official runtime first, then uses Android local TextToSpeech or script text. No voice identity feature is part of ClassMate. |
 | FUNCTION_CALLING | not product-smoked in app | runtime gateway wired / LOCAL_ORCHESTRATOR fallback | Tool plan proposal can use official Function Calling when adapter succeeds; local ToolOrchestrator remains active. |
 | ASR_LONG | not product-smoked in app | CORE_CONTRACT_PRESENT / APP_WIRING_PENDING / manual fallback | Recording/audio artifacts create ASR Long jobs. Core VivoAsrProvider 1739 create/upload/run/progress/result contract exists, but app-level upload/poll/result validation is pending. |
 | Edge model | local availability dependent | EDGE_MODEL_USED when available / LOCAL_RULE_FALLBACK | On-device availability now feeds the runtime fallback strategy for offline summary/practice/review; unavailable devices use local rules. |

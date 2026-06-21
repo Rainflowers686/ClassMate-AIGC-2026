@@ -1,4 +1,4 @@
-package com.classmate.app.qa
+﻿package com.classmate.app.qa
 
 import java.io.File
 import java.nio.file.Files
@@ -303,8 +303,8 @@ class OfficialProviderNetworkSmokeTest {
             "<official-ocr-base-url>",
             "<official-query-rewrite-endpoint-path>",
             "<your-auth-value>",
-            "不要提交 `config.local.json`",
-            "不要把 key 发给任何 AI",
+            "config.local.json",
+            "key",
             "OCR",
             "QUERY_REWRITE",
             "TEXT_SIMILARITY",

@@ -137,6 +137,35 @@ Collect:
 - WrongBook detail
 - ReviewPlan item after retry
 
+## Study Pack Export Fails
+
+Symptoms:
+
+- export button is visible but no artifact is produced
+- PDF generation fails
+- DOCX/Word path cannot be opened on the device
+- exported content is missing L3 learning-loop sections
+
+Check:
+
+1. Confirm Course Detail shows an L3 learning loop with knowledge points, quiz items, review tasks, and evidence.
+2. Tap Generate study pack / export learning material before choosing a format.
+3. Try PDF first, then Word-compatible HTML or Markdown as fallback.
+4. Confirm the export contains summary, knowledge points, quiz answers, wrong-book section when available, review plan, diagnosis, and evidence source index.
+5. Confirm the content does not include keys, config file names, request bodies, or internal provider/smoke wording.
+
+Expected fallback:
+
+- If PDF/DOCX handling fails on the device, HTML/Text/Markdown can still carry the study pack.
+- If only partial material has been recognized, the app can export the currently recognized content and show low-confidence notes.
+
+Collect:
+
+- Course Detail learning overview screenshot
+- selected export format
+- failure toast or exception excerpt without secrets
+- generated HTML/Text/Markdown fallback if PDF fails
+
 ## EvidenceDetail Cannot Open
 
 Symptoms:

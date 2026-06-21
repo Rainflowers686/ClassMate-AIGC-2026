@@ -131,6 +131,19 @@ fun EvidenceDetailScreen(viewModel: AppViewModel) {
                         Text("音频 / 转写证据", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                         Text(l3AssetLine("Audio ref", audioRef), style = MaterialTheme.typography.bodyMedium)
                         Text(l3AssetLine("Transcript", transcriptSegment), style = MaterialTheme.typography.bodyMedium)
+                        val audioSegments = ui.l3Pipeline.transcriptSegments.filter {
+                            it.sourceId == l3Evidence.sourceId || it.sourceId == audioRef || it.text == transcriptSegment
+                        }
+                        val lowConfidenceCount = audioSegments.count { it.lowConfidence }
+                        if (lowConfidenceCount > 0) {
+                            Text("低置信片段：$lowConfidenceCount 条，请确认后再作为高可信复习材料。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                        }
+                        val relatedKnowledgeCount = ui.l3Pipeline.knowledgePoints.count { l3Evidence.id in it.sourceEvidenceIds }
+                        val relatedWrongCount = ui.l3Pipeline.wrongBook.count { l3Evidence.id in it.evidenceIds }
+                        val relatedReviewCount = ui.l3Pipeline.reviewQueue.count { item ->
+                            item.evidenceId == l3Evidence.id || ui.l3Pipeline.knowledgePoints.firstOrNull { it.id == item.knowledgePointId }?.sourceEvidenceIds?.contains(l3Evidence.id) == true
+                        }
+                        Text("关联知识点 $relatedKnowledgeCount · 关联错题 $relatedWrongCount · 关联复习任务 $relatedReviewCount", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text("当前保留转写证据，播放定位待真机验证。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     if (l3Asset == null && l3Evidence.assetId != null) {

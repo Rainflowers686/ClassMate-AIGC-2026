@@ -244,8 +244,6 @@ enum class OfficialCapabilityId {
     VIDEO_GENERATION,
     SIMULTANEOUS_INTERPRETATION,
     AUDIO_GENERATION,
-    VOICE_CLONING,
-    GEO_POI_SEARCH,
     EDGE_3B_MODEL,
     EDGE_TEXT_AUDIT,
     EDGE_CAPABILITY_FILES,
@@ -303,10 +301,9 @@ enum class LearningLoopQualityLevel {
 }
 
 enum class OfficialCapabilityPriority {
-    P0,
-    P1,
-    P1_EXPERIMENTAL,
-    EXCLUDED,
+    CORE,
+    ENHANCEMENT,
+    EXPERIMENTAL,
 }
 
 enum class OfficialCapabilityImplementationStatus {
@@ -314,7 +311,18 @@ enum class OfficialCapabilityImplementationStatus {
     CONFIG_REQUIRED,
     FALLBACK_ONLY,
     SEAM_READY,
-    EXCLUDED,
+}
+
+enum class LearningModelRoute {
+    BLUE_LM_CLOUD,
+    EDGE_3B,
+    LOCAL_RULE,
+}
+
+enum class LearningCapabilityRiskLevel {
+    LOW,
+    MEDIUM,
+    HIGH,
 }
 
 enum class GeneratedStudyAssetStatus {
@@ -710,9 +718,8 @@ data class OfficialCapabilityContribution(
     val officialNavOrder: Int = 0,
     val officialName: String = "",
     val officialCategory: String = "",
-    val priority: OfficialCapabilityPriority = OfficialCapabilityPriority.P0,
+    val priority: OfficialCapabilityPriority = OfficialCapabilityPriority.CORE,
     val includedInClassMate: Boolean = true,
-    val exclusionReason: String = "",
     val implementationStatus: OfficialCapabilityImplementationStatus = OfficialCapabilityImplementationStatus.SEAM_READY,
     val displayName: String,
     val source: OfficialCapabilitySource,
@@ -722,6 +729,8 @@ data class OfficialCapabilityContribution(
     val learningLoopEntryPoint: String,
     val outputAssetType: EvidenceAssetType? = null,
     val evidenceImpact: String = "",
+    val cloudModelRole: String = "",
+    val edgeModelRole: String = "",
     val fallbackStrategy: String = "",
     val userVisibleLearningValue: String = "",
     val tests: List<String> = emptyList(),
@@ -735,6 +744,11 @@ data class LearningLoopCapabilityPlanStep(
     val fallbackStrategy: String,
     val outputSurface: OfficialCapabilityLearningSurface,
     val providerMode: ToolProviderMode,
+    val primaryModelRoute: LearningModelRoute = LearningModelRoute.LOCAL_RULE,
+    val fallbackModelRoute: LearningModelRoute = LearningModelRoute.LOCAL_RULE,
+    val userVisibleBenefit: String = "",
+    val riskLevel: LearningCapabilityRiskLevel = LearningCapabilityRiskLevel.LOW,
+    val requiresConfirmation: Boolean = false,
 )
 
 data class LearningLoopCapabilityPlan(

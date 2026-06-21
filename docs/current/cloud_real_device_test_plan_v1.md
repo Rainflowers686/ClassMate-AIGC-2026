@@ -226,6 +226,32 @@ Record:
 - Course Detail diagnosis summary
 - evidence trace from diagnosis
 
+## Path 7: Study Pack Export
+
+Steps:
+
+1. Complete a text or OCR learning loop.
+2. Open Course Detail.
+3. Confirm the learning status overview shows material, knowledge point, quiz, wrong book, review, and evidence counts.
+4. Tap Generate study pack / export learning material.
+5. Choose PDF first.
+6. If PDF save/share fails, retry with Word-compatible HTML or Markdown.
+7. Open the generated artifact where the device allows.
+
+Expected:
+
+- Export content comes from the L3 snapshot, not raw input text only.
+- Study pack includes summary, knowledge points, micro quiz answers, wrong-book section when present, 20-minute review plan, diagnosis, evidence source index, and low-confidence notes.
+- Export does not expose keys, config file contents, request bodies, or internal provider/smoke wording.
+- Word-compatible HTML is available as a fallback if DOCX/PDF handling is blocked by the device.
+
+Record:
+
+- Course Detail learning status overview
+- export format selector
+- generated PDF or Word-compatible HTML result
+- fallback message if one format fails
+
 ## Failure Capture
 
 For every failure, capture:
@@ -254,6 +280,7 @@ PASS:
 - At least one TEXT, OCR_IMAGE, DOCUMENT, and AUDIO evidence detail path opens without crashing.
 - WrongBook retry changes L3 state.
 - ReviewPlan and LearningDiagnosis show evidence-backed next actions.
+- Study pack export can produce at least PDF or Word-compatible HTML/Markdown from the current learning loop.
 
 FAIL:
 
@@ -261,3 +288,4 @@ FAIL:
 - EvidenceDetail crashes or blocks learning loop.
 - WrongBook/ReviewQueue/Mastery do not update after answer submission.
 - UI claims automatic ASR/PDF full parsing when only fallback is available.
+- Export content is only raw input text or contains secrets/internal provider diagnostics.

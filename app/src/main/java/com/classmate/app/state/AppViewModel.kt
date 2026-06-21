@@ -63,6 +63,7 @@ import com.classmate.app.l3.L3SourceType
 import com.classmate.app.l3.LearningLoopInput
 import com.classmate.app.l3.LearningLoopInputKind
 import com.classmate.app.l3.LearningDiagnosisEngine
+import com.classmate.app.l3.LearningExportEngine
 import com.classmate.app.l3.LearningLoopCapabilityOrchestrator
 import com.classmate.app.l3.LocalTtsPlayer
 import com.classmate.app.l3.LocalSemanticIndexEngine
@@ -2987,6 +2988,21 @@ class AppViewModel(
             return null
         }
         return buildReportArtifact(session, result, ui.reviewPlan, ui.learningState, format)
+    }
+
+    fun buildLearningStudyPackArtifact(format: ExportFileFormat): ExportArtifact? {
+        val snapshot = ui.l3Pipeline
+        val title = snapshot.lessonSource?.title ?: ui.session?.title ?: ui.history.firstOrNull()?.session?.title
+        if (snapshot.lessonSource == null && snapshot.knowledgePoints.isEmpty() && snapshot.questions.isEmpty()) {
+            ui = ui.copy(toast = "暂无可导出的学习包，请先生成学习闭环。")
+            return null
+        }
+        val markdown = LearningExportEngine.buildStudyPackMarkdown(snapshot)
+        return ExportCenter.artifactFromMarkdown(
+            courseTitle = title ?: "ClassMate study pack",
+            markdown = markdown,
+            format = format,
+        )
     }
 
     fun buildHistoryReportArtifact(record: HistoryRecord, format: ExportFileFormat): ExportArtifact =

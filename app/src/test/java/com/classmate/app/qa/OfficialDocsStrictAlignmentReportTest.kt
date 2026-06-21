@@ -1,4 +1,4 @@
-package com.classmate.app.qa
+﻿package com.classmate.app.qa
 
 import java.io.File
 import org.junit.Assert.assertTrue
@@ -12,7 +12,7 @@ class OfficialDocsStrictAlignmentReportTest {
         firstExisting(path, "../$path").readText()
 
     @Test
-    fun strictAlignmentReportCoversIncludedOfficialCapabilitiesAndExcludedBoundary() {
+    fun strictAlignmentReportCoversIncludedOfficialCapabilitiesAndProductMatrixBoundary() {
         val report = readWorkspace("docs/current/official_docs_strict_alignment_report.md")
 
         listOf(
@@ -38,9 +38,8 @@ class OfficialDocsStrictAlignmentReportTest {
             assertTrue("report missing docId $docId", report.contains(docId))
         }
 
-        assertTrue(report.contains("Voice clone / 声音复刻"))
-        assertTrue(report.contains("LBS / POI / 地理编码"))
-        assertTrue(report.contains("Excluded from product and smoke"))
+        assertTrue(report.contains("ClassMate product matrix note"))
+        assertTrue(report.contains("18 learning-loop capabilities only"))
     }
 
     @Test
