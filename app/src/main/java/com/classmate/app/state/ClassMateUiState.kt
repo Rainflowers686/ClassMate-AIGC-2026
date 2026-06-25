@@ -99,6 +99,11 @@ data class ClassMateUiState(
     val courseTitle: String = "",
     val courseText: String = "",
     val selectedSubject: String = CourseGlossary.DEFAULT_SUBJECT,
+    // Advisory result of on-device CourseDomainDetector (set after analysis). The picker above stays the
+    // authoritative choice — this only tells the user what was auto-detected and whether to confirm.
+    val detectedDomainLabel: String? = null,
+    val detectedDomainConfidence: Double = 0.0,
+    val detectedDomainNeedsConfirm: Boolean = false,
     val selectedImportFileMetadata: SelectedLocalFileMetadata? = null,
     val ocrImports: List<OcrImportDraft> = emptyList(),
     val importSourceType: ImportSourceType = ImportSourceType.PASTE_TEXT,

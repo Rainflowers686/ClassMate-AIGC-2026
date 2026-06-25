@@ -747,6 +747,11 @@ fun ImportSettingsScreen(viewModel: AppViewModel) {
             }
             ClassMateCard {
                 Text("科目 / 术语表", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "内置学科只是术语起始包；可在下方输入任意课程/学科名（机械、医学、法学、经管…），系统会按内容自动识别并动态生成术语。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Spacer(Modifier.height(Dimens.s))
                 CourseGlossary.subjects.chunked(2).forEach { row ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
@@ -760,7 +765,26 @@ fun ImportSettingsScreen(viewModel: AppViewModel) {
                     }
                     Spacer(Modifier.height(Dimens.xs))
                 }
-                Text("已加载术语表：${ui.selectedSubject} · ${viewModel.selectedGlossaryCount()} 个术语", color = MaterialTheme.colorScheme.primary)
+                OutlinedTextField(
+                    value = ui.selectedSubject,
+                    onValueChange = viewModel::updateSelectedSubject,
+                    label = { Text("自定义课程 / 学科名") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium,
+                )
+                Spacer(Modifier.height(Dimens.xs))
+                Text("已加载术语表：${ui.selectedSubject} · ${viewModel.selectedGlossaryCount()} 个内置术语（分析时会再按内容动态补充）", color = MaterialTheme.colorScheme.primary)
+                ui.detectedDomainLabel?.let { label ->
+                    Spacer(Modifier.height(Dimens.xs))
+                    val pct = (ui.detectedDomainConfidence * 100).toInt()
+                    val advisory = if (ui.detectedDomainNeedsConfirm) {
+                        "上次识别：$label（置信度 $pct%，不确定，请确认或在上方修改课程名）"
+                    } else {
+                        "上次识别：$label（置信度 $pct%，可在上方修改课程名）"
+                    }
+                    Text(advisory, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
             ClassMateCard {
                 Text("模型 profile", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)

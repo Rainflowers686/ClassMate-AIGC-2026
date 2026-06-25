@@ -35,4 +35,14 @@ class ProviderConfigSafetyCheckTest {
         assertFalse(ProviderConfigSafetyCheck.isRealSecret("YOUR_BLUELM_APP_KEY"))
         assertTrue(ProviderConfigSafetyCheck.isRealSecret("realkey1234567"))
     }
+
+    @Test
+    fun maskedValuesAreNotRealSecrets() {
+        assertTrue(ProviderConfigSafetyCheck.isMaskedSecret("ab***yz"))
+        assertTrue(ProviderConfigSafetyCheck.isMaskedSecret("••••1234"))
+        assertTrue(ProviderConfigSafetyCheck.isMaskedSecret("…tail"))
+        assertFalse(ProviderConfigSafetyCheck.isMaskedSecret("realkey1234567"))
+        // A masked rendering must never be accepted as a real key (would corrupt a working credential).
+        assertFalse(ProviderConfigSafetyCheck.isRealSecret("ab***yz"))
+    }
 }

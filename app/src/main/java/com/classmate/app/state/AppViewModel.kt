@@ -146,6 +146,11 @@ import com.classmate.core.ask.LocalAskLessonEngine
 import com.classmate.core.ai.AiCapability
 import com.classmate.core.ai.AiCapabilityResult
 import com.classmate.core.ai.AiCapabilityRouter
+import com.classmate.core.analysis.CourseDomainDetector
+import com.classmate.core.glossary.DynamicGlossaryExtractor
+import com.classmate.core.glossary.GlossarySource
+import com.classmate.core.provider.BlueLmConfigDoctor
+import com.classmate.core.provider.BlueLmConfigState
 import com.classmate.core.ai.AiExecutionStatus
 import com.classmate.core.ai.AiExecutionSource
 import com.classmate.core.ai.AiRouteDecision
@@ -691,6 +696,8 @@ class AppViewModel(
             providerConfigSummary = providerSummary("saved model config"),
             modelConfigMasked = modelConfigRepository.masked(),
             toast = when {
+                BlueLmConfigDoctor.classify(appId, appKey) == BlueLmConfigState.MASKED_KEY_INVALID ->
+                    "AppKey 看起来是掩码（***），请输入完整 AppKey 后再保存。"
                 !saved -> "保存失败，请重试。"
                 profile?.officialConfigured() == true -> "已保存蓝心大模型配置（仅本机，不写入仓库）。"
                 else -> "已保存配置；凭据仍为占位符。"
@@ -762,11 +769,17 @@ class AppViewModel(
 
     fun testAiConfigReadiness() {
         val masked = modelConfigRepository.masked()
+        // Config-STATE doctor: tell MISSING / INCOMPLETE / MASKED_KEY_INVALID / READY apart BEFORE any
+        // request, so the user sees CONFIG_REQUIRED rather than a misleading NETWORK error. This is a
+        // readiness check only — no network call here (the live probe is the debug BlueLM diagnostic).
+        val profile = modelConfigRepository.load()
+        val state = BlueLmConfigDoctor.classify(profile?.appId, profile?.appKey)
         ui = ui.copy(
             modelConfigMasked = masked,
-            toast = when {
-                masked?.credentialPresent == true -> "配置已保存：当前仅做 readiness 检查，未发送网络请求。"
-                else -> "尚未配置云端凭据。未配置时仍可继续端侧处理或手动编辑。"
+            toast = when (state) {
+                BlueLmConfigState.READY -> "配置就绪（READY）：当前仅做 readiness 检查，未发送网络请求。"
+                BlueLmConfigState.MASKED_KEY_INVALID -> state.labelZh
+                else -> "${state.labelZh}。未配置时仍可继续端侧处理或手动编辑。"
             },
         )
     }
@@ -2584,11 +2597,28 @@ class AppViewModel(
                 now = now,
             )
         }
-        val glossaryHint = LessonContextHints.glossaryHint(
-            subject = ui.selectedSubject,
-            terms = CourseGlossary.termsFor(ui.selectedSubject).map { it.term },
+        // Detect the course domain from the ACTUAL material (not just the picker default) so the prompt
+        // hint carries the right vocabulary — mechanical content no longer gets 大学物理 terms — and build
+        // a dynamic glossary for ANY subject, merged with the selected built-in starter pack.
+        val bodyText = bundle.plainText()
+        val domainResult = CourseDomainDetector.detect(
+            title = title,
+            manualCourseName = ui.selectedSubject,
+            documentText = bodyText,
         )
-        val analyzerText = listOf(glossaryHint, bundle.plainText()).filter { it.isNotBlank() }.joinToString("\n\n")
+        val dynamicTerms = DynamicGlossaryExtractor.extract(
+            domain = domainResult.displayName,
+            sources = listOf(GlossarySource("import_material", bodyText)),
+            seedTerms = CourseDomainDetector.seedTermsFor(domainResult.domain),
+            max = LessonContextHints.MAX_TERMS,
+        ).map { it.term }
+        val builtinTerms = CourseGlossary.termsFor(ui.selectedSubject).map { it.term }
+        val hintSubject = if (!domainResult.requiresUserConfirmation) domainResult.displayName else ui.selectedSubject
+        val glossaryHint = LessonContextHints.glossaryHint(
+            subject = hintSubject,
+            terms = (dynamicTerms + builtinTerms).distinct(),
+        )
+        val analyzerText = listOf(glossaryHint, bodyText).filter { it.isNotBlank() }.joinToString("\n\n")
         val materialSummary = LessonMaterialAssembler.summarize(bundle)
 
         val session = if (isSample) {
@@ -2615,6 +2645,9 @@ class AppViewModel(
             currentQuestionIndex = 0,
             feedbackEvents = emptyList(),
             analysisError = null,
+            detectedDomainLabel = domainResult.displayName,
+            detectedDomainConfidence = domainResult.confidence,
+            detectedDomainNeedsConfirm = domainResult.requiresUserConfirmation,
         )
         navigateTo(Screen.ANALYZE)
 

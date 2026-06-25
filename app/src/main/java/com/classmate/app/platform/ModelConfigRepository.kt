@@ -153,6 +153,11 @@ class ModelConfigRepository(private val file: File?) {
     }
 
     fun saveOfficial(baseUrl: String, model: String, appId: String, appKey: String): Boolean {
+        // Never persist a UI-masked value (e.g. "ab***yz") as a real credential — it would overwrite a
+        // working AppKey with a mask and turn cloud calls into auth/garbage failures. Reject the save.
+        if (ProviderConfigSafetyCheck.isMaskedSecret(appKey) || ProviderConfigSafetyCheck.isMaskedSecret(appId)) {
+            return false
+        }
         val current = load()
         return save(
             ModelApiProfile(

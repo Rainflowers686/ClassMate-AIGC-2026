@@ -104,6 +104,21 @@ class ModelConfigRepositoryTest {
     }
 
     @Test
+    fun saveOfficialRejectsMaskedKeyAndKeepsExistingCredential() {
+        val file = tempFile()
+        val repo = ModelConfigRepository(file)
+        // First save a real credential.
+        assertTrue(repo.saveOfficial("https://api-ai.vivo.com.cn/v1", "qwen3.5-plus", "official-app-id", "real-official-key"))
+        assertTrue(repo.load()!!.officialConfigured())
+
+        // A re-save with a UI-masked AppKey must be rejected (return false) and NOT overwrite the key.
+        assertFalse(repo.saveOfficial("https://api-ai.vivo.com.cn/v1", "qwen3.5-plus", "official-app-id", "re***ey"))
+        val after = ModelConfigRepository(file).load()!!
+        assertEquals("real-official-key", after.appKey)
+        assertTrue(after.officialConfigured())
+    }
+
+    @Test
     fun disabledRepositoryIsInertNoOp() {
         val repo = ModelConfigRepository.disabled()
         assertFalse(repo.isEnabled)

@@ -1,6 +1,7 @@
 package com.classmate.app.platform
 
 import java.io.File
+import java.nio.file.Files
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -52,5 +53,33 @@ class CaptureConfigLoaderTest {
         assertEquals("已配置", loader.status("""{"vivoCapture":{"appId":"id12345","appKey":"key67890"}}""").labelZh())
         assertEquals("未配置", loader.status("{}").labelZh())
         assertEquals("缺少 appKey", loader.status("""{"vivoCapture":{"appId":"id12345"}}""").labelZh())
+    }
+
+    @Test fun parsesSettingsModelConfigSchemaAtRoot() {
+        val cfg = loader.parseModelConfig(
+            """{"appId":"mid12345","appKey":"mkey67890","baseUrl":"https://api-ai.vivo.com.cn/v1","mode":"OFFICIAL_BLUELM"}""",
+        )
+        assertTrue(cfg.isConfigured)
+        assertEquals("api-ai.vivo.com.cn", cfg.domain)
+    }
+
+    @Test fun maskedModelConfigKeyIsNotConfigured() {
+        assertFalse(loader.parseModelConfig("""{"appId":"mid12345","appKey":"mk***90"}""").isConfigured)
+    }
+
+    @Test fun fallsBackToModelConfigFileWhenLocalConfigAbsent() {
+        val modelFile = Files.createTempDirectory("cm-cap-model").resolve("classmate_model_config.json").toFile()
+        modelFile.writeText("""{"appId":"deviceId123","appKey":"deviceKey456","baseUrl":"https://api-ai.vivo.com.cn/v1"}""")
+        // config.local.json absent → must fall back to the Settings model-config file.
+        val withModel = CaptureConfigLoader(File("does-not-exist-capture-test.json"), modelConfigFile = modelFile)
+        assertTrue(withModel.load().isConfigured)
+        assertTrue(withModel.status().configured)
+    }
+
+    @Test fun modelConfigFallbackToStringStaysRedacted() {
+        val modelFile = Files.createTempDirectory("cm-cap-model2").resolve("classmate_model_config.json").toFile()
+        modelFile.writeText("""{"appId":"deviceSecretId","appKey":"deviceSecretKey"}""")
+        val cfg = CaptureConfigLoader(File("does-not-exist-capture-test.json"), modelConfigFile = modelFile).load()
+        assertFalse(cfg.toString().contains("deviceSecretKey"))
     }
 }
