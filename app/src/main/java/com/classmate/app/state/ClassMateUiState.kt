@@ -31,6 +31,7 @@ import com.classmate.app.material.MaterialSourceSummary
 import com.classmate.app.platform.MaskedModelProfile
 import com.classmate.core.importing.ImportSourceType
 import com.classmate.core.learning.LearningSnapshot
+import com.classmate.core.provider.AnalysisIntensity
 import com.classmate.core.ondevice.OnDeviceLlmDiagnostic
 import com.classmate.app.platform.ProviderConfigSummary
 import com.classmate.app.ui.i18n.AppLanguage
@@ -104,6 +105,12 @@ data class ClassMateUiState(
     val detectedDomainLabel: String? = null,
     val detectedDomainConfidence: Double = 0.0,
     val detectedDomainNeedsConfirm: Boolean = false,
+    // Thinking strength (快速/标准/深度) and live analysis progress so the analyze page is never a frozen spinner.
+    val analysisIntensity: AnalysisIntensity = AnalysisIntensity.Default,
+    val analysisElapsedMs: Long = 0L,
+    val analysisSlowNotice: Boolean = false,
+    val lastAnalysisLatencyMs: Long = 0L,
+    val longTextInfo: LongTextAnalysisInfo? = null,
     val selectedImportFileMetadata: SelectedLocalFileMetadata? = null,
     val ocrImports: List<OcrImportDraft> = emptyList(),
     val importSourceType: ImportSourceType = ImportSourceType.PASTE_TEXT,
@@ -254,4 +261,18 @@ data class ClassMateUiState(
     val toast: String? = null,
 ) {
     val answeredCount: Int get() = revealedQuestionIds.size
+}
+
+/**
+ * Honest record of how a long input was shaped for the model. The full original text is ALWAYS kept as
+ * Evidence; this only documents the prompt-budget view (what was sent), never a silent truncation of
+ * the user's source. Shown on the analyze/course UI so long-text handling is transparent.
+ */
+data class LongTextAnalysisInfo(
+    val originalLength: Int,
+    val analyzedLength: Int,
+    val chunkCount: Int,
+    val strategy: String,
+) {
+    val wasShaped: Boolean get() = analyzedLength < originalLength || chunkCount > 1
 }

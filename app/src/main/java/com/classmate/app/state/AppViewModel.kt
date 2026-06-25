@@ -149,6 +149,7 @@ import com.classmate.core.ai.AiCapabilityRouter
 import com.classmate.core.analysis.CourseDomainDetector
 import com.classmate.core.glossary.DynamicGlossaryExtractor
 import com.classmate.core.glossary.GlossarySource
+import com.classmate.core.provider.AnalysisIntensity
 import com.classmate.core.provider.BlueLmConfigDoctor
 import com.classmate.core.provider.BlueLmConfigState
 import com.classmate.core.ai.AiExecutionStatus
@@ -220,6 +221,7 @@ import com.classmate.core.video.VideoRecommendationEngine
 import com.classmate.core.weakness.WeaknessHub
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
@@ -2633,11 +2635,24 @@ class AppViewModel(
             )
         }
 
+        val intensity = ui.analysisIntensity
+        // Honest long-text record: the FULL original stays as Evidence (session segments); this only
+        // documents the prompt view. analyzedLength >= originalLength because nothing is truncated.
+        val longTextInfo = LongTextAnalysisInfo(
+            originalLength = bodyText.length,
+            analyzedLength = analyzerText.length,
+            chunkCount = session.segments.size,
+            strategy = if (session.segments.size > 1) "按段落切分（原文完整保留为证据）" else "整篇分析",
+        )
+
         ui = ui.copy(
             session = session,
             lastMaterialSummary = materialSummary,
             analysisStatus = AnalysisStatus.RUNNING,
             analysisStageIndex = 0,
+            analysisElapsedMs = 0L,
+            analysisSlowNotice = false,
+            longTextInfo = longTextInfo,
             result = null,
             reviewPlan = null,
             answers = emptyMap(),
@@ -2652,20 +2667,49 @@ class AppViewModel(
         navigateTo(Screen.ANALYZE)
 
         viewModelScope.launch {
-            // The real pipeline runs off the main thread. For the bundled sample we show the
-            // curated, evidence-bound analysis (clearly labelled demo data); for pasted text we
-            // run the resolver, which falls back to the local heuristic when BlueLM is absent.
-            val cloudOutcome: AnalysisOutcome = withContext(Dispatchers.Default) {
-                if (isSample) {
-                    AnalysisOutcome.Success(
-                        result = SampleCourses.seriesAnalysis(now),
-                        report = com.classmate.core.validation.ValidationReport.PASS,
-                        logs = listOf(RedactedLogEntry("BLUELM", "OK", 0, "PASS", false, null)),
+            // Live elapsed-time ticker — the analyze page must never look frozen during a slow cloud
+            // READ. It also flips the "深度分析耗时较长" notice once past the intensity threshold.
+            val started = System.currentTimeMillis()
+            val ticker = launch {
+                while (isActive) {
+                    delay(1_000)
+                    val elapsed = System.currentTimeMillis() - started
+                    ui = ui.copy(
+                        analysisElapsedMs = elapsed,
+                        analysisSlowNotice = ui.analysisSlowNotice || elapsed >= intensity.slowNoticeThresholdMs,
                     )
-                } else {
-                    analyzer().analyze(AnalysisRequest(session))
                 }
             }
+            // The real pipeline runs off the main thread. For the bundled sample we show the
+            // curated, evidence-bound analysis (clearly labelled demo data); for pasted text we
+            // run the resolver, which falls back to the local heuristic when BlueLM is absent. The
+            // intensity drives the cloud profile, read timeout, retry budget, and KP/quiz count.
+            val cloudOutcome: AnalysisOutcome = try {
+                withContext(Dispatchers.Default) {
+                    if (isSample) {
+                        AnalysisOutcome.Success(
+                            result = SampleCourses.seriesAnalysis(now),
+                            report = com.classmate.core.validation.ValidationReport.PASS,
+                            logs = listOf(RedactedLogEntry("BLUELM", "OK", 0, "PASS", false, null)),
+                        )
+                    } else {
+                        analyzer().analyze(
+                            AnalysisRequest(
+                                session = session,
+                                maxKnowledgePoints = intensity.maxKnowledgePoints,
+                                questionsPerKnowledgePoint = intensity.questionsPerKnowledgePoint,
+                                intensity = intensity,
+                            ),
+                        )
+                    }
+                }
+            } finally {
+                ticker.cancel()
+            }
+            val totalElapsedMs = System.currentTimeMillis() - started
+            val cloudSucceededSlowly = !isSample &&
+                cloudOutcome is AnalysisOutcome.Success &&
+                totalElapsedMs >= intensity.slowNoticeThresholdMs
             // Cloud success → use it. Cloud failed (or cloud-only chain produced nothing) → try the
             // on-device BlueLM 3B structured-analysis seam, which must pass the SAME validators to land.
             val cloudStatus = if (isSample) "OK" else (cloudOutcome as? AnalysisOutcome.Failure)?.lastError?.shortCode ?: "OK"
@@ -2711,8 +2755,11 @@ class AppViewModel(
                     ui = ui.copy(
                         logs = outcome.logs,
                         analysisSourceReport = sourceReport,
+                        lastAnalysisLatencyMs = totalElapsedMs,
+                        analysisSlowNotice = cloudSucceededSlowly,
                         onDeviceAnalysisReason = onDeviceReason ?: ui.onDeviceAnalysisReason,
                         onDeviceAnalysisDiagnostic = onDeviceDiag ?: ui.onDeviceAnalysisDiagnostic,
+                        toast = if (cloudSucceededSlowly) "云端深度分析耗时较长（${totalElapsedMs / 1000}s），但已完成。" else ui.toast,
                     )
                     return@launch
                     val updatedHistory = (listOf(buildHistoryRecord(session, outcome, now)) + ui.history).take(MAX_HISTORY)
@@ -2809,6 +2856,82 @@ class AppViewModel(
     fun retryAnalysis() {
         if (backStack.last() == Screen.ANALYZE) backStack.removeAt(backStack.lastIndex)
         startAnalysis()
+    }
+
+    /** Set the thinking strength (快速/标准/深度). Affects timeout, prompt budget, quiz count, retries. */
+    fun setAnalysisIntensity(intensity: AnalysisIntensity) {
+        if (ui.analysisIntensity != intensity) ui = ui.copy(analysisIntensity = intensity)
+    }
+
+    /** Jump to Settings · 能力中心 so the user can grant model-dir access / re-check the on-device model. */
+    fun goToOnDeviceSettings() {
+        selectTab(Tab.SETTINGS)
+    }
+
+    /**
+     * Synchronous local-rule analysis (no cloud/AI). LOCAL_ONLY resolver → the deterministic
+     * LocalFallbackProvider, run through the SAME validators. Returns a real, usable [AnalysisOutcome]
+     * so a permission-blocked / offline device is never stuck at an empty placeholder. Test seam.
+     */
+    internal fun runLocalRuleAnalysis(session: CourseSession): AnalysisOutcome {
+        val localBundle = ProviderConfigBundle.forProfile(
+            profile = LearnerProfile.LOCAL_ONLY,
+            configs = configBundle.configs,
+            policy = configBundle.policy,
+        )
+        return CourseAnalyzer(ProviderResolver(localBundle, promptBuilder, transport, blueLmSigner))
+            .analyze(AnalysisRequest(session, intensity = ui.analysisIntensity))
+    }
+
+    /**
+     * Explicit user choice from the failure screen: generate a baseline learning result LOCALLY, with no
+     * cloud / AI call. It runs the deterministic [com.classmate.core.provider.LocalFallbackProvider] through
+     * the SAME validators and pipeline, and is labelled honestly ("本地基础整理") — never dressed up as cloud.
+     * This is why an offline / permission-blocked device is not stuck at an empty safety placeholder.
+     */
+    fun generateWithLocalRuleAnalysis() {
+        val session = ui.session
+        if (session == null) {
+            ui = ui.copy(toast = "没有可整理的课程内容，请先返回导入。")
+            return
+        }
+        val now = System.currentTimeMillis()
+        ui = ui.copy(analysisStatus = AnalysisStatus.RUNNING, analysisStageIndex = 0, analysisError = null)
+        viewModelScope.launch {
+            val outcome = withContext(Dispatchers.Default) { runLocalRuleAnalysis(session) }
+            for (stage in 1..TOTAL_STAGES) {
+                ui = ui.copy(analysisStageIndex = stage)
+                delay(STAGE_DELAY_MS)
+            }
+            when (outcome) {
+                is AnalysisOutcome.Success -> {
+                    val l3Snapshot = l3Pipeline.buildFromAnalysis(
+                        session = session,
+                        result = outcome.result,
+                        sourceType = currentL3SourceType(),
+                        providerSummary = ui.providerConfigSummary,
+                        now = now,
+                    )
+                    publishL3Snapshot(l3Snapshot, now, "已用本地基础整理生成学习结果（未调用大模型）。")
+                    ui = ui.copy(
+                        logs = outcome.logs,
+                        analysisSourceReport = AnalysisSourceReport(
+                            cloudStatus = "LOCAL_RULE",
+                            onDeviceAttempted = false,
+                            onDeviceReason = null,
+                            finalSource = "本地基础整理",
+                        ),
+                        toast = "已用本地基础整理生成学习结果（未调用大模型，可稍后用云端深度分析覆盖）。",
+                    )
+                }
+                is AnalysisOutcome.Failure -> {
+                    ui = ui.copy(
+                        analysisStatus = AnalysisStatus.FAILED,
+                        toast = "本地基础整理未能生成结果，可返回手动整理资料。",
+                    )
+                }
+            }
+        }
     }
 
     // --- knowledge / evidence ---

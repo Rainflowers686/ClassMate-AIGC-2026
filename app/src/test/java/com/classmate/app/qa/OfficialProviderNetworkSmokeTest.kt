@@ -5,6 +5,7 @@ import java.nio.file.Files
 import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 class OfficialProviderNetworkSmokeTest {
@@ -16,20 +17,46 @@ class OfficialProviderNetworkSmokeTest {
 
     private fun repoRoot(): File = firstExisting(".git", "../.git").parentFile ?: File(".").absoluteFile
 
+    /**
+     * Resolve a usable PowerShell: prefer cross-platform `pwsh` (Linux/macOS CI), fall back to Windows
+     * `powershell`. Returns null when neither is installed so shell-dependent tests can be skipped
+     * (JUnit assume) instead of throwing IOException from ProcessBuilder.start() on a Linux runner.
+     */
+    private fun resolveShell(): String? =
+        listOf("pwsh", "powershell").firstOrNull { isShellRunnable(it) }
+
+    private fun isShellRunnable(shell: String): Boolean = try {
+        val probe = ProcessBuilder(shell, "-NoProfile", "-Command", "exit 0")
+            .redirectErrorStream(true)
+            .start()
+        if (probe.waitFor(20, TimeUnit.SECONDS)) probe.exitValue() == 0 else { probe.destroy(); false }
+    } catch (e: Exception) {
+        // Command not found on this OS (the Linux-CI case) → treat as unavailable, do not fail.
+        false
+    }
+
     private fun runSmokeScript(vararg args: String, env: Map<String, String> = emptyMap()): String {
+        val shell = resolveShell()
+        assumeTrue("No PowerShell (pwsh/powershell) on PATH; skipping shell-dependent smoke test", shell != null)
         val script = File(repoRoot(), "scripts/qa/official_provider_smoke.ps1")
         val command = listOf(
-            "powershell",
+            shell!!,
             "-ExecutionPolicy",
             "Bypass",
             "-File",
             script.absolutePath,
         ) + args
-        val process = ProcessBuilder(command)
-            .directory(repoRoot())
-            .redirectErrorStream(true)
-            .apply { environment().putAll(env) }
-            .start()
+        val process = try {
+            ProcessBuilder(command)
+                .directory(repoRoot())
+                .redirectErrorStream(true)
+                .apply { environment().putAll(env) }
+                .start()
+        } catch (e: java.io.IOException) {
+            // Shell vanished between probe and run → skip, never fail the Linux build.
+            assumeTrue("PowerShell could not be launched; skipping shell-dependent smoke test", false)
+            throw e // unreachable; assumeTrue(false) aborts the test as skipped
+        }
         assertTrue("official_provider_smoke.ps1 timed out", process.waitFor(30, TimeUnit.SECONDS))
         val output = process.inputStream.bufferedReader().readText()
         assertTrue("script failed with ${process.exitValue()}: $output", process.exitValue() == 0)

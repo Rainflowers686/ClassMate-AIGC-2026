@@ -14,6 +14,12 @@ data class AnalysisRequest(
      * never contains the previous bad response, course text, or any secret.
      */
     val repairHint: String? = null,
+    /**
+     * Thinking strength (快速/标准/深度). When null the provider keeps the historical DEEP_STUDY profile
+     * + 120s read timeout (so existing callers/tests are unchanged); when set it drives the cloud
+     * profile, HTTP read timeout, and slow-READ retry budget.
+     */
+    val intensity: AnalysisIntensity? = null,
 )
 
 /**

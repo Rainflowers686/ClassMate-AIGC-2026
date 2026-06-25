@@ -84,6 +84,7 @@ import com.classmate.app.platform.CaptureConfigLoader
 import com.classmate.app.ui.design.Dimens
 import com.classmate.app.ui.i18n.appStrings
 import com.classmate.core.importing.ImportSourceType
+import com.classmate.core.provider.AnalysisIntensity
 import com.classmate.core.transcript.TranscriptLabels
 import java.io.ByteArrayOutputStream
 
@@ -646,6 +647,18 @@ fun MaterialTrayScreen(viewModel: AppViewModel) {
                     modifier = Modifier.fillMaxWidth(),
                     shape = MaterialTheme.shapes.medium,
                 )
+                Spacer(Modifier.height(Dimens.xs))
+                val charCount = ui.courseText.length
+                val longText = charCount > 4000
+                Text(
+                    if (longText) {
+                        "$charCount 字 · 内容较长：将按段落分段整理，原文完整保留为证据；「深度思考」更适合长文本。"
+                    } else {
+                        "$charCount 字 · 原文完整保留为证据，不会被静默截断。"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (longText) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
 
             QuestionBankImportCard(viewModel)
@@ -785,6 +798,27 @@ fun ImportSettingsScreen(viewModel: AppViewModel) {
                     }
                     Text(advisory, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+            }
+            ClassMateCard {
+                Text("思考强度", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "快速更快、深度更完整。深度思考适合长文本 / 复杂资料，可能需要 1～3 分钟；深度分析失败不影响证据保存。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(Dimens.s))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+                    AnalysisIntensity.entries.forEach { level ->
+                        SecondaryButton(
+                            text = if (ui.analysisIntensity == level) "✓ ${level.displayName}" else level.displayName,
+                            onClick = { viewModel.setAnalysisIntensity(level) },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+                Spacer(Modifier.height(Dimens.xs))
+                Text(ui.analysisIntensity.expectedHintZh, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
             }
             ClassMateCard {
                 Text("模型 profile", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
