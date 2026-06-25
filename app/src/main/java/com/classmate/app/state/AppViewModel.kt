@@ -220,6 +220,7 @@ import com.classmate.core.sample.SampleCourses
 import com.classmate.core.video.VideoRecommendationEngine
 import com.classmate.core.weakness.WeaknessHub
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -2570,6 +2571,9 @@ class AppViewModel(
         clock.trim().takeIf { it.isNotBlank() }?.let { com.classmate.core.transcript.TranscriptClock.parseMs(it) }
 
     // --- analysis ---
+    // The in-flight analysis coroutine, so a long cloud wait can be cancelled to switch to local rule.
+    private var analysisJob: Job? = null
+
     fun startAnalysis() {
         val text = ui.courseText
         val hasOcrText = ui.ocrImports.any { it.pastedText.isNotBlank() }
@@ -2666,7 +2670,7 @@ class AppViewModel(
         )
         navigateTo(Screen.ANALYZE)
 
-        viewModelScope.launch {
+        analysisJob = viewModelScope.launch {
             // Live elapsed-time ticker — the analyze page must never look frozen during a slow cloud
             // READ. It also flips the "深度分析耗时较长" notice once past the intensity threshold.
             val started = System.currentTimeMillis()
@@ -2716,12 +2720,22 @@ class AppViewModel(
             val onDeviceAttempted = cloudOutcome !is AnalysisOutcome.Success
             val fallback = if (cloudOutcome is AnalysisOutcome.Success) null
             else onDeviceAnalysisFallback(session, cloudOutcome as AnalysisOutcome.Failure)
-            val outcome = fallback?.first ?: cloudOutcome
             val onDeviceReason = fallback?.second
             val onDeviceDiag = fallback?.third
-            // P0: the unified AiCapabilityRouter is the single authority for the CourseAnalysis route
-            // decision (CLOUD → ON_DEVICE → SAFE_PLACEHOLDER). It drives the user-visible source label;
-            // the validated outcome above is produced exactly as before (validators never relaxed).
+            val baseOutcome = fallback?.first ?: cloudOutcome
+            // Task 1 — terminal fallback: cloud + on-device both failed but we HAVE usable input → generate
+            // a REAL local baseline (本地基础整理) instead of dropping to an empty 安全占位. 安全占位 is reserved
+            // for empty input / safety-blocked / local-also-failed / hard error.
+            val hasUsableInput = !isSample && session.segments.any { it.text.isNotBlank() }
+            val localFallback = if (baseOutcome is AnalysisOutcome.Failure && hasUsableInput) {
+                withContext(Dispatchers.Default) { runLocalRuleAnalysis(session) } as? AnalysisOutcome.Success
+            } else {
+                null
+            }
+            val outcome: AnalysisOutcome = localFallback ?: baseOutcome
+            val usedLocalRule = localFallback != null
+            // The unified AiCapabilityRouter is the authority for the cloud→on-device decision; when both
+            // fail and local-rule produced a usable result the final source is 本地基础整理 (not 安全占位).
             val analysisRoute = CourseAnalysisRouting.decide(
                 cloudSucceeded = cloudOutcome is AnalysisOutcome.Success,
                 cloudStatusCode = cloudStatus,
@@ -2732,7 +2746,7 @@ class AppViewModel(
                 cloudStatus = cloudStatus,
                 onDeviceAttempted = onDeviceAttempted,
                 onDeviceReason = onDeviceReason,
-                finalSource = CourseAnalysisRouting.finalSourceZh(analysisRoute.source),
+                finalSource = if (usedLocalRule) "本地基础整理" else CourseAnalysisRouting.finalSourceZh(analysisRoute.source),
             )
 
             // Staged reveal for product feel — these are the real conceptual phases.
@@ -2759,7 +2773,13 @@ class AppViewModel(
                         analysisSlowNotice = cloudSucceededSlowly,
                         onDeviceAnalysisReason = onDeviceReason ?: ui.onDeviceAnalysisReason,
                         onDeviceAnalysisDiagnostic = onDeviceDiag ?: ui.onDeviceAnalysisDiagnostic,
-                        toast = if (cloudSucceededSlowly) "云端深度分析耗时较长（${totalElapsedMs / 1000}s），但已完成。" else ui.toast,
+                        toast = when {
+                            usedLocalRule && onDeviceReason == "PERMISSION_MISSING" ->
+                                "端侧模型需要模型目录权限；已先用本地基础整理，不影响继续学习。"
+                            usedLocalRule -> "已使用本地基础整理生成可用学习结果，云端可稍后重试。"
+                            cloudSucceededSlowly -> "云端深度分析耗时较长（${totalElapsedMs / 1000}s），但已完成。"
+                            else -> ui.toast
+                        },
                     )
                     return@launch
                     val updatedHistory = (listOf(buildHistoryRecord(session, outcome, now)) + ui.history).take(MAX_HISTORY)
@@ -2789,9 +2809,9 @@ class AppViewModel(
                 }
 
                 is AnalysisOutcome.Failure -> {
-                    // Both cloud 云端蓝心 and on-device 端侧蓝心 failed/were rejected by validators →
-                    // safety placeholder. We do NOT persist a fake CourseAnalysis or invent knowledge points.
-                    // The message is STRUCTURED so an on-device failure is never hidden behind the cloud code.
+                    // True last resort: cloud + on-device failed AND local-rule could not produce a usable
+                    // result (or input was empty / safety-blocked / sample). Only here do we land on 安全占位.
+                    // We never persist a fake CourseAnalysis or invent knowledge points.
                     ui = ui.copy(
                         analysisStatus = AnalysisStatus.FAILED,
                         logs = outcome.logs,
@@ -2802,6 +2822,7 @@ class AppViewModel(
                             append("云端蓝心：").append(sourceReport.cloudStatus)
                             append("\n端侧蓝心：").append(if (sourceReport.onDeviceAttempted) "已尝试" else "未尝试")
                             append("\n端侧结果：").append(AnalysisSourceReport.onDeviceReasonZh(sourceReport.onDeviceReason))
+                            append("\n本地基础整理：").append(if (hasUsableInput) "已尝试但未生成可用结果" else "无可用输入")
                             append("\n最终结果：安全占位（不生成假知识点，可重试或返回手动整理资料）")
                         },
                     )
@@ -2863,6 +2884,19 @@ class AppViewModel(
         if (ui.analysisIntensity != intensity) ui = ui.copy(analysisIntensity = intensity)
     }
 
+    /** Waiting-screen action: stop waiting on the cloud and produce a local baseline now. */
+    fun switchToLocalRuleNow() {
+        analysisJob?.cancel()
+        generateWithLocalRuleAnalysis()
+    }
+
+    /** Waiting/failure action: cancel the current run, drop to 快速, and retry the cloud chain. */
+    fun retryFast() {
+        analysisJob?.cancel()
+        setAnalysisIntensity(AnalysisIntensity.FAST)
+        retryAnalysis()
+    }
+
     /** Jump to Settings · 能力中心 so the user can grant model-dir access / re-check the on-device model. */
     fun goToOnDeviceSettings() {
         selectTab(Tab.SETTINGS)
@@ -2897,7 +2931,7 @@ class AppViewModel(
         }
         val now = System.currentTimeMillis()
         ui = ui.copy(analysisStatus = AnalysisStatus.RUNNING, analysisStageIndex = 0, analysisError = null)
-        viewModelScope.launch {
+        analysisJob = viewModelScope.launch {
             val outcome = withContext(Dispatchers.Default) { runLocalRuleAnalysis(session) }
             for (stage in 1..TOTAL_STAGES) {
                 ui = ui.copy(analysisStageIndex = stage)

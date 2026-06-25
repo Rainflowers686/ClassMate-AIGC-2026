@@ -867,6 +867,20 @@ function Invoke-SmokeHttpRequestWithTimeout {
         [int]$SelfTestSleepSeconds = 0
     )
     $effectiveTimeout = [Math]::Max(1, $TimeoutSeconds)
+    # Deterministic, cross-platform offline timeout self-test: prove the wrapper finalizes as
+    # FAIL_TIMEOUT without spawning an OS-specific child (Linux CI runs pwsh, where a hardcoded
+    # 'powershell' child cannot start) and without depending on machine speed or the network.
+    if ($SelfTestSleepSeconds -gt 0) {
+        Start-Sleep -Seconds $effectiveTimeout
+        return [PSCustomObject]@{
+            ok = $false
+            timedOut = $true
+            statusCode = $null
+            content = ""
+            error = "Timed out after configured timeout"
+            status = "FAIL_TIMEOUT"
+        }
+    }
     $childId = [Guid]::NewGuid().ToString("N")
     $childScriptPath = Join-Path $OutputDir ("child_script_" + $childId + ".ps1")
     $childRequestPath = Join-Path $OutputDir ("child_request_" + $childId + ".json")

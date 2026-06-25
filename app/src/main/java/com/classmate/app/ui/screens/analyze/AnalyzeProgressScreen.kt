@@ -22,8 +22,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.classmate.app.state.AnalysisSourceReport
@@ -54,6 +56,14 @@ fun AnalyzeProgressScreen(viewModel: AppViewModel) {
     val ui = viewModel.ui
     val failed = ui.analysisStatus == AnalysisStatus.FAILED
     val progress = (ui.analysisStageIndex.coerceIn(0, STAGES.size)).toFloat() / STAGES.size
+
+    // Keep the screen awake while analysis runs (深度 mode can take 1–3 min) so the phone does not
+    // sleep mid-analysis; restore on completion / leaving the screen. No extra permission needed.
+    val view = LocalView.current
+    DisposableEffect(ui.analysisStatus) {
+        view.keepScreenOn = ui.analysisStatus == AnalysisStatus.RUNNING
+        onDispose { view.keepScreenOn = false }
+    }
 
     ClassMatePageScaffold(contextLabel = "分析", onBack = { viewModel.goBack() }) { padding ->
         Column(
@@ -114,6 +124,27 @@ fun AnalyzeProgressScreen(viewModel: AppViewModel) {
                     StageRow(title, desc, state)
                     if (index != STAGES.lastIndex) Spacer(Modifier.height(Dimens.m))
                 }
+            }
+
+            // While still waiting AND past the slow threshold: let the user stop waiting on the cloud.
+            if (!failed && ui.analysisSlowNotice) {
+                SecondaryButton(
+                    text = "立即改用本地基础整理（不调用 AI）",
+                    onClick = { viewModel.switchToLocalRuleNow() },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(Dimens.s))
+                SecondaryButton(
+                    text = "改用快速强度重试",
+                    onClick = { viewModel.retryFast() },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(Dimens.s))
+                SecondaryButton(
+                    text = "返回手动整理资料",
+                    onClick = { viewModel.goBack() },
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
 
             if (failed) {
@@ -181,7 +212,7 @@ fun AnalyzeProgressScreen(viewModel: AppViewModel) {
                 )
                 Spacer(Modifier.height(Dimens.s))
                 SecondaryButton(
-                    text = "前往设置 · 能力中心（授权 / 重新检测端侧）",
+                    text = if (permissionBlocked) "去授权端侧模型目录" else "前往设置 · 能力中心（重新检测端侧）",
                     onClick = { viewModel.goToOnDeviceSettings() },
                     modifier = Modifier.fillMaxWidth(),
                 )

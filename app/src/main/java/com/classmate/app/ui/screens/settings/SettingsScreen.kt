@@ -1742,6 +1742,13 @@ private fun OnDeviceDiagnosticCard(viewModel: AppViewModel) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        Spacer(Modifier.height(Dimens.xs))
+        Text(
+            "${OnDeviceLlmConfig.DEFAULT_MODEL_DIR} 位于共享存储：需先在上方授予「全文件访问」权限，App 才能读取模型文件。" +
+                "未授权时端侧会显示 PERMISSION_MISSING，此时分析会自动改用云端或本地基础整理，不会卡住。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         Spacer(Modifier.height(Dimens.s))
         SecondaryButton(
             text = "更新模型路径",

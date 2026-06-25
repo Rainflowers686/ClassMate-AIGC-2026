@@ -296,6 +296,33 @@ class BlueLMProviderTest {
     }
 
     @Test
+    fun degradedRetryRequestIsShorterThanTheFirstAttempt() {
+        val bodies = mutableListOf<String>()
+        val provider = BlueLMProvider(
+            config = fakeBlueLmConfig(),
+            promptBuilder = PromptBuilder(),
+            transport = object : HttpTransport {
+                override fun postJson(url: String, headers: Map<String, String>, body: String, timeoutMs: Long): TransportResponse =
+                    error("BlueLMProvider must use the profiled transport call")
+
+                override fun postJson(url: String, headers: Map<String, String>, body: String, profile: HttpRequestProfile, timeouts: HttpTimeouts): TransportResponse {
+                    bodies += body
+                    if (bodies.size == 1) throw TransportDiagnosticException(BlueLMDiagnosticStage.READ, BlueLMDiagnosticSubtype.IO)
+                    return TransportResponse(200, """{"choices":[{"message":{"content":"{\"knowledgePoints\":[],\"quizQuestions\":[]}"}}]}""")
+                }
+            },
+            requestIdFactory = { "req-degrade" },
+            sleeper = {},
+        )
+
+        provider.generate(AnalysisRequest(SampleCourses.seriesSession(), intensity = AnalysisIntensity.STANDARD))
+
+        assertEquals(2, bodies.size)
+        fun maxTokensOf(body: String): Int = Regex("\"max_tokens\":\\s*(\\d+)").find(body)!!.groupValues[1].toInt()
+        assertTrue("degraded retry must request fewer output tokens", maxTokensOf(bodies[1]) < maxTokensOf(bodies[0]))
+    }
+
+    @Test
     fun intensityDrivesTheHttpReadTimeout() {
         var captured: HttpTimeouts? = null
         val transport = object : HttpTransport {

@@ -17,26 +17,8 @@ class OfficialProviderNetworkSmokeTest {
 
     private fun repoRoot(): File = firstExisting(".git", "../.git").parentFile ?: File(".").absoluteFile
 
-    /**
-     * Resolve a usable PowerShell: prefer cross-platform `pwsh` (Linux/macOS CI), fall back to Windows
-     * `powershell`. Returns null when neither is installed so shell-dependent tests can be skipped
-     * (JUnit assume) instead of throwing IOException from ProcessBuilder.start() on a Linux runner.
-     */
-    private fun resolveShell(): String? =
-        listOf("pwsh", "powershell").firstOrNull { isShellRunnable(it) }
-
-    private fun isShellRunnable(shell: String): Boolean = try {
-        val probe = ProcessBuilder(shell, "-NoProfile", "-Command", "exit 0")
-            .redirectErrorStream(true)
-            .start()
-        if (probe.waitFor(20, TimeUnit.SECONDS)) probe.exitValue() == 0 else { probe.destroy(); false }
-    } catch (e: Exception) {
-        // Command not found on this OS (the Linux-CI case) → treat as unavailable, do not fail.
-        false
-    }
-
     private fun runSmokeScript(vararg args: String, env: Map<String, String> = emptyMap()): String {
-        val shell = resolveShell()
+        val shell = SHELL
         assumeTrue("No PowerShell (pwsh/powershell) on PATH; skipping shell-dependent smoke test", shell != null)
         val script = File(repoRoot(), "scripts/qa/official_provider_smoke.ps1")
         val command = listOf(
@@ -668,18 +650,21 @@ class OfficialProviderNetworkSmokeTest {
         val resultJson = File(outputDir, "smoke_result.json").readText()
         val resultMd = File(outputDir, "smoke_result.md").readText()
         val log = File(outputDir, "smoke.log").readText()
+        // ConvertTo-Json spacing differs by host: PowerShell 5.1 emits ":  " (two spaces), pwsh emits
+        // ": " — normalize so the structural markers match on either (the Linux-CI pwsh case).
+        val resultJsonNorm = resultJson.replace(Regex(":\\s+"), ": ")
 
         assertTrue(output.contains("OCR: DRY_RUN_READY"))
         listOf(
             "\"endpointShape\"",
-            "\"pathLastSegment\":  \"general_recognition\"",
+            "\"pathLastSegment\": \"general_recognition\"",
             "\"requestId\"",
-            "\"httpMethod\":  \"POST\"",
-            "\"contentType\":  \"application/x-www-form-urlencoded\"",
-            "\"payloadKind\":  \"FORM\"",
-            "\"providerPathSource\":  \"CONFIG\"",
+            "\"httpMethod\": \"POST\"",
+            "\"contentType\": \"application/x-www-form-urlencoded\"",
+            "\"payloadKind\": \"FORM\"",
+            "\"providerPathSource\": \"CONFIG\"",
         ).forEach {
-            assertTrue("result json missing sanitized shape marker: $it", resultJson.contains(it))
+            assertTrue("result json missing sanitized shape marker: $it", resultJsonNorm.contains(it))
         }
         listOf("method", "contentType", "payloadKind", "general_recognition", "requestId", "CONFIG").forEach {
             assertTrue("result md missing sanitized shape marker: $it", resultMd.contains(it))
@@ -724,5 +709,26 @@ class OfficialProviderNetworkSmokeTest {
         assertFalse(vendorIo.contains("put(\"enable_thinking\", false)"))
         assertFalse(diagnostic.contains("put(\"enable_thinking\", false)"))
         assertFalse(mainFiles.any { it.readText().contains("import com.vivo.llmsdk") })
+    }
+
+    companion object {
+        /**
+         * Resolve a usable PowerShell ONCE for the whole class: prefer cross-platform `pwsh`
+         * (Linux/macOS CI), fall back to Windows `powershell`. null → neither installed, so
+         * shell-dependent tests JUnit-assume-skip instead of throwing IOException on a Linux runner.
+         * Caching avoids paying a shell-probe per test (and keeps timing-sensitive tests stable).
+         */
+        private val SHELL: String? by lazy {
+            listOf("pwsh", "powershell").firstOrNull { shell ->
+                try {
+                    val probe = ProcessBuilder(shell, "-NoProfile", "-Command", "exit 0")
+                        .redirectErrorStream(true)
+                        .start()
+                    if (probe.waitFor(20, TimeUnit.SECONDS)) probe.exitValue() == 0 else { probe.destroy(); false }
+                } catch (e: Exception) {
+                    false
+                }
+            }
+        }
     }
 }

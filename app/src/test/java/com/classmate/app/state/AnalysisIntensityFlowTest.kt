@@ -37,7 +37,9 @@ class AnalysisIntensityFlowTest {
 
         assertTrue("local-rule analysis must succeed", outcome is AnalysisOutcome.Success)
         outcome as AnalysisOutcome.Success
+        // Task 1.4: usable means at least one knowledge point AND one quiz item (not an empty placeholder).
         assertTrue("local-rule result must contain knowledge points", outcome.result.knowledgePoints.isNotEmpty())
+        assertTrue("local-rule result must contain at least one quiz", outcome.result.quizQuestions.isNotEmpty())
     }
 
     @Test
