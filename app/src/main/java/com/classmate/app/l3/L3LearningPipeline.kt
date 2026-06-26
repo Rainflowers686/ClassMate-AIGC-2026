@@ -12,6 +12,7 @@ import com.classmate.core.model.KnowledgePoint
 import com.classmate.core.model.ProviderKind
 import com.classmate.core.model.QuestionType
 import com.classmate.core.model.QuizOption
+import com.classmate.core.model.QuizQuality
 import com.classmate.core.model.QuizQuestion
 import com.classmate.core.model.SourceKind
 import kotlin.math.abs
@@ -299,7 +300,7 @@ class L3LearningPipeline {
                 masteryState = L3MasteryState.LEARNING,
             )
         }
-        val questions = result.quizQuestions.mapIndexed { index, question ->
+        val questions = QuizQuality.repairAndFilter(result.quizQuestions).mapIndexed { index, question ->
             L3GeneratedQuestion(
                 id = question.id,
                 lessonId = session.id,

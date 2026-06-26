@@ -2981,7 +2981,7 @@ class AppViewModel(
 
     fun openEvidenceById(evidenceId: String) {
         if (evidenceId.isBlank()) {
-            ui = ui.copy(toast = "No evidence is available for this item.")
+            ui = ui.copy(toast = "该内容暂无可回溯证据。")
             return
         }
         ui = ui.copy(selectedEvidenceId = evidenceId, selectedKnowledgePointId = null)
@@ -3009,6 +3009,22 @@ class AppViewModel(
 
     fun openEvidenceForReviewTask(task: ReviewTask) {
         openEvidenceForKnowledgePoint(task.knowledgePointId)
+    }
+
+    /**
+     * True only when [evidenceId] resolves to evidence that has a retraceable excerpt — not merely a
+     * dangling id. UI must gate "查看证据" on this so a mis-bound or empty evidence never claims to be
+     * traceable; when it's false the surface shows an honest "暂无可回溯证据" instead.
+     */
+    fun hasRetraceableEvidence(evidenceId: String?): Boolean {
+        if (evidenceId.isNullOrBlank()) return false
+        val evidence = ui.l3Pipeline.evidence.firstOrNull { it.id == evidenceId } ?: return false
+        val asset = evidence.assetId?.let { id -> ui.l3Pipeline.evidenceAssets.firstOrNull { it.id == id } }
+        val excerpt = evidence.text
+            .ifBlank { evidence.snippet }
+            .ifBlank { evidence.transcriptSegment }
+            .ifBlank { asset?.text.orEmpty() }
+        return excerpt.isNotBlank()
     }
 
     // --- quiz ---

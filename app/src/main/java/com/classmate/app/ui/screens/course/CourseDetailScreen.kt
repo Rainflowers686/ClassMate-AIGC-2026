@@ -112,7 +112,8 @@ fun CourseDetailScreen(viewModel: AppViewModel) {
                             summary = kp.summary,
                             evidence = kp.evidence.firstOrNull()?.quote,
                             isLast = i == nodes.lastIndex,
-                            onClick = { viewModel.navigateTo(Screen.KNOWLEDGE) },
+                            // Tapping a map node opens that point's evidence (原文), not the ask-this-lesson page.
+                            onClick = { viewModel.openEvidence(kp.id) },
                         )
                     }
                 } else {

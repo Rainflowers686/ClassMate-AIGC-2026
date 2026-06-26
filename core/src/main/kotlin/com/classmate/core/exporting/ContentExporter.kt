@@ -350,6 +350,25 @@ object SafeExportText {
         "mes" + "sages",
         "vendor" + " response body",
         "vendor" + " body",
+        // Internal pipeline / debug tokens that must never leak into a study export. Only unambiguous
+        // code tokens + app-specific phrases are listed — generic study words (embedding, similarity)
+        // are intentionally NOT redacted so a CS/ML course export stays intact.
+        "LOCAL_FALLBACK",
+        "local-learning-pipeline",
+        "Evidence chain",
+        "mastery events",
+        "topHit",
+        "BuildConfig",
+        "config.local.json",
+        "smoke pass",
+        "adapter injected",
+        "QUERY_REWRITE",
+        "TEXT_SIMILARITY",
+        "LLM_SUMMARY",
+        "QUESTION_GENERATION",
+        "REVIEW_UPDATE",
+        "Semantic index",
+        "Tool steps",
     )
 
     fun redact(value: String): String =

@@ -16,14 +16,15 @@ class AppVersionTest {
             .firstOrNull { it.exists() }?.readText(Charsets.UTF_8) ?: error("missing app/build.gradle.kts")
 
     @Test
-    fun versionNameIsOnePointZero() {
-        assertTrue(gradle.contains("versionName = \"1.0.0\""))
+    fun versionNameIsCurrentAndNotOld() {
+        assertTrue(gradle.contains("versionName = \"1.0.1\""))
         assertFalse(gradle.contains("versionName = \"0.1.0\""))
+        assertFalse(gradle.contains("versionName = \"1.0.0\""))
     }
 
     @Test
-    fun versionCodeIsNinety() {
-        assertTrue(gradle.contains("versionCode = 90"))
+    fun versionCodeIsCurrent() {
+        assertTrue(gradle.contains("versionCode = 91"))
     }
 
     @Test

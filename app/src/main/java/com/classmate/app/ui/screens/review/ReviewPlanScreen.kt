@@ -1,5 +1,6 @@
 package com.classmate.app.ui.screens.review
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -175,14 +176,17 @@ private fun L3LearningLoopCard(viewModel: AppViewModel) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                if (evidenceId != null) {
-                    Spacer(Modifier.height(Dimens.xxs))
-                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
-                        ActionChip("查看证据") { viewModel.openEvidenceById(evidenceId) }
-                        ActionChip("再测一次") { viewModel.startPractice(com.classmate.core.practice.PracticeMode.QUICK_REVIEW) }
-                        if (wrongCount > 0) ActionChip("重练错题") { viewModel.startPractice(com.classmate.core.practice.PracticeMode.WRONG_ANSWER_RETRY) }
-                        ActionChip("复述知识点") { viewModel.startSelfAssessment() }
+                Spacer(Modifier.height(Dimens.xxs))
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+                    val retraceable = evidenceId?.takeIf { viewModel.hasRetraceableEvidence(it) }
+                    if (retraceable != null) {
+                        ActionChip("查看证据") { viewModel.openEvidenceById(retraceable) }
+                    } else {
+                        EvidenceHintChip("暂无可回溯证据")
                     }
+                    ActionChip("再测一次") { viewModel.startPractice(com.classmate.core.practice.PracticeMode.QUICK_REVIEW) }
+                    if (wrongCount > 0) ActionChip("重练错题") { viewModel.startPractice(com.classmate.core.practice.PracticeMode.WRONG_ANSWER_RETRY) }
+                    ActionChip("复述知识点") { viewModel.startSelfAssessment() }
                 }
             }
         }
@@ -190,7 +194,7 @@ private fun L3LearningLoopCard(viewModel: AppViewModel) {
             Spacer(Modifier.height(Dimens.s))
             Text("错题本", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             l3.wrongBook.takeLast(3).reversed().forEach { wrong ->
-                val evidence = l3.evidence.firstOrNull { it.id in wrong.evidenceIds }?.text ?: "暂无证据"
+                val evidence = l3.evidence.firstOrNull { it.id in wrong.evidenceIds }?.text?.ifBlank { null } ?: "暂无可回溯原文片段"
                 val kp = l3.knowledgePoints.firstOrNull { it.id == wrong.knowledgePointId }
                 Spacer(Modifier.height(Dimens.xs))
                 Text(l3.questions.firstOrNull { it.id == wrong.questionId }?.stem ?: "错题", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
@@ -202,8 +206,11 @@ private fun L3LearningLoopCard(viewModel: AppViewModel) {
                 Text("证据：$evidence", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(Dimens.xxs))
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
-                    wrong.evidenceIds.firstOrNull()?.let { evidenceId ->
-                        ActionChip("查看证据") { viewModel.openEvidenceById(evidenceId) }
+                    val retraceable = wrong.evidenceIds.firstOrNull { viewModel.hasRetraceableEvidence(it) }
+                    if (retraceable != null) {
+                        ActionChip("查看证据") { viewModel.openEvidenceById(retraceable) }
+                    } else {
+                        EvidenceHintChip("暂无可回溯证据")
                     }
                     ActionChip("重练这题") { viewModel.retryWrongQuestion(wrong.id) }
                     ActionChip("复习相关知识点") { viewModel.openEvidenceForKnowledgePoint(wrong.knowledgePointId) }
@@ -230,7 +237,7 @@ private fun LearningDiagnosisCard(viewModel: AppViewModel) {
                 Spacer(Modifier.height(Dimens.xs))
                 Text(item.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                 Text(item.reason, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                item.evidenceIds.firstOrNull()?.let { evidenceId ->
+                item.evidenceIds.firstOrNull { viewModel.hasRetraceableEvidence(it) }?.let { evidenceId ->
                     Spacer(Modifier.height(Dimens.xxs))
                     ActionChip("查看诊断证据") { viewModel.openEvidenceById(evidenceId) }
                 }
@@ -423,7 +430,7 @@ private fun TaskCard(task: ReviewTask, index: Int, total: Int, viewModel: AppVie
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
             ActionChip("打开") { viewModel.openTaskCourse(task) }
             ActionChip("开始练习") { viewModel.startPracticeForTask(task) }
-            if (viewModel.reviewEvidenceIdForKnowledgePoint(task.knowledgePointId) != null) {
+            if (viewModel.hasRetraceableEvidence(viewModel.reviewEvidenceIdForKnowledgePoint(task.knowledgePointId))) {
                 ActionChip("查看证据") { viewModel.openEvidenceForReviewTask(task) }
             }
             ActionChip("完成") { viewModel.reviewMarkDone(task.taskId) }
@@ -493,6 +500,20 @@ private fun ActionChip(text: String, onClick: () -> Unit) {
         color = cs.surfaceVariant,
         contentColor = cs.onSurfaceVariant,
         modifier = Modifier.clickable { onClick() },
+    ) {
+        Text(text, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+    }
+}
+
+/** Non-actionable, honest chip shown in place of "查看证据" when no retraceable evidence exists. */
+@Composable
+private fun EvidenceHintChip(text: String) {
+    val cs = MaterialTheme.colorScheme
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = cs.surface,
+        contentColor = cs.onSurfaceVariant,
+        border = BorderStroke(1.dp, cs.outlineVariant),
     ) {
         Text(text, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
     }

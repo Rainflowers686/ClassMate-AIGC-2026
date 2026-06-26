@@ -45,6 +45,7 @@ import com.classmate.app.ui.theme.ClassMateTheme
 import com.classmate.core.model.FeedbackTargetKind
 import com.classmate.core.model.FeedbackType
 import com.classmate.core.model.QuizOption
+import com.classmate.core.model.QuizQuality
 import com.classmate.core.model.QuizQuestion
 import com.classmate.app.ui.i18n.Strings
 import com.classmate.app.ui.i18n.appStrings
@@ -55,8 +56,11 @@ fun QuizScreen(viewModel: AppViewModel) {
     val s = appStrings(ui.language)
     val result = ui.result
     val session = ui.session
+    // Only complete, answerable questions reach the user: every option gets a why-right/why-wrong line
+    // and every question an explanation; questions with no correct option / too few options are dropped.
+    val questions = result?.let { QuizQuality.repairAndFilter(it.quizQuestions) }.orEmpty()
 
-    if (result == null || session == null || result.quizQuestions.isEmpty()) {
+    if (result == null || session == null || questions.isEmpty()) {
         ClassMateScaffold(title = s.quizLabel, onBack = { viewModel.goBack() }) { padding ->
             Box(Modifier.padding(padding).fillMaxWidth().padding(Dimens.screen)) {
                 Text(s.quizEmpty, style = MaterialTheme.typography.bodyMedium)
@@ -64,8 +68,6 @@ fun QuizScreen(viewModel: AppViewModel) {
         }
         return
     }
-
-    val questions = result.quizQuestions
     val index = ui.currentQuestionIndex.coerceIn(0, questions.lastIndex)
     val question = questions[index]
     val revealed = question.id in ui.revealedQuestionIds

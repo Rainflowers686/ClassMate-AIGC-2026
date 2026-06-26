@@ -79,17 +79,33 @@ class LearningExportEngineTest {
 
         val markdown = LearningExportEngine.buildStudyPackMarkdown(snapshot, now)
 
+        // The study pack is a clean Chinese learning document with answers + explanations.
+        listOf(
+            "AI 整理摘要",
+            "知识点",
+            "微测题（含答案与解析）",
+            "正确答案：",
+            "解析：",
+            "错题本",
+            "20 分钟复习计划",
+            "学习诊断",
+            "证据索引",
+            "学习建议",
+        ).forEach { assertTrue("study pack should contain Chinese section: $it", markdown.contains(it)) }
+
+        // No English debug headings and no raw evidence/question ids leak into the export.
         listOf(
             "Knowledge points",
             "Micro quiz",
-            "Correct answer",
-            "Wrong book",
-            "Mistake reason",
-            "20-minute review plan",
-            "Learning diagnosis",
             "Evidence source index",
             "Capability usage note",
-        ).forEach { assertTrue(markdown.contains(it)) }
+            "Correct answer",
+            "Wrong book",
+            "ev_text_1",
+            "q_tcp",
+            "kp_tcp",
+        ).forEach { assertFalse("study pack must not contain debug/raw token: $it", markdown.contains(it)) }
+
         listOf("AppKey", "Authorization", "config.local.json", "adapter injected", "smoke pass").forEach {
             assertFalse(markdown.contains(it, ignoreCase = true))
         }

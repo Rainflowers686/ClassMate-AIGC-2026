@@ -4,6 +4,13 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+/**
+ * Builds the study-pack markdown that backs every export format. It is a clean *learning* document:
+ * Chinese section headings, only review content (summary, knowledge points, easy mistakes, quiz with
+ * answers + explanations, wrong book, review plan, diagnosis, evidence index, suggestions). It never
+ * emits raw ids, enum names, pipeline-step labels, provider config or English debug headings — when an
+ * excerpt can't be located it says so honestly instead of dumping an id.
+ */
 object LearningExportEngine {
     private val forbiddenTerms = listOf(
         "AppKey",
@@ -16,121 +23,133 @@ object LearningExportEngine {
         "reasoning_content",
     )
 
+    private const val NO_EVIDENCE = "该内容暂无可回溯原文片段，请结合课堂材料人工确认。"
+
     fun buildStudyPackMarkdown(snapshot: L3PipelineSnapshot, generatedAt: Long = System.currentTimeMillis()): String {
-        val title = snapshot.lessonSource?.title?.ifBlank { null } ?: "ClassMate study pack"
+        val title = snapshot.lessonSource?.title?.ifBlank { null } ?: "ClassMate 学习包"
         val evidenceById = snapshot.evidence.associateBy { it.id }
         val kpById = snapshot.knowledgePoints.associateBy { it.id }
-        val sourceTypes = snapshot.evidence.map { it.sourceType.name }.distinct().ifEmpty { listOf(snapshot.lessonSource?.type?.name ?: "TEXT") }
+        val sourceTypes = snapshot.evidence.map { sourceTypeZh(it.sourceType) }.distinct()
+            .ifEmpty { listOf(sourceTypeZh(snapshot.lessonSource?.type ?: L3SourceType.TEXT)) }
         val lowConfidence = snapshot.qualityWarnings.map { it.message } +
-            snapshot.asrJobs.flatMap { job -> job.transcriptSegments.filter { it.lowConfidence }.map { "Low-confidence transcript: ${it.text.take(80)}" } }
+            snapshot.asrJobs.flatMap { job -> job.transcriptSegments.filter { it.lowConfidence }.map { "低置信转写：${it.text.take(80)}" } }
 
         val body = buildString {
-            appendLine("# ClassMate study pack")
+            appendLine("# ${safe(title)} · 复习学习包")
             appendLine()
-            appendLine("- Course: ${safe(title)}")
-            appendLine("- Generated: ${formatTime(generatedAt)}")
-            appendLine("- Source types: ${sourceTypes.joinToString(", ")}")
+            appendLine("- 课程：${safe(title)}")
+            appendLine("- 生成时间：${formatTime(generatedAt)}")
+            appendLine("- 资料来源：${sourceTypes.joinToString("、")}")
             appendLine()
 
-            appendSection("AI organized summary") {
+            appendSection("AI 整理摘要") {
                 appendBullets(listOfNotBlank(snapshot.summary) + snapshot.keyTakeaways.take(8))
             }
 
-            appendSection("Knowledge points") {
+            appendSection("知识点") {
                 if (snapshot.knowledgePoints.isEmpty()) {
-                    appendLine("- No knowledge points yet.")
+                    appendLine("- 暂无知识点。")
                 } else {
                     snapshot.knowledgePoints.forEachIndexed { index, kp ->
                         appendLine("${index + 1}. ${safe(kp.title)}")
-                        appendLine("   - Explanation: ${safe(kp.explanation)}")
-                        appendLine("   - Mastery: ${kp.masteryState.name}")
-                        kp.sourceEvidenceIds.firstOrNull()?.let { appendLine("   - Evidence: ${evidenceLabel(evidenceById[it])}") }
+                        appendLine("   - 说明：${safe(kp.explanation)}")
+                        appendLine("   - 证据：${evidenceLabelZh(evidenceById[kp.sourceEvidenceIds.firstOrNull()])}")
                     }
                 }
             }
 
-            appendSection("Key concepts and easy mistakes") {
+            appendSection("易错点") {
                 val weakTitles = snapshot.learningDiagnosis.weakKnowledgePoints.map { it.title }.ifEmpty {
                     snapshot.wrongBook.mapNotNull { kpById[it.knowledgePointId]?.title }.distinct()
                 }
-                appendLine("- Key concepts: ${snapshot.knowledgePoints.take(6).joinToString(", ") { safe(it.title) }.ifBlank { "None yet" }}")
-                appendLine("- Easy mistakes: ${weakTitles.joinToString(", ").ifBlank { "None yet" }}")
+                appendLine("- 核心概念：${snapshot.knowledgePoints.take(6).joinToString("、") { safe(it.title) }.ifBlank { "暂无" }}")
+                appendLine("- 易错点：${weakTitles.joinToString("、").ifBlank { "暂无" }}")
             }
 
-            appendSection("Micro quiz") {
+            appendSection("微测题（含答案与解析）") {
                 if (snapshot.questions.isEmpty()) {
-                    appendLine("- No quiz items yet.")
+                    appendLine("- 暂无微测题。")
                 } else {
                     snapshot.questions.forEachIndexed { index, q ->
                         appendLine("${index + 1}. ${safe(q.stem)}")
                         q.options.forEachIndexed { optIndex, option ->
-                            appendLine("   - ${('A'.code + optIndex).toChar()}. ${safe(option)}")
+                            val text = safe(option)
+                            // Options may already carry their own "A. " label from the pipeline — don't double it.
+                            val labeled = if (text.matches(Regex("^[A-Za-z][.、).．].*"))) text else "${('A'.code + optIndex).toChar()}. $text"
+                            appendLine("   - $labeled")
                         }
-                        appendLine("   - Correct answer: ${safe(q.correctAnswer)}")
-                        appendLine("   - Explanation: ${safe(q.explanation)}")
-                        appendLine("   - Evidence: ${q.evidenceIds.map { evidenceLabel(evidenceById[it]) }.joinToString("; ").ifBlank { "No evidence linked" }}")
+                        appendLine("   - 正确答案：${safe(q.correctAnswer)}")
+                        appendLine("   - 解析：${safe(q.explanation.ifBlank { "请回到证据核对题干的限定条件，再确认正确选项。" })}")
+                        appendLine("   - 证据：${q.evidenceIds.map { evidenceLabelZh(evidenceById[it]) }.firstOrNull() ?: NO_EVIDENCE}")
                     }
                 }
             }
 
-            appendSection("Wrong book") {
+            appendSection("错题本") {
                 if (snapshot.wrongBook.isEmpty()) {
-                    appendLine("- No wrong answers recorded yet.")
+                    appendLine("- 暂无错题记录。")
                 } else {
                     snapshot.wrongBook.forEachIndexed { index, wrong ->
                         val question = snapshot.questions.firstOrNull { it.id == wrong.questionId }
-                        appendLine("${index + 1}. ${safe(question?.stem ?: wrong.questionId)}")
-                        appendLine("   - Your answer: ${safe(wrong.userAnswer)}")
-                        appendLine("   - Correct answer: ${safe(wrong.correctAnswer)}")
-                        appendLine("   - Mistake reason: ${safe(wrong.mistakeReason.ifBlank { wrong.explanation })}")
-                        appendLine("   - Remediation: ${safe(wrong.remediationHint.ifBlank { "Review the linked evidence, then retry this question." })}")
-                        appendLine("   - Evidence: ${wrong.evidenceIds.map { evidenceLabel(evidenceById[it]) }.joinToString("; ").ifBlank { "No evidence linked" }}")
+                        appendLine("${index + 1}. ${safe(question?.stem ?: "（该题已不在题库）")}")
+                        appendLine("   - 你的作答：${safe(wrong.userAnswer)}")
+                        appendLine("   - 正确答案：${safe(wrong.correctAnswer)}")
+                        appendLine("   - 错因：${safe(wrong.mistakeReason.ifBlank { wrong.explanation })}")
+                        appendLine("   - 巩固建议：${safe(wrong.remediationHint.ifBlank { "回到证据重新核对，然后重做这道题。" })}")
+                        appendLine("   - 证据：${wrong.evidenceIds.map { evidenceLabelZh(evidenceById[it]) }.firstOrNull() ?: NO_EVIDENCE}")
                     }
                 }
             }
 
-            appendSection("20-minute review plan") {
+            appendSection("20 分钟复习计划") {
                 if (snapshot.reviewQueue.isEmpty()) {
-                    appendLine("- [ ] No review task yet. Generate a learning loop first.")
+                    appendLine("- [ ] 暂无复习任务，请先生成学习闭环。")
                 } else {
                     snapshot.reviewQueue.take(12).forEach { item ->
                         val kp = kpById[item.knowledgePointId]
-                        appendLine("- [ ] ${safe(kp?.title ?: item.knowledgePointId)}")
-                        appendLine("      Reason: ${safe(item.arrangementReason.ifBlank { "Scheduled from the learning loop." })}")
-                        appendLine("      Action: ${safe(item.recommendedActions.joinToString(", ").ifBlank { "Read evidence, retry quiz, explain aloud." })}")
-                        item.evidenceId?.let { appendLine("      Evidence: ${evidenceLabel(evidenceById[it])}") }
+                        appendLine("- [ ] ${safe(kp?.title ?: "复习知识点")}")
+                        appendLine("      安排原因：${safe(item.arrangementReason.ifBlank { "来自学习闭环的复习安排。" })}")
+                        appendLine("      建议动作：${safe(item.recommendedActions.joinToString("、").ifBlank { "看证据、重做微测、口头复述。" })}")
+                        item.evidenceId?.let { appendLine("      证据：${evidenceLabelZh(evidenceById[it])}") }
                     }
                 }
             }
 
-            appendSection("Learning diagnosis") {
+            appendSection("学习诊断") {
                 val diagnosis = snapshot.learningDiagnosis
-                appendLine("- Review pressure: ${safe(diagnosis.recentReviewPressure.ifBlank { "No strong pressure yet." })}")
-                appendLine("- Next task: ${safe(diagnosis.nextStudyTasks.firstOrNull().orEmpty().ifBlank { "Continue the current review plan." })}")
+                appendLine("- 近期复习压力：${safe(diagnosis.recentReviewPressure.ifBlank { "暂无明显压力。" })}")
+                appendLine("- 下一步任务：${safe(diagnosis.nextStudyTasks.firstOrNull().orEmpty().ifBlank { "继续执行当前复习计划。" })}")
                 diagnosis.weakKnowledgePoints.take(5).forEach {
-                    appendLine("- Weak point: ${safe(it.title)} - ${safe(it.reason)}")
+                    appendLine("- 薄弱点：${safe(it.title)} —— ${safe(it.reason)}")
                 }
             }
 
-            appendSection("Evidence source index") {
+            appendSection("证据索引") {
                 if (snapshot.evidence.isEmpty()) {
-                    appendLine("- No evidence yet.")
+                    appendLine("- 暂无证据。")
                 } else {
                     snapshot.evidence.take(30).forEach { ev ->
-                        appendLine("- ${ev.id}: ${ev.sourceType.name} / ${safe(ev.sourceLabel.ifBlank { ev.fileName }.ifBlank { ev.sourceId })} / ${safe(ev.snippet.ifBlank { ev.text.take(120) })}")
+                        val label = ev.sourceLabel.ifBlank { ev.fileName }.ifBlank { sourceTypeZh(ev.sourceType) }
+                        val excerpt = ev.snippet.ifBlank { ev.text }.take(120)
+                        if (excerpt.isBlank()) {
+                            appendLine("- ${sourceTypeZh(ev.sourceType)} · ${safe(label)}：$NO_EVIDENCE")
+                        } else {
+                            appendLine("- ${sourceTypeZh(ev.sourceType)} · ${safe(label)}：「${safe(excerpt)}」")
+                        }
                     }
                 }
             }
 
-            appendSection("Low-confidence notes") {
-                if (lowConfidence.isEmpty()) appendLine("- No low-confidence OCR/ASR warning recorded.")
-                lowConfidence.take(12).forEach { appendLine("- ${safe(it)}") }
+            if (lowConfidence.isNotEmpty()) {
+                appendSection("需人工核对的低置信内容") {
+                    lowConfidence.take(12).forEach { appendLine("- ${safe(it)}") }
+                }
             }
 
-            appendSection("Capability usage note") {
-                appendLine("- Cloud model: organizes class content when configured.")
-                appendLine("- Edge model: can provide offline or privacy-sensitive fallback when device resources are ready.")
-                appendLine("- Local rules: keep summary, quiz, review, and export usable when cloud or edge routes are unavailable.")
+            appendSection("学习建议") {
+                appendLine("- 先看证据再做题：每道题都能回到原文核对题干限定。")
+                appendLine("- 错题本里的题，间隔一天再重做一次，巩固记忆。")
+                appendLine("- 标注「暂无可回溯原文片段」的内容，请结合课堂材料人工确认。")
             }
         }.trim()
         return redactForbidden(body)
@@ -145,7 +164,7 @@ object LearningExportEngine {
 
     private fun StringBuilder.appendBullets(items: List<String>) {
         if (items.isEmpty()) {
-            appendLine("- No content yet.")
+            appendLine("- 暂无内容。")
         } else {
             items.forEach { appendLine("- ${safe(it)}") }
         }
@@ -154,17 +173,29 @@ object LearningExportEngine {
     private fun listOfNotBlank(value: String): List<String> =
         if (value.isBlank()) emptyList() else listOf(value)
 
-    private fun evidenceLabel(evidence: Evidence?): String =
+    /** A study-facing evidence label: source type (Chinese) + material name, never a raw id. */
+    private fun evidenceLabelZh(evidence: Evidence?): String =
         evidence?.let {
-            val label = it.sourceLabel.ifBlank { it.fileName }.ifBlank { it.sourceType.name }
-            "${it.id} (${safe(label)})"
-        } ?: "Evidence missing"
+            val label = it.sourceLabel.ifBlank { it.fileName }.ifBlank { sourceTypeZh(it.sourceType) }
+            "${sourceTypeZh(it.sourceType)} · ${safe(label)}"
+        } ?: NO_EVIDENCE
+
+    private fun sourceTypeZh(type: L3SourceType): String = when (type) {
+        L3SourceType.TEXT -> "课堂文本"
+        L3SourceType.OCR_IMAGE -> "OCR 图片"
+        L3SourceType.DOCUMENT -> "文档"
+        L3SourceType.AUDIO_TRANSCRIPT -> "课堂录音转写"
+        L3SourceType.MANUAL_TRANSCRIPT -> "手动转写"
+        L3SourceType.RECORDING_ARTIFACT -> "录音"
+        L3SourceType.QUESTION_BANK -> "题库"
+        L3SourceType.WEB -> "网络资料"
+    }
 
     private fun safe(value: String): String =
         value.replace(Regex("\\s+"), " ").trim().take(600)
 
     private fun redactForbidden(value: String): String =
-        forbiddenTerms.fold(value) { acc, term -> acc.replace(term, "[redacted]", ignoreCase = true) }
+        forbiddenTerms.fold(value) { acc, term -> acc.replace(term, "[已隐藏]", ignoreCase = true) }
 
     private fun formatTime(value: Long): String =
         SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date(value))
