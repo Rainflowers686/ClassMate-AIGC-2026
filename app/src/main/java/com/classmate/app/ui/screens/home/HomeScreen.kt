@@ -130,7 +130,8 @@ fun HomeScreen(viewModel: AppViewModel) {
                                 Spacer(Modifier.height(4.dpv()))
                                 Text("${recent.knowledgePointCount} 个知识点 · ${recent.quizCount} 道微测", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            ProductPill(ProviderPathNode.sourceLabelZh(recent.providerName))
+                            // A saved record always has content — show 本地整理 (not 安全占位) for the local-rule source.
+                            ProductPill(ProviderPathNode.recordLabelZh(recent.providerName))
                         }
                     }
                 }

@@ -149,23 +149,35 @@ fun TranscriptImportScreen(viewModel: AppViewModel) {
             )
 
             // --- glossary nudge (display-only, never evidence, bounded) ---
+            // Honestly separate REAL terms (matched in the current transcript) from the built-in DEMO pack.
             val hints = viewModel.transcriptGlossaryHints()
+            val hasRealInput = ui.transcriptPasteDraft.isNotBlank() || ui.transcriptDraft != null
             ClassMateCard {
                 Text("术语表", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(Dimens.xxs))
-                Text(
-                    "本课程术语：${ui.selectedSubject} · ${CourseGlossary.countFor(ui.selectedSubject)} 个",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                if (hints.isNotEmpty()) {
-                    Spacer(Modifier.height(Dimens.xxs))
-                    Text(
-                        "可检查术语（仅提示，不改写原文）：${hints.joinToString("、")}",
+                when {
+                    hints.isNotEmpty() -> Text(
+                        "从当前转写稿提取（仅提示，不改写原文）：${hints.joinToString("、")}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    hasRealInput -> Text(
+                        "已粘贴转写稿，解析后会从中提取术语。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    else -> Text(
+                        "暂无真实转写内容，导入字幕或粘贴转写稿后将从中提取术语。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                Spacer(Modifier.height(Dimens.xxs))
+                Text(
+                    "内置术语参考（演示数据）：${ui.selectedSubject} · ${CourseGlossary.countFor(ui.selectedSubject)} 个",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
 
             PrimaryButton(
