@@ -50,6 +50,17 @@ class LocalizationCompletenessTest {
         Triple("importSample", zh.importSample, en.importSample),
         Triple("settingsTitle", zh.settingsTitle, en.settingsTitle),
         Triple("settingsLanguageDesc", zh.settingsLanguageDesc, en.settingsLanguageDesc),
+        Triple("quizLabel", zh.quizLabel, en.quizLabel),
+        Triple("quizEmpty", zh.quizEmpty, en.quizEmpty),
+        Triple("quizPrev", zh.quizPrev, en.quizPrev),
+        Triple("quizNext", zh.quizNext, en.quizNext),
+        Triple("quizToReview", zh.quizToReview, en.quizToReview),
+        Triple("quizExplanation", zh.quizExplanation, en.quizExplanation),
+        Triple("quizTestedKp", zh.quizTestedKp, en.quizTestedKp),
+        Triple("quizTooHard", zh.quizTooHard, en.quizTooHard),
+        Triple("quizNeedMore", zh.quizNeedMore, en.quizNeedMore),
+        Triple("quizCorrect", zh.quizCorrect, en.quizCorrect),
+        Triple("quizSelected", zh.quizSelected, en.quizSelected),
     )
 
     /** Values that are intentionally identical across languages (proper nouns / format menus). */

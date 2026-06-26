@@ -1,5 +1,11 @@
 # ClassMate Cloud Real Device Test Plan v1
 
+## 中文摘要（当前真实状态）
+
+云真机抽测优先顺序：①预置凭据 / 模型 / 权限后，确认一次云端分析来源 = 云端蓝心；②主链文本闭环（知识点 + 证据回溯 + 无依据不编造的 Ask）；③练习闭环（微测 → 错题 → 复习 → 掌握度 → 学习诊断）；④OCR 真演示；⑤断网兜底（端侧 / 本地基础整理 / 安全占位 诚实分级）；⑥Study Pack 导出（脱敏 + A4 + 8 段核对）；⑦音频 / 方言放最后，只讲手动 / 导入转写。需真机抽测的能力：大模型、通用 OCR、长语音转写、端侧 3B、端侧能力文件。不写所有能力已真机跑通。
+
+---
+
 Status: READY_FOR_CLOUD_DEVICE_VALIDATION
 
 This plan validates the current Android App learning loop on a real/cloud device. It does not require the BlueLM low-code canvas and does not require running provider network smoke during validation.

@@ -1,5 +1,11 @@
 # Project Current Status v1.9
 
+## 中文摘要（当前真实状态）
+
+主学习链路（文本 → 证据 → 知识点 → 微测 → 错题 → 复习 → 诊断 → Study Pack）已在 vivo 真机验证。18 项有效能力已完成 L3-readiness 横向对齐（入口 / 证据 / 路由 / 失败终态 / 兜底 / 测试 / 诚实文案）：仅大模型与通用 OCR 标为「已用于学习闭环」，其余诚实标为本地兜底 / 接缝 / 需配置 / 实验性；实验性能力（图片生成、视频生成、同声传译）默认关闭。云端 READ 波动有自动重试与降级；云端 + 端侧都失败且有可用输入时自动进入「本地基础整理」，不是空安全占位。GitHub Actions 已绿。逐项真实状态见 `official_18_capability_l3_readiness.md`。本项目不宣称所有能力已在真机完整验证。
+
+---
+
 Date: 2026-06-21
 
 This status document reflects the `feature/audio-official-loop-hardening-v1` hardening line. It is a product-state document, not a raw vendor-navigation inventory. No secrets, endpoint URLs, Authorization values, request bodies, model files, or `config.local.json` contents are recorded.

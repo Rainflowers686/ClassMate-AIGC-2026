@@ -41,6 +41,10 @@ class LanguageSwitchUiGuardTest {
         assertNotEquals(zh.historyTitle, en.historyTitle)
         assertNotEquals(zh.settingsTitle, en.settingsTitle)
         assertNotEquals(zh.localFallback, en.localFallback)
+        // Quiz page (migrated this round) flips too.
+        assertNotEquals(zh.quizToReview, en.quizToReview)
+        assertNotEquals(zh.quizExplanation, en.quizExplanation)
+        assertNotEquals(zh.quizTitle(1, 5), en.quizTitle(1, 5))
     }
 
     @Test

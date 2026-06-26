@@ -1,5 +1,11 @@
 # ClassMate Effective Official Capability Matrix
 
+## 中文摘要（当前真实状态）
+
+本项目共 18 项有效官方能力，单一事实来源为代码 `VivoOfficialProviderRegistry` 与 `CapabilityReadinessRegistry`。仅大模型与通用 OCR 标为「已用于学习闭环」；文本翻译 / 文本向量 / 文本相似度 / 查询改写 / 音频生成为本地兜底；Function calling / 实时短语音 / 长语音听写 / 方言自由说 / 端侧文本审核为接缝就绪；长语音转写与端侧 3B 对齐主链待真机抽测；端侧能力文件需配置后可用；图片生成、视频生成、同声传译为实验性默认关闭。声音复刻与地理编码已排除。逐项 L3-readiness 见 `official_18_capability_l3_readiness.md`。
+
+---
+
 Date: 2026-06-21
 
 This is the current ClassMate product matrix. It is intentionally limited to capabilities that can support the Android App learning loop.

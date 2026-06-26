@@ -100,6 +100,22 @@ data class Strings(
     val settingsTitle: String,
     val settingsLanguage: String,
     val settingsLanguageDesc: String,
+    // quiz / micro-test
+    val quizLabel: String,
+    val quizTitle: (Int, Int) -> String,
+    val quizEmpty: String,
+    val quizPrev: String,
+    val quizNext: String,
+    val quizToReview: String,
+    val quizExplanation: String,
+    val quizTestedKp: String,
+    val quizTooHard: String,
+    val quizNeedMore: String,
+    val quizCorrect: String,
+    val quizYourChoice: String,
+    val quizSelected: String,
+    val quizSegmentLabel: (Int) -> String,
+    val quizSourceLabel: String,
 )
 
 private val ZH = Strings(
@@ -164,6 +180,21 @@ private val ZH = Strings(
     settingsTitle = "设置",
     settingsLanguage = "语言 Language",
     settingsLanguageDesc = "选择界面语言；技术短码（BlueLM、qwen3.5-plus、JSON 等）保留英文。",
+    quizLabel = "微测",
+    quizTitle = { i, n -> "微测 $i / $n" },
+    quizEmpty = "还没有微测题。",
+    quizPrev = "上一题",
+    quizNext = "下一题",
+    quizToReview = "去复习计划",
+    quizExplanation = "讲解",
+    quizTestedKp = "考查知识点",
+    quizTooHard = "太难",
+    quizNeedMore = "需要多练",
+    quizCorrect = "正确",
+    quizYourChoice = "你的选择",
+    quizSelected = "已选择",
+    quizSegmentLabel = { i -> "第 $i 段" },
+    quizSourceLabel = "原文",
 )
 
 private val EN = Strings(
@@ -228,6 +259,21 @@ private val EN = Strings(
     settingsTitle = "Settings",
     settingsLanguage = "Language 语言",
     settingsLanguageDesc = "Choose the UI language; technical short codes (BlueLM, qwen3.5-plus, JSON, etc.) stay in English.",
+    quizLabel = "Quiz",
+    quizTitle = { i, n -> "Quiz $i / $n" },
+    quizEmpty = "No quiz yet.",
+    quizPrev = "Previous",
+    quizNext = "Next",
+    quizToReview = "Go to review plan",
+    quizExplanation = "Explanation",
+    quizTestedKp = "Tested knowledge points",
+    quizTooHard = "Too hard",
+    quizNeedMore = "Need more practice",
+    quizCorrect = "Correct",
+    quizYourChoice = "Your choice",
+    quizSelected = "Selected",
+    quizSegmentLabel = { i -> "Segment $i" },
+    quizSourceLabel = "Source",
 )
 
 /** The string pack for a language (SYSTEM resolved to ZH/EN). Default is Chinese. */

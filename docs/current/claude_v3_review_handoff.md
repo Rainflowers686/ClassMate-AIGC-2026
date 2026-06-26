@@ -1,5 +1,11 @@
 ﻿# Claude v3 Review Handoff
 
+## 中文摘要（当前真实状态）
+
+本文为历史红队 / 交接记录。最新真实状态以 `official_18_capability_l3_readiness.md` 与 README 中文段为准：主链路已真机验证；18 能力完成 L3-readiness 对齐；仅大模型 / 通用 OCR 已用于学习闭环，其余为本地兜底 / 接缝 / 需配置 / 实验性；实验性能力默认关闭；部分能力仍需真机抽测；GitHub Actions 已绿。本项目不宣称所有能力已在真机完整验证。文中如有更早表述，以最新中文文档为准。
+
+---
+
 Date: 2026-06-20
 
 ## Repo State Placeholder

@@ -1,5 +1,11 @@
 # ClassMate Cloud Device Debug Playbook v1
 
+## 中文摘要（当前真实状态）
+
+真机排查要点：`BLUELM:NETWORK` 已细分为 DNS / TLS / CONNECT / WRITE / READ，可区分网络与配置问题；缺凭据显示 `CONFIG_REQUIRED` 而非 `NETWORK`；掩码 AppKey 会被拒绝、不会覆盖已保存的真 key。云端 READ 波动有自动重试 + 降级；分析页有已用时、思考强度、慢响应提示、防息屏、可操作出口。端侧 `PERMISSION_MISSING` 时给「去授权 / 重新检测 / 仅用云端 / 本地基础整理 / 手动整理」五条出路。截图与日志不要包含 AppKey / Authorization。详见 `bluelm_cloud_realdevice_troubleshooting.md`。
+
+---
+
 Use this playbook when a cloud/real-device test fails. It is for diagnosis only; do not paste secrets, config file content, Authorization headers, app keys, or full provider endpoints into bug reports.
 
 ## First Checks

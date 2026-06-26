@@ -1,5 +1,11 @@
 # Official Tool Productization Matrix
 
+## 中文摘要（当前真实状态）
+
+本表描述 18 项能力的产品化形态与路由：统一 云端蓝心 → 端侧 3B → 本地基础整理。云端有 timeout / retry / 降级；端侧失败给授权、路径、重检；都失败时自动进入本地基础整理。官方检索类（文本向量 / 文本相似度 / 查询改写）当前保留本地兜底，未在主线程开启 live 联网以避免崩溃，边界已写清。实验性能力默认关闭，仅产出 prompt / storyboard / 草稿，不伪造产物。最新逐项真实状态以 `official_18_capability_l3_readiness.md` 为准。
+
+---
+
 Date: 2026-06-20
 
 No secrets, endpoint URLs, or Authorization values are recorded here.
