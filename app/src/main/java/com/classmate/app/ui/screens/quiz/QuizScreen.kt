@@ -1,6 +1,7 @@
 package com.classmate.app.ui.screens.quiz
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,10 +14,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.ui.draw.clip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -140,16 +143,24 @@ fun QuizScreen(viewModel: AppViewModel) {
 private fun OptionRow(option: QuizOption, revealed: Boolean, selected: Boolean, onClick: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     val ext = ClassMateTheme.extended
+    // Distinct states: neutral / selected (pre-reveal) / correct / your-wrong. Each has a colour AND a
+    // label/icon cue, so state never relies on colour alone.
+    val accent = when {
+        revealed && option.isCorrect -> ext.success
+        revealed && selected -> cs.error
+        selected -> cs.primary
+        else -> cs.onSurfaceVariant
+    }
     val borderColor = when {
-        !revealed -> cs.outlineVariant
-        option.isCorrect -> ext.success
-        selected -> cs.error
+        revealed && option.isCorrect -> ext.success
+        revealed && selected -> cs.error
+        selected -> cs.primary
         else -> cs.outlineVariant
     }
     val container = when {
-        !revealed -> cs.surface
-        option.isCorrect -> ext.success.copy(alpha = 0.12f)
-        selected -> cs.errorContainer.copy(alpha = 0.5f)
+        revealed && option.isCorrect -> ext.success.copy(alpha = 0.12f)
+        revealed && selected -> cs.errorContainer.copy(alpha = 0.5f)
+        selected -> cs.primary.copy(alpha = 0.08f)
         else -> cs.surface
     }
     Surface(
@@ -158,17 +169,32 @@ private fun OptionRow(option: QuizOption, revealed: Boolean, selected: Boolean, 
             .then(if (!revealed) Modifier.clickable { onClick() } else Modifier),
         shape = MaterialTheme.shapes.medium,
         color = container,
-        border = BorderStroke(1.dp, borderColor),
+        border = BorderStroke(if (selected || (revealed && option.isCorrect)) 1.5.dp else 1.dp, borderColor),
     ) {
         Column(Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                // A / B / C / D label badge — also a non-colour cue for which option this is.
+                Box(
+                    Modifier.size(28.dp).clip(CircleShape).background(accent.copy(alpha = 0.14f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(option.id, style = MaterialTheme.typography.labelLarge, color = accent, fontWeight = FontWeight.SemiBold)
+                }
+                Spacer(Modifier.width(Dimens.m))
                 Text(option.text, style = MaterialTheme.typography.bodyLarge, color = cs.onSurface, modifier = Modifier.weight(1f))
-                if (revealed && option.isCorrect) {
-                    Spacer(Modifier.width(Dimens.s))
-                    Icon(Icons.Filled.Check, contentDescription = "正确", tint = ext.success, modifier = Modifier.size(20.dp))
-                } else if (revealed && selected) {
-                    Spacer(Modifier.width(Dimens.s))
-                    Icon(Icons.Filled.Close, contentDescription = "你的选择", tint = cs.error, modifier = Modifier.size(20.dp))
+                when {
+                    revealed && option.isCorrect -> {
+                        Spacer(Modifier.width(Dimens.s))
+                        Icon(Icons.Filled.Check, contentDescription = "正确", tint = ext.success, modifier = Modifier.size(20.dp))
+                    }
+                    revealed && selected -> {
+                        Spacer(Modifier.width(Dimens.s))
+                        Icon(Icons.Filled.Close, contentDescription = "你的选择", tint = cs.error, modifier = Modifier.size(20.dp))
+                    }
+                    !revealed && selected -> {
+                        Spacer(Modifier.width(Dimens.s))
+                        Icon(Icons.Filled.Check, contentDescription = "已选择", tint = cs.primary, modifier = Modifier.size(20.dp))
+                    }
                 }
             }
             if (revealed && option.rationale.isNotBlank()) {

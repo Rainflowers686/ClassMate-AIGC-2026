@@ -43,6 +43,7 @@ import com.classmate.app.l3.ClassroomRecordingRecord
 import com.classmate.app.l3.DialectMode
 import com.classmate.app.l3.EvidenceAsset
 import com.classmate.app.l3.EvidenceAssetType
+import com.classmate.app.l3.QuizOptionIds
 import com.classmate.app.l3.ExamSession
 import com.classmate.app.l3.ExamStatus
 import com.classmate.app.l3.AsrLongJob
@@ -3536,10 +3537,6 @@ class AppViewModel(
         val courseTitle = ui.session?.title ?: source?.title ?: "错题重练"
         val kpTitle = ui.l3Pipeline.knowledgePoints.firstOrNull { it.id == question.knowledgePointId }?.title
             ?: question.knowledgePointId
-        val correctIds = question.correctAnswer.split(",", ";", "|")
-            .map { it.trim().take(1).uppercase() }
-            .filter { it.isNotBlank() }
-            .toSet()
         val item = PracticeItem(
             id = "retry_${wrong.id}_$now",
             type = PracticeItemType.QUIZ_RETRY,
@@ -3551,13 +3548,11 @@ class AppViewModel(
             evidenceQuote = ui.l3Pipeline.evidence.firstOrNull { it.id in wrong.evidenceIds }?.text,
             quizId = question.id,
             options = question.options.mapIndexed { index, option ->
-                val optionId = option.substringBefore(".").trim().take(1)
-                    .ifBlank { ('A' + index).toString() }
-                    .uppercase()
+                // Position-based id (A/B/C/D): unique, so a single-choice tap selects exactly one option.
                 PracticeOption(
-                    id = optionId,
-                    text = option.substringAfter(". ", option),
-                    correct = optionId in correctIds,
+                    id = QuizOptionIds.letterId(index),
+                    text = QuizOptionIds.cleanText(option),
+                    correct = QuizOptionIds.isAnswer(index, option, question.correctAnswer),
                 )
             },
             whyThisQuestionMatters = wrong.mistakeReason.ifBlank { "这道错题会影响关联知识点掌握度。" },

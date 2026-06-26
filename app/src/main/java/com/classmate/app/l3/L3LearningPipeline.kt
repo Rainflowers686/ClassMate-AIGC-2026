@@ -521,13 +521,14 @@ class L3LearningPipeline {
                 id = question.id,
                 type = if (index % 2 == 0) QuestionType.CONCEPT_UNDERSTANDING else QuestionType.APPLICATION,
                 stem = question.stem,
-                options = question.options.map { option ->
-                    val id = option.substringBefore(".").trim().take(1).ifBlank { "A" }
+                options = question.options.mapIndexed { optionIndex, option ->
+                    // Position-based id (A/B/C/D) so single-choice selection highlights exactly one option.
+                    val correct = QuizOptionIds.isAnswer(optionIndex, option, question.correctAnswer)
                     QuizOption(
-                        id = id,
-                        text = option.substringAfter(". ", option),
-                        isCorrect = id in correctAnswerIds(question.correctAnswer),
-                        rationale = if (id in correctAnswerIds(question.correctAnswer)) question.explanation else "请回到来源证据核对。",
+                        id = QuizOptionIds.letterId(optionIndex),
+                        text = QuizOptionIds.cleanText(option),
+                        isCorrect = correct,
+                        rationale = if (correct) question.explanation else "请回到来源证据核对。",
                     )
                 },
                 testedKnowledgePointIds = listOf(question.knowledgePointId).filter { it.isNotBlank() },
@@ -774,11 +775,6 @@ class L3LearningPipeline {
         }
     }
 
-    private fun correctAnswerIds(answer: String): Set<String> =
-        answer.split(",", ";", "|", "、", " ")
-            .map { it.trim().take(1).uppercase() }
-            .filter { it.isNotBlank() }
-            .toSet()
 
     private fun paragraphChunks(text: String): List<String> =
         text.split(Regex("""\n{2,}|(?<=[。！？.!?])\s+"""))
