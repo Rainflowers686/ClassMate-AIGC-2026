@@ -157,6 +157,22 @@ class LearningStoreTest {
     }
 
     @Test
+    fun deleteCourseSessionsRemovesTasksAttemptsEventsAndPracticeHistory() {
+        val s = seeded()
+        s.recordQuizAttempt(sessionId, firstKpId(), "q_1", "B", "A", isCorrect = false)
+        assertTrue(s.snapshot().tasks.isNotEmpty())
+        assertTrue(s.snapshot().attempts.isNotEmpty())
+        assertTrue(s.snapshot().events.isNotEmpty())
+
+        val after = s.deleteCourseSessions(setOf(sessionId))
+
+        assertEquals(0, after.tasks.size)
+        assertEquals(0, after.attempts.size)
+        assertEquals(0, after.events.size)
+        assertEquals(0, after.practiceHistory.size)
+    }
+
+    @Test
     fun updatePriorityCreatesEventAndReorders() {
         val s = seeded()
         val taskId = s.task(secondKpId()).taskId

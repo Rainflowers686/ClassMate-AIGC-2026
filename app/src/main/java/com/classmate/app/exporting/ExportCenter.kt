@@ -106,8 +106,8 @@ object ExportCenter {
         ExportFileFormat.TEXT -> "学习报告"
         ExportFileFormat.PDF -> "学习报告"
         ExportFileFormat.DOCX -> "学习报告"
-        ExportFileFormat.MINDMAP_MARKDOWN -> "思维导图"
-        ExportFileFormat.MINDMAP_HTML -> "思维导图"
+        ExportFileFormat.MINDMAP_MARKDOWN -> "知识结构大纲"
+        ExportFileFormat.MINDMAP_HTML -> "知识结构大纲"
         ExportFileFormat.WORD_COMPAT_HTML -> "Word兼容报告"
         ExportFileFormat.SLIDES_HTML -> "演示幻灯片"
         ExportFileFormat.COURSE_ESSENCE_SCRIPT_TEXT -> "课程精华音频脚本"
@@ -124,7 +124,7 @@ object ExportCenter {
     private fun mindMapHtml(title: String, markdown: String): String =
         """
         <!doctype html>
-        <html><head><meta charset="utf-8"><title>${escapeHtml(title)} 思维导图</title>
+        <html><head><meta charset="utf-8"><title>${escapeHtml(title)} 知识结构大纲</title>
         <style>body{font-family:system-ui,sans-serif;padding:24px;background:#f7fafc;} .root{font-size:24px;font-weight:700;margin-bottom:16px;} pre{white-space:pre-wrap;background:white;border:1px solid #d8e0e8;border-radius:10px;padding:16px;}</style>
         </head><body><div class="root">${escapeHtml(title)}</div><pre>${escapeHtml(markdown)}</pre></body></html>
         """.trimIndent()

@@ -231,7 +231,7 @@ fun TranscriptImportScreen(viewModel: AppViewModel) {
                     }
                     Spacer(Modifier.height(Dimens.s))
                     PrimaryButton(
-                        text = "进入转写编辑器",
+                        text = "转写编辑",
                         onClick = { viewModel.navigateTo(Screen.TRANSCRIPT_EDITOR) },
                         modifier = Modifier.fillMaxWidth(),
                     )

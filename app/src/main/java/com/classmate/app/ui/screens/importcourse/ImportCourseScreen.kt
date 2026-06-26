@@ -155,12 +155,12 @@ fun ImportCourseScreen(viewModel: AppViewModel) {
                 ProductHero(
                     overline = "输入工作台",
                     title = "把课堂内容放进来",
-                    subtitle = "图片、拍照、文本会先形成可编辑学习草稿，用户确认后进入知识地图。",
+                    subtitle = "图片、拍照、文本会先形成可编辑学习草稿，用户确认后进入知识结构大纲。",
                 )
                 // AI 来源：云端优先 · 端侧兜底 — 未配置官方服务不等于没有 AI；端侧蓝心仍可生成学习草稿。
                 val captureStatus = remember { CaptureConfigLoader().status() }
                 Text(
-                    "AI 来源：云端优先 · 端侧兜底。官方 OCR / ASR ${captureStatus.labelZh()}；未配置时端侧蓝心仍可生成图片学习草稿，或粘贴转写文本，用户确认后生成知识地图。",
+                    "AI 来源：云端优先 · 端侧兜底。官方 OCR / ASR ${captureStatus.labelZh()}；未配置时端侧蓝心仍可生成图片学习草稿，或粘贴转写文本，用户确认后生成知识结构大纲。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -416,7 +416,7 @@ private fun ClassroomRecordingCard(viewModel: AppViewModel, onStartRecording: ()
             )
             Spacer(Modifier.height(Dimens.s))
             PrimaryButton(
-                text = "确认转写并生成课堂学习闭环",
+                text = "确认转写",
                 onClick = {
                     if (viewModel.applyAsrLongTranscript(job.id, manualTranscript)) {
                         manualTranscript = ""
@@ -442,7 +442,7 @@ private fun ClassroomRecordingCard(viewModel: AppViewModel, onStartRecording: ()
         }
         Spacer(Modifier.height(Dimens.s))
         SecondaryButton(
-            text = "进入转写编辑器",
+            text = "转写编辑",
             onClick = { viewModel.navigateTo(Screen.TRANSCRIPT_IMPORT) },
             modifier = Modifier.fillMaxWidth(),
         )
@@ -530,6 +530,14 @@ private fun ImageDraftCard(viewModel: AppViewModel) {
                 modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.medium,
             )
+            if (ui.imageDraftText.trim().length < 20) {
+                Spacer(Modifier.height(Dimens.xs))
+                Text(
+                    "建议人工检查识别结果：当前 OCR 文本较短或质量可能不足，确认后才会进入学习闭环。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = cs.error,
+                )
+            }
             Spacer(Modifier.height(Dimens.m))
             // Two-level footer: confirm dominant, cancel quiet.
             PrimaryButton(text = "确认并进入学习资料", onClick = { viewModel.confirmImageDraft() }, modifier = Modifier.fillMaxWidth())

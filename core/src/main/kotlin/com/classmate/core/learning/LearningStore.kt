@@ -97,6 +97,18 @@ class LearningStore(
     fun deleteTasksForCourseSession(courseSessionId: String): LearningSnapshot =
         commit(ReviewEngine.deleteTasksForCourseSession(snapshot, courseSessionId))
 
+    fun deleteCourseSessions(courseSessionIds: Set<String>): LearningSnapshot {
+        if (courseSessionIds.isEmpty()) return snapshot
+        return commit(
+            snapshot.copy(
+                tasks = snapshot.tasks.filterNot { it.courseSessionId in courseSessionIds },
+                attempts = snapshot.attempts.filterNot { it.courseSessionId in courseSessionIds },
+                events = snapshot.events.filterNot { it.courseSessionId in courseSessionIds },
+                practiceHistory = snapshot.practiceHistory.filterNot { it.courseSessionId in courseSessionIds },
+            ),
+        )
+    }
+
     fun listDueTasks(now: Long = clock()): List<ReviewTask> = ReviewEngine.listDueTasks(snapshot, now)
     fun listUpcomingTasks(now: Long = clock()): List<ReviewTask> = ReviewEngine.listUpcomingTasks(snapshot, now)
 

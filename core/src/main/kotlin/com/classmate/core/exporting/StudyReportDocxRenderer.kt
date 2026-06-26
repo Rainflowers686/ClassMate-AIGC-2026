@@ -131,7 +131,7 @@ object StudyReportDocxRenderer {
                 p(it)
             }
 
-            h1("三、知识地图与关键知识点")
+            h1("三、知识结构大纲与关键知识点")
             if (report.knowledgePoints.isEmpty()) p("暂无知识点。")
             report.knowledgePoints.forEach { kp ->
                 h2("${kp.index}. ${kp.title}")

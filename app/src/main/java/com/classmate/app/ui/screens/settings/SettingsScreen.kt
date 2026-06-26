@@ -127,12 +127,12 @@ import kotlinx.serialization.json.jsonObject
 
 private enum class SettingsPage(val title: String, val subtitle: String) {
     SETTINGS_HOME("设置", "日常设置与诊断入口分开管理"),
-    GENERAL_SETTINGS("通用设置", "外观、AI 模型、隐私、学习导出和背景音"),
+    GENERAL_SETTINGS("通用设置", "外观、AI 模型、隐私、导出设置和背景音"),
     APPEARANCE_THEME("外观与主题", "默认学习、活力学习、沉浸学习与强调色"),
     ADVANCED_COLOR_CUSTOMIZATION("高级颜色自定义", "自定义 ClassMate 的主色、次色和辅助色"),
     AI_MODEL_CONFIG("AI 模型配置", "蓝心大模型与自有模型配置，保存后持续可用"),
     PRIVACY_PERMISSIONS("隐私与权限", "本地数据、导入权限和用户确认说明"),
-    LEARNING_EXPORT("学习与导出", "练习、复习和导出默认项"),
+    LEARNING_EXPORT("导出设置", "学习包、复习报告和导出格式"),
     AMBIENT_SOUND("沉浸式背景音", "授权循环背景音、音量和播放说明"),
     EXPERIMENTAL_FEATURES("实验性功能", "学习图解、复习短视频和双语课堂入口"),
     DEVELOPER_SETTINGS("开发者设置", "诊断、smoke、端侧状态与脱敏日志"),
@@ -425,7 +425,7 @@ private fun SettingsHomeCard(
     onDeveloper: () -> Unit,
 ) {
     SettingsGroupedListCard {
-        SettingsEntryRow("通用设置", "外观、AI 模型配置、隐私权限、学习导出与沉浸背景音", SettingsEntryIcon.GENERAL_SETTINGS, onGeneral, emphasized = true, grouped = true)
+        SettingsEntryRow("通用设置", "外观、AI 模型配置、隐私权限、导出设置与沉浸背景音", SettingsEntryIcon.GENERAL_SETTINGS, onGeneral, emphasized = true, grouped = true)
         SettingsEntryRow("开发者设置", "Provider 诊断、smoke dry-run、端侧状态与脱敏日志", SettingsEntryIcon.DEVELOPER_SETTINGS, onDeveloper, grouped = true)
     }
 }
@@ -443,7 +443,7 @@ private fun GeneralSettingsListCard(
         SettingsEntryRow("外观与主题", "默认学习、活力学习、沉浸学习、强调色和阅读密度", SettingsEntryIcon.APPEARANCE_THEME, onAppearance, grouped = true)
         SettingsEntryRow("AI 模型配置", "蓝心大模型与自有模型配置，保存后持续可用", SettingsEntryIcon.AI_MODEL_CONFIG, onAiModel, grouped = true)
         SettingsEntryRow("隐私与权限", "本地数据、用户确认、导入内容和相机 / 文件 / 音频权限", SettingsEntryIcon.PRIVACY_PERMISSIONS, onPrivacy, grouped = true)
-        SettingsEntryRow("学习与导出", "练习、复习和 PDF / DOCX / HTML / Markdown / Text / 音频脚本", SettingsEntryIcon.LEARNING_EXPORT, onLearningExport, grouped = true)
+        SettingsEntryRow("导出设置", "学习包、复习报告、PDF / Word / HTML / Markdown", SettingsEntryIcon.LEARNING_EXPORT, onLearningExport, grouped = true)
         SettingsEntryRow("沉浸式背景音", "6 种授权循环背景音、音量和播放说明", SettingsEntryIcon.AMBIENT_SOUND, onAmbientAudio, grouped = true)
         SettingsEntryRow("实验性功能", "学习图解、复习短视频和双语课堂同声传译入口", SettingsEntryIcon.EXPERIMENTAL_FEATURES, onExperimentalFeatures, grouped = true)
     }
@@ -1503,7 +1503,7 @@ private fun LearningExportSettingsCard(viewModel: AppViewModel) {
     val audio = viewModel.ui.courseEssenceAudioResult
     val safety = viewModel.ui.textSafetyResult
     ClassMateCard {
-        Text("学习与导出", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text("导出设置", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.xs))
         Text("默认保留用户确认、证据校验和脱敏导出。练习、复习、报告和课程精华脚本都来自本节课证据。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(Dimens.s))
@@ -1517,7 +1517,7 @@ private fun LearningExportSettingsCard(viewModel: AppViewModel) {
         ProviderStatusRow("翻译辅助学习", "面向 evidence / knowledge point 的双语注记")
         Spacer(Modifier.height(Dimens.s))
         SecondaryButton(
-            text = "生成课程精华音频脚本",
+            text = "生成听背脚本",
             onClick = { viewModel.generateCourseEssenceAudioScript() },
             modifier = Modifier.fillMaxWidth(),
         )
@@ -1546,7 +1546,7 @@ private fun LearningExportDocxPolicyCard(viewModel: AppViewModel) {
         ProviderStatusRow("边界", "不会模拟具体人物声音；背景音后续使用授权循环音频素材")
         Spacer(Modifier.height(Dimens.s))
         SecondaryButton(
-            text = "生成学习报告草稿",
+            text = "生成报告草稿",
             onClick = { viewModel.prepareRefinedExportDraft() },
             modifier = Modifier.fillMaxWidth(),
         )
@@ -1800,7 +1800,7 @@ private fun OnDeviceDiagnosticCard(viewModel: AppViewModel) {
         }
         Spacer(Modifier.height(Dimens.s))
         PrimaryButton(
-            text = if (ui.onDeviceDiagnosticRunning) "诊断中…" else "测试端侧模型（文本）",
+            text = if (ui.onDeviceDiagnosticRunning) "诊断中" else "端侧文本测试",
             onClick = { viewModel.testOnDeviceModel(perms.snapshot()) },
             enabled = !ui.onDeviceDiagnosticRunning,
             modifier = Modifier.fillMaxWidth(),
@@ -1873,14 +1873,14 @@ private fun OnDeviceMultimodalDiagnosticCard(viewModel: AppViewModel) {
         ui.onDeviceRealImageMeta?.let { ProviderStatusRow("真实图片", it) }
         Spacer(Modifier.height(Dimens.s))
         PrimaryButton(
-            text = if (ui.onDeviceMultimodalRunning) "诊断中…" else "测试端侧多模态（内置 2x2）",
+            text = if (ui.onDeviceMultimodalRunning) "诊断中" else "端侧多模态",
             onClick = { viewModel.testOnDeviceMultimodal(perms.snapshot()) },
             enabled = !ui.onDeviceMultimodalRunning,
             modifier = Modifier.fillMaxWidth(),
         )
         Spacer(Modifier.height(Dimens.s))
         SecondaryButton(
-            text = if (ui.onDeviceMultimodalRunning) "诊断中…" else "选择真实图片测试（不落库）",
+            text = if (ui.onDeviceMultimodalRunning) "诊断中" else "图片测试",
             onClick = {
                 realImagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
             },
@@ -1944,7 +1944,7 @@ private fun OnDeviceCapabilityCard(viewModel: AppViewModel) {
         }
         Spacer(Modifier.height(Dimens.s))
         PrimaryButton(
-            text = if (ui.onDeviceAnalysisCheckRunning) "检查中…" else "测试端侧课程分析（无云端）",
+            text = if (ui.onDeviceAnalysisCheckRunning) "检查中" else "端侧课程分析",
             onClick = { viewModel.runOfflineOnDeviceAnalysisCheck() },
             enabled = !ui.onDeviceAnalysisCheckRunning,
             modifier = Modifier.fillMaxWidth(),
@@ -2231,7 +2231,7 @@ private fun DebugImportCard(viewModel: AppViewModel) {
         // Neutral "custom model API" affordance — long-term product only, debug-gated and collapsed.
         // Deliberately NOT branded as a competition enhancement and never shown on the main config page.
         PrimaryButton(
-            text = if (compatibleRunning) "测试中…" else "测试自定义模型接口（调试）",
+            text = if (compatibleRunning) "测试中" else "测试模型接口",
             onClick = { viewModel.testCompatibleConnection() },
             enabled = !compatibleRunning,
             modifier = Modifier.fillMaxWidth(),

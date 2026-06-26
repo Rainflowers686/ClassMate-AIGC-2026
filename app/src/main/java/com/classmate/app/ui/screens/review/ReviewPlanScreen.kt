@@ -33,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.classmate.app.practice.PracticeSearchLauncher
 import com.classmate.app.state.AppViewModel
+import com.classmate.app.video.BilibiliSearch
 import com.classmate.app.ui.components.ClassMateCard
 import com.classmate.app.ui.components.ExportCenterCard
 import com.classmate.app.ui.components.ClassMateScaffold
@@ -427,6 +428,16 @@ private fun TaskCard(task: ReviewTask, index: Int, total: Int, viewModel: AppVie
         Spacer(Modifier.height(Dimens.m))
         // Core learning actions only — open / practice / evidence / done. Priority/move/pin admin
         // controls are intentionally not shown to keep this a study page, not a backstage console.
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+            ActionChip("B站搜讲解") {
+                val link = BilibiliSearch.linkFor(task.title, task.courseTitle)
+                if (!PracticeSearchLauncher.open(context, link)) {
+                    clipboard.setText(AnnotatedString(link.query))
+                    viewModel.toast("未找到浏览器，已复制 B站搜索词。")
+                }
+            }
+        }
+        Spacer(Modifier.height(Dimens.xs))
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
             ActionChip("打开") { viewModel.openTaskCourse(task) }
             ActionChip("开始练习") { viewModel.startPracticeForTask(task) }

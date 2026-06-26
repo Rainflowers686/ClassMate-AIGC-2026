@@ -61,7 +61,7 @@ class Stage8dDiagnosticsGuardTest {
         )
         assertTrue(s.contains("端侧本地智能层"))
         assertTrue(s.contains("端侧独立模式检查"))
-        assertTrue(s.contains("测试端侧课程分析（无云端）"))
+        assertTrue(s.contains("端侧课程分析"))
         assertTrue(s.contains("云端蓝心 → 端侧蓝心 → 安全占位"))
     }
 }

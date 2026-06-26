@@ -13,11 +13,20 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -68,10 +77,18 @@ fun CourseDetailScreen(viewModel: AppViewModel) {
         ?: "暂无"
     val kpCount = summary?.knowledgePointTotal ?: result?.knowledgePoints?.size ?: 0
     val quizCount = summary?.quizTotal ?: result?.quizQuestions?.size ?: 0
+    var showDeleteConfirm by remember(key, session?.id) { mutableStateOf(false) }
 
     ProductScaffold(
         contextLabel = "课程",
         onBack = { if (!viewModel.goBack()) viewModel.selectTab(Tab.HISTORY) },
+        actions = {
+            if (key != null || session != null) {
+                IconButton(onClick = { showDeleteConfirm = true }) {
+                    Icon(Icons.Filled.Delete, contentDescription = "删除课程")
+                }
+            }
+        },
     ) { padding ->
         ProductCanvas {
             Column(
@@ -101,7 +118,7 @@ fun CourseDetailScreen(viewModel: AppViewModel) {
 
                 // FIRST-SCREEN CORE — a visual learning map (connected nodes), not a list.
                 if (result != null && result.knowledgePoints.isNotEmpty()) {
-                    ProductSectionTitle("学习地图", trailing = {
+                    ProductSectionTitle("知识结构大纲", trailing = {
                         Text("查看全部 ›", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                     })
                     val nodes = result.knowledgePoints.take(5)
@@ -159,7 +176,7 @@ fun CourseDetailScreen(viewModel: AppViewModel) {
                         }
                         Spacer(Modifier.height(Dimens.m))
                         SecondaryButton(
-                            text = if (ui.onDeviceReportSuggestionRunning) "生成中…" else "生成端侧学习建议",
+                            text = if (ui.onDeviceReportSuggestionRunning) "生成中" else "端侧建议",
                             onClick = { viewModel.generateOnDeviceReportSuggestion() },
                             modifier = Modifier.fillMaxWidth(),
                         )
@@ -170,7 +187,7 @@ fun CourseDetailScreen(viewModel: AppViewModel) {
                 ExportCenterCard(
                     viewModel = viewModel,
                     title = "导出中心",
-                    description = "导出课程报告、思维导图、PDF、Word 兼容 HTML 或演示幻灯片 HTML；导出不含密钥与内部状态。",
+                    description = "导出学习包、知识结构大纲、PDF、Word 兼容 HTML 或演示 HTML；导出不含密钥与内部状态。",
                     buildArtifact = viewModel::buildLearningStudyPackArtifact,
                 )
 
@@ -196,6 +213,25 @@ fun CourseDetailScreen(viewModel: AppViewModel) {
                 }
             }
         }
+    }
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("删除课程？") },
+            text = {
+                Text("将删除「$courseName」相关的知识点、题目、错题、复习任务、导出草稿或本地记录。删除后首页、历史记录和复习列表将不再显示该课程。")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val deleted = key?.let { viewModel.deleteCourse(it) } ?: viewModel.deleteCurrentCourse()
+                    if (!deleted) viewModel.toast("删除失败，请稍后重试。")
+                    showDeleteConfirm = false
+                }) { Text("删除课程") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("取消") }
+            },
+        )
     }
 }
 
@@ -241,7 +277,7 @@ private fun L3PipelineStatusCard(viewModel: AppViewModel) {
         }
         Spacer(Modifier.height(Dimens.xs))
         SecondaryButton(
-            "生成学习包 / 导出学习版资料",
+            "生成学习包",
             onClick = { viewModel.prepareRefinedExportDraft() },
             modifier = Modifier.fillMaxWidth(),
         )

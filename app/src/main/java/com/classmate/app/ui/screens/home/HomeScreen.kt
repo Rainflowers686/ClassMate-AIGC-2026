@@ -2,6 +2,7 @@ package com.classmate.app.ui.screens.home
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,11 +21,16 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -66,6 +72,7 @@ fun HomeScreen(viewModel: AppViewModel) {
     val recent = ui.history.firstOrNull()
     val onDeviceReady = ui.onDeviceDiagnostic?.status?.available == true
     var showFirstRunGuide by remember { mutableStateOf(true) }
+    var pendingRecentDelete by remember { mutableStateOf(false) }
     val shouldShowGuide = ui.history.isEmpty() && showFirstRunGuide
 
     ProductCanvas {
@@ -82,10 +89,10 @@ fun HomeScreen(viewModel: AppViewModel) {
                 StudyCockpitCard(
                     overline = if (recent != null) "继续学习" else "今日学习驾驶舱",
                     title = "想把哪节课变清楚？",
-                    subtitle = if (recent != null) "上次资料已经整理好，继续从证据、练习和复习接上。" else "导入课堂资料后，ClassMate 会把内容整理成知识地图、证据和下一步学习动作。",
+                    subtitle = if (recent != null) "上次资料已经整理好，继续从证据、练习和复习接上。" else "导入课堂资料后，ClassMate 会把内容整理成知识结构大纲、证据和下一步学习动作。",
                     providerLabel = if (onDeviceReady) "端侧蓝心 就绪" else "端侧蓝心 待命",
                     actionTitle = if (recent != null) "继续上次学习" else "整理一份新资料",
-                    actionSubtitle = if (recent != null) recent.title.ifBlank { "未命名课程" } else "图片 / 拍照 / 文本，确认后生成知识地图",
+                    actionSubtitle = if (recent != null) recent.title.ifBlank { "未命名课程" } else "图片 / 拍照 / 文本，确认后生成知识结构大纲",
                     actionIcon = if (recent != null) Icons.Filled.PlayArrow else Icons.Filled.Add,
                     onAction = {
                         if (recent != null) {
@@ -99,6 +106,9 @@ fun HomeScreen(viewModel: AppViewModel) {
                 HomeMetricStrip(
                     items = listOf("$dueCount" to "待复习", "${ui.history.size}" to "课堂记录", "${recent?.knowledgePointCount ?: 0}" to "知识点"),
                     accentFirst = dueCount > 0,
+                    onDueClick = { viewModel.selectTab(Tab.REVIEW) },
+                    onHistoryClick = { viewModel.selectTab(Tab.HISTORY) },
+                    onKnowledgeClick = { viewModel.openLatestKnowledgeFromHome() },
                 )
 
                 if (shouldShowGuide) {
@@ -132,6 +142,9 @@ fun HomeScreen(viewModel: AppViewModel) {
                             }
                             // A saved record always has content — show 本地整理 (not 安全占位) for the local-rule source.
                             ProductPill(ProviderPathNode.recordLabelZh(recent.providerName))
+                            IconButton(onClick = { pendingRecentDelete = true }) {
+                                Icon(Icons.Filled.Delete, contentDescription = "删除课程")
+                            }
                         }
                     }
                 }
@@ -164,6 +177,26 @@ fun HomeScreen(viewModel: AppViewModel) {
                 )
             }
         }
+    }
+    if (pendingRecentDelete && recent != null) {
+        AlertDialog(
+            onDismissRequest = { pendingRecentDelete = false },
+            title = { Text("删除课程？") },
+            text = {
+                Text("将删除「${recent.title.ifBlank { "未命名课程" }}」相关的知识点、题目、错题、复习任务、导出草稿或本地记录。删除后首页、历史记录和复习列表将不再显示该课程。")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (!viewModel.deleteHistory(recent.id)) {
+                        viewModel.toast("删除失败，请稍后重试。")
+                    }
+                    pendingRecentDelete = false
+                }) { Text("删除课程") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingRecentDelete = false }) { Text("取消") }
+            },
+        )
     }
 }
 
@@ -237,7 +270,13 @@ private fun StudyCockpitCard(
 }
 
 @Composable
-private fun HomeMetricStrip(items: List<Pair<String, String>>, accentFirst: Boolean) {
+private fun HomeMetricStrip(
+    items: List<Pair<String, String>>,
+    accentFirst: Boolean,
+    onDueClick: () -> Unit = {},
+    onHistoryClick: () -> Unit = {},
+    onKnowledgeClick: () -> Unit = {},
+) {
     val colors = ClassMateTheme.colors
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -255,8 +294,17 @@ private fun HomeMetricStrip(items: List<Pair<String, String>>, accentFirst: Bool
         ) {
             items.forEachIndexed { index, (value, label) ->
                 val emphasized = index == 0 && accentFirst
+                val click = when (index) {
+                    0 -> onDueClick
+                    1 -> onHistoryClick
+                    else -> onKnowledgeClick
+                }
                 Column(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(14.dp))
+                        .clickable(onClick = click)
+                        .padding(vertical = 4.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {

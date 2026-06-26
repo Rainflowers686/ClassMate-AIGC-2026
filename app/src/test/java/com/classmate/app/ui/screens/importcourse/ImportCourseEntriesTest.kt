@@ -24,7 +24,7 @@ class ImportCourseEntriesTest {
         assertTrue(s.contains("图片学习输入"))
         assertTrue(s.contains("拍照学习输入"))
         assertTrue(s.contains("官方 OCR 按配置启用"))
-        assertTrue(s.contains("用户确认后进入知识地图"))
+        assertTrue(s.contains("用户确认后进入知识结构大纲"))
         // Honest: image input is a draft, not OCR.
         assertTrue(s.contains("不替代 OCR"))
         assertFalse(s.contains("自动 OCR 完成"))

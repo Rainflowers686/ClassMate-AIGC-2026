@@ -138,7 +138,7 @@ class ContentExporter {
     }
 
     fun markdownMindMap(mindMap: MindMapModel): String = buildString {
-        appendLine("## 思维导图")
+        appendLine("## 知识结构大纲")
         appendLine()
         appendLine("- ${mindMap.root}")
         mindMap.children.forEach { node ->

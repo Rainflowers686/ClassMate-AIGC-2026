@@ -242,7 +242,7 @@ private fun SelfAssessmentCard(viewModel: AppViewModel, itemRevealed: Boolean, i
     if (!itemRevealed) {
         Spacer(Modifier.height(Dimens.s))
         SecondaryButton(
-            text = if (itemType == PracticeItemType.QUIZ_RETRY) "查看答案" else "查看答案 / 证据",
+            text = if (itemType == PracticeItemType.QUIZ_RETRY) "查看答案" else "查看证据",
             onClick = { viewModel.revealPracticeAnswer() },
             modifier = Modifier.fillMaxWidth(),
         )
@@ -304,7 +304,7 @@ private fun PracticeSummary(viewModel: AppViewModel, session: PracticeSession) {
         }
         Spacer(Modifier.height(Dimens.s))
         PrimaryButton(
-            text = if (viewModel.ui.onDevicePracticeSuggestionRunning) "生成中…" else "生成端侧下一步建议",
+            text = if (viewModel.ui.onDevicePracticeSuggestionRunning) "生成中" else "端侧建议",
             onClick = { viewModel.generateOnDevicePracticeSuggestion() },
             enabled = !viewModel.ui.onDevicePracticeSuggestionRunning,
             modifier = Modifier.fillMaxWidth(),

@@ -16,11 +16,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -73,6 +75,7 @@ fun HistoryScreen(viewModel: AppViewModel) {
     var query by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf(CourseLibraryFilter.ALL) }
     var sort by remember { mutableStateOf(CourseLibrarySort.RECENT) }
+    var pendingDelete by remember { mutableStateOf<CourseSummary?>(null) }
     val visibleSummaries = remember(summaries, history, ui.learningSnapshot, query, filter, sort) {
         filterCourseLibrary(
             summaries = summaries,
@@ -120,8 +123,33 @@ fun HistoryScreen(viewModel: AppViewModel) {
                 })
             }
             visibleSummaries.forEach { summary ->
-                CourseCard(summary = summary, s = s, onOpen = { viewModel.openCourse(summary.courseKey) })
+                CourseCard(
+                    summary = summary,
+                    s = s,
+                    onOpen = { viewModel.openCourse(summary.courseKey) },
+                    onDelete = { pendingDelete = summary },
+                )
             }
+        }
+        pendingDelete?.let { summary ->
+            AlertDialog(
+                onDismissRequest = { pendingDelete = null },
+                title = { Text("删除课程？") },
+                text = {
+                    Text(
+                        "将删除「${summary.courseName.ifBlank { s.untitledCourse }}」相关的知识点、题目、错题、复习任务、导出草稿或本地记录。删除后首页、历史记录和复习列表将不再显示该课程。",
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        viewModel.deleteCourse(summary.courseKey)
+                        pendingDelete = null
+                    }) { Text("删除课程") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pendingDelete = null }) { Text("取消") }
+                },
+            )
         }
       }
     }
@@ -176,7 +204,7 @@ private fun EmptyFilteredState(onClear: () -> Unit) {
 }
 
 @Composable
-private fun CourseCard(summary: CourseSummary, s: Strings, onOpen: () -> Unit) {
+private fun CourseCard(summary: CourseSummary, s: Strings, onOpen: () -> Unit, onDelete: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     QuietCard(onClick = onOpen) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -184,7 +212,12 @@ private fun CourseCard(summary: CourseSummary, s: Strings, onOpen: () -> Unit) {
                 Text(summary.courseName.ifBlank { s.untitledCourse }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text(summary.subject, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
             }
-            Pill(s.lessonsUnit(summary.lessonCount), cs.secondaryContainer, cs.onSecondaryContainer)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Pill(s.lessonsUnit(summary.lessonCount), cs.secondaryContainer, cs.onSecondaryContainer)
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Filled.Delete, contentDescription = "删除课程", tint = cs.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                }
+            }
         }
         Spacer(Modifier.height(Dimens.s))
         Row(

@@ -1188,11 +1188,11 @@ class AppViewModel(
     }
 
     private fun imageDraftStatusMessage(source: AiExecutionSource, ocrError: CaptureError?): String = when {
-        source == AiExecutionSource.CLOUD -> "官方 OCR 已生成可编辑文字；请确认后再生成知识地图。"
+        source == AiExecutionSource.CLOUD -> "官方 OCR 已生成可编辑文字；请检查识别结果，确认后再生成知识结构大纲。"
         source == AiExecutionSource.ON_DEVICE && ocrError == CaptureError.ConfigMissing ->
-            "官方 OCR 未配置时，可继续使用端侧蓝心草稿；请确认后再生成知识地图。"
-        source == AiExecutionSource.ON_DEVICE -> "官方 OCR 未成功，已保留端侧蓝心草稿；请确认后再生成知识地图。"
-        else -> "请手动补充图片中的学习内容；确认后再生成知识地图。"
+            "官方 OCR 未配置时，可继续使用端侧蓝心草稿；请检查识别结果，确认后再生成知识结构大纲。"
+        source == AiExecutionSource.ON_DEVICE -> "官方 OCR 未成功，已保留端侧蓝心草稿；请检查识别结果，确认后再生成知识结构大纲。"
+        else -> "请手动补充图片中的学习内容；确认后再生成知识结构大纲。"
     }
 
     fun updateImageDraftText(text: String) { ui = ui.copy(imageDraftText = text) }
@@ -3163,7 +3163,7 @@ class AppViewModel(
             aiProcessing = AiProcessingUiState(
                 visible = true,
                 title = "正在提炼课堂精华",
-                steps = listOf("整理课程资料", "整理知识地图", "汇总练习与薄弱点", "生成学习报告草稿", "等待选择导出格式"),
+                steps = listOf("整理课程资料", "整理知识结构", "汇总练习与薄弱点", "生成学习报告草稿", "等待选择导出格式"),
                 activeStep = 3,
                 source = source,
                 fallbackMessage = "云端或端侧不可用时，使用本地模板整理；DOCX/PDF 失败时可改导出 HTML 或 Text。",
@@ -3492,6 +3492,16 @@ class AppViewModel(
             loadHistoryRecord(record)
         }
         navigateTo(Screen.COURSE_DETAIL)
+    }
+
+    fun openLatestKnowledgeFromHome() {
+        val record = ui.history.firstOrNull()
+        if (record == null) {
+            ui = ui.copy(toast = "暂无知识点，请先导入课堂资料。")
+            selectTab(Tab.IMPORT)
+            return
+        }
+        openHistoryTimeline(record)
     }
 
     fun recordsForCourse(courseKey: String): List<HistoryRecord> =
@@ -4131,10 +4141,78 @@ class AppViewModel(
         )
     }
 
-    fun deleteHistory(id: String) {
-        val updated = ui.history.filterNot { it.id == id }
-        ui = ui.copy(history = updated)
+    fun deleteCourse(courseKey: String): Boolean {
+        val records = recordsForCourse(courseKey)
+        if (records.isEmpty()) {
+            ui = ui.copy(toast = "课程不存在或已删除。")
+            return false
+        }
+        return deleteHistoryRecords(records, "已删除课程及相关学习记录。")
+    }
+
+    fun deleteHistory(id: String): Boolean {
+        val record = ui.history.firstOrNull { it.id == id }
+        if (record == null) {
+            ui = ui.copy(toast = "课程不存在或已删除。")
+            return false
+        }
+        return deleteHistoryRecords(listOf(record), "已删除该历史记录及相关复习数据。")
+    }
+
+    fun deleteCurrentCourse(): Boolean {
+        val activeId = ui.session?.id
+        val record = activeId?.let { id -> ui.history.firstOrNull { it.session.id == id } }
+        if (record != null) return deleteHistory(record.id)
+        if (ui.session == null && ui.l3Pipeline.lessonSource == null) {
+            ui = ui.copy(toast = "当前没有可删除的课程。")
+            return false
+        }
+        ui = ui.copy(
+            selectedCourseKey = null,
+            session = null,
+            result = null,
+            l3Pipeline = L3PipelineSnapshot.Empty,
+            learningState = null,
+            reviewPlan = null,
+            answers = emptyMap(),
+            revealedQuestionIds = emptySet(),
+            selectedKnowledgePointId = null,
+            selectedEvidenceId = null,
+            toast = "已删除当前未保存课程。",
+        )
+        l3PersistenceRepository.saveSnapshot(L3PipelineSnapshot.Empty)
+        selectTab(Tab.HISTORY)
+        return true
+    }
+
+    private fun deleteHistoryRecords(records: List<HistoryRecord>, successToast: String): Boolean {
+        if (records.isEmpty()) return false
+        val recordIds = records.map { it.id }.toSet()
+        val sessionIds = records.map { it.session.id }.toSet()
+        val courseKeys = records.map { CourseLibraryBuilder.normalizeCourseName(it.title).lowercase() }.toSet()
+        val updated = ui.history.filterNot { it.id in recordIds }
+        learningStore.deleteCourseSessions(sessionIds)
+        val activeDeleted = ui.session?.id in sessionIds || ui.selectedCourseKey in courseKeys
+        val nextL3 = if (activeDeleted) L3PipelineSnapshot.Empty else ui.l3Pipeline
+        if (activeDeleted) l3PersistenceRepository.saveSnapshot(nextL3)
+        ui = ui.copy(
+            history = updated,
+            learningSnapshot = learningStore.snapshot(),
+            selectedCourseKey = if (activeDeleted) null else ui.selectedCourseKey,
+            session = if (activeDeleted) null else ui.session,
+            result = if (activeDeleted) null else ui.result,
+            l3Pipeline = nextL3,
+            learningState = if (activeDeleted) null else ui.learningState,
+            reviewPlan = if (activeDeleted) null else ui.reviewPlan,
+            answers = if (activeDeleted) emptyMap() else ui.answers,
+            revealedQuestionIds = if (activeDeleted) emptySet() else ui.revealedQuestionIds,
+            selectedKnowledgePointId = if (activeDeleted) null else ui.selectedKnowledgePointId,
+            selectedEvidenceId = if (activeDeleted) null else ui.selectedEvidenceId,
+            toast = successToast,
+        )
         persistHistory(updated)
+        if (activeDeleted && currentScreen == Screen.COURSE_DETAIL) selectTab(Tab.HISTORY)
+        return true
     }
 
     /** Official SDK requirement: release native resources when the owner is destroyed. */

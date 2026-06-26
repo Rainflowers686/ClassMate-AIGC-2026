@@ -11,7 +11,7 @@ class LearningExperienceUiGuardTest {
 
         assertTrue(source.contains("学习状态总览"))
         assertTrue(source.contains("继续复习"))
-        assertTrue(source.contains("生成学习包 / 导出学习版资料"))
+        assertTrue(source.contains("生成学习包"))
         assertTrue(source.contains("buildLearningStudyPackArtifact"))
     }
 

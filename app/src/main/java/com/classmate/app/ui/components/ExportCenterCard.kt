@@ -89,7 +89,7 @@ fun ExportCenterCard(
         )
         Spacer(Modifier.height(Dimens.s))
         PrimaryButton(
-            text = if (draftReady) "重新生成学习报告草稿" else "生成学习报告草稿",
+            text = if (draftReady) "重新生成草稿" else "生成草稿",
             onClick = { draftReady = viewModel.prepareRefinedExportDraft() || draftReady },
             modifier = Modifier.fillMaxWidth(),
         )
@@ -127,7 +127,7 @@ fun ExportCenterCard(
         Spacer(Modifier.height(Dimens.s))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
             PrimaryButton(
-                text = "保存到文件…",
+                text = "保存文件",
                 onClick = {
                     val artifact = artifactOrNotify() ?: return@PrimaryButton
                     pendingSave = artifact
@@ -154,7 +154,7 @@ fun ExportCenterCard(
         Spacer(Modifier.height(Dimens.s))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
             SecondaryButton(
-                text = "分享…",
+                text = "分享",
                 onClick = {
                     val artifact = artifactOrNotify() ?: return@SecondaryButton
                     try {

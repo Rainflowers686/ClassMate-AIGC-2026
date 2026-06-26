@@ -115,7 +115,7 @@ class ProductCopyConsistencyTest {
         listOf("TTS", "Function", "smoke", "docId", "Product-facing").forEach {
             assertTrue("missing official provider readiness copy: $it", settings.contains(it))
         }
-        listOf("通用设置", "外观与主题", "AI 模型配置", "学习与导出", "开发者设置").forEach {
+        listOf("通用设置", "外观与主题", "AI 模型配置", "导出设置", "开发者设置").forEach {
             assertTrue("missing settings entrance: $it", settings.contains(it))
         }
         listOf("沉浸背景音", "内置", "授权循环背景音").forEach {

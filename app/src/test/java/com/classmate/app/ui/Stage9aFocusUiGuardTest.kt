@@ -96,7 +96,7 @@ class Stage9aFocusUiGuardTest {
         val s = read("java/com/classmate/app/ui/screens/settings/SettingsScreen.kt")
         assertTrue(s.contains("官方推荐路径"))
         assertTrue(s.contains("检测候选模型目录"))
-        assertTrue(s.contains("选择真实图片测试（不落库）"))
+        assertTrue(s.contains("图片测试"))
         // Debug safe lines are collapsed via the details card; no inline monospace log loops remain.
         assertTrue(s.contains("DiagnosticDetailsCard"))
         assertFalse(s.contains("report.safeLines().forEach"))

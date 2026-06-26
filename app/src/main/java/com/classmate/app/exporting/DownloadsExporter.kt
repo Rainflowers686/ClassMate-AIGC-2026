@@ -14,7 +14,7 @@ import androidx.annotation.RequiresApi
  *
  * On API < 29 the scoped collection does not exist and the legacy path would require a dangerous
  * storage permission we deliberately do not request, so we return [Result.Unsupported] with a
- * clear message that points the user at "保存到文件…" or "分享…" instead. Nothing here ever throws
+ * clear message that points the user at "保存文件" or "分享" instead. Nothing here ever throws
  * out — every failure becomes a typed result with user-facing guidance.
  */
 object DownloadsExporter {
@@ -29,7 +29,7 @@ object DownloadsExporter {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             saveViaMediaStore(context, artifact)
         } else {
-            Result.Unsupported("当前系统版本较低，无法直接写入下载目录。请改用“保存到文件…”或“分享…”。")
+            Result.Unsupported("当前系统版本较低，无法直接写入下载目录。请改用“保存文件”或“分享”。")
         }
 
     @RequiresApi(Build.VERSION_CODES.Q)

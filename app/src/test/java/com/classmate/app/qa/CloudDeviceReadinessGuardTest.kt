@@ -119,7 +119,7 @@ class CloudDeviceReadinessGuardTest {
         listOf(
             "图片已保存为 evidence asset",
             "添加该页文本并生成学习闭环",
-            "确认转写并生成课堂学习闭环",
+            "确认转写",
         ).forEach { marker -> assertTrue("Import UI marker missing: $marker", importScreen.contains(marker)) }
 
         listOf(

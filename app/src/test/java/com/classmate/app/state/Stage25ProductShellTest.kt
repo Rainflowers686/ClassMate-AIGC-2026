@@ -60,7 +60,7 @@ class Stage25ProductShellTest {
     }
 
     @Test
-    fun courseLibraryAggregatesHistoryAndDeleteDoesNotTouchLearningStore() {
+    fun courseLibraryAggregatesHistoryAndDeleteRemovesCourseReviewTasks() {
         val learningStore = InMemoryLearningStore { now }
         learningStore.addTasksFromAnalysis(SampleCourses.seriesAnalysis(now), "Calculus - Series", "BLUELM", "official_bluelm", "qwen3.5-plus")
         val viewModel = vm(
@@ -71,11 +71,11 @@ class Stage25ProductShellTest {
         val summaries = viewModel.courseSummaries()
         assertEquals(1, summaries.size)
         assertEquals(2, summaries.single().lessonCount)
-        val taskCount = viewModel.ui.learningSnapshot.tasks.size
+        assertTrue(viewModel.ui.learningSnapshot.tasks.isNotEmpty())
 
         viewModel.deleteHistory("a")
 
-        assertEquals(taskCount, viewModel.ui.learningSnapshot.tasks.size)
+        assertEquals(0, viewModel.ui.learningSnapshot.tasks.size)
         assertEquals(LearnerProfile.OFFICIAL_BLUELM, viewModel.activeConfigBundle().profile)
     }
 
