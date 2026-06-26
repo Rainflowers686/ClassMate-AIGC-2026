@@ -8,6 +8,14 @@ Input material -> Evidence -> Knowledge points -> Micro quiz -> Wrong book -> Re
 
 The current product line is the ClassMate Android App. The BlueLM low-code canvas is not the main implementation path; it remains a research or optional future enhancement.
 
+## 能力真实状态（中文摘要）
+
+- **主学习链路（文本 → 证据 → 知识点 → 微测 → 错题 → 复习 → 诊断 → Study Pack）已在 vivo 真机验证**，是本项目黄金标准。
+- 其余 18 项能力按主链标准做了 **L3-readiness 横向对齐**（入口 / 证据 / 路由 / 失败终态 / fallback / 测试 / 诚实文案），**仍需真机或云真机抽测**。
+- **不宣称所有能力都已在真机完整验证**；实验性能力（图片生成 / 视频生成 / 同声传译）默认关闭。
+- 18 项能力逐项真实状态、路由、入口、证据策略与失败终态见：[`docs/current/official_18_capability_l3_readiness.md`](docs/current/official_18_capability_l3_readiness.md)（中文，单一事实来源 = 代码 `CapabilityReadinessRegistry`，有守卫测试防漂移）。
+- 路由统一为 `云端蓝心(BlueLM) → 端侧 3B → 本地基础整理(LOCAL_RULE)`；云端 + 端侧都失败且有可用输入时自动进入「本地基础整理」，不是空安全占位。
+
 ## Current Scope
 
 Current branch family:
