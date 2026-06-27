@@ -111,6 +111,10 @@ data class ClassMateUiState(
     val analysisSlowNotice: Boolean = false,
     // Content-aware time estimate shown while analysis runs (P0-4) — never a fixed "60～90 秒".
     val analysisEstimateText: String = "",
+    // Adaptive AI Learning Layer surfaces — a real second model pass at high-value learning nodes.
+    val studyPackEnhancement: EnhancementUiState = EnhancementUiState.idle(),
+    val quizFeedbackEnhancement: EnhancementUiState = EnhancementUiState.idle(),
+    val evidenceEnhancement: EnhancementUiState = EnhancementUiState.idle(),
     val lastAnalysisLatencyMs: Long = 0L,
     val longTextInfo: LongTextAnalysisInfo? = null,
     val selectedImportFileMetadata: SelectedLocalFileMetadata? = null,

@@ -156,6 +156,12 @@ import com.classmate.core.ask.LocalAskLessonEngine
 import com.classmate.core.ai.AiCapability
 import com.classmate.core.ai.AiCapabilityResult
 import com.classmate.core.ai.AiCapabilityRouter
+import com.classmate.core.ai.AiEnhancement
+import com.classmate.core.ai.AiEnhancementType
+import com.classmate.core.ai.EnhancementPoint
+import com.classmate.core.ai.EnhancementPromptBuilder
+import com.classmate.core.ai.LocalEnhancementTemplates
+import com.classmate.core.ai.RoutedEnhancementUseCase
 import com.classmate.core.analysis.CourseDomainDetector
 import com.classmate.core.glossary.DynamicGlossaryExtractor
 import com.classmate.core.glossary.GlossarySource
@@ -214,6 +220,7 @@ import com.classmate.core.model.LearningState
 import com.classmate.core.model.QuizAttempt
 import com.classmate.core.model.QuizQuestion
 import com.classmate.core.model.SourceKind
+import com.classmate.core.prompt.Prompt
 import com.classmate.core.prompt.PromptBuilder
 import com.classmate.core.provider.AnalysisRequest
 import com.classmate.core.provider.BlueLMDiagnosticReport
@@ -3974,6 +3981,118 @@ class AppViewModel(
     fun startExam(mode: PracticeMode = PracticeMode.QUICK_REVIEW) {
         startPracticeInternal(mode, PracticeQuestionMode.EXAM)
     }
+
+    // ---- Adaptive AI Learning Layer: real second-pass enhancements at high-value nodes ----
+    // Routes Cloud (云端蓝心 via the SAME ProviderAskChatClient the analyzer/Ask use) → On-device (端侧蓝心)
+    // → real local template, off the main thread. Every result carries an honest source label; the local
+    // path is genuine grounded Chinese, never presented as 蓝心.
+    private val enhancementUseCase = RoutedEnhancementUseCase()
+
+    private fun enhancementSourceZh(source: AiExecutionSource): String = when (source) {
+        AiExecutionSource.CLOUD -> "蓝心整理版"
+        AiExecutionSource.ON_DEVICE -> "端侧模型草稿"
+        else -> "本地整理版"
+    }
+
+    private suspend fun routeEnhancement(
+        type: AiEnhancementType,
+        prompt: Prompt,
+        localTemplate: () -> String,
+    ): AiCapabilityResult<AiEnhancement> {
+        val bundle = configBundle
+        val tx = transport
+        return withContext(Dispatchers.IO) {
+            enhancementUseCase.enhance(
+                type = type,
+                cloud = {
+                    val reply = runCatching { ProviderAskChatClient(bundle, tx).chat(prompt, null) }.getOrNull()
+                    if (reply != null && reply.text.isNotBlank()) StageOutcome.Produced(reply.text)
+                    else StageOutcome.Unavailable(AiExecutionStatus.CONFIG_MISSING)
+                },
+                onDevice = {
+                    val reply = runCatching { onDeviceController.askSeam().chat(prompt, null) }.getOrNull()
+                    if (reply != null && reply.text.isNotBlank()) StageOutcome.Produced(reply.text)
+                    else StageOutcome.Unavailable(AiExecutionStatus.UNSUPPORTED_MODALITY)
+                },
+                localTemplate = localTemplate,
+            )
+        }
+    }
+
+    private fun enhancementResultState(type: AiEnhancementType, result: AiCapabilityResult<AiEnhancement>): EnhancementUiState {
+        val text = result.value?.text.orEmpty()
+        return EnhancementUiState(
+            type = type,
+            running = false,
+            text = text,
+            sourceZh = if (text.isBlank()) "AI 整理失败，已保留基础版" else enhancementSourceZh(result.source),
+            failed = text.isBlank(),
+        )
+    }
+
+    /** P0-1: generate an AI-organized, review/print-ready study material for the CURRENT course. */
+    fun generateStudyPackEnhancement(form: AiEnhancementType = AiEnhancementType.EXPORT_HANDOUT) {
+        val result = ui.result
+        val session = ui.session
+        if (result == null || session == null) {
+            ui = ui.copy(toast = "请先生成学习包，再整理 AI 复习材料。")
+            return
+        }
+        maybePromptMissingCloudConfig("学习材料 AI 整理")
+        val courseTitle = session.title.ifBlank { "未命名课程" }
+        val points = result.knowledgePoints.map {
+            EnhancementPoint(it.title, it.summary, it.evidence.firstOrNull()?.quote.orEmpty())
+        }
+        val prompt = when (form) {
+            AiEnhancementType.EXAM_CRAM_SHEET -> EnhancementPromptBuilder.examCramSheet(courseTitle, points)
+            else -> EnhancementPromptBuilder.studyPackHandout(courseTitle, points)
+        }
+        val local: () -> String = {
+            when (form) {
+                AiEnhancementType.EXAM_CRAM_SHEET -> LocalEnhancementTemplates.examCramSheet(courseTitle, points)
+                else -> LocalEnhancementTemplates.studyPackHandout(courseTitle, points)
+            }
+        }
+        ui = ui.copy(studyPackEnhancement = EnhancementUiState(type = form, running = true))
+        viewModelScope.launch {
+            val routed = routeEnhancement(form, prompt, local)
+            ui = ui.copy(studyPackEnhancement = enhancementResultState(form, routed))
+        }
+    }
+
+    fun clearStudyPackEnhancement() { ui = ui.copy(studyPackEnhancement = EnhancementUiState.idle()) }
+
+    /** P0-2: after a practice/quiz attempt, generate targeted feedback grounded in THIS attempt. */
+    fun generateQuizFeedbackEnhancement() {
+        val session = ui.practiceSession
+        val attempts = ui.practiceAttempts
+        if (session == null || attempts.isEmpty()) {
+            ui = ui.copy(toast = "完成一组练习后，再生成 AI 学习反馈。")
+            return
+        }
+        val total = attempts.size
+        val correct = attempts.count { it.outcome == PracticeOutcome.CORRECT || it.outcome == PracticeOutcome.MASTERED }
+        val wrongSummaries = attempts.filter { it.outcome == PracticeOutcome.WRONG }.mapNotNull { att ->
+            val item = session.items.firstOrNull { it.id == att.itemId } ?: return@mapNotNull null
+            val correctText = item.options.firstOrNull { it.correct }?.text.orEmpty()
+            "${item.question} / 正确答案：$correctText / 知识点：${item.knowledgePointTitle}"
+        }
+        val weakTitles = ui.l3Pipeline.learningDiagnosis.weakKnowledgePoints.map { it.title }.ifEmpty {
+            attempts.filter { it.outcome == PracticeOutcome.WRONG }
+                .mapNotNull { att -> session.items.firstOrNull { it.id == att.itemId }?.knowledgePointTitle }
+                .distinct()
+        }
+        val type = AiEnhancementType.POST_QUIZ_FEEDBACK
+        val prompt = EnhancementPromptBuilder.quizFeedback(total, correct, wrongSummaries, weakTitles)
+        val local: () -> String = { LocalEnhancementTemplates.postQuizFeedback(total, correct, weakTitles) }
+        ui = ui.copy(quizFeedbackEnhancement = EnhancementUiState(type = type, running = true))
+        viewModelScope.launch {
+            val routed = routeEnhancement(type, prompt, local)
+            ui = ui.copy(quizFeedbackEnhancement = enhancementResultState(type, routed))
+        }
+    }
+
+    fun clearQuizFeedbackEnhancement() { ui = ui.copy(quizFeedbackEnhancement = EnhancementUiState.idle()) }
 
     fun startRandomQuiz(questionCount: Int = 5, now: Long = System.currentTimeMillis()) {
         startPracticeInternal(PracticeMode.QUICK_REVIEW, PracticeQuestionMode.REAL_QUIZ)

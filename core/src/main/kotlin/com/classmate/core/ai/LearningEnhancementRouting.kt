@@ -14,6 +14,12 @@ enum class AiEnhancementType(val displayZh: String, val capability: AiCapability
     /** Re-organize a study pack into a clean, printable/reviewable form before export (场景 A). */
     STUDY_PACK_POLISH("学习材料整理", AiCapability.EXPORT_REPORT),
 
+    /** A printable lecture-handout form of the course (title / concepts / KPs / pitfalls / evidence). */
+    EXPORT_HANDOUT("讲义版", AiCapability.EXPORT_REPORT),
+
+    /** A pre-exam quick-reference sheet (high-frequency KPs / formulas / confusions / tips). */
+    EXAM_CRAM_SHEET("考前速记版", AiCapability.EXPORT_REPORT),
+
     /** Turn a finished quiz attempt into wrong-reason + weak-point + next-step feedback (场景 B). */
     POST_QUIZ_FEEDBACK("做题反馈", AiCapability.REVIEW_PLAN),
 
@@ -98,4 +104,30 @@ object LocalEnhancementTemplates {
     /** 场景 A — a short study-pack organization note (the full pack content is assembled elsewhere). */
     fun studyPackNote(courseTitle: String, knowledgePointCount: Int, form: String): String =
         "《$courseTitle》$form：已整理 $knowledgePointCount 个知识点，附答案解析与证据索引，可直接复习或打印。"
+
+    /**
+     * 场景 A (讲义版) — a real, structured handout assembled deterministically from the knowledge points and
+     * their evidence. No fabrication: every line comes from the supplied course data.
+     */
+    fun studyPackHandout(courseTitle: String, points: List<EnhancementPoint>): String {
+        if (points.isEmpty()) return "《$courseTitle》讲义版：暂无知识点，请先生成学习包。"
+        val body = points.take(12).mapIndexed { i, p ->
+            buildString {
+                append("${i + 1}. ${p.title}")
+                if (p.summary.isNotBlank()) append("\n   要点：${p.summary}")
+                if (p.evidenceQuote.isNotBlank()) append("\n   证据：「${p.evidenceQuote.trim().take(60)}」")
+            }
+        }.joinToString("\n")
+        return "《$courseTitle》· 讲义版\n共 ${points.size} 个知识点：\n$body\n复习建议：先通读要点，再用证据回溯每个结论。"
+    }
+
+    /** 场景 A (考前速记版) — a compact pre-exam sheet of the highest-value points. */
+    fun examCramSheet(courseTitle: String, points: List<EnhancementPoint>): String {
+        if (points.isEmpty()) return "《$courseTitle》速记版：暂无知识点，请先生成学习包。"
+        val lines = points.take(8).joinToString("\n") { "· ${it.title}：${it.summary.ifBlank { "回看证据巩固" }.take(40)}" }
+        return "《$courseTitle》· 考前速记版\n$lines\n考前提示：① 先过高频点 ② 核对易混概念 ③ 重做错题 ④ 留 5 分钟检查。"
+    }
 }
+
+/** A knowledge point projected into the enhancement layer (no raw ids — only learner-facing text). */
+data class EnhancementPoint(val title: String, val summary: String, val evidenceQuote: String = "")

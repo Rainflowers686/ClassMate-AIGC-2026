@@ -61,6 +61,24 @@ class PracticeFlowTest {
     }
 
     @Test
+    fun quizFeedbackEnhancementGuardsWhenNoAttempt() {
+        // P0-2 guard: with no practice attempt, the AI feedback entry must not run — it guides instead.
+        val viewModel = vm()
+        viewModel.generateQuizFeedbackEnhancement()
+        assertFalse(viewModel.ui.quizFeedbackEnhancement.running)
+        assertNotNull(viewModel.ui.toast)
+    }
+
+    @Test
+    fun studyPackEnhancementGuardsWhenNoCourse() {
+        // P0-1 guard: with no analyzed course loaded, the AI study-material entry must not run.
+        val viewModel = vm()
+        viewModel.generateStudyPackEnhancement()
+        assertFalse(viewModel.ui.studyPackEnhancement.running)
+        assertNotNull(viewModel.ui.toast)
+    }
+
+    @Test
     fun randomQuizOnlyContainsAnswerableQuestions() {
         // P0-3: every question that enters the random quiz must have a resolved correct answer.
         val viewModel = vm()

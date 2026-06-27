@@ -38,7 +38,12 @@ import com.classmate.app.data.HistoryRecord
 import com.classmate.app.state.AppViewModel
 import com.classmate.app.state.Screen
 import com.classmate.app.state.Tab
+import com.classmate.app.ui.components.ActionButtonRow
 import com.classmate.app.ui.components.ChipTone
+import com.classmate.app.ui.components.PremiumCard
+import com.classmate.app.ui.components.ProminentErrorCard
+import com.classmate.app.ui.components.ProminentLoadingCard
+import com.classmate.core.ai.AiEnhancementType
 import com.classmate.app.ui.components.DockAction
 import com.classmate.app.ui.components.ExportCenterCard
 import com.classmate.app.ui.components.KnowledgePathNode
@@ -169,6 +174,9 @@ fun CourseDetailScreen(viewModel: AppViewModel) {
                 }
                 // Restrained entry into the immersive Flow companion (sound scenes + focus timer).
                 SecondaryButton("心流复习 · 沉浸专注", onClick = { viewModel.navigateTo(Screen.LIVE) }, modifier = Modifier.fillMaxWidth())
+
+                ProductSectionTitle("AI 复习材料")
+                AiStudyMaterialSection(viewModel)
 
                 ProductSectionTitle("导出")
                 ExportCenterCard(
@@ -373,6 +381,58 @@ private fun L3PipelineStatusCard(viewModel: AppViewModel) {
                     SecondaryButton("查看诊断证据", onClick = { viewModel.openEvidenceById(evidenceId) }, modifier = Modifier.fillMaxWidth())
                 }
             }
+        }
+    }
+}
+
+// P0-1: a real AI second-pass that turns the current course into review/print-ready material. Cloud BlueLM
+// when configured → on-device → honest local template, each labelled with its source.
+@Composable
+private fun AiStudyMaterialSection(viewModel: AppViewModel) {
+    val state = viewModel.ui.studyPackEnhancement
+    val clipboard = LocalClipboardManager.current
+    when {
+        state.running -> ProminentLoadingCard(
+            title = "正在生成 AI 复习材料",
+            statusText = "正在调用蓝心 / 端侧模型，不可用时会用本地整理版。",
+        )
+        state.failed -> ProminentErrorCard(
+            whatHappened = "AI 整理未完成",
+            possibleCause = "云端或端侧模型暂时不可用。",
+            nextStep = "可重试，或直接用下方导出中心的基础版材料。",
+            retryText = "重试讲义版",
+            onRetry = { viewModel.generateStudyPackEnhancement(AiEnhancementType.EXPORT_HANDOUT) },
+            secondaryText = "取消",
+            onSecondary = { viewModel.clearStudyPackEnhancement() },
+        )
+        state.hasResult -> PremiumCard {
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("AI 整理版材料", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                StatusChip(state.sourceZh, tone = ChipTone.INFO)
+            }
+            Spacer(Modifier.height(Dimens.s))
+            Text(state.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+            Spacer(Modifier.height(Dimens.s))
+            ActionButtonRow(
+                primaryText = "复制",
+                onPrimary = { clipboard.setText(AnnotatedString(state.text)); viewModel.toast("已复制 AI 整理版，可粘贴或打印。") },
+                secondaryText = "重新生成",
+                onSecondary = { viewModel.generateStudyPackEnhancement(AiEnhancementType.EXPORT_HANDOUT) },
+                tertiaryText = "关闭",
+                onTertiary = { viewModel.clearStudyPackEnhancement() },
+            )
+        }
+        else -> PremiumCard {
+            Text("把这门课整理成可复习 / 打印的材料", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(Dimens.xxs))
+            Text("蓝心可用时由蓝心整理；不可用时用端侧或本地整理版，并标注来源。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(Dimens.s))
+            ActionButtonRow(
+                primaryText = "生成讲义版",
+                onPrimary = { viewModel.generateStudyPackEnhancement(AiEnhancementType.EXPORT_HANDOUT) },
+                secondaryText = "考前速记版",
+                onSecondary = { viewModel.generateStudyPackEnhancement(AiEnhancementType.EXAM_CRAM_SHEET) },
+            )
         }
     }
 }

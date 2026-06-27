@@ -17,7 +17,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import com.classmate.app.ui.components.EnhancementPanel
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -288,28 +291,19 @@ private fun PracticeSummary(viewModel: AppViewModel, session: PracticeSession) {
         Text("下一步建议：${result.nextSuggestion}", style = MaterialTheme.typography.bodyMedium)
     }
 
-    // Phase D: on-device BlueLM explanation / next-step. Safety placeholder when unavailable — never
-    // a fabricated rule explanation.
-    QuietCard {
-        Text("下一步建议（端侧蓝心）", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(Dimens.s))
-        Text(
-            "由端侧 BlueLM 3B 生成错题解释与练习方向；端侧不可用时仅显示安全占位，不伪造解释。",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        viewModel.ui.onDevicePracticeSuggestion?.let { suggestion ->
-            Spacer(Modifier.height(Dimens.s))
-            Text(suggestion, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
-        }
-        Spacer(Modifier.height(Dimens.s))
-        PrimaryButton(
-            text = if (viewModel.ui.onDevicePracticeSuggestionRunning) "生成中" else "端侧建议",
-            onClick = { viewModel.generateOnDevicePracticeSuggestion() },
-            enabled = !viewModel.ui.onDevicePracticeSuggestionRunning,
-            modifier = Modifier.fillMaxWidth(),
-        )
-    }
+    // P0-2: targeted AI feedback for THIS attempt — wrong reasons, weak points, next step. Routes cloud
+    // BlueLM (云端蓝心) → on-device (端侧蓝心) → honest local template, each labelled with its source.
+    val clipboard = LocalClipboardManager.current
+    EnhancementPanel(
+        state = viewModel.ui.quizFeedbackEnhancement,
+        idleTitle = "AI 学习反馈",
+        idleHint = "根据本次作答、错题和薄弱知识点，生成针对性反馈与下一步复习建议。",
+        triggerText = "生成 AI 学习反馈",
+        runningTitle = "正在生成 AI 学习反馈",
+        onGenerate = { viewModel.generateQuizFeedbackEnhancement() },
+        onCopy = { text -> clipboard.setText(AnnotatedString(text)); viewModel.toast("已复制学习反馈。") },
+        onDismiss = { viewModel.clearQuizFeedbackEnhancement() },
+    )
 
     if (result.needPracticeItems.isNotEmpty()) {
         QuietCard {
