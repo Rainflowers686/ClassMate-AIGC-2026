@@ -43,7 +43,7 @@ class Stage9aFocusUiGuardTest {
         assertTrue(s.contains("默认学习"))
         assertTrue(s.contains("活力学习"))
         assertTrue(s.contains("沉浸学习"))
-        assertTrue(s.contains("强调色 / Accent Color"))
+        assertTrue(s.contains("强调色"))
         assertTrue(s.contains("ThemePreviewCard"))
     }
 

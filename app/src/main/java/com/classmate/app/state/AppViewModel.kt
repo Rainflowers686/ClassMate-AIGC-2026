@@ -9,6 +9,8 @@ import androidx.lifecycle.viewModelScope
 import com.classmate.app.asr.AsrSession
 import com.classmate.app.asr.AsrSessionController
 import com.classmate.app.asr.AsrState
+import com.classmate.app.asr.SpeechRecognitionReadiness
+import com.classmate.app.ui.screens.settings.SettingsPage
 import com.classmate.app.asr.AsrTranscriptMapper
 import com.classmate.app.capture.CaptureGateway
 import com.classmate.app.capture.CaptureGatewayPort
@@ -343,6 +345,7 @@ class AppViewModel(
     fun selectTab(tab: Tab) {
         currentTab = tab
         resetTo(tab.root)
+        settingsPage = SettingsPage.SETTINGS_HOME // entering a tab root always starts the settings tree at home
     }
 
     init {
@@ -387,6 +390,52 @@ class AppViewModel(
     private fun navigateReplacing(screen: Screen) {
         if (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
         navigateTo(screen)
+    }
+
+    // --- unified system-back handling (settings sub-pages live in-page, not on the back stack) ---
+    var settingsPage: SettingsPage by mutableStateOf(SettingsPage.SETTINGS_HOME)
+        private set
+
+    fun openSettingsPage(page: SettingsPage) { settingsPage = page }
+    fun resetSettingsPage() { settingsPage = SettingsPage.SETTINGS_HOME }
+
+    private val onSettingsSubPage: Boolean
+        get() = currentScreen == Screen.SETTINGS && settingsPage != SettingsPage.SETTINGS_HOME
+
+    private val recordingActive: Boolean
+        get() = ui.currentRecording?.status == L3RecordingStatus.RECORDING
+
+    /** True when a system-back press has somewhere to go inside the app (so we must NOT exit the app). */
+    val canHandleSystemBack: Boolean
+        get() = recordingActive || onSettingsSubPage || canGoBack
+
+    /**
+     * Single entry point for BOTH the system back key/gesture AND the top-left back button, so the two
+     * never diverge. Order: protect an in-progress recording -> walk up the settings sub-page tree ->
+     * pop the app back stack. Returns true when handled in-app.
+     */
+    fun handleSystemBack(): Boolean {
+        if (recordingActive) { // never silently drop an in-progress recording/transcription
+            ui = ui.copy(showRecordingBackPrompt = true)
+            return true
+        }
+        if (onSettingsSubPage) {
+            settingsPage = settingsPage.parent ?: SettingsPage.SETTINGS_HOME
+            return true
+        }
+        return goBack()
+    }
+
+    fun dismissRecordingBackPrompt() { ui = ui.copy(showRecordingBackPrompt = false) }
+
+    fun stopRecordingFromBackPrompt() {
+        ui = ui.copy(showRecordingBackPrompt = false)
+        stopRecordingWithTranscription()
+    }
+
+    fun cancelRecordingFromBackPrompt() {
+        ui = ui.copy(showRecordingBackPrompt = false)
+        cancelRecordingWithTranscription()
     }
 
     // --- appearance ---
@@ -2313,12 +2362,13 @@ class AppViewModel(
      */
     fun asrBegin(available: Boolean, permissionGranted: Boolean, now: Long = System.currentTimeMillis()): AsrState {
         val next = AsrSessionController.begin(ui.asrSession, available, permissionGranted, now)
+        // Honest, actionable next-step wording from the testable readiness helper.
+        val readiness = SpeechRecognitionReadiness(recordAudioGranted = permissionGranted, recognizerAvailable = available)
         ui = ui.copy(
             asrSession = next,
             toast = when (next.state) {
-                AsrState.UNSUPPORTED -> "本设备不支持系统语音识别，请使用手动转写或导入字幕。"
-                AsrState.PERMISSION_REQUIRED -> "未授权麦克风，仍可手动记录或导入转写稿。"
-                AsrState.LISTENING -> "实时转写实验已开始（使用系统语音识别，不保存原始音频）。"
+                AsrState.UNSUPPORTED, AsrState.PERMISSION_REQUIRED -> readiness.userGuidance()
+                AsrState.LISTENING -> "实时转写已开始（系统语音识别，不保存原始音频）。"
                 else -> ui.toast
             },
         )

@@ -88,6 +88,22 @@ class RecordingTranscriptionFlowTest {
     }
 
     @Test
+    fun systemBackWhileRecordingPromptsInsteadOfExiting() {
+        val viewModel = vm()
+        viewModel.startRecordingWithTranscription(true, true, 1_000L)
+        assertTrue(viewModel.canHandleSystemBack)
+        assertTrue("back is handled in-app", viewModel.handleSystemBack())
+        assertTrue("a confirm prompt is shown", viewModel.ui.showRecordingBackPrompt)
+        assertEquals("did not navigate away", Screen.HOME, viewModel.currentScreen)
+
+        // Choosing cancel from the prompt drops the recording with no evidence.
+        viewModel.cancelRecordingFromBackPrompt()
+        assertFalse(viewModel.ui.showRecordingBackPrompt)
+        assertNull(viewModel.ui.currentRecording)
+        assertFalse(viewModel.ui.inputArtifacts.any { it.kind == InputFileKind.AUDIO })
+    }
+
+    @Test
     fun unavailableRecognizerStillRecordsWithHonestState() {
         val viewModel = vm()
         val state = viewModel.startRecordingWithTranscription(asrAvailable = false, permissionGranted = true, now = 1_000L)

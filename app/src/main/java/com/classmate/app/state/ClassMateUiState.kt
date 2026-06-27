@@ -125,6 +125,8 @@ data class ClassMateUiState(
     val asrLongJobs: List<AsrLongJob> = emptyList(),
     val currentRecording: ClassroomRecordingRecord? = null,
     val recordingRecords: List<ClassroomRecordingRecord> = emptyList(),
+    // System-back protection while a recording/transcription is in progress (don't silently exit).
+    val showRecordingBackPrompt: Boolean = false,
     val asrLongStatus: L3AsrStatus = L3AsrStatus.PENDING_ASR_CONFIG,
 
     // transcript / subtitle intake (Stage 5B)

@@ -100,11 +100,6 @@ class AndroidSpeechRecognizerClient(private val context: Context) : SpeechRecogn
     private fun firstConfidence(bundle: Bundle?): Double? =
         bundle?.getFloatArray(SpeechRecognizer.CONFIDENCE_SCORES)?.firstOrNull()?.toDouble()
 
-    private fun messageFor(error: Int): String = when (error) {
-        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "未授权麦克风，仍可手动记录或导入转写稿。"
-        SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "系统语音识别不可用（网络问题），请改用手动转写或字幕导入。"
-        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "系统语音识别忙，请稍后重试。"
-        SpeechRecognizer.ERROR_AUDIO -> "麦克风读取出错，请重试或改用手动转写。"
-        else -> "系统语音识别出错，请改用手动转写或字幕导入。"
-    }
+    // Friendly, next-step wording shared with the testable mapper (no raw error code surfaced).
+    private fun messageFor(error: Int): String = SpeechRecognitionErrorMapper.message(error)
 }

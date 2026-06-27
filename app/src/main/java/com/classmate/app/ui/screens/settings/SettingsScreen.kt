@@ -125,7 +125,7 @@ import com.classmate.app.ui.i18n.appStrings
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 
-private enum class SettingsPage(val title: String, val subtitle: String) {
+enum class SettingsPage(val title: String, val subtitle: String) {
     SETTINGS_HOME("设置", "日常设置与诊断入口分开管理"),
     GENERAL_SETTINGS("通用设置", "外观、AI 模型、隐私、导出设置和背景音"),
     APPEARANCE_THEME("外观与主题", "默认学习、活力学习、沉浸学习与强调色"),
@@ -135,7 +135,16 @@ private enum class SettingsPage(val title: String, val subtitle: String) {
     LEARNING_EXPORT("导出设置", "学习包、复习报告和导出格式"),
     AMBIENT_SOUND("沉浸式背景音", "授权循环背景音、音量和播放说明"),
     EXPERIMENTAL_FEATURES("实验性功能", "学习图解、复习短视频和双语课堂入口"),
-    DEVELOPER_SETTINGS("开发者设置", "诊断、smoke、端侧状态与脱敏日志"),
+    DEVELOPER_SETTINGS("开发者设置", "诊断、smoke、端侧状态与脱敏日志");
+
+    /** Parent page for in-settings back navigation (system back goes up this tree, not out of the app). */
+    val parent: SettingsPage?
+        get() = when (this) {
+            SETTINGS_HOME -> null
+            GENERAL_SETTINGS, DEVELOPER_SETTINGS -> SETTINGS_HOME
+            APPEARANCE_THEME, AI_MODEL_CONFIG, PRIVACY_PERMISSIONS, LEARNING_EXPORT, AMBIENT_SOUND, EXPERIMENTAL_FEATURES -> GENERAL_SETTINGS
+            ADVANCED_COLOR_CUSTOMIZATION -> APPEARANCE_THEME
+        }
 }
 
 private enum class SettingsEntryIcon {
@@ -168,11 +177,14 @@ fun SettingsScreen(viewModel: AppViewModel) {
     val s = appStrings(ui.language)
     var showDebug by remember { mutableStateOf(false) }
     var showLogs by remember { mutableStateOf(false) }
-    var page by remember { mutableStateOf(SettingsPage.SETTINGS_HOME) }
+    // The settings sub-page lives in the ViewModel (viewModel.settingsPage) so the Android system back
+    // key / gesture can walk up the settings tree instead of exiting the app. Reads use that state;
+    // writes go through openSettingsPage.
+    val page = viewModel.settingsPage
 
     LaunchedEffect(ui.settingsDeepLink) {
         if (ui.settingsDeepLink == SettingsDeepLink.AI_MODEL_CONFIG_BLUELM) {
-            page = SettingsPage.AI_MODEL_CONFIG
+            viewModel.openSettingsPage(SettingsPage.AI_MODEL_CONFIG)
             viewModel.consumeSettingsDeepLink()
         }
     }
@@ -197,70 +209,70 @@ fun SettingsScreen(viewModel: AppViewModel) {
                     )
                     SettingsHomeStatusCards(viewModel)
                     SettingsHomeCard(
-                        onGeneral = { page = SettingsPage.GENERAL_SETTINGS },
-                        onDeveloper = { page = SettingsPage.DEVELOPER_SETTINGS },
+                        onGeneral = { viewModel.openSettingsPage(SettingsPage.GENERAL_SETTINGS) },
+                        onDeveloper = { viewModel.openSettingsPage(SettingsPage.DEVELOPER_SETTINGS) },
                     )
                 }
 
                 SettingsPage.GENERAL_SETTINGS -> {
-                    SettingsPageHeader(page = page, onBack = { page = SettingsPage.SETTINGS_HOME })
+                    SettingsPageHeader(page = page, onBack = { viewModel.openSettingsPage(SettingsPage.SETTINGS_HOME) })
                     GeneralSettingsListCard(
-                        onAppearance = { page = SettingsPage.APPEARANCE_THEME },
-                        onAiModel = { page = SettingsPage.AI_MODEL_CONFIG },
-                        onPrivacy = { page = SettingsPage.PRIVACY_PERMISSIONS },
-                        onLearningExport = { page = SettingsPage.LEARNING_EXPORT },
-                        onAmbientAudio = { page = SettingsPage.AMBIENT_SOUND },
-                        onExperimentalFeatures = { page = SettingsPage.EXPERIMENTAL_FEATURES },
+                        onAppearance = { viewModel.openSettingsPage(SettingsPage.APPEARANCE_THEME) },
+                        onAiModel = { viewModel.openSettingsPage(SettingsPage.AI_MODEL_CONFIG) },
+                        onPrivacy = { viewModel.openSettingsPage(SettingsPage.PRIVACY_PERMISSIONS) },
+                        onLearningExport = { viewModel.openSettingsPage(SettingsPage.LEARNING_EXPORT) },
+                        onAmbientAudio = { viewModel.openSettingsPage(SettingsPage.AMBIENT_SOUND) },
+                        onExperimentalFeatures = { viewModel.openSettingsPage(SettingsPage.EXPERIMENTAL_FEATURES) },
                     )
                 }
 
                 SettingsPage.APPEARANCE_THEME -> {
-                    SettingsPageHeader(page = page, onBack = { page = SettingsPage.GENERAL_SETTINGS })
+                    SettingsPageHeader(page = page, onBack = { viewModel.openSettingsPage(SettingsPage.GENERAL_SETTINGS) })
                     AppearanceAndThemeSettingsCard(
                         viewModel = viewModel,
-                        onAdvancedColors = { page = SettingsPage.ADVANCED_COLOR_CUSTOMIZATION },
+                        onAdvancedColors = { viewModel.openSettingsPage(SettingsPage.ADVANCED_COLOR_CUSTOMIZATION) },
                     )
                 }
 
                 SettingsPage.ADVANCED_COLOR_CUSTOMIZATION -> {
-                    SettingsPageHeader(page = page, onBack = { page = SettingsPage.APPEARANCE_THEME })
+                    SettingsPageHeader(page = page, onBack = { viewModel.openSettingsPage(SettingsPage.APPEARANCE_THEME) })
                     AdvancedColorCustomizationPage(
                         viewModel = viewModel,
-                        onBack = { page = SettingsPage.APPEARANCE_THEME },
+                        onBack = { viewModel.openSettingsPage(SettingsPage.APPEARANCE_THEME) },
                     )
                 }
 
                 SettingsPage.AI_MODEL_CONFIG -> {
-                    SettingsPageHeader(page = page, onBack = { page = SettingsPage.GENERAL_SETTINGS })
+                    SettingsPageHeader(page = page, onBack = { viewModel.openSettingsPage(SettingsPage.GENERAL_SETTINGS) })
                     AiModelConfigurationPage(viewModel)
                     ModelAccessNotesCard()
                     OfficialProviderReadinessCard(includeDevLab = false)
                 }
 
                 SettingsPage.PRIVACY_PERMISSIONS -> {
-                    SettingsPageHeader(page = page, onBack = { page = SettingsPage.GENERAL_SETTINGS })
+                    SettingsPageHeader(page = page, onBack = { viewModel.openSettingsPage(SettingsPage.GENERAL_SETTINGS) })
                     PrivacyAndPermissionsSettingsCard()
                     PermissionCenterCard(viewModel)
                 }
 
                 SettingsPage.LEARNING_EXPORT -> {
-                    SettingsPageHeader(page = page, onBack = { page = SettingsPage.GENERAL_SETTINGS })
+                    SettingsPageHeader(page = page, onBack = { viewModel.openSettingsPage(SettingsPage.GENERAL_SETTINGS) })
                     LearningExportSettingsCard(viewModel)
                     LearningExportDocxPolicyCard(viewModel)
                 }
 
                 SettingsPage.AMBIENT_SOUND -> {
-                    SettingsPageHeader(page = page, onBack = { page = SettingsPage.GENERAL_SETTINGS })
+                    SettingsPageHeader(page = page, onBack = { viewModel.openSettingsPage(SettingsPage.GENERAL_SETTINGS) })
                     BackgroundAudioPolicyCard()
                 }
 
                 SettingsPage.EXPERIMENTAL_FEATURES -> {
-                    SettingsPageHeader(page = page, onBack = { page = SettingsPage.GENERAL_SETTINGS })
+                    SettingsPageHeader(page = page, onBack = { viewModel.openSettingsPage(SettingsPage.GENERAL_SETTINGS) })
                     ExperimentalFeaturesSettingsCard(viewModel)
                 }
 
                 SettingsPage.DEVELOPER_SETTINGS -> {
-                    SettingsPageHeader(page = page, onBack = { page = SettingsPage.SETTINGS_HOME })
+                    SettingsPageHeader(page = page, onBack = { viewModel.openSettingsPage(SettingsPage.SETTINGS_HOME) })
                     DeveloperSettingsHomeCard(viewModel)
                     OnDeviceDiagnosticCard(viewModel)
                     OnDeviceMultimodalDiagnosticCard(viewModel)
@@ -619,7 +631,7 @@ private fun AppearanceAndThemeSettingsCard(
         Text("外观与主题", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.xs))
         ClassMateTwoLineDescription(
-            "选择适合当前学习节奏的界面氛围。主题决定背景、卡片层级和圆角；强调色 / Accent Color 只影响按钮、选中态和重点状态。",
+            "选择适合当前学习节奏的界面氛围。主题决定背景、卡片层级和圆角；强调色只影响按钮、选中态和重点状态。",
         )
         Spacer(Modifier.height(Dimens.s))
         Text(s.settingsLanguage, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
@@ -651,7 +663,7 @@ private fun AppearanceAndThemeSettingsCard(
             )
         }
         Spacer(Modifier.height(Dimens.m))
-        Text("强调色 / Accent Color", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text("强调色", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.xs))
         ClassMateTwoLineDescription("强调色会跟随三套主题调整亮度和可读性，不会覆盖每套主题自己的 surface 层级。")
         Spacer(Modifier.height(Dimens.s))
@@ -1702,6 +1714,18 @@ private fun OnDeviceDiagnosticCard(viewModel: AppViewModel) {
         diag?.generateState?.let { ProviderStatusRow("文本生成", it.displayZh) }
         diag?.errorCode?.let { ProviderStatusRow("错误码", it) }
         ProviderStatusRow("安全占位", if (diag?.fallbackAvailable != false) "就绪（模型全部不可用时）" else "不可用")
+
+        // System speech-recognition readiness — helps diagnose "本机语音识别不可用" (permission / service / locale).
+        run {
+            val asrReadiness = com.classmate.app.asr.SpeechRecognitionReadiness(
+                recordAudioGranted = androidx.core.content.ContextCompat.checkSelfPermission(
+                    context, android.Manifest.permission.RECORD_AUDIO,
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED,
+                recognizerAvailable = android.speech.SpeechRecognizer.isRecognitionAvailable(context),
+                locale = java.util.Locale.getDefault().toLanguageTag(),
+            )
+            ProviderStatusRow("系统语音识别", asrReadiness.diagnosticsLine())
+        }
 
         // Bounded model-file diagnostic (Task 3): exists/readable only — never reads content.
         files?.let { f ->
