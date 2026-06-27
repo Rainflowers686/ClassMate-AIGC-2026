@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
+import com.classmate.app.ui.i18n.appStrings
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -78,15 +79,13 @@ fun ExportCenterCard(
     }
 
     ClassMateCard {
-        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        val s = appStrings(viewModel.ui.language)
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            HelpHint(title = s.helpExportTitle, points = s.helpExportPoints, dismiss = s.helpDismiss)
+        }
         Spacer(Modifier.height(Dimens.s))
-        Text(description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(Dimens.s))
-        Text(
-            "DOCX 是真实 Word 文档，适合继续编辑；PDF 适合打印；HTML 适合浏览器学习；课程精华音频脚本可在 TTS 未配置时先导出文本。",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(Dimens.s))
         PrimaryButton(
             text = if (draftReady) "重新生成草稿" else "生成草稿",

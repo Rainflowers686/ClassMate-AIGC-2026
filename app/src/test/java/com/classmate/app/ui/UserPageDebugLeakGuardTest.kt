@@ -24,6 +24,8 @@ class UserPageDebugLeakGuardTest {
     private val history by lazy { read("app/src/main/java/com/classmate/app/ui/screens/history/HistoryScreen.kt") }
     private val evidence by lazy { read("app/src/main/java/com/classmate/app/ui/screens/evidence/EvidenceDetailScreen.kt") }
     private val live by lazy { read("app/src/main/java/com/classmate/app/ui/screens/live/LiveCompanionScreen.kt") }
+    private val strings by lazy { read("app/src/main/java/com/classmate/app/ui/i18n/Strings.kt") }
+    private val exportCard by lazy { read("app/src/main/java/com/classmate/app/ui/components/ExportCenterCard.kt") }
 
     @Test
     fun reviewPageHasNoDebugOrProviderTrace() {
@@ -113,15 +115,21 @@ class UserPageDebugLeakGuardTest {
 
     @Test
     fun semanticBindingDowngradesWeakEvidence() {
-        // A bound-but-unrelated excerpt must be shown as "证据待核对", not as solid "查看证据".
-        assertTrue("review uses weak-evidence wording", review.contains("证据待核对"))
-        assertTrue("evidence detail warns on weak relation", evidence.contains("关联较弱"))
+        // The weak-evidence wording now lives in the i18n pack; screens consume it via keys.
+        assertTrue("evidence states are i18n keys", strings.contains("证据待核对") && strings.contains("关联较弱"))
+        assertTrue("review uses the evidence-state key", review.contains("evidenceCheck"))
+        assertTrue("evidence detail uses the weak-note key", evidence.contains("evidenceWeakNote"))
     }
 
     @Test
     fun mainPagesMoveLongCopyIntoHelp() {
         assertTrue("transcript page has a help entry", transcript.contains("HelpHint"))
         assertTrue("import/recording page has a help entry", importCourse.contains("HelpHint"))
+        assertTrue("review page has a help entry", review.contains("HelpHint"))
+        assertTrue("export card has a help entry", exportCard.contains("HelpHint"))
+        // Help content is language-aware (pulled from appStrings), not hard-coded per screen.
+        assertTrue(transcript.contains("helpTranscriptPoints"))
+        assertTrue(exportCard.contains("helpExportPoints"))
     }
 
     @Test
@@ -132,9 +140,11 @@ class UserPageDebugLeakGuardTest {
 
     @Test
     fun videoSubtitlesAreNotPromisedAsAutoExtracted() {
-        assertTrue(transcript.contains("暂不支持自动读取视频"))
+        // The honest disclaimer now lives in the i18n help pack (ZH + EN).
+        assertTrue(strings.contains("暂不支持自动读取视频"))
         assertFalse(transcript.contains("自动提取视频字幕成功"))
         assertFalse(transcript.contains("直接提取视频字幕"))
+        assertFalse(strings.contains("自动提取视频字幕成功"))
     }
 
     @Test

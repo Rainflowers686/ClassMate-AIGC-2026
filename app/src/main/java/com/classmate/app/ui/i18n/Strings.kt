@@ -116,6 +116,21 @@ data class Strings(
     val quizSelected: String,
     val quizSegmentLabel: (Int) -> String,
     val quizSourceLabel: String,
+    // evidence three-state (review / detail / practice / quiz / course)
+    val evidenceView: String,
+    val evidenceCheck: String,
+    val evidenceNone: String,
+    val evidenceWeakNote: String,
+    // help dialogs (language-aware "?" popups)
+    val helpDismiss: String,
+    val helpTranscriptTitle: String,
+    val helpTranscriptPoints: List<String>,
+    val helpRecordingTitle: String,
+    val helpRecordingPoints: List<String>,
+    val helpReviewTitle: String,
+    val helpReviewPoints: List<String>,
+    val helpExportTitle: String,
+    val helpExportPoints: List<String>,
 )
 
 private val ZH = Strings(
@@ -195,6 +210,38 @@ private val ZH = Strings(
     quizSelected = "已选择",
     quizSegmentLabel = { i -> "第 $i 段" },
     quizSourceLabel = "原文",
+    evidenceView = "查看证据",
+    evidenceCheck = "证据待核对",
+    evidenceNone = "暂无可回溯证据",
+    evidenceWeakNote = "该证据片段可能与当前知识点关联较弱，请结合原文核对。",
+    helpDismiss = "知道了",
+    helpTranscriptTitle = "导入字幕 / 转写稿",
+    helpTranscriptPoints = listOf(
+        "官方 ASR 按配置启用；未配置或不可用时，可以粘贴转写文本继续学习。",
+        "暂不支持自动读取视频内嵌字幕，请导入字幕文件（SRT/VTT/TXT）或粘贴字幕内容；视频文件仅记录文件名/类型/大小。",
+        "不会爬取第三方平台内容，请粘贴你有权使用的字幕或转写稿。",
+        "确认后的转写草稿会进入课程分析；手动粘贴不会被标记为 ASR 结果。",
+    ),
+    helpRecordingTitle = "课堂录音记录",
+    helpRecordingPoints = listOf(
+        "录音保存在应用内，可在每条记录上「导出录音」分享，或「删除」。",
+        "官方 ASR 未配置时，录音后请粘贴手动转写文本进入学习闭环。",
+        "方言/口音增强会保留原始转写，并把低置信片段标记给你确认，不会编造课堂外内容。",
+        "录音失败或文件为空时不会生成证据，请重试或改用导入字幕/转写稿。",
+    ),
+    helpReviewTitle = "复习计划",
+    helpReviewPoints = listOf(
+        "复习计划按薄弱程度和到期时间排序，先处理最影响你的知识点。",
+        "每个证据入口会标注「查看证据 / 证据待核对 / 暂无可回溯证据」，关联弱时请回原文核对。",
+        "错题可重练，知识点可复述自测，巩固后会自动调整复习节奏。",
+    ),
+    helpExportTitle = "导出学习资料",
+    helpExportPoints = listOf(
+        "导出的是复习版资料：摘要、知识点、含答案与解析的微测、错题本、复习计划和证据索引。",
+        "DOCX 是真实 Word 文档，适合继续编辑；PDF 适合打印；HTML 适合浏览器学习；Markdown/纯文本便于存档。",
+        "课程精华音频脚本在 TTS 未配置时先导出文本，不会模拟具体人物声音。",
+        "不会导出密钥、内部状态或调试信息；弱关联证据会标注「证据待核对」。",
+    ),
 )
 
 private val EN = Strings(
@@ -274,6 +321,38 @@ private val EN = Strings(
     quizSelected = "Selected",
     quizSegmentLabel = { i -> "Segment $i" },
     quizSourceLabel = "Source",
+    evidenceView = "View evidence",
+    evidenceCheck = "Check evidence",
+    evidenceNone = "No traceable evidence",
+    evidenceWeakNote = "This excerpt may be weakly related to this point — please verify against the source text.",
+    helpDismiss = "Got it",
+    helpTranscriptTitle = "Import subtitles / transcript",
+    helpTranscriptPoints = listOf(
+        "Official ASR is configuration-gated; when it is unavailable you can paste a transcript and keep learning.",
+        "Embedded video subtitles are not auto-read — import a subtitle file (SRT/VTT/TXT) or paste the text; video files only record name/type/size.",
+        "No third-party platform content is fetched; please paste subtitles or transcripts you are entitled to use.",
+        "A confirmed draft enters course analysis; manual paste is never labelled as an ASR result.",
+    ),
+    helpRecordingTitle = "Class recordings",
+    helpRecordingPoints = listOf(
+        "Recordings are saved in the app; each row can be exported/shared or deleted.",
+        "When official ASR is not configured, paste a manual transcript after recording to enter the learning loop.",
+        "Dialect/accent mode keeps the raw transcript and flags low-confidence parts for you; it never invents content.",
+        "A failed or empty recording creates no evidence — retry, or import subtitles/transcript instead.",
+    ),
+    helpReviewTitle = "Review plan",
+    helpReviewPoints = listOf(
+        "Tasks are ordered by weakness and due time, so the points that affect you most come first.",
+        "Each evidence entry is labelled View evidence / Check evidence / No traceable evidence — verify against the source when the link is weak.",
+        "Retry wrong questions and self-test points aloud; the pace adapts as you consolidate.",
+    ),
+    helpExportTitle = "Export study material",
+    helpExportPoints = listOf(
+        "The export is a study pack: summary, knowledge points, quiz with answers and explanations, wrong book, review plan and an evidence index.",
+        "DOCX is a real Word document for editing; PDF suits printing; HTML suits browser study; Markdown / plain text are good for archiving.",
+        "The course audio script exports as text when TTS is not configured, and never imitates a specific person's voice.",
+        "No keys, internal state or debug info are exported; weakly-linked evidence is marked Check evidence.",
+    ),
 )
 
 /** The string pack for a language (SYSTEM resolved to ZH/EN). Default is Chinese. */

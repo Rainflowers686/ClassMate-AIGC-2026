@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.dp
  * a tap. Help content is product copy only — never provider/pipeline/debug text.
  */
 @Composable
-fun HelpHint(title: String, points: List<String>, modifier: Modifier = Modifier) {
+fun HelpHint(title: String, points: List<String>, modifier: Modifier = Modifier, dismiss: String = "知道了") {
     var open by remember { mutableStateOf(false) }
     Surface(
         shape = CircleShape,
@@ -42,7 +42,7 @@ fun HelpHint(title: String, points: List<String>, modifier: Modifier = Modifier)
     if (open) {
         AlertDialog(
             onDismissRequest = { open = false },
-            confirmButton = { TextButton(onClick = { open = false }) { Text("知道了") } },
+            confirmButton = { TextButton(onClick = { open = false }) { Text(dismiss) } },
             title = { Text(title) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

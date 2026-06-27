@@ -94,9 +94,12 @@ class ProductCopyConsistencyTest {
         listOf("文本粘贴", "图片学习输入", "拍照学习输入", "官方 OCR 按配置启用").forEach {
             assertTrue("missing import entry: $it", import.contains(it))
         }
-        listOf("官方 ASR 按配置启用", "粘贴 SRT / VTT / TXT", "TranscriptDraft").forEach {
+        listOf("粘贴 SRT / VTT / TXT", "TranscriptDraft").forEach {
             assertTrue("missing transcript entry: $it", transcript.contains(it))
         }
+        // The ASR-config status note moved into the transcript help pack (i18n) — still present, just relocated.
+        val strings = read("src/main/java/com/classmate/app/ui/i18n/Strings.kt")
+        assertTrue("ASR config note present on screen or in help", transcript.contains("官方 ASR 按配置启用") || strings.contains("官方 ASR 按配置启用"))
         listOf("知识时间线", "问这节课", "专项练习", "复习计划", "导出中心").forEach {
             assertTrue("missing course entry: $it", course.contains(it) || export.contains(it))
         }

@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import com.classmate.app.l3.Evidence
 import com.classmate.app.l3.EvidenceAsset
 import com.classmate.app.l3.L3SourceType
+import com.classmate.app.ui.i18n.appStrings
 import com.classmate.core.evidence.EvidenceRelationLevel
 import com.classmate.app.state.AppViewModel
 import com.classmate.app.ui.components.ClassMateCard
@@ -90,7 +91,7 @@ fun EvidenceDetailScreen(viewModel: AppViewModel) {
                         ) {
                             Spacer(Modifier.height(Dimens.s))
                             Text(
-                                "该证据片段可能与当前知识点关联较弱，请结合原文核对。",
+                                appStrings(ui.language).evidenceWeakNote,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.error,
                             )

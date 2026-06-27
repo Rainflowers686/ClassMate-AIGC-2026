@@ -37,6 +37,7 @@ import com.classmate.app.video.BilibiliSearch
 import com.classmate.app.ui.components.ClassMateCard
 import com.classmate.app.ui.components.ExportCenterCard
 import com.classmate.app.ui.components.ClassMateScaffold
+import com.classmate.app.ui.components.HelpHint
 import com.classmate.app.ui.product.ProductCanvas
 import com.classmate.app.ui.product.ProductHero
 import com.classmate.app.ui.product.ProductScaffold
@@ -45,6 +46,7 @@ import com.classmate.app.ui.components.Pill
 import com.classmate.app.ui.components.PrimaryButton
 import com.classmate.app.ui.design.Dimens
 import com.classmate.app.l3.ReviewPlanEnhancementEngine
+import com.classmate.app.ui.i18n.appStrings
 import com.classmate.core.evidence.EvidenceRelationLevel
 import com.classmate.core.learning.ReviewEngine
 import com.classmate.core.learning.ReviewEventType
@@ -129,11 +131,15 @@ fun ReviewPlanScreen(viewModel: AppViewModel) {
             }
 
             ClassMateCard {
-                Text("复习计划如何生成", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(Dimens.s))
+                val s = appStrings(viewModel.ui.language)
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Text(s.helpReviewTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    HelpHint(title = s.helpReviewTitle, points = s.helpReviewPoints, dismiss = s.helpDismiss)
+                }
+                Spacer(Modifier.height(Dimens.xs))
                 Text(
-                    "复习任务来自校验通过的知识点。答错、太难、需要多练、证据复核以及手动调整优先级都会更新队列，且不会削弱证据校验。",
-                    style = MaterialTheme.typography.bodyMedium,
+                    "复习任务来自校验通过的知识点；详情见右上角「?」。",
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -510,11 +516,12 @@ private fun ActionChip(text: String, onClick: () -> Unit) {
  * "暂无可回溯证据" when there is no retraceable excerpt at all.
  */
 @Composable
-private fun EvidenceActionChip(viewModel: AppViewModel, evidenceId: String?, context: String, label: String = "查看证据") {
+private fun EvidenceActionChip(viewModel: AppViewModel, evidenceId: String?, context: String, label: String? = null) {
+    val s = appStrings(viewModel.ui.language)
     when (viewModel.evidenceRelationLevel(evidenceId, context)) {
-        EvidenceRelationLevel.STRONG -> ActionChip(label) { viewModel.openEvidenceById(evidenceId.orEmpty()) }
-        EvidenceRelationLevel.WEAK -> EvidenceHintChip("证据待核对")
-        EvidenceRelationLevel.MISSING -> EvidenceHintChip("暂无可回溯证据")
+        EvidenceRelationLevel.STRONG -> ActionChip(label ?: s.evidenceView) { viewModel.openEvidenceById(evidenceId.orEmpty()) }
+        EvidenceRelationLevel.WEAK -> EvidenceHintChip(s.evidenceCheck)
+        EvidenceRelationLevel.MISSING -> EvidenceHintChip(s.evidenceNone)
     }
 }
 
