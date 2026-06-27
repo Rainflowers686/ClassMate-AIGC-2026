@@ -7,6 +7,7 @@ data class RecordingArtifactResult(
     val success: Boolean,
     val fileName: String? = null,
     val safeMessage: String,
+    val fileSizeBytes: Long = 0L,
 )
 
 interface ClassroomAudioRecorder {
@@ -59,9 +60,17 @@ class AndroidClassroomAudioRecorder(private val directory: File) : ClassroomAudi
             active.release()
             recorder = null
             currentFile = null
-            RecordingArtifactResult(true, file?.name, "录音已保存，可粘贴转写文本进入学习闭环。")
+            // Only claim success when a real, non-empty file actually landed on disk — a recording that
+            // is too short, denied, or failed to flush leaves no/zero-length file and must NOT say "已保存".
+            if (file != null && file.exists() && file.length() > 0L) {
+                RecordingArtifactResult(true, file.name, "录音已保存，可粘贴转写文本进入学习闭环。", file.length())
+            } else {
+                runCatching { file?.delete() }
+                RecordingArtifactResult(false, file?.name, "录音文件为空或保存失败，请重试或改用手动转写。")
+            }
         } catch (_: Exception) {
             cleanup()
+            runCatching { file?.delete() }
             RecordingArtifactResult(false, file?.name, "录音保存失败，可继续手动转写。")
         }
     }

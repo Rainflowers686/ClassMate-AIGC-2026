@@ -19,6 +19,9 @@ class UserPageDebugLeakGuardTest {
     private val home by lazy { read("app/src/main/java/com/classmate/app/ui/screens/home/HomeScreen.kt") }
     private val asrEngine by lazy { read("app/src/main/java/com/classmate/app/l3/L3ProductizationEngines.kt") }
     private val transcript by lazy { read("app/src/main/java/com/classmate/app/ui/screens/transcript/TranscriptImportScreen.kt") }
+    private val courseDetail by lazy { read("app/src/main/java/com/classmate/app/ui/screens/course/CourseDetailScreen.kt") }
+    private val importCourse by lazy { read("app/src/main/java/com/classmate/app/ui/screens/importcourse/ImportCourseScreen.kt") }
+    private val history by lazy { read("app/src/main/java/com/classmate/app/ui/screens/history/HistoryScreen.kt") }
 
     @Test
     fun reviewPageHasNoDebugOrProviderTrace() {
@@ -55,6 +58,55 @@ class UserPageDebugLeakGuardTest {
         assertFalse(asrEngine.contains("Core ASR Long contract exists"))
         assertFalse(asrEngine.contains("Core VivoAsrProvider doc 1739 contract exists"))
         assertTrue("ASR fallback must be Chinese product copy", asrEngine.contains("已切换为手动转写模式"))
+    }
+
+    @Test
+    fun courseDetailHasNoEnglishPipelineTelemetry() {
+        listOf(
+            "Semantic index",
+            "Tool steps",
+            "Local semantic search",
+            "top hit",
+            "Transcript timeline",
+            "Import reports",
+            "PDF docs",
+            "L3 能力诊断",
+            "学习闭环能力贡献",
+            "Study diagram prompt",
+            "Review video storyboard",
+            "Bilingual transcript draft",
+            "Audio review script",
+            "ASR quality",
+            "Mastery trend",
+            "Study aids",
+            "Exam report",
+            "Distractor explanations",
+        ).forEach { banned ->
+            assertFalse("CourseDetailScreen still leaks: $banned", courseDetail.contains(banned))
+        }
+    }
+
+    @Test
+    fun recordingCardHasNoEnglishJobTelemetry() {
+        listOf(
+            "Import report ·",
+            "PDF document ·",
+            "PDF page ",
+            "ASR Long job ·",
+            "record.status.name",
+        ).forEach { banned ->
+            assertFalse("ImportCourseScreen recording card still leaks: $banned", importCourse.contains(banned))
+        }
+        // The honest recording surface must surface a real file name, duration and size.
+        assertTrue(importCourse.contains("formatRecordingDuration"))
+        assertTrue(importCourse.contains("formatRecordingSize"))
+        assertTrue("recordings must be exportable, not buried in a file manager", importCourse.contains("导出录音"))
+    }
+
+    @Test
+    fun historyProviderLabelsAreChineseOnly() {
+        assertFalse(history.contains("SafetyPlaceholder"))
+        assertFalse(history.contains("BlueLM qwen3.5-plus"))
     }
 
     @Test

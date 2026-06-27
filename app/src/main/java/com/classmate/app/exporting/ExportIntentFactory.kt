@@ -39,6 +39,25 @@ object ExportIntentFactory {
         return Intent.createChooser(createShareIntent(uri, artifact), "分享 ClassMate 导出文件")
     }
 
+    /**
+     * Share an existing on-disk audio recording. The file is copied into the FileProvider-exposed
+     * share cache (the app-private recordings dir is not exposed), then offered via a chooser so the
+     * user can save/send it instead of hunting through a system file manager.
+     */
+    fun shareAudioFileChooser(context: Context, file: File): Intent {
+        val dir = File(context.cacheDir, "export_share")
+        if (!dir.exists()) dir.mkdirs()
+        val target = File(dir, file.name)
+        file.copyTo(target, overwrite = true)
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", target)
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "audio/mp4"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        return Intent.createChooser(send, "导出 / 分享课堂录音")
+    }
+
     fun writeToUri(context: Context, uri: Uri, artifact: ExportArtifact) {
         context.contentResolver.openOutputStream(uri)?.use { it.write(artifact.bytes) }
             ?: error("Cannot open selected file")

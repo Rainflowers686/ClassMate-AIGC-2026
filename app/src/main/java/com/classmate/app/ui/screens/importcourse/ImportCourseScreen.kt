@@ -38,8 +38,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.core.content.ContextCompat
 import com.classmate.app.l3.L3RecordingStatus
+import com.classmate.app.l3.ClassroomRecordingRecord
 import com.classmate.app.l3.DialectMode
 import com.classmate.app.l3.InputFileKind
+import com.classmate.app.exporting.ExportIntentFactory
 import com.classmate.app.glossary.CourseGlossary
 import com.classmate.app.ondevice.BitmapToRgb
 import com.classmate.app.ondevice.OnDevicePermissions
@@ -253,21 +255,21 @@ private fun DocumentEvidenceIntakeCard(viewModel: AppViewModel) {
         Text("文档证据与 PDF 页文本", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.xs))
         Text(
-            "TXT/Markdown/CSV 会直接进入学习闭环；DOCX/PPTX/XLSX 为 best-effort 抽取；PDF 可手动添加页文本并保留页码证据。",
+            "TXT/Markdown/CSV 会直接进入学习闭环；DOCX/PPTX/XLSX 为尽力抽取；PDF 可手动添加页文本并保留页码证据。",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         documentArtifacts.takeLast(3).forEach { artifact ->
             Spacer(Modifier.height(Dimens.xs))
             Text(
-                "${artifact.fileName} · ${artifact.kind.name} · ${artifact.status.name} · ${artifact.message}",
+                "已记录文档：${artifact.fileName}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         latestPage?.let { page ->
             Spacer(Modifier.height(Dimens.s))
-            StatusChip("PDF page ${page.pageNumber}: ${page.status.name}", tone = ChipTone.INFO)
+            StatusChip("PDF 第 ${page.pageNumber} 页", tone = ChipTone.INFO)
             Spacer(Modifier.height(Dimens.s))
             OutlinedTextField(
                 value = manualPageText,
@@ -290,7 +292,7 @@ private fun DocumentEvidenceIntakeCard(viewModel: AppViewModel) {
                 modifier = Modifier.fillMaxWidth(),
             )
         }
-        if (documentEvidence != null) {
+        if (documentEvidence != null && viewModel.hasRetraceableEvidence(documentEvidence.id)) {
             Spacer(Modifier.height(Dimens.s))
             SecondaryButton(
                 text = "查看文档证据",
@@ -350,57 +352,29 @@ private fun ClassroomRecordingCard(viewModel: AppViewModel, onStartRecording: ()
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(Dimens.s))
+        val recordingContext = LocalContext.current
         ui.currentRecording?.let {
             StatusChip("录音中", tone = ChipTone.PRIMARY)
             Spacer(Modifier.height(Dimens.xs))
             Text(it.title, style = MaterialTheme.typography.bodyMedium)
         }
-        ui.recordingRecords.takeLast(2).forEach { record ->
-            Spacer(Modifier.height(Dimens.xs))
-            Text(
-                "${record.title} · ${record.status.name} · ${record.asrStatus.name}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        ui.inputArtifacts.takeLast(3).forEach { artifact ->
-            Spacer(Modifier.height(Dimens.xs))
-            Text(
-                "${artifact.fileName} · ${artifact.kind.name} · ${artifact.status.name}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        ui.importReports.takeLast(2).forEach { report ->
-            Spacer(Modifier.height(Dimens.xs))
-            Text(
-                "Import report · ${report.sourceType.name} · success ${report.successCount} · warnings ${report.warningCount} · ${report.nextAction}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        ui.pdfDocuments.takeLast(2).forEach { doc ->
-            Spacer(Modifier.height(Dimens.xs))
-            Text(
-                "PDF document · ${doc.fileName} · pages ${doc.pageCount} · ${doc.parserStatus}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        ui.pdfPages.takeLast(2).forEach { page ->
-            Spacer(Modifier.height(Dimens.xs))
-            Text(
-                "PDF page ${page.pageNumber} · ${page.status.name} · OCR ${page.ocrStatus}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        ui.asrLongJobs.takeLast(2).forEach { job ->
-            Spacer(Modifier.height(Dimens.xs))
-            Text(
-                "ASR Long job · ${job.status.name} · upload ${job.uploadStatus.ifBlank { "not started" }} · polling ${job.pollingStatus.ifBlank { "not started" }}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+        ui.recordingRecords.takeLast(3).reversed().forEach { record ->
+            Spacer(Modifier.height(Dimens.s))
+            RecordingRecordRow(
+                record = record,
+                onShare = {
+                    val file = recordingFile(recordingContext, record)
+                    if (file != null && file.exists() && file.length() > 0L) {
+                        runCatching { recordingContext.startActivity(ExportIntentFactory.shareAudioFileChooser(recordingContext, file)) }
+                            .onFailure { viewModel.toast("无法导出录音文件。") }
+                    } else {
+                        viewModel.toast("录音文件不存在，无法导出。")
+                    }
+                },
+                onDelete = {
+                    recordingFile(recordingContext, record)?.let { f -> runCatching { f.delete() } }
+                    viewModel.removeRecordingRecord(record.id)
+                },
             )
         }
         latestAsrJob?.let { job ->
@@ -432,7 +406,7 @@ private fun ClassroomRecordingCard(viewModel: AppViewModel, onStartRecording: ()
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        if (audioEvidence != null) {
+        if (audioEvidence != null && viewModel.hasRetraceableEvidence(audioEvidence.id)) {
             Spacer(Modifier.height(Dimens.s))
             SecondaryButton(
                 text = "查看音频 / 转写证据",
@@ -462,6 +436,65 @@ private fun DialectModeButton(label: String, selected: Boolean, onClick: () -> U
     } else {
         SecondaryButton(label, onClick = onClick)
     }
+}
+
+/** Honest per-recording row: real file name, duration, size, Chinese status + export/delete entries. */
+@Composable
+private fun RecordingRecordRow(record: ClassroomRecordingRecord, onShare: () -> Unit, onDelete: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    val saved = record.status == L3RecordingStatus.SAVED && record.fileSizeBytes > 0L
+    Column(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Text(record.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            StatusChip(recordingStatusZh(record.status), tone = if (saved) ChipTone.SUCCESS else ChipTone.WARNING)
+        }
+        if (saved) {
+            Spacer(Modifier.height(Dimens.xxs))
+            Text(
+                "文件 ${record.artifactFileName ?: "录音.m4a"} · 时长 ${formatRecordingDuration(record.durationMs)} · 大小 ${formatRecordingSize(record.fileSizeBytes)} · 已保存在应用内（可导出）",
+                style = MaterialTheme.typography.bodySmall,
+                color = cs.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(Dimens.xs))
+            Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+                SecondaryButton("导出录音", onClick = onShare, modifier = Modifier.weight(1f))
+                SecondaryButton("删除", onClick = onDelete, modifier = Modifier.weight(1f))
+            }
+        } else {
+            Spacer(Modifier.height(Dimens.xxs))
+            Text(
+                record.message.ifBlank { "录音未成功保存，请重试，或导入字幕/转写稿继续。" },
+                style = MaterialTheme.typography.bodySmall,
+                color = cs.error,
+            )
+            Spacer(Modifier.height(Dimens.xs))
+            SecondaryButton("删除记录", onClick = onDelete, modifier = Modifier.fillMaxWidth())
+        }
+    }
+}
+
+private fun recordingFile(context: android.content.Context, record: ClassroomRecordingRecord): java.io.File? {
+    val name = record.artifactFileName ?: return null
+    return java.io.File(java.io.File(context.filesDir, "classmate_recordings"), name)
+}
+
+private fun recordingStatusZh(status: L3RecordingStatus): String = when (status) {
+    L3RecordingStatus.IDLE -> "未开始"
+    L3RecordingStatus.RECORDING -> "录音中"
+    L3RecordingStatus.SAVED -> "已保存"
+    L3RecordingStatus.FAILED -> "保存失败"
+}
+
+private fun formatRecordingDuration(ms: Long): String {
+    val totalSec = (ms / 1000).coerceAtLeast(0)
+    return "%d:%02d".format(totalSec / 60, totalSec % 60)
+}
+
+private fun formatRecordingSize(bytes: Long): String = when {
+    bytes <= 0L -> "未知"
+    bytes < 1024L -> "$bytes B"
+    bytes < 1024L * 1024L -> "%.0f KB".format(bytes / 1024.0)
+    else -> "%.1f MB".format(bytes / (1024.0 * 1024.0))
 }
 
 /**

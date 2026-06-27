@@ -357,9 +357,9 @@ private fun hasWeakTask(summary: CourseSummary, learningSnapshot: LearningSnapsh
 
 private fun providerSearchLabel(providerName: String, fallbackUsed: Boolean): String =
     when {
-        fallbackUsed -> "安全占位 SafetyPlaceholder"
-        providerName.equals("BLUELM", ignoreCase = true) -> "云端蓝心 BlueLM qwen3.5-plus"
+        fallbackUsed -> "安全占位"
+        providerName.equals("BLUELM", ignoreCase = true) -> "云端蓝心"
         providerName.equals("COMPATIBLE", ignoreCase = true) -> "云端兼容模型"
-        providerName.equals("LOCAL_FALLBACK", ignoreCase = true) -> "安全占位 SafetyPlaceholder"
-        else -> providerName
+        providerName.equals("LOCAL_FALLBACK", ignoreCase = true) -> "安全占位"
+        else -> com.classmate.core.ondevice.ProviderPathNode.sourceLabelZh(providerName)
     }

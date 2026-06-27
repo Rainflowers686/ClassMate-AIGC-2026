@@ -1703,9 +1703,21 @@ class AppViewModel(
             durationMs = (now - current.createdAt).coerceAtLeast(0L),
             status = if (artifact.success) L3RecordingStatus.SAVED else L3RecordingStatus.FAILED,
             artifactFileName = artifact.fileName ?: current.artifactFileName,
+            fileSizeBytes = artifact.fileSizeBytes,
             asrStatus = if (ui.providerConfigSummary.officialProviders.asrLongConfigured) L3AsrStatus.PENDING_ASR_CONFIG else L3AsrStatus.ASR_NOT_CONFIGURED,
             message = artifact.safeMessage,
         )
+        if (!artifact.success) {
+            // No real audio file landed on disk -> never fabricate an AUDIO artifact/evidence or ASR job.
+            // Keep the honest FAILED record and point the user to manual transcription.
+            ui = ui.copy(
+                currentRecording = null,
+                recordingRecords = ui.recordingRecords + saved,
+                audioCaptureMessage = "录音未成功保存，请重试，或导入字幕/转写稿、粘贴课堂转写继续。",
+                toast = artifact.safeMessage,
+            )
+            return
+        }
         val audioArtifact = com.classmate.app.l3.InputArtifact(
             id = "audio_artifact_$now",
             fileName = saved.artifactFileName ?: "${saved.id}.m4a",
@@ -1724,6 +1736,15 @@ class AppViewModel(
             toast = artifact.safeMessage,
         )
         createAsrLongJobForArtifact(audioArtifact.id, now)
+    }
+
+    /** Drop a recording record from state (the file itself is deleted on the UI/Context side first). */
+    fun removeRecordingRecord(recordId: String, message: String = "录音已删除。") {
+        ui = ui.copy(
+            recordingRecords = ui.recordingRecords.filterNot { it.id == recordId },
+            currentRecording = ui.currentRecording?.takeUnless { it.id == recordId },
+            toast = message,
+        )
     }
 
     fun showImportPlaceholder(sourceType: ImportSourceType) {

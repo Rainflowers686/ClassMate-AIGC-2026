@@ -949,6 +949,7 @@ data class ClassroomRecordingRecord(
     val status: L3RecordingStatus = L3RecordingStatus.IDLE,
     val artifactFileName: String? = null,
     val artifactPath: String? = artifactFileName,
+    val fileSizeBytes: Long = 0L,
     val asrStatus: L3AsrStatus = L3AsrStatus.PENDING_ASR_CONFIG,
     val message: String = "",
 )

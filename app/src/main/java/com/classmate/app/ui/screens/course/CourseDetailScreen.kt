@@ -297,55 +297,14 @@ private fun L3PipelineStatusCard(viewModel: AppViewModel) {
                 )
             }
         }
-        val providerSteps = l3.stepLogs.filter { it.step in listOf("OCR", "QUERY_REWRITE", "EMBEDDING", "TEXT_SIMILARITY") }
-        if (providerSteps.isNotEmpty()) {
-            Spacer(Modifier.height(Dimens.s))
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
-                providerSteps.forEach { step ->
-                    StatusChip("${step.step}: ${step.status}", tone = ChipTone.INFO)
-                }
-            }
-        }
         if (l3.knowledgeGraphEdges.isNotEmpty()) {
             Spacer(Modifier.height(Dimens.s))
             Text("知识点地图", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             l3.knowledgeGraphEdges.take(3).forEach { edge ->
                 val from = l3.knowledgePoints.firstOrNull { it.id == edge.fromKnowledgePointId }?.title.orEmpty()
                 val to = l3.knowledgePoints.firstOrNull { it.id == edge.toKnowledgePointId }?.title.orEmpty()
-                Text("$from → $to · ${edge.relation.name}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-        if (l3.transcriptSegments.isNotEmpty()) {
-            Spacer(Modifier.height(Dimens.s))
-            Text("Transcript timeline", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            l3.transcriptSegments.take(4).forEach { segment ->
-                val start = segment.startMs?.let { "${it / 1000}s" } ?: "--"
-                val end = segment.endMs?.let { "${it / 1000}s" } ?: "--"
-                Text(
-                    "$start-$end · ${segment.sourceType.name}${if (segment.fallbackGenerated) " · fallback" else ""} · ${segment.text.take(42)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        if (l3.diagnostics.isNotEmpty()) {
-            Spacer(Modifier.height(Dimens.s))
-            Text("L3 能力诊断", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
-                l3.diagnostics.take(12).forEach { status ->
-                    StatusChip("${status.capability}: ${status.status}", tone = ChipTone.NEUTRAL)
-                }
-            }
-        }
-        if (l3.officialCapabilityContributions.isNotEmpty() || l3.capabilityPlans.isNotEmpty()) {
-            Spacer(Modifier.height(Dimens.s))
-            Text("学习闭环能力贡献", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            l3.capabilityPlans.lastOrNull()?.userVisibleSummary.orEmpty().take(4).forEach { summary ->
-                Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
-                l3.officialCapabilityContributions.take(8).forEach { contribution ->
-                    StatusChip("${contribution.capabilityId.name}: ${contribution.runtimeAvailability.name}", tone = ChipTone.INFO)
+                if (from.isNotBlank() && to.isNotBlank()) {
+                    Text("$from → $to", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -379,90 +338,12 @@ private fun L3PipelineStatusCard(viewModel: AppViewModel) {
                 modifier = Modifier.fillMaxWidth(),
             )
         }
-        l3.visualStudyAssets.lastOrNull()?.let { asset ->
-            Spacer(Modifier.height(Dimens.xs))
-            Text("Study diagram prompt: ${asset.status.name} · ${asset.prompt.take(80)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        l3.reviewVideoPlans.lastOrNull()?.let { plan ->
-            Spacer(Modifier.height(Dimens.xs))
-            Text("Review video storyboard: ${plan.status.name} · scenes ${plan.scenes.size}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        if (l3.bilingualTranscriptSegments.isNotEmpty()) {
-            Spacer(Modifier.height(Dimens.xs))
-            Text("Bilingual transcript draft: ${l3.bilingualTranscriptSegments.size} segments · interpretation pending/config required", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        l3.audioReviewAssets.lastOrNull()?.let { asset ->
-            Spacer(Modifier.height(Dimens.xs))
-            Text("Audio review script: ${asset.status.name} · ${asset.script.take(80)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
         if (l3.qualityWarnings.isNotEmpty()) {
             Spacer(Modifier.height(Dimens.s))
-            Text("质量护栏", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text("需确认内容", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             l3.qualityWarnings.take(3).forEach { warning ->
                 Text(warning.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-        }
-        if (l3.inputArtifacts.isNotEmpty() || l3.asrJobs.isNotEmpty()) {
-            Spacer(Modifier.height(Dimens.s))
-            Text("输入状态：${l3.inputArtifacts.size} 个 artifact · ${l3.asrJobs.size} 个 ASR job", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        l3.asrQualityEvaluations.lastOrNull()?.let { eval ->
-            Spacer(Modifier.height(Dimens.s))
-            Text(
-                "ASR quality: CER ${"%.2f".format(eval.charErrorRate)} 路 glossary ${"%.0f".format(eval.glossaryHitRate * 100)}%",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        if (l3.inputReports.isNotEmpty() || l3.pdfPages.isNotEmpty()) {
-            Spacer(Modifier.height(Dimens.s))
-            Text(
-                "Import reports: ${l3.inputReports.size} · PDF docs: ${l3.pdfDocuments.size} · PDF pages: ${l3.pdfPages.size}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        if (l3.semanticIndexChunks.isNotEmpty() || l3.toolOrchestrationPlan != null || l3.toolStepRecords.isNotEmpty()) {
-            Spacer(Modifier.height(Dimens.s))
-            Text(
-                "Semantic index: ${l3.semanticIndexRecords.size} records · Tool steps: ${l3.toolStepRecords.size} · ${l3.toolOrchestrationPlan?.plannedTools?.joinToString(" -> ").orEmpty()}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        if (l3.semanticSearchResults.isNotEmpty()) {
-            Spacer(Modifier.height(Dimens.s))
-            val result = l3.semanticSearchResults.first()
-            Text(
-                "Local semantic search: ${result.status} · top hit ${result.hits.firstOrNull()?.ownerType.orEmpty()} ${"%.2f".format(result.hits.firstOrNull()?.score ?: 0.0)}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        if (l3.similarQuestionRecommendations.isNotEmpty()) {
-            Spacer(Modifier.height(Dimens.s))
-            Text("相似题推荐（实验）：${l3.similarQuestionRecommendations.size} 条 · ${l3.similarQuestionRecommendations.first().status}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        if (l3.examReports.isNotEmpty()) {
-            val report = l3.examReports.last()
-            Spacer(Modifier.height(Dimens.s))
-            Text(
-                "Exam report: score ${report.score} · accuracy ${"%.0f".format(report.accuracy * 100)}% · weak ${report.weakKnowledgePointIds.size} · evidence ${report.evidenceIds.size}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        if (l3.translationResults.isNotEmpty() || l3.ttsPlaybackStates.isNotEmpty()) {
-            Spacer(Modifier.height(Dimens.s))
-            Text(
-                "Study aids: translation ${l3.translationResults.lastOrNull()?.status?.name ?: "not requested"} · TTS ${l3.ttsPlaybackStates.lastOrNull()?.status?.name ?: "not requested"}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        if (l3.masteryTrendStats.recentSevenDaySummary.isNotBlank()) {
-            Spacer(Modifier.height(Dimens.s))
-            Text("Mastery trend: ${l3.masteryTrendStats.recentSevenDaySummary}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (l3.learningDiagnosis.generatedAt > 0L) {
             Spacer(Modifier.height(Dimens.s))
@@ -475,19 +356,11 @@ private fun L3PipelineStatusCard(viewModel: AppViewModel) {
             l3.learningDiagnosis.weakKnowledgePoints.firstOrNull()?.let { weak ->
                 Spacer(Modifier.height(Dimens.xs))
                 Text("优先处理：${weak.title} · ${weak.reason}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                weak.evidenceIds.firstOrNull()?.let { evidenceId ->
+                weak.evidenceIds.firstOrNull { viewModel.hasRetraceableEvidence(it) }?.let { evidenceId ->
                     Spacer(Modifier.height(Dimens.xs))
                     SecondaryButton("查看诊断证据", onClick = { viewModel.openEvidenceById(evidenceId) }, modifier = Modifier.fillMaxWidth())
                 }
             }
-        }
-        if (l3.distractorExplanations.isNotEmpty()) {
-            Spacer(Modifier.height(Dimens.s))
-            Text(
-                "Distractor explanations: ${l3.distractorExplanations.size} · ${l3.distractorExplanations.first().status}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }
