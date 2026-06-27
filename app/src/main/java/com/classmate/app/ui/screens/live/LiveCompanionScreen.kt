@@ -14,7 +14,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -29,8 +31,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.classmate.app.asr.AndroidSpeechRecognizerClient
@@ -127,6 +131,8 @@ fun LiveCompanionScreen(viewModel: AppViewModel) {
     }
 
     var focusTargetMin by remember { mutableStateOf(FocusDurations.DEFAULT_MIN) }
+    var customMinText by remember { mutableStateOf("") }
+    var customMinError by remember { mutableStateOf(false) }
     val elapsedMs = session?.elapsedMs(nowTick) ?: 0L
     val minutes = (elapsedMs / 60000L).toInt()
     val progress = (elapsedMs.toFloat() / (focusTargetMin * 60_000f)).coerceIn(0f, 1f)
@@ -206,9 +212,47 @@ fun LiveCompanionScreen(viewModel: AppViewModel) {
                                         FocusDurations.label(m),
                                         filled = m == focusTargetMin,
                                         accent = accent,
-                                        onClick = { focusTargetMin = m },
+                                        onClick = { focusTargetMin = m; customMinText = "" },
                                     )
                                 }
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            // Custom focus length (F0-9): any whole number of minutes in 1..180.
+                            Row(
+                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                OutlinedTextField(
+                                    value = customMinText,
+                                    onValueChange = { customMinText = it.filter(Char::isDigit).take(3); customMinError = false },
+                                    label = { Text("自定义分钟") },
+                                    singleLine = true,
+                                    isError = customMinError,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    modifier = Modifier.width(150.dp),
+                                )
+                                FlowPillButton(
+                                    "设为目标",
+                                    filled = false,
+                                    accent = accent,
+                                    onClick = {
+                                        val parsed = FocusDurations.parseCustom(customMinText)
+                                        if (parsed == null) {
+                                            customMinError = true
+                                        } else {
+                                            focusTargetMin = parsed
+                                            customMinError = false
+                                        }
+                                    },
+                                )
+                            }
+                            if (customMinError) {
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    FocusDurations.customHint,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFFFF8A80),
+                                )
                             }
                         }
                         Spacer(Modifier.height(4.dp))

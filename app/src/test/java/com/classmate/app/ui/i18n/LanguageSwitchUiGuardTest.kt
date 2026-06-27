@@ -45,6 +45,11 @@ class LanguageSwitchUiGuardTest {
         assertNotEquals(zh.quizToReview, en.quizToReview)
         assertNotEquals(zh.quizExplanation, en.quizExplanation)
         assertNotEquals(zh.quizTitle(1, 5), en.quizTitle(1, 5))
+        // Knowledge page (the home "知识点" entry) flips too — title, start-quiz, stats, open-evidence.
+        assertNotEquals(zh.knowledgeTitle, en.knowledgeTitle)
+        assertNotEquals(zh.knowledgeStartQuiz(3), en.knowledgeStartQuiz(3))
+        assertNotEquals(zh.knowledgeOpenEvidence, en.knowledgeOpenEvidence)
+        assertNotEquals(zh.knowledgeStatKp, en.knowledgeStatKp)
     }
 
     @Test

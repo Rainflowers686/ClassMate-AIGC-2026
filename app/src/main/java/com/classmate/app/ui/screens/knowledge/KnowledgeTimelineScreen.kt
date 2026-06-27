@@ -26,6 +26,7 @@ import com.classmate.app.state.AppViewModel
 import com.classmate.app.state.Screen
 import com.classmate.app.ui.components.ChipTone
 import com.classmate.app.ui.components.ClassMateScaffold
+import com.classmate.app.ui.i18n.appStrings
 import com.classmate.app.ui.product.QuietCard
 import com.classmate.app.ui.components.DifficultyBadge
 import com.classmate.app.ui.components.StatusChip
@@ -41,18 +42,19 @@ import com.classmate.core.model.KnowledgePoint
 @Composable
 fun KnowledgeTimelineScreen(viewModel: AppViewModel) {
     val ui = viewModel.ui
+    val s = appStrings(ui.language)
     val result = ui.result
     val session = ui.session
 
     ClassMateScaffold(
-        title = "Knowledge Timeline",
+        title = s.knowledgeTitle,
         onBack = { viewModel.goBack() },
         bottomBar = {
             if (result != null) {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     Column(Modifier.fillMaxWidth().padding(horizontal = Dimens.screen, vertical = Dimens.m)) {
                         PrimaryButton(
-                            text = "Start quiz (${result.quizQuestions.size})",
+                            text = s.knowledgeStartQuiz(result.quizQuestions.size),
                             onClick = { viewModel.navigateTo(Screen.QUIZ) },
                             modifier = Modifier.fillMaxWidth(),
                             enabled = result.quizQuestions.isNotEmpty(),
@@ -60,12 +62,12 @@ fun KnowledgeTimelineScreen(viewModel: AppViewModel) {
                         Spacer(Modifier.height(Dimens.s))
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Dimens.m)) {
                             SecondaryButton(
-                                text = "Review plan",
+                                text = s.knowledgeReviewPlan,
                                 onClick = { viewModel.ensureReviewPlan(); viewModel.navigateTo(Screen.REVIEW) },
                                 modifier = Modifier.weight(1f),
                             )
                             SecondaryButton(
-                                text = "Feedback",
+                                text = s.knowledgeFeedback,
                                 onClick = { viewModel.navigateTo(Screen.FEEDBACK) },
                                 modifier = Modifier.weight(1f),
                             )
@@ -77,7 +79,7 @@ fun KnowledgeTimelineScreen(viewModel: AppViewModel) {
     ) { padding ->
         if (result == null || session == null) {
             Box(Modifier.padding(padding).fillMaxWidth().padding(Dimens.screen)) {
-                Text("No analysis result yet.", style = MaterialTheme.typography.bodyMedium)
+                Text(s.knowledgeNoResult, style = MaterialTheme.typography.bodyMedium)
             }
             return@ClassMateScaffold
         }
@@ -91,14 +93,14 @@ fun KnowledgeTimelineScreen(viewModel: AppViewModel) {
             verticalArrangement = Arrangement.spacedBy(Dimens.cardGap),
         ) {
             QuietCard {
-                Text(session.title.ifBlank { "Untitled Course" }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                Text(session.title.ifBlank { s.untitledCourse }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(Dimens.s))
                 ProvenanceChip(result.provenance)
                 Spacer(Modifier.height(Dimens.m))
                 Row(horizontalArrangement = Arrangement.spacedBy(Dimens.xl)) {
-                    Stat("${result.knowledgePoints.size}", "KP")
-                    Stat("${result.quizQuestions.size}", "Quiz")
-                    Stat("${session.segments.size}", "Segments")
+                    Stat("${result.knowledgePoints.size}", s.knowledgeStatKp)
+                    Stat("${result.quizQuestions.size}", s.knowledgeStatQuiz)
+                    Stat("${session.segments.size}", s.knowledgeStatSegments)
                 }
             }
 
@@ -112,10 +114,12 @@ fun KnowledgeTimelineScreen(viewModel: AppViewModel) {
             AskThisLessonCard(viewModel, session)
 
             result.knowledgePoints.forEachIndexed { index, kp ->
+                val segIndex = session.segments.firstOrNull { it.id == kp.sourceSegmentId }?.index
                 KnowledgePointCard(
                     number = index + 1,
                     kp = kp,
-                    segmentLabel = segmentLabel(session.segments.firstOrNull { it.id == kp.sourceSegmentId }?.index),
+                    segmentLabel = if (segIndex != null) s.quizSegmentLabel(segIndex) else s.quizSourceLabel,
+                    openEvidenceLabel = s.knowledgeOpenEvidence,
                     onOpenEvidence = { viewModel.openEvidence(kp.id) },
                 )
             }
@@ -214,7 +218,7 @@ private fun Stat(value: String, label: String) {
 }
 
 @Composable
-private fun KnowledgePointCard(number: Int, kp: KnowledgePoint, segmentLabel: String, onOpenEvidence: () -> Unit) {
+private fun KnowledgePointCard(number: Int, kp: KnowledgePoint, segmentLabel: String, openEvidenceLabel: String, onOpenEvidence: () -> Unit) {
     QuietCard(onClick = onOpenEvidence) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
@@ -237,11 +241,9 @@ private fun KnowledgePointCard(number: Int, kp: KnowledgePoint, segmentLabel: St
             EvidenceBlock(quote = span.quote, segmentLabel = segmentLabel)
         }
         Spacer(Modifier.height(Dimens.s))
-        Text("Open evidence", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        Text(openEvidenceLabel, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
     }
 }
-
-private fun segmentLabel(index: Int?): String = if (index != null) "Segment $index" else "Original text"
 
 private fun sourceLabelForSegment(text: String?): String? = when {
     text == null -> null

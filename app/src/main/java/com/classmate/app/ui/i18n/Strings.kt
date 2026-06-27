@@ -131,6 +131,16 @@ data class Strings(
     val helpReviewPoints: List<String>,
     val helpExportTitle: String,
     val helpExportPoints: List<String>,
+    // knowledge timeline / structure screen
+    val knowledgeTitle: String,
+    val knowledgeStartQuiz: (Int) -> String,
+    val knowledgeReviewPlan: String,
+    val knowledgeFeedback: String,
+    val knowledgeNoResult: String,
+    val knowledgeStatKp: String,
+    val knowledgeStatQuiz: String,
+    val knowledgeStatSegments: String,
+    val knowledgeOpenEvidence: String,
 )
 
 private val ZH = Strings(
@@ -242,6 +252,15 @@ private val ZH = Strings(
         "课程精华音频脚本在 TTS 未配置时先导出文本，不会模拟具体人物声音。",
         "不会导出密钥、内部状态或调试信息；弱关联证据会标注「证据待核对」。",
     ),
+    knowledgeTitle = "知识点时间线",
+    knowledgeStartQuiz = { n -> "开始微测（$n）" },
+    knowledgeReviewPlan = "复习计划",
+    knowledgeFeedback = "反馈",
+    knowledgeNoResult = "还没有分析结果。先导入资料并生成学习包。",
+    knowledgeStatKp = "知识点",
+    knowledgeStatQuiz = "微测",
+    knowledgeStatSegments = "段落",
+    knowledgeOpenEvidence = "查看证据",
 )
 
 private val EN = Strings(
@@ -353,6 +372,15 @@ private val EN = Strings(
         "The course audio script exports as text when TTS is not configured, and never imitates a specific person's voice.",
         "No keys, internal state or debug info are exported; weakly-linked evidence is marked Check evidence.",
     ),
+    knowledgeTitle = "Knowledge Timeline",
+    knowledgeStartQuiz = { n -> "Start quiz ($n)" },
+    knowledgeReviewPlan = "Review plan",
+    knowledgeFeedback = "Feedback",
+    knowledgeNoResult = "No analysis result yet. Import material and generate a study pack first.",
+    knowledgeStatKp = "KP",
+    knowledgeStatQuiz = "Quiz",
+    knowledgeStatSegments = "Segments",
+    knowledgeOpenEvidence = "View evidence",
 )
 
 /** The string pack for a language (SYSTEM resolved to ZH/EN). Default is Chinese. */

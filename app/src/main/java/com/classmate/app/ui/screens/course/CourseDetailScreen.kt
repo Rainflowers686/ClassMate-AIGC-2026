@@ -170,27 +170,6 @@ fun CourseDetailScreen(viewModel: AppViewModel) {
                 // Restrained entry into the immersive Flow companion (sound scenes + focus timer).
                 SecondaryButton("心流复习 · 沉浸专注", onClick = { viewModel.navigateTo(Screen.LIVE) }, modifier = Modifier.fillMaxWidth())
 
-                // On-device study advice — kept, restyled.
-                if (result != null) {
-                    ProductSectionTitle("端侧学习建议")
-                    QuietCard {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("由端侧蓝心整理", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                            SourceBadge("端侧蓝心")
-                        }
-                        ui.onDeviceReportSuggestion?.let { suggestion ->
-                            Spacer(Modifier.height(Dimens.s))
-                            Text(suggestion, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
-                        }
-                        Spacer(Modifier.height(Dimens.m))
-                        SecondaryButton(
-                            text = if (ui.onDeviceReportSuggestionRunning) "生成中" else "端侧建议",
-                            onClick = { viewModel.generateOnDeviceReportSuggestion() },
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                }
-
                 ProductSectionTitle("导出")
                 ExportCenterCard(
                     viewModel = viewModel,
@@ -312,59 +291,58 @@ private fun L3PipelineStatusCard(viewModel: AppViewModel) {
         if (l3.knowledgeGraphEdges.isNotEmpty()) {
             Spacer(Modifier.height(Dimens.s))
             Text("知识点地图", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            l3.knowledgeGraphEdges.take(3).forEach { edge ->
-                val from = l3.knowledgePoints.firstOrNull { it.id == edge.fromKnowledgePointId }?.title.orEmpty()
-                val to = l3.knowledgePoints.firstOrNull { it.id == edge.toKnowledgePointId }?.title.orEmpty()
-                if (from.isNotBlank() && to.isNotBlank()) {
-                    Text("$from → $to", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
+            Text("${l3.knowledgeGraphEdges.size} 条知识点关联", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(Dimens.xs))
+            SecondaryButton("查看知识结构", onClick = { viewModel.navigateTo(Screen.KNOWLEDGE) }, modifier = Modifier.fillMaxWidth())
         }
+        // Secondary / experimental study assets live in a folded "更多操作" drawer so they never
+        // compete with the core loop (knowledge / quiz / review / evidence / export).
         Spacer(Modifier.height(Dimens.s))
-        Text("学习增强入口", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-        Column(verticalArrangement = Arrangement.spacedBy(Dimens.xs)) {
-            if (ui.enableExperimentalImageGeneration) {
+        ProductCollapse(title = "更多操作 · 听背文稿 / 实验功能") {
+            Column(verticalArrangement = Arrangement.spacedBy(Dimens.xs)) {
+                if (ui.enableExperimentalImageGeneration) {
+                    SecondaryButton(
+                        "生成学习图解提示词",
+                        onClick = { viewModel.generateVisualStudyPrompt() },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                if (ui.enableExperimentalVideoGeneration) {
+                    SecondaryButton(
+                        "生成复习短视频分镜",
+                        onClick = { viewModel.generateReviewVideoStoryboard() },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                if (ui.enableExperimentalSimultaneousInterpretation) {
+                    SecondaryButton(
+                        "生成双语转写草稿",
+                        onClick = { viewModel.generateBilingualTranscriptDraft() },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
                 SecondaryButton(
-                    "生成学习图解提示词",
-                    onClick = { viewModel.generateVisualStudyPrompt() },
+                    "生成听背文稿",
+                    onClick = { viewModel.generateAudioReviewScript() },
                     modifier = Modifier.fillMaxWidth(),
                 )
-            }
-            if (ui.enableExperimentalVideoGeneration) {
-                SecondaryButton(
-                    "生成复习短视频分镜",
-                    onClick = { viewModel.generateReviewVideoStoryboard() },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            if (ui.enableExperimentalSimultaneousInterpretation) {
-                SecondaryButton(
-                    "生成双语转写草稿",
-                    onClick = { viewModel.generateBilingualTranscriptDraft() },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            SecondaryButton(
-                "生成听背文稿",
-                onClick = { viewModel.generateAudioReviewScript() },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            l3.audioReviewAssets.lastOrNull()?.takeIf { it.script.isNotBlank() }?.let { asset ->
-                val clipboard = LocalClipboardManager.current
-                Spacer(Modifier.height(Dimens.xs))
-                Text(
-                    if (asset.audioRef != null) "听背音频已生成" else "听背文稿已生成（当前设备暂未生成音频，可先用文稿复习）",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(Dimens.xxs))
-                Text(asset.script, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 8)
-                Spacer(Modifier.height(Dimens.xs))
-                SecondaryButton(
-                    "复制听背文稿",
-                    onClick = { clipboard.setText(AnnotatedString(asset.script)); viewModel.toast("听背文稿已复制，可粘贴分享。") },
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                l3.audioReviewAssets.lastOrNull()?.takeIf { it.script.isNotBlank() }?.let { asset ->
+                    val clipboard = LocalClipboardManager.current
+                    Spacer(Modifier.height(Dimens.xs))
+                    Text(
+                        if (asset.audioRef != null) "听背音频已生成" else "听背文稿已生成（当前设备暂未生成音频，可先用文稿复习）",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(Dimens.xxs))
+                    Text(asset.script, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 8)
+                    Spacer(Modifier.height(Dimens.xs))
+                    SecondaryButton(
+                        "复制听背文稿",
+                        onClick = { clipboard.setText(AnnotatedString(asset.script)); viewModel.toast("听背文稿已复制，可粘贴分享。") },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
         }
         if (l3.qualityWarnings.isNotEmpty()) {
