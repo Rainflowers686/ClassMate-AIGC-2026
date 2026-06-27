@@ -53,7 +53,7 @@ object LearningExportEngine {
                     snapshot.knowledgePoints.forEachIndexed { index, kp ->
                         appendLine("${index + 1}. ${safe(kp.title)}")
                         appendLine("   - 说明：${safe(kp.explanation)}")
-                        appendLine("   - 证据：${evidenceLabelZh(evidenceById[kp.sourceEvidenceIds.firstOrNull()])}")
+                        appendLine("   - 证据：${evidenceLabelZh(evidenceById[kp.sourceEvidenceIds.firstOrNull()], kp.title)}")
                     }
                 }
             }
@@ -80,7 +80,7 @@ object LearningExportEngine {
                         }
                         appendLine("   - 正确答案：${safe(q.correctAnswer)}")
                         appendLine("   - 解析：${safe(q.explanation.ifBlank { "请回到证据核对题干的限定条件，再确认正确选项。" })}")
-                        appendLine("   - 证据：${q.evidenceIds.map { evidenceLabelZh(evidenceById[it]) }.firstOrNull() ?: NO_EVIDENCE}")
+                        appendLine("   - 证据：${q.evidenceIds.map { evidenceLabelZh(evidenceById[it], q.stem) }.firstOrNull() ?: NO_EVIDENCE}")
                     }
                 }
             }
@@ -96,7 +96,7 @@ object LearningExportEngine {
                         appendLine("   - 正确答案：${safe(wrong.correctAnswer)}")
                         appendLine("   - 错因：${safe(wrong.mistakeReason.ifBlank { wrong.explanation })}")
                         appendLine("   - 巩固建议：${safe(wrong.remediationHint.ifBlank { "回到证据重新核对，然后重做这道题。" })}")
-                        appendLine("   - 证据：${wrong.evidenceIds.map { evidenceLabelZh(evidenceById[it]) }.firstOrNull() ?: NO_EVIDENCE}")
+                        appendLine("   - 证据：${wrong.evidenceIds.map { evidenceLabelZh(evidenceById[it], question?.stem.orEmpty()) }.firstOrNull() ?: NO_EVIDENCE}")
                     }
                 }
             }
@@ -110,7 +110,7 @@ object LearningExportEngine {
                         appendLine("- [ ] ${safe(kp?.title ?: "复习知识点")}")
                         appendLine("      安排原因：${safe(item.arrangementReason.ifBlank { "来自学习闭环的复习安排。" })}")
                         appendLine("      建议动作：${safe(item.recommendedActions.joinToString("、").ifBlank { "看证据、重做微测、口头复述。" })}")
-                        item.evidenceId?.let { appendLine("      证据：${evidenceLabelZh(evidenceById[it])}") }
+                        item.evidenceId?.let { appendLine("      证据：${evidenceLabelZh(evidenceById[it], kp?.title.orEmpty())}") }
                     }
                 }
             }
@@ -174,10 +174,15 @@ object LearningExportEngine {
         if (value.isBlank()) emptyList() else listOf(value)
 
     /** A study-facing evidence label: source type (Chinese) + material name, never a raw id. */
-    private fun evidenceLabelZh(evidence: Evidence?): String =
+    private fun evidenceLabelZh(evidence: Evidence?, context: String = ""): String =
         evidence?.let {
             val label = it.sourceLabel.ifBlank { it.fileName }.ifBlank { sourceTypeZh(it.sourceType) }
-            "${sourceTypeZh(it.sourceType)} · ${safe(label)}"
+            val excerpt = it.text.ifBlank { it.snippet }.ifBlank { it.transcriptSegment }
+            // Flag a likely mis-binding so the export never presents weak evidence as confirmed.
+            val weak = context.isNotBlank() && excerpt.isNotBlank() &&
+                com.classmate.core.evidence.EvidenceRelation.assess(excerpt, context) ==
+                com.classmate.core.evidence.EvidenceRelationLevel.WEAK
+            "${sourceTypeZh(it.sourceType)} · ${safe(label)}${if (weak) "（证据待核对）" else ""}"
         } ?: NO_EVIDENCE
 
     private fun sourceTypeZh(type: L3SourceType): String = when (type) {

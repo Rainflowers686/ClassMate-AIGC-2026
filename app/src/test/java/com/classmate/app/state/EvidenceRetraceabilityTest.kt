@@ -1,7 +1,9 @@
 package com.classmate.app.state
 
 import com.classmate.app.platform.ConfigRepository
+import com.classmate.core.evidence.EvidenceRelationLevel
 import java.nio.file.Files
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -27,5 +29,12 @@ class EvidenceRetraceabilityTest {
         assertFalse(viewModel.hasRetraceableEvidence(""))
         assertFalse("an id from another course/snapshot is not retraceable here", viewModel.hasRetraceableEvidence("ev_other_course"))
         assertFalse(viewModel.hasRetraceableEvidence("kp_sample_demo"))
+    }
+
+    @Test
+    fun relationLevelIsMissingWhenThereIsNoExcerpt() {
+        val viewModel = vm()
+        assertEquals(EvidenceRelationLevel.MISSING, viewModel.evidenceRelationLevel(null, "电磁感应"))
+        assertEquals(EvidenceRelationLevel.MISSING, viewModel.evidenceRelationLevel("ev_unknown", "电磁感应"))
     }
 }

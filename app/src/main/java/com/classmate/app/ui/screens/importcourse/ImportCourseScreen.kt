@@ -64,6 +64,7 @@ import androidx.compose.material.icons.filled.Star
 import com.classmate.app.ui.components.ActionTile
 import com.classmate.app.ui.components.AiProcessingDialog
 import com.classmate.app.ui.components.ClassMateCard
+import com.classmate.app.ui.components.HelpHint
 import com.classmate.app.ui.components.ClassMateScaffold
 import com.classmate.app.ui.components.CompactSectionHeader
 import com.classmate.app.ui.components.MaterialTrayItem
@@ -313,13 +314,20 @@ private fun ClassroomRecordingCard(viewModel: AppViewModel, onStartRecording: ()
         it.sourceType.name == "AUDIO_TRANSCRIPT" || it.sourceType.name == "MANUAL_TRANSCRIPT" || it.audioRef.isNotBlank()
     }
     QuietCard {
-        Text("课堂录音记录", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Text("课堂录音记录", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            HelpHint(
+                title = "课堂录音记录",
+                points = listOf(
+                    "录音保存在应用内，可在每条记录上「导出录音」分享，或「删除」。",
+                    "官方 ASR 未配置时，录音后请粘贴手动转写文本进入学习闭环。",
+                    "方言/口音增强会保留原始转写，并把低置信片段标记给你确认，不会编造课堂外内容。",
+                    "录音失败或文件为空时不会生成证据，请重试或改用导入字幕/转写稿。",
+                ),
+            )
+        }
         Spacer(Modifier.height(Dimens.xs))
-        Text(
-            "录音保存在 App 私有目录。官方 ASR Long 未配置时，录音后请粘贴手动转写文本进入学习闭环。",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Text("录音后可导出，或粘贴转写继续。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(Dimens.s))
         Text("课堂语音模式", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.xs))
@@ -345,12 +353,6 @@ private fun ClassroomRecordingCard(viewModel: AppViewModel, onStartRecording: ()
                 onClick = { viewModel.setAudioDialectMode(DialectMode.CLASSROOM_MIXED_SPEAKERS) },
             )
         }
-        Spacer(Modifier.height(Dimens.xs))
-        Text(
-            "方言/口音增强会保留 raw transcript，并把低置信片段标记给你确认；不会胡编课堂外内容。",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
         Spacer(Modifier.height(Dimens.s))
         val recordingContext = LocalContext.current
         ui.currentRecording?.let {

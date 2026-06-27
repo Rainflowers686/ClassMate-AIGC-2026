@@ -183,7 +183,8 @@ fun LiveCompanionScreen(viewModel: AppViewModel) {
                         }
                         Text("背景音量", style = MaterialTheme.typography.labelSmall, color = FlowCompColors.textMuted)
                         Slider(value = ambientVolume, onValueChange = { ambientVolume = it.coerceIn(0f, 1f) })
-                        FlowPillButton("完成", filled = true, accent = accent, onClick = { scenePickerOpen = false })
+                        // Full-width bottom main button — large tap target, not stranded in the corner.
+                        FlowPillButton("完成设置", filled = true, accent = accent, modifier = Modifier.fillMaxWidth(), onClick = { scenePickerOpen = false })
                     } else {
                         Spacer(Modifier.height(8.dp))
                         Column(Modifier.fillMaxWidth(), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {

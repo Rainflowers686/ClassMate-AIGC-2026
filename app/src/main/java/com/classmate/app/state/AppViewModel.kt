@@ -29,6 +29,8 @@ import com.classmate.app.exporting.ExportCenter
 import com.classmate.app.exporting.ExportFileFormat
 import com.classmate.core.audio.ConfigMissingTtsProvider
 import com.classmate.core.audio.CourseEssenceAudioExporter
+import com.classmate.core.evidence.EvidenceRelation
+import com.classmate.core.evidence.EvidenceRelationLevel
 import com.classmate.core.exporting.StudyReport
 import com.classmate.core.exporting.StudyReportBuilder
 import com.classmate.core.exporting.StudyReportRenderer
@@ -3037,15 +3039,28 @@ class AppViewModel(
      * dangling id. UI must gate "查看证据" on this so a mis-bound or empty evidence never claims to be
      * traceable; when it's false the surface shows an honest "暂无可回溯证据" instead.
      */
-    fun hasRetraceableEvidence(evidenceId: String?): Boolean {
-        if (evidenceId.isNullOrBlank()) return false
-        val evidence = ui.l3Pipeline.evidence.firstOrNull { it.id == evidenceId } ?: return false
+    /** The real, user-facing excerpt for an evidence id within the CURRENT pipeline (blank if none). */
+    fun evidenceExcerptFor(evidenceId: String?): String {
+        if (evidenceId.isNullOrBlank()) return ""
+        val evidence = ui.l3Pipeline.evidence.firstOrNull { it.id == evidenceId } ?: return ""
         val asset = evidence.assetId?.let { id -> ui.l3Pipeline.evidenceAssets.firstOrNull { it.id == id } }
-        val excerpt = evidence.text
+        return evidence.text
             .ifBlank { evidence.snippet }
             .ifBlank { evidence.transcriptSegment }
             .ifBlank { asset?.text.orEmpty() }
-        return excerpt.isNotBlank()
+    }
+
+    fun hasRetraceableEvidence(evidenceId: String?): Boolean = evidenceExcerptFor(evidenceId).isNotBlank()
+
+    /**
+     * Whether the bound evidence actually relates to the thing it supports. MISSING when there is no
+     * retraceable excerpt; WEAK when the excerpt shares no keywords with [context] (likely mis-bound);
+     * STRONG otherwise. Surfaces use this to show "查看证据" vs "证据待核对" vs "暂无可回溯证据".
+     */
+    fun evidenceRelationLevel(evidenceId: String?, context: String): EvidenceRelationLevel {
+        val excerpt = evidenceExcerptFor(evidenceId)
+        if (excerpt.isBlank()) return EvidenceRelationLevel.MISSING
+        return EvidenceRelation.assess(excerpt, context)
     }
 
     // --- quiz ---

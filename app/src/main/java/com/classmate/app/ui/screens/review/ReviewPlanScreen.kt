@@ -45,6 +45,7 @@ import com.classmate.app.ui.components.Pill
 import com.classmate.app.ui.components.PrimaryButton
 import com.classmate.app.ui.design.Dimens
 import com.classmate.app.l3.ReviewPlanEnhancementEngine
+import com.classmate.core.evidence.EvidenceRelationLevel
 import com.classmate.core.learning.ReviewEngine
 import com.classmate.core.learning.ReviewEventType
 import com.classmate.core.learning.ReviewPriorityLevel
@@ -179,12 +180,7 @@ private fun L3LearningLoopCard(viewModel: AppViewModel) {
                 )
                 Spacer(Modifier.height(Dimens.xxs))
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
-                    val retraceable = evidenceId?.takeIf { viewModel.hasRetraceableEvidence(it) }
-                    if (retraceable != null) {
-                        ActionChip("查看证据") { viewModel.openEvidenceById(retraceable) }
-                    } else {
-                        EvidenceHintChip("暂无可回溯证据")
-                    }
+                    EvidenceActionChip(viewModel, evidenceId, kp?.title.orEmpty())
                     ActionChip("再测一次") { viewModel.startPractice(com.classmate.core.practice.PracticeMode.QUICK_REVIEW) }
                     if (wrongCount > 0) ActionChip("重练错题") { viewModel.startPractice(com.classmate.core.practice.PracticeMode.WRONG_ANSWER_RETRY) }
                     ActionChip("复述知识点") { viewModel.startSelfAssessment() }
@@ -207,12 +203,8 @@ private fun L3LearningLoopCard(viewModel: AppViewModel) {
                 Text("证据：$evidence", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(Dimens.xxs))
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
-                    val retraceable = wrong.evidenceIds.firstOrNull { viewModel.hasRetraceableEvidence(it) }
-                    if (retraceable != null) {
-                        ActionChip("查看证据") { viewModel.openEvidenceById(retraceable) }
-                    } else {
-                        EvidenceHintChip("暂无可回溯证据")
-                    }
+                    val wrongContext = (l3.questions.firstOrNull { it.id == wrong.questionId }?.stem.orEmpty() + " " + (kp?.title ?: ""))
+                    EvidenceActionChip(viewModel, wrong.evidenceIds.firstOrNull(), wrongContext)
                     ActionChip("重练这题") { viewModel.retryWrongQuestion(wrong.id) }
                     ActionChip("复习相关知识点") { viewModel.openEvidenceForKnowledgePoint(wrong.knowledgePointId) }
                 }
@@ -238,10 +230,8 @@ private fun LearningDiagnosisCard(viewModel: AppViewModel) {
                 Spacer(Modifier.height(Dimens.xs))
                 Text(item.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                 Text(item.reason, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                item.evidenceIds.firstOrNull { viewModel.hasRetraceableEvidence(it) }?.let { evidenceId ->
-                    Spacer(Modifier.height(Dimens.xxs))
-                    ActionChip("查看诊断证据") { viewModel.openEvidenceById(evidenceId) }
-                }
+                Spacer(Modifier.height(Dimens.xxs))
+                EvidenceActionChip(viewModel, item.evidenceIds.firstOrNull(), item.title + " " + item.reason, "查看诊断证据")
             }
         }
         if (diagnosis.commonMistakeTypes.isNotEmpty()) {
@@ -441,9 +431,7 @@ private fun TaskCard(task: ReviewTask, index: Int, total: Int, viewModel: AppVie
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
             ActionChip("打开") { viewModel.openTaskCourse(task) }
             ActionChip("开始练习") { viewModel.startPracticeForTask(task) }
-            if (viewModel.hasRetraceableEvidence(viewModel.reviewEvidenceIdForKnowledgePoint(task.knowledgePointId))) {
-                ActionChip("查看证据") { viewModel.openEvidenceForReviewTask(task) }
-            }
+            EvidenceActionChip(viewModel, viewModel.reviewEvidenceIdForKnowledgePoint(task.knowledgePointId), "")
             ActionChip("完成") { viewModel.reviewMarkDone(task.taskId) }
         }
         Spacer(Modifier.height(Dimens.s))
@@ -513,6 +501,20 @@ private fun ActionChip(text: String, onClick: () -> Unit) {
         modifier = Modifier.clickable { onClick() },
     ) {
         Text(text, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+    }
+}
+
+/**
+ * Evidence entry that tells the truth about the binding: a real "查看证据" only when the excerpt actually
+ * relates to [context]; "证据待核对" when it resolves but shares no keywords (likely mis-bound); and
+ * "暂无可回溯证据" when there is no retraceable excerpt at all.
+ */
+@Composable
+private fun EvidenceActionChip(viewModel: AppViewModel, evidenceId: String?, context: String, label: String = "查看证据") {
+    when (viewModel.evidenceRelationLevel(evidenceId, context)) {
+        EvidenceRelationLevel.STRONG -> ActionChip(label) { viewModel.openEvidenceById(evidenceId.orEmpty()) }
+        EvidenceRelationLevel.WEAK -> EvidenceHintChip("证据待核对")
+        EvidenceRelationLevel.MISSING -> EvidenceHintChip("暂无可回溯证据")
     }
 }
 

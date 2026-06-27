@@ -29,6 +29,7 @@ import com.classmate.app.state.Screen
 import com.classmate.app.ui.components.AiProcessingDialog
 import com.classmate.app.ui.components.ChipTone
 import com.classmate.app.ui.components.ClassMateCard
+import com.classmate.app.ui.components.HelpHint
 import com.classmate.app.ui.components.ClassMateScaffold
 import com.classmate.app.ui.components.PrimaryButton
 import com.classmate.app.ui.components.SecondaryButton
@@ -90,17 +91,20 @@ fun TranscriptImportScreen(viewModel: AppViewModel) {
                 onContinueManual = viewModel::hideAiProcessing,
             )
             ClassMateCard {
-                Text("导入字幕 / 转写稿", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(Dimens.xs))
-                listOf(
-                    "官方 ASR 按配置启用；未配置或不可用时，可以粘贴转写文本继续学习。",
-                    "暂不支持自动读取视频内嵌字幕，请导入字幕文件（SRT/VTT/TXT）或粘贴字幕内容；视频文件仅记录文件名/类型/大小。",
-                    "不会爬取第三方平台内容，请粘贴你有权使用的字幕或转写稿。",
-                    "确认后的转写草稿会进入课程分析；手动粘贴不会被标记为 ASR 结果。",
-                ).forEach {
-                    Text("· $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(Dimens.xxs))
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Text("导入字幕 / 转写稿", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    HelpHint(
+                        title = "导入字幕 / 转写稿",
+                        points = listOf(
+                            "官方 ASR 按配置启用；未配置或不可用时，可以粘贴转写文本继续学习。",
+                            "暂不支持自动读取视频内嵌字幕，请导入字幕文件（SRT/VTT/TXT）或粘贴字幕内容；视频文件仅记录文件名/类型/大小。",
+                            "不会爬取第三方平台内容，请粘贴你有权使用的字幕或转写稿。",
+                            "确认后的转写草稿会进入课程分析；手动粘贴不会被标记为 ASR 结果。",
+                        ),
+                    )
                 }
+                Spacer(Modifier.height(Dimens.xs))
+                Text("导入字幕文件或粘贴转写稿即可开始。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
             // --- source type selection (horizontal, never per-character wrapping chips) ---

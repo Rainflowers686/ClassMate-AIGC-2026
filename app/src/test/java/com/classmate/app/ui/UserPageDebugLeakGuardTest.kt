@@ -22,6 +22,8 @@ class UserPageDebugLeakGuardTest {
     private val courseDetail by lazy { read("app/src/main/java/com/classmate/app/ui/screens/course/CourseDetailScreen.kt") }
     private val importCourse by lazy { read("app/src/main/java/com/classmate/app/ui/screens/importcourse/ImportCourseScreen.kt") }
     private val history by lazy { read("app/src/main/java/com/classmate/app/ui/screens/history/HistoryScreen.kt") }
+    private val evidence by lazy { read("app/src/main/java/com/classmate/app/ui/screens/evidence/EvidenceDetailScreen.kt") }
+    private val live by lazy { read("app/src/main/java/com/classmate/app/ui/screens/live/LiveCompanionScreen.kt") }
 
     @Test
     fun reviewPageHasNoDebugOrProviderTrace() {
@@ -107,6 +109,32 @@ class UserPageDebugLeakGuardTest {
     fun historyProviderLabelsAreChineseOnly() {
         assertFalse(history.contains("SafetyPlaceholder"))
         assertFalse(history.contains("BlueLM qwen3.5-plus"))
+    }
+
+    @Test
+    fun semanticBindingDowngradesWeakEvidence() {
+        // A bound-but-unrelated excerpt must be shown as "证据待核对", not as solid "查看证据".
+        assertTrue("review uses weak-evidence wording", review.contains("证据待核对"))
+        assertTrue("evidence detail warns on weak relation", evidence.contains("关联较弱"))
+    }
+
+    @Test
+    fun mainPagesMoveLongCopyIntoHelp() {
+        assertTrue("transcript page has a help entry", transcript.contains("HelpHint"))
+        assertTrue("import/recording page has a help entry", importCourse.contains("HelpHint"))
+    }
+
+    @Test
+    fun flowConfirmButtonIsAFullWidthMainButton() {
+        // The scene-setup confirm is a full-width bottom main button, not stranded in the corner.
+        assertTrue(live.contains("完成设置"))
+    }
+
+    @Test
+    fun videoSubtitlesAreNotPromisedAsAutoExtracted() {
+        assertTrue(transcript.contains("暂不支持自动读取视频"))
+        assertFalse(transcript.contains("自动提取视频字幕成功"))
+        assertFalse(transcript.contains("直接提取视频字幕"))
     }
 
     @Test

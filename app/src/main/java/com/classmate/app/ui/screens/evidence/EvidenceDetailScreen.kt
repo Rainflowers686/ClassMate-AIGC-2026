@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import com.classmate.app.l3.Evidence
 import com.classmate.app.l3.EvidenceAsset
 import com.classmate.app.l3.L3SourceType
+import com.classmate.core.evidence.EvidenceRelationLevel
 import com.classmate.app.state.AppViewModel
 import com.classmate.app.ui.components.ClassMateCard
 import com.classmate.app.ui.components.ClassMateScaffold
@@ -78,6 +79,22 @@ fun EvidenceDetailScreen(viewModel: AppViewModel) {
                         Text("原文片段", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                         Spacer(Modifier.height(Dimens.xs))
                         Text("「$excerpt」", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+                        // Honest weak-binding warning: if the excerpt shares no keywords with the points /
+                        // questions it supports, say so instead of presenting it as solid evidence.
+                        val boundContext = (
+                            ui.l3Pipeline.knowledgePoints.filter { l3Evidence.id in it.sourceEvidenceIds }.joinToString(" ") { it.title } + " " +
+                                ui.l3Pipeline.questions.filter { l3Evidence.id in it.evidenceIds }.joinToString(" ") { it.stem }
+                            ).trim()
+                        if (boundContext.isNotBlank() &&
+                            viewModel.evidenceRelationLevel(l3Evidence.id, boundContext) == EvidenceRelationLevel.WEAK
+                        ) {
+                            Spacer(Modifier.height(Dimens.s))
+                            Text(
+                                "该证据片段可能与当前知识点关联较弱，请结合原文核对。",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        }
                     } else {
                         // Honest: don't pretend an excerpt exists when we couldn't locate one.
                         Text("该内容暂无可回溯的原文片段。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
