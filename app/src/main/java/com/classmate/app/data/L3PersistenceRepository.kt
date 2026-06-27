@@ -36,6 +36,26 @@ class L3PersistenceRepository(private val file: File? = null) {
         }.getOrDefault(L3PipelineSnapshot.Empty)
     }
 
+    fun clearIfMatches(sessionIds: Set<String>, courseTitles: Set<String>): Boolean {
+        val target = file ?: return true
+        return runCatching {
+            val snapshot = loadSnapshot()
+            val source = snapshot.lessonSource
+            val matchesSession = source?.id in sessionIds ||
+                snapshot.reviewQueue.any { it.sourceLessonId in sessionIds } ||
+                snapshot.masteryStats.any { it.sourceLessonId in sessionIds }
+            val normalizedTitles = courseTitles.map { it.trim().lowercase() }.toSet()
+            val matchesTitle = source?.title?.trim()?.lowercase() in normalizedTitles
+            if (matchesSession || matchesTitle) {
+                saveSnapshot(L3PipelineSnapshot.Empty)
+            } else if (target.exists()) {
+                true
+            } else {
+                true
+            }
+        }.isSuccess
+    }
+
     companion object {
         fun disabled(): L3PersistenceRepository = L3PersistenceRepository(null)
 

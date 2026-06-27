@@ -29,10 +29,22 @@ class SafeExportTextRedactionTest {
             "REVIEW_UPDATE",
             "Semantic index",
             "Tool steps",
+            "ASR Long job",
+            "PDF page",
+            "Import report",
         ).forEach { token ->
             val redacted = SafeExportText.redact("学习笔记 $token 结束")
             assertFalse("token must be redacted: $token", redacted.contains(token, ignoreCase = true))
         }
+    }
+
+    @Test
+    fun stripsRawLearningIds() {
+        val redacted = SafeExportText.redact("kp_physics q_wrong ev_audio should not appear")
+
+        assertFalse(redacted.contains("kp_physics"))
+        assertFalse(redacted.contains("q_wrong"))
+        assertFalse(redacted.contains("ev_audio"))
     }
 
     @Test

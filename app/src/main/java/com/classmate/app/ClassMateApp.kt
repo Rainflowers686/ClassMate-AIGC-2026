@@ -58,6 +58,7 @@ import com.classmate.app.l3.AndroidClassroomAudioRecorder
 import com.classmate.app.l3.AndroidLocalTtsPlayer
 import com.classmate.app.capture.CaptureGateway
 import com.classmate.app.l3.OfficialRuntimeGatewayFactory
+import com.classmate.app.l3.RecordingFileManager
 import com.classmate.app.navigation.ClassMateNavHost
 import com.classmate.app.ondevice.OnDeviceLlmController
 import com.classmate.app.platform.CaptureConfigLoader
@@ -104,6 +105,7 @@ fun ClassMateApp() {
                     l3PersistenceRepository = L3PersistenceRepository(File(context.filesDir, "classmate_l3_store.json")),
                     evidenceAssetStore = EvidenceAssetStore(File(context.filesDir, "classmate_evidence_assets")),
                     classroomAudioRecorder = AndroidClassroomAudioRecorder(File(context.filesDir, "classmate_recordings")),
+                    recordingFileManager = RecordingFileManager(File(context.filesDir, "classmate_recordings")),
                     localTtsPlayer = AndroidLocalTtsPlayer(context),
                     // Real reflection bridge: drives the vivo on-device SDK when app/libs/llm-sdk-release.aar
                     // is bundled, and honestly reports SDK_MISSING (no crash) when it is absent.

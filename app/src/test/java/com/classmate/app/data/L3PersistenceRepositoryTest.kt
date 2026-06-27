@@ -6,6 +6,7 @@ import com.classmate.app.l3.EvidenceAssetType
 import com.classmate.app.l3.L3DemoSeeds
 import com.classmate.app.l3.L3LearningPipeline
 import com.classmate.app.l3.L3MasteryState
+import com.classmate.app.l3.L3PipelineSnapshot
 import com.classmate.app.l3.L3SourceType
 import com.classmate.app.platform.OfficialProviderConfigSummary
 import com.classmate.app.platform.ProviderConfigSummary
@@ -124,5 +125,28 @@ class L3PersistenceRepositoryTest {
 
         assertEquals(null, reloaded.lessonSource)
         assertTrue(reloaded.wrongBook.isEmpty())
+    }
+
+    @Test
+    fun clearIfMatchesRemovesOnlyMatchingSnapshot() {
+        val file = Files.createTempDirectory("cm-l3-store-clear").resolve("classmate_l3_store.json").toFile()
+        val repo = L3PersistenceRepository(file)
+        val snapshot = L3PipelineSnapshot(
+            lessonSource = com.classmate.app.l3.LessonSource(
+                id = "lesson_physics",
+                title = "Physics",
+                type = L3SourceType.TEXT,
+                createdAt = now,
+                rawText = "Physics lesson",
+                status = "READY",
+            ),
+        )
+        repo.saveSnapshot(snapshot)
+
+        assertTrue(repo.clearIfMatches(sessionIds = setOf("lesson_math"), courseTitles = setOf("Math")))
+        assertEquals("lesson_physics", repo.loadSnapshot().lessonSource!!.id)
+
+        assertTrue(repo.clearIfMatches(sessionIds = setOf("lesson_physics"), courseTitles = emptySet()))
+        assertEquals(null, repo.loadSnapshot().lessonSource)
     }
 }

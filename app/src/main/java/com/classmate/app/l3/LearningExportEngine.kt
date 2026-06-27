@@ -1,5 +1,9 @@
 package com.classmate.app.l3
 
+import com.classmate.core.evidence.EvidenceOwnership
+import com.classmate.core.evidence.EvidenceRelation
+import com.classmate.core.evidence.EvidenceRelationLevel
+import com.classmate.core.exporting.SafeExportText
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -28,6 +32,7 @@ object LearningExportEngine {
     fun buildStudyPackMarkdown(snapshot: L3PipelineSnapshot, generatedAt: Long = System.currentTimeMillis()): String {
         val title = snapshot.lessonSource?.title?.ifBlank { null } ?: "ClassMate 学习包"
         val evidenceById = snapshot.evidence.associateBy { it.id }
+        val ownership = evidenceOwnershipSnapshot(snapshot)
         val kpById = snapshot.knowledgePoints.associateBy { it.id }
         val sourceTypes = snapshot.evidence.map { sourceTypeZh(it.sourceType) }.distinct()
             .ifEmpty { listOf(sourceTypeZh(snapshot.lessonSource?.type ?: L3SourceType.TEXT)) }
@@ -53,7 +58,7 @@ object LearningExportEngine {
                     snapshot.knowledgePoints.forEachIndexed { index, kp ->
                         appendLine("${index + 1}. ${safe(kp.title)}")
                         appendLine("   - 说明：${safe(kp.explanation)}")
-                        appendLine("   - 证据：${evidenceLabelZh(evidenceById[kp.sourceEvidenceIds.firstOrNull()], kp.title)}")
+                        appendLine("   - 证据：${evidenceLabelZh(ownership, evidenceById[kp.sourceEvidenceIds.firstOrNull()], kp.title)}")
                     }
                 }
             }
@@ -80,7 +85,7 @@ object LearningExportEngine {
                         }
                         appendLine("   - 正确答案：${safe(q.correctAnswer)}")
                         appendLine("   - 解析：${safe(q.explanation.ifBlank { "请回到证据核对题干的限定条件，再确认正确选项。" })}")
-                        appendLine("   - 证据：${q.evidenceIds.map { evidenceLabelZh(evidenceById[it], q.stem) }.firstOrNull() ?: NO_EVIDENCE}")
+                        appendLine("   - 证据：${q.evidenceIds.map { evidenceLabelZh(ownership, evidenceById[it], q.stem) }.firstOrNull() ?: NO_EVIDENCE}")
                     }
                 }
             }
@@ -96,7 +101,7 @@ object LearningExportEngine {
                         appendLine("   - 正确答案：${safe(wrong.correctAnswer)}")
                         appendLine("   - 错因：${safe(wrong.mistakeReason.ifBlank { wrong.explanation })}")
                         appendLine("   - 巩固建议：${safe(wrong.remediationHint.ifBlank { "回到证据重新核对，然后重做这道题。" })}")
-                        appendLine("   - 证据：${wrong.evidenceIds.map { evidenceLabelZh(evidenceById[it], question?.stem.orEmpty()) }.firstOrNull() ?: NO_EVIDENCE}")
+                        appendLine("   - 证据：${wrong.evidenceIds.map { evidenceLabelZh(ownership, evidenceById[it], question?.stem.orEmpty()) }.firstOrNull() ?: NO_EVIDENCE}")
                     }
                 }
             }
@@ -110,7 +115,7 @@ object LearningExportEngine {
                         appendLine("- [ ] ${safe(kp?.title ?: "复习知识点")}")
                         appendLine("      安排原因：${safe(item.arrangementReason.ifBlank { "来自学习闭环的复习安排。" })}")
                         appendLine("      建议动作：${safe(item.recommendedActions.joinToString("、").ifBlank { "看证据、重做微测、口头复述。" })}")
-                        item.evidenceId?.let { appendLine("      证据：${evidenceLabelZh(evidenceById[it], kp?.title.orEmpty())}") }
+                        item.evidenceId?.let { appendLine("      证据：${evidenceLabelZh(ownership, evidenceById[it], kp?.title.orEmpty())}") }
                     }
                 }
             }
@@ -152,7 +157,7 @@ object LearningExportEngine {
                 appendLine("- 标注「暂无可回溯原文片段」的内容，请结合课堂材料人工确认。")
             }
         }.trim()
-        return redactForbidden(body)
+        return SafeExportText.redact(redactForbidden(body))
     }
 
     private fun StringBuilder.appendSection(title: String, block: StringBuilder.() -> Unit) {
@@ -174,16 +179,50 @@ object LearningExportEngine {
         if (value.isBlank()) emptyList() else listOf(value)
 
     /** A study-facing evidence label: source type (Chinese) + material name, never a raw id. */
-    private fun evidenceLabelZh(evidence: Evidence?, context: String = ""): String =
+    private fun evidenceLabelZh(ownership: EvidenceOwnership.Snapshot, evidence: Evidence?, context: String = ""): String =
         evidence?.let {
+            val ownershipLevel = EvidenceOwnership.assess(ownership, it.id)
+            if (ownershipLevel == EvidenceRelationLevel.MISSING) return@let NO_EVIDENCE
             val label = it.sourceLabel.ifBlank { it.fileName }.ifBlank { sourceTypeZh(it.sourceType) }
             val excerpt = it.text.ifBlank { it.snippet }.ifBlank { it.transcriptSegment }
             // Flag a likely mis-binding so the export never presents weak evidence as confirmed.
-            val weak = context.isNotBlank() && excerpt.isNotBlank() &&
-                com.classmate.core.evidence.EvidenceRelation.assess(excerpt, context) ==
-                com.classmate.core.evidence.EvidenceRelationLevel.WEAK
+            val weak = ownershipLevel == EvidenceRelationLevel.WEAK ||
+                context.isNotBlank() && excerpt.isNotBlank() &&
+                EvidenceRelation.assess(excerpt, context) == EvidenceRelationLevel.WEAK
             "${sourceTypeZh(it.sourceType)} · ${safe(label)}${if (weak) "（证据待核对）" else ""}"
         } ?: NO_EVIDENCE
+
+    private fun evidenceOwnershipSnapshot(snapshot: L3PipelineSnapshot): EvidenceOwnership.Snapshot =
+        EvidenceOwnership.Snapshot(
+            snapshotId = snapshot.lessonSource?.id.orEmpty(),
+            lessonSourceId = snapshot.lessonSource?.id.orEmpty(),
+            lessonTitle = snapshot.lessonSource?.title.orEmpty(),
+            lessonSourceType = snapshot.lessonSource?.type?.name.orEmpty(),
+            isSampleCourse = snapshot.lessonSource?.status.equals("SAMPLE", ignoreCase = true),
+            evidence = snapshot.evidence.map {
+                EvidenceOwnership.EvidenceRecord(
+                    id = it.id,
+                    sourceId = it.sourceId,
+                    sourceType = it.sourceType.name,
+                    assetId = it.assetId,
+                    sourceLabel = it.sourceLabel,
+                    fileName = it.fileName,
+                    imageRef = it.imageRef,
+                    audioRef = it.audioRef,
+                )
+            },
+            assets = snapshot.evidenceAssets.map {
+                EvidenceOwnership.AssetRecord(
+                    id = it.id,
+                    sourceType = it.sourceType.name,
+                    sourceLabel = it.sourceLabel,
+                    fileName = it.fileName,
+                    imageRef = it.imageRef,
+                    audioRef = it.audioRef,
+                    createdAt = it.createdAt,
+                )
+            },
+        )
 
     private fun sourceTypeZh(type: L3SourceType): String = when (type) {
         L3SourceType.TEXT -> "课堂文本"

@@ -23,8 +23,11 @@ class QuizQualityTest {
     @Test
     fun usableNeedsTwoOptionsAndACorrectAnswer() {
         assertTrue(QuizQuality.isUsable(q("q1", listOf(opt("A", true), opt("B", false)))))
+        assertTrue("multi-answer is usable only when at least two correct options are marked", QuizQuality.isUsable(q("q1m", listOf(opt("A", true), opt("B", true), opt("C", false)))))
         assertFalse("one option is not usable", QuizQuality.isUsable(q("q2", listOf(opt("A", true)))))
         assertFalse("no correct option is not usable", QuizQuality.isUsable(q("q3", listOf(opt("A", false), opt("B", false)))))
+        assertFalse("blank option id is not usable", QuizQuality.isUsable(q("q4", listOf(opt("", true), opt("B", false)))))
+        assertFalse("duplicate option ids are not usable", QuizQuality.isUsable(q("q5", listOf(opt("A", true), opt("A", false)))))
     }
 
     @Test

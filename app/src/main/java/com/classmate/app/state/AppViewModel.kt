@@ -31,6 +31,7 @@ import com.classmate.core.audio.ConfigMissingTtsProvider
 import com.classmate.core.audio.CourseEssenceAudioExporter
 import com.classmate.core.evidence.EvidenceRelation
 import com.classmate.core.evidence.EvidenceRelationLevel
+import com.classmate.core.evidence.EvidenceOwnership
 import com.classmate.core.exporting.StudyReport
 import com.classmate.core.exporting.StudyReportBuilder
 import com.classmate.core.exporting.StudyReportRenderer
@@ -85,6 +86,7 @@ import com.classmate.app.l3.PracticeAnswerState
 import com.classmate.app.l3.PracticeAnswerSubmission
 import com.classmate.app.l3.PracticeQuestionMode
 import com.classmate.app.l3.QuestionBankParser
+import com.classmate.app.l3.RecordingFileManager
 import com.classmate.app.l3.ReviewStatsEngine
 import com.classmate.app.l3.SafetyGuardEngine
 import com.classmate.app.l3.ToolInputType
@@ -263,6 +265,7 @@ class AppViewModel(
     // the user actually invokes those capture paths. Tests inject a fake gateway.
     private val captureGatewayProvider: () -> CaptureGatewayPort = { CaptureGateway() },
     private val classroomAudioRecorder: ClassroomAudioRecorder = NoOpClassroomAudioRecorder,
+    private val recordingFileManager: RecordingFileManager = RecordingFileManager.disabled(),
     // Stage 8D-2: optional override of the all-files-access signal (tests inject false/true). Used
     // ONLY to CLASSIFY an on-device availability failure (PERMISSION_MISSING vs files/init) — it
     // never blocks the crash-safe generate attempt. Production (null) combines the live permission
@@ -351,6 +354,7 @@ class AppViewModel(
             learningSnapshot = learningStore.snapshot(),
             l3Pipeline = persistedL3,
         )
+        recordingFileManager.cleanupOrphans(emptySet(), deleteUnknown = false)
     }
 
     private fun syncLearning(toast: String? = null) {
@@ -1709,14 +1713,21 @@ class AppViewModel(
             asrStatus = if (ui.providerConfigSummary.officialProviders.asrLongConfigured) L3AsrStatus.PENDING_ASR_CONFIG else L3AsrStatus.ASR_NOT_CONFIGURED,
             message = artifact.safeMessage,
         )
-        if (!artifact.success) {
+        val usableAudioArtifact = artifact.success && recordingFileManager.isUsable(saved)
+        if (!usableAudioArtifact) {
+            if (artifact.success) recordingFileManager.deleteForRecords(listOf(saved))
+            val failedRecord = saved.copy(
+                status = L3RecordingStatus.FAILED,
+                fileSizeBytes = 0L,
+                message = if (artifact.success) "录音文件缺失或为空，已降级为手动转写。" else artifact.safeMessage,
+            )
             // No real audio file landed on disk -> never fabricate an AUDIO artifact/evidence or ASR job.
             // Keep the honest FAILED record and point the user to manual transcription.
             ui = ui.copy(
                 currentRecording = null,
-                recordingRecords = ui.recordingRecords + saved,
+                recordingRecords = ui.recordingRecords + failedRecord,
                 audioCaptureMessage = "录音未成功保存，请重试，或导入字幕/转写稿、粘贴课堂转写继续。",
-                toast = artifact.safeMessage,
+                toast = failedRecord.message,
             )
             return
         }
@@ -1740,8 +1751,9 @@ class AppViewModel(
         createAsrLongJobForArtifact(audioArtifact.id, now)
     }
 
-    /** Drop a recording record from state (the file itself is deleted on the UI/Context side first). */
+    /** Drop a recording record from state and remove the app-private audio file when present. */
     fun removeRecordingRecord(recordId: String, message: String = "录音已删除。") {
+        ui.recordingRecords.firstOrNull { it.id == recordId }?.let { recordingFileManager.deleteForRecords(listOf(it)) }
         ui = ui.copy(
             recordingRecords = ui.recordingRecords.filterNot { it.id == recordId },
             currentRecording = ui.currentRecording?.takeUnless { it.id == recordId },
@@ -3003,7 +3015,7 @@ class AppViewModel(
     }
 
     fun openEvidenceById(evidenceId: String) {
-        if (evidenceId.isBlank()) {
+        if (evidenceId.isBlank() || evidenceOwnershipLevel(evidenceId) == EvidenceRelationLevel.MISSING) {
             ui = ui.copy(toast = "该内容暂无可回溯证据。")
             return
         }
@@ -3042,6 +3054,7 @@ class AppViewModel(
     /** The real, user-facing excerpt for an evidence id within the CURRENT pipeline (blank if none). */
     fun evidenceExcerptFor(evidenceId: String?): String {
         if (evidenceId.isNullOrBlank()) return ""
+        if (evidenceOwnershipLevel(evidenceId) == EvidenceRelationLevel.MISSING) return ""
         val evidence = ui.l3Pipeline.evidence.firstOrNull { it.id == evidenceId } ?: return ""
         val asset = evidence.assetId?.let { id -> ui.l3Pipeline.evidenceAssets.firstOrNull { it.id == id } }
         return evidence.text
@@ -3060,7 +3073,51 @@ class AppViewModel(
     fun evidenceRelationLevel(evidenceId: String?, context: String): EvidenceRelationLevel {
         val excerpt = evidenceExcerptFor(evidenceId)
         if (excerpt.isBlank()) return EvidenceRelationLevel.MISSING
+        val ownership = evidenceOwnershipLevel(evidenceId)
+        if (ownership == EvidenceRelationLevel.WEAK) return EvidenceRelationLevel.WEAK
         return EvidenceRelation.assess(excerpt, context)
+    }
+
+    private fun evidenceOwnershipLevel(
+        evidenceId: String?,
+        expectedLessonId: String? = null,
+        expectedSourceLessonId: String? = null,
+    ): EvidenceRelationLevel =
+        EvidenceOwnership.assess(evidenceOwnershipSnapshot(), evidenceId, expectedLessonId, expectedSourceLessonId)
+
+    private fun evidenceOwnershipSnapshot(snapshot: L3PipelineSnapshot = ui.l3Pipeline): EvidenceOwnership.Snapshot {
+        val lesson = snapshot.lessonSource
+        val sourceKind = ui.session?.sourceKind
+        return EvidenceOwnership.Snapshot(
+            snapshotId = lesson?.id.orEmpty(),
+            lessonSourceId = lesson?.id.orEmpty(),
+            lessonTitle = lesson?.title.orEmpty(),
+            lessonSourceType = lesson?.type?.name.orEmpty(),
+            isSampleCourse = sourceKind == SourceKind.SAMPLE || lesson?.status.equals("SAMPLE", ignoreCase = true),
+            evidence = snapshot.evidence.map {
+                EvidenceOwnership.EvidenceRecord(
+                    id = it.id,
+                    sourceId = it.sourceId,
+                    sourceType = it.sourceType.name,
+                    assetId = it.assetId,
+                    sourceLabel = it.sourceLabel,
+                    fileName = it.fileName,
+                    imageRef = it.imageRef,
+                    audioRef = it.audioRef,
+                )
+            },
+            assets = snapshot.evidenceAssets.map {
+                EvidenceOwnership.AssetRecord(
+                    id = it.id,
+                    sourceType = it.sourceType.name,
+                    sourceLabel = it.sourceLabel,
+                    fileName = it.fileName,
+                    imageRef = it.imageRef,
+                    audioRef = it.audioRef,
+                    createdAt = it.createdAt,
+                )
+            },
+        )
     }
 
     // --- quiz ---
@@ -3237,8 +3294,7 @@ class AppViewModel(
         val snapshot = ui.l3Pipeline
         val title = snapshot.lessonSource?.title ?: ui.session?.title ?: ui.history.firstOrNull()?.session?.title
         if (snapshot.lessonSource == null && snapshot.knowledgePoints.isEmpty() && snapshot.questions.isEmpty()) {
-            ui = ui.copy(toast = "暂无可导出的学习包，请先生成学习闭环。")
-            return null
+            ui = ui.copy(toast = "暂无完整学习包，已导出空态学习文档。")
         }
         val markdown = LearningExportEngine.buildStudyPackMarkdown(snapshot)
         return ExportCenter.artifactFromMarkdown(
@@ -4225,10 +4281,27 @@ class AppViewModel(
         if (records.isEmpty()) return false
         val recordIds = records.map { it.id }.toSet()
         val sessionIds = records.map { it.session.id }.toSet()
-        val courseKeys = records.map { CourseLibraryBuilder.normalizeCourseName(it.title).lowercase() }.toSet()
+        val courseTitles = records.map { it.title }.toSet()
+        val courseKeys = courseTitles.map { CourseLibraryBuilder.normalizeCourseName(it).lowercase() }.toSet()
         val updated = ui.history.filterNot { it.id in recordIds }
-        learningStore.deleteCourseSessions(sessionIds)
         val activeDeleted = ui.session?.id in sessionIds || ui.selectedCourseKey in courseKeys
+        val recordingRecordsToDelete = ui.recordingRecords.filter { it.belongsToDeletedCourse(sessionIds, courseKeys) }
+
+        val privateEvidenceRefs = if (activeDeleted) ui.l3Pipeline.privateEvidenceRefs() else emptySet()
+        val evidenceCleanup = evidenceAssetStore.deleteRefs(privateEvidenceRefs)
+        val evidenceSessionCleanup = sessionIds
+            .map { evidenceAssetStore.deleteForSession(it) }
+            .firstOrNull { !it.success }
+        val exportCleanup = exportStore.deleteForCourse(courseTitles, sessionIds)
+        val recordingCleanup = recordingFileManager.deleteForRecords(recordingRecordsToDelete)
+        val persistenceCleanupOk = l3PersistenceRepository.clearIfMatches(sessionIds, courseTitles)
+
+        if (!evidenceCleanup.success || evidenceSessionCleanup != null || !exportCleanup.success || !recordingCleanup.success || !persistenceCleanupOk) {
+            ui = ui.copy(toast = "删除课程失败，已保留现有学习记录，请稍后重试。")
+            return false
+        }
+
+        learningStore.deleteCourseSessions(sessionIds)
         val nextL3 = if (activeDeleted) L3PipelineSnapshot.Empty else ui.l3Pipeline
         if (activeDeleted) l3PersistenceRepository.saveSnapshot(nextL3)
         ui = ui.copy(
@@ -4244,11 +4317,37 @@ class AppViewModel(
             revealedQuestionIds = if (activeDeleted) emptySet() else ui.revealedQuestionIds,
             selectedKnowledgePointId = if (activeDeleted) null else ui.selectedKnowledgePointId,
             selectedEvidenceId = if (activeDeleted) null else ui.selectedEvidenceId,
+            inputArtifacts = if (activeDeleted) emptyList() else ui.inputArtifacts,
+            importReports = if (activeDeleted) emptyList() else ui.importReports,
+            pdfDocuments = if (activeDeleted) emptyList() else ui.pdfDocuments,
+            pdfPages = if (activeDeleted) emptyList() else ui.pdfPages,
+            asrLongJobs = if (activeDeleted) emptyList() else ui.asrLongJobs,
+            recordingRecords = ui.recordingRecords.filterNot { it in recordingRecordsToDelete },
+            currentRecording = ui.currentRecording?.takeUnless { current -> recordingRecordsToDelete.any { it.id == current.id } },
             toast = successToast,
         )
         persistHistory(updated)
         if (activeDeleted && currentScreen == Screen.COURSE_DETAIL) selectTab(Tab.HISTORY)
         return true
+    }
+
+    private fun L3PipelineSnapshot.privateEvidenceRefs(): Set<String> =
+        buildSet {
+            evidenceAssets.forEach { asset ->
+                listOf(asset.localUri, asset.thumbnailRef, asset.imageRef, asset.audioRef)
+                    .filterTo(this) { it.isNotBlank() }
+            }
+            evidence.forEach { ev ->
+                listOf(ev.localUri, ev.thumbnailRef, ev.imageRef, ev.audioRef)
+                    .filterTo(this) { it.isNotBlank() }
+            }
+        }
+
+    private fun ClassroomRecordingRecord.belongsToDeletedCourse(sessionIds: Set<String>, courseKeys: Set<String>): Boolean {
+        val titleKey = CourseLibraryBuilder.normalizeCourseName(title).lowercase()
+        if (titleKey in courseKeys) return true
+        val haystack = listOf(id, artifactFileName.orEmpty(), artifactPath.orEmpty()).joinToString(" ").lowercase()
+        return sessionIds.any { it.isNotBlank() && haystack.contains(it.lowercase()) }
     }
 
     /** Official SDK requirement: release native resources when the owner is destroyed. */

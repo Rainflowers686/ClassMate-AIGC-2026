@@ -1,6 +1,6 @@
 # ClassMate 真机复测清单 v1
 
-> 版本：见 `app/build.gradle.kts`（当前 1.3.3 / versionCode 96）。设置 / 关于 / 诊断页通过 `BuildConfig` 自动读取，复测时先核对显示版本一致。
+> 版本：见 `app/build.gradle.kts`（当前 1.4.3 / versionCode 97）。设置 / 关于 / 诊断页通过 `BuildConfig` 自动读取，复测时先核对显示版本一致。
 
 给队友真机回归用，按主流程走一遍即可，约 15 分钟。
 
@@ -48,3 +48,10 @@
 - 全局 i18n 未完成：仅主流程部分文案 + 证据三态 + 帮助弹窗已跟随语言；多数页面仍为中文硬编码。
 - 帮助弹窗暂覆盖转写页 / 导入页 / 复习页 / 导出；其余页面后续补。
 - 证据为词面弱校验，非真正语义匹配。
+
+## 非前端工程回归点
+1. **Evidence ownership**：同一个 evidenceId 必须能在当前 L3 snapshot 的 evidence/assets 中解析；跨课程、示例课或缺失 asset 的证据只能显示“证据待核对/暂无证据”，不能作为强证据。
+2. **Deletion consistency**：删除课程后，history、learning snapshot、review queue、wrong book、app 私有导出草稿、evidence assets、录音缓存都不应留下坏引用；重复删除不崩溃。
+3. **Recording lifecycle**：0 字节录音和失败录音不生成 AUDIO evidence；删除录音或删除课程会清理 app 私有录音文件；重启后缺失文件应降级显示，不冒充可播放证据。
+4. **Export safety**：PDF / Word(HTML) / Markdown / TXT / Study Pack 均需经过 SafeExportText；不得出现 AppKey、Authorization、config.local.json、provider/debug token、裸 `kp_/q_/ev_`。
+5. **Quiz completeness**：练习、导入题、错题、导出前的题目必须有可用选项、正确答案、解析和证据状态；坏题不得进入 WrongBook 或导出。

@@ -118,4 +118,41 @@ class LearningExportEngineTest {
         assertFalse(pdf.containsSensitiveContent)
         assertFalse(word.containsSensitiveContent)
     }
+
+    @Test
+    fun emptyStudyPackExportsHonestEmptyStateAndNoForbiddenTokens() {
+        val markdown = LearningExportEngine.buildStudyPackMarkdown(L3PipelineSnapshot.Empty, 1_700_000_000_000L)
+
+        assertTrue(markdown.contains("暂无知识点"))
+        assertTrue(markdown.contains("暂无微测题"))
+        assertTrue(markdown.contains("暂无证据"))
+        listOf("AppKey", "Authorization", "config.local.json", "LOCAL_FALLBACK", "Semantic index", "Tool steps").forEach {
+            assertFalse(markdown.contains(it, ignoreCase = true))
+        }
+    }
+
+    @Test
+    fun weakEvidenceIsMarkedForReview() {
+        val snapshot = L3PipelineSnapshot(
+            lessonSource = LessonSource("lesson_a", "Physics", L3SourceType.TEXT, 1L, "电磁感应", "READY"),
+            evidence = listOf(
+                Evidence(
+                    id = "ev_wrong_source",
+                    sourceId = "lesson_b",
+                    sourceType = L3SourceType.TEXT,
+                    text = "电磁感应和磁通量变化有关。",
+                    sourceLabel = "other lesson",
+                ),
+            ),
+            knowledgePoints = listOf(
+                L3KnowledgePoint("kp_induction", "电磁感应", "磁通量变化产生感应电流。", listOf("ev_wrong_source"), L3MasteryState.LEARNING),
+            ),
+        )
+
+        val markdown = LearningExportEngine.buildStudyPackMarkdown(snapshot, 1_700_000_000_000L)
+
+        assertTrue(markdown.contains("证据待核对"))
+        assertFalse(markdown.contains("ev_wrong_source"))
+        assertFalse(markdown.contains("kp_induction"))
+    }
 }

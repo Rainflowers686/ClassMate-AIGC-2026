@@ -369,10 +369,18 @@ object SafeExportText {
         "REVIEW_UPDATE",
         "Semantic index",
         "Tool steps",
+        "ASR Long job",
+        "PDF page",
+        "Import report",
+    )
+    private val rawIdPatterns = listOf(
+        Regex("\\bkp_[A-Za-z0-9_-]+\\b"),
+        Regex("\\bq_[A-Za-z0-9_-]+\\b"),
+        Regex("\\bev_[A-Za-z0-9_-]+\\b"),
     )
 
     fun redact(value: String): String =
-        forbidden.fold(value) { acc, token ->
+        rawIdPatterns.fold(forbidden.fold(value) { acc, token ->
             acc.replace(Regex(Regex.escape(token), RegexOption.IGNORE_CASE), "redacted")
-        }
+        }) { acc, pattern -> acc.replace(pattern, "redacted") }
 }

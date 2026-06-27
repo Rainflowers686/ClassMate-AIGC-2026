@@ -20,9 +20,13 @@ object QuizQuality {
     /** A question can enter practice iff it has >=2 options and >=1 correct option that exists in options. */
     fun isUsable(q: QuizQuestion): Boolean {
         if (q.options.size < 2) return false
-        val optionIds = q.options.map { it.id }.toSet()
+        val ids = q.options.map { it.id.trim() }
+        if (ids.any { it.isBlank() }) return false
+        val optionIds = ids.toSet()
+        if (optionIds.size != q.options.size) return false
         val correct = q.correctOptionIds
-        return correct.isNotEmpty() && correct.all { it in optionIds }
+        val validAnswerShape = correct.size == 1 || correct.size >= 2
+        return validAnswerShape && correct.all { it in optionIds }
     }
 
     /** Fill blank per-option rationale + overall explanation with honest defaults. Answers are untouched. */

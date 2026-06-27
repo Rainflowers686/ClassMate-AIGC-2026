@@ -326,7 +326,7 @@ class L3LearningPipelineAppTest {
             RecordingArtifactResult(success = true, fileName = "$sessionId.m4a", safeMessage = "fake recording started")
 
         override fun stop(): RecordingArtifactResult =
-            RecordingArtifactResult(success = true, fileName = null, safeMessage = "fake recording saved")
+            RecordingArtifactResult(success = true, fileName = "recording_fake.m4a", safeMessage = "fake recording saved", fileSizeBytes = 2048L)
     }
 
     private fun zip(vararg entries: Pair<String, String>): ByteArray {
