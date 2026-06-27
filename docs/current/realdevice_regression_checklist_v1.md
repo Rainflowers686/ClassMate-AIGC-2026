@@ -1,64 +1,79 @@
-# ClassMate 真机复测清单 v1
+# ClassMate Real Device Regression Checklist v1
 
-> 版本：见 `app/build.gradle.kts`（当前 1.7.3 / versionCode 100）。设置 / 关于 / 诊断页通过 `BuildConfig` 自动读取，复测时先核对显示版本一致。
+Use this checklist after installing the debug build on a real device. The app version is read from `BuildConfig`; verify the Settings/About/Diagnostics version matches `app/build.gradle.kts`.
 
-## 本轮新增复测点（1.7.3）
-- **录音页内联实时转写**：导入页「开始录音并实时转写」→ 录音中应实时显示"正在听写 / 临时识别 / 已识别 N 段"；停止后有 transcript 则同时生成音频与转写证据，无 transcript 只生成音频证据；取消不生成任何证据；系统语音识别不可用时有中文提示且录音继续（不死路）。识别文本标注"系统语音识别"，不冒充官方 ASR。
-- **听背文稿**：课程详情「生成听背文稿」→ 显示文稿 + 「复制听背文稿」；不再出现"音频生成待配置"；TTS 不可用时诚实说明"当前设备暂未生成音频"。
-- **心流页**：可选 15/25/45 专注时长；「追加片段」为全宽按钮，不再窄/歪。
+## Main Route
 
-给队友真机回归用，按主流程走一遍即可，约 15 分钟。
+1. Home -> Import material -> Course detail -> Evidence detail -> Practice -> Wrong book -> Review -> Export.
+2. Every step must continue without crashes, stale data, raw ids, provider traces, or false official-capability claims.
 
-## 主流程
-首页 → 导入资料 → 课程详情 → 查看证据 → 做题 → 复习 → 导出。每一步都应能继续，不卡死、不崩溃。
+## P0/P1 Regression Points
 
-## 重点测试点
+### Multi-image OCR
 
-1. **录音文件**
-   - 开始/停止课堂录音；成功后应显示文件名、时长、大小，并能「导出录音」分享、「删除」。
-   - 录音失败 / 时长为 0 / 无权限时，不应显示「录音成功」，且不生成 AUDIO 证据；提示重试或导入字幕/转写稿。
+1. Pick at least three classroom images at once.
+2. Confirm the OCR draft shows each image as a separate item in the selected order.
+3. Confirm one failed or unreadable image shows a visible error but the other images remain available.
+4. Before confirming the draft, verify no knowledge points, quiz, or review plan are published.
+5. Confirm the OCR draft. The generated course should contain image-section text and each successful image should have a separate `OCR_IMAGE` evidence entry.
+6. Start a second image import and confirm the previous batch is not reused.
 
-2. **OCR 确认**
-   - 图片/拍照学习输入后进入草稿，可「检查识别结果」并编辑确认；确认前不并入正式资料。
+### OCR Quality
 
-3. **证据三态**
-   - 复习页 / 错题 / 诊断 / 任务的证据入口分别出现：强=「查看证据」、弱=「证据待核对」、无=「暂无可回溯证据」。
-   - 弱关联证据点开后，证据详情顶部应有「关联较弱，请结合原文核对」提示。
+1. Use an image with question numbers, bullet points, and formula-like lines.
+2. Verify question numbers, bullets, and formula symbols are preserved in the editable draft.
+3. Use a low-quality or unreadable image. The app should recommend manually checking the OCR result and should not silently publish bad text.
 
-4. **题目答案与解析**
-   - 每题有正确答案、每选项解析、总解析、考查知识点；无坏题（缺答案/缺选项）。
+### Import Capability Honesty
 
-5. **导出文件**
-   - 导出 PDF / Word(HTML) / Markdown / TXT；内容为复习版（摘要/知识点/微测含答案解析/错题/复习计划/证据索引）。
-   - 不应出现英文 debug、provider 状态、密钥、raw id、`安全占位`；弱证据标注「证据待核对」。
+1. Text, TXT/Markdown, image OCR, subtitles, transcript paste, recording, and PDF page text must show honest availability.
+2. Embedded video subtitles must not be presented as automatic extraction. Use manual subtitles or transcript import instead.
+3. Missing permission or missing configuration must show a clear fallback path.
 
-6. **课程删除**
-   - 首页 / 课程详情删除课程后，首页、历史、复习列表不再显示该课程；旧证据不被新课程复用。
+### Evidence Ownership
 
-7. **B 站搜索**
-   - 「B站搜讲解」能用知识点关键词跳转搜索，不内嵌爬取。
+1. Open evidence from Course detail, Practice, Wrong book, and Review.
+2. Strong evidence opens as "View evidence"; weak evidence shows "Check evidence"; missing evidence shows "No traceable evidence" in the active language.
+3. Evidence from deleted, sample, or other courses must not be reused as strong evidence.
 
-8. **i18n 切换**
-   - 设置切换中文/English/跟随系统：已迁移文案（证据三态、帮助弹窗、导航、首页/导入/历史/微测部分）应跟随语言；技术短码（BlueLM、qwen3.5-plus、JSON）保持英文。
-   - 说明：部分页面文案仍为中文硬编码，尚未全量 i18n（见下）。
+### Course Deletion
 
-9. **帮助弹窗**
-   - 转写页、导入页录音卡、复习页有「?」帮助入口；内容为中文/英文产品说明，无 provider/pipeline/debug。
+1. Delete a course from the visible delete entry.
+2. Confirm the warning mentions related knowledge points, quiz, wrong book, review tasks, drafts, and local records.
+3. After deletion, Home, History, Review, Wrong book, and export drafts must not show broken references to the deleted course.
+4. Repeating deletion or deleting sample data must not affect other courses.
 
-## 不应出现的 debug token（普通学习页 / 导出）
-`Semantic index`、`Tool steps`、`Import report`、`ASR Long job`、`PDF page`、`Transcript timeline`、`topHit`、`provider trace`、`SafetyPlaceholder`、`MIME`、`assetId`、裸 `kp_/q_/ev_`、enum `.name` 直接展示。
-（开发者诊断页可保留技术字段，与普通页面隔离。）
+### Recording And ASR
 
-## 已知未完成（诚实记录）
-- 全局 i18n 未完成：仅主流程部分文案 + 证据三态 + 帮助弹窗已跟随语言；多数页面仍为中文硬编码。
-- 帮助弹窗暂覆盖转写页 / 导入页 / 复习页 / 导出；其余页面后续补。
-- 证据为词面弱校验，非真正语义匹配。
+1. Start recording with live ASR readiness enabled.
+2. If SpeechRecognizer is unavailable or permission is missing, the app should show a Chinese friendly reason and manual transcript fallback.
+3. Stop recording with transcript text: audio evidence and transcript evidence are both present.
+4. Stop recording without transcript text: audio evidence is present, but no fake transcript evidence is created.
+5. Cancel recording: no audio evidence and no transcript evidence are created.
 
-## 非前端工程回归点
-1. **Evidence ownership**：同一个 evidenceId 必须能在当前 L3 snapshot 的 evidence/assets 中解析；跨课程、示例课或缺失 asset 的证据只能显示“证据待核对/暂无证据”，不能作为强证据。
-2. **Deletion consistency**：删除课程后，history、learning snapshot、review queue、wrong book、app 私有导出草稿、evidence assets、录音缓存都不应留下坏引用；重复删除不崩溃。
-3. **Recording lifecycle**：0 字节录音和失败录音不生成 AUDIO evidence；删除录音或删除课程会清理 app 私有录音文件；重启后缺失文件应降级显示，不冒充可播放证据。
-4. **Export safety**：PDF / Word(HTML) / Markdown / TXT / Study Pack 均需经过 SafeExportText；不得出现 AppKey、Authorization、config.local.json、provider/debug token、裸 `kp_/q_/ev_`。
-5. **Quiz completeness**：练习、导入题、错题、导出前的题目必须有可用选项、正确答案、解析和证据状态；坏题不得进入 WrongBook 或导出。
-6. **Transcript parser**：SRT/VTT/TXT、BOM、畸形时间轴、空文件都应返回可理解状态；视频 metadata 只保留文件信息，不生成假转写证据。
-7. **i18n domain copy**：普通用户可见的 evidence/recording/export/quiz/transcript/deletion 状态应使用中文或已接入语言资源，不把 errorCode/provider code 当主文案。
+### Quiz And Weakness Loop
+
+1. Imported, generated, random, exam, and retry questions must have usable options, answer, explanation, and evidence state.
+2. Bad questions must not enter Practice, Wrong book, or export.
+3. Answer wrong: Wrong book, weak knowledge point, mastery, and ReviewPlan must point to the same knowledge point.
+4. Answer correctly on retry: mastery/review priority should improve without deleting history.
+
+### Export Safety
+
+1. Export PDF, Word-compatible HTML/DOCX, Markdown, TXT, and Study Pack.
+2. Empty courses or missing evidence should produce an honest empty-state document, not a crash.
+3. Weak evidence is marked "证据待核对"; missing evidence is marked "暂无可回溯证据".
+4. Exported content must not contain secrets, `config.local.json`, provider traces, `LOCAL_FALLBACK`, `BuildConfig`, `Semantic index`, `Tool steps`, `ASR Long job`, `PDF page`, `Import report`, `Transcript timeline`, `assetId`, `MIME`, or raw `kp_` / `q_` / `ev_` ids.
+
+### i18n And User Copy
+
+1. Switch Chinese, English, and Follow system.
+2. User-facing evidence, recording, import, export, quiz, review, and HelpHint copy should follow the selected language where it has been migrated.
+3. Developer codes may appear only in diagnostics, not normal learning pages.
+
+## Known Honest Limits
+
+1. Official OCR/ASR and retrieval capabilities are configuration-gated.
+2. Embedded video subtitles are not automatically extracted.
+3. Evidence relation is a conservative lexical guard, not full semantic proof.
+4. Some legacy screens still contain Chinese-only copy; do not mark that as full i18n completion.

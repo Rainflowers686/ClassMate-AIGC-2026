@@ -27,11 +27,24 @@ class OcrTextPostProcessorTest {
 
     @Test
     fun preservesNumberedListsAndBullets() {
-        val src = "1. 第一点说明\n2. 第二点说明\n· 要点一\n· 要点二"
+        val src = "1. 第一点说明\n（1）小题说明\n① 圆圈题号\n- 要点一\n• 要点二"
         val r = OcrTextPostProcessor.clean(src)
         assertTrue(r.text.contains("1. 第一点说明"))
-        assertTrue(r.text.contains("2. 第二点说明"))
-        assertEquals(4, r.text.lines().size)
+        assertTrue(r.text.contains("（1）小题说明"))
+        assertTrue(r.text.contains("① 圆圈题号"))
+        assertTrue(r.text.contains("- 要点一"))
+        assertTrue(r.text.contains("• 要点二"))
+        assertEquals(5, r.text.lines().size)
+    }
+
+    @Test
+    fun preservesFormulaLinesWithSymbols() {
+        val src = "p 级数判别法\n∑ 1/n^p 在 p>1 时收敛\n下面继续说明"
+        val r = OcrTextPostProcessor.clean(src)
+
+        assertTrue(r.text.contains("∑ 1/n^p"))
+        assertTrue(r.text.contains("p>1"))
+        assertTrue(r.text.lines().any { it.contains("∑ 1/n^p") })
     }
 
     @Test
@@ -54,6 +67,15 @@ class OcrTextPostProcessorTest {
         val r = OcrTextPostProcessor.clean("¥€¤§¶‡†˜˄˅ǂǁ‖¦×÷ ®©™ 的 ")
         assertTrue(r.needsReview)
         assertEquals(OcrTextPostProcessor.REVIEW_HINT, r.reviewHint)
+    }
+
+    @Test
+    fun qualityAssessmentReportsReplacementCharacters() {
+        val quality = OcrTextPostProcessor.qualityAssessment("课堂内容���")
+
+        assertTrue(quality.needsReview)
+        assertEquals(3, quality.replacementCharCount)
+        assertEquals(OcrTextPostProcessor.REVIEW_HINT, quality.warning)
     }
 
     @Test

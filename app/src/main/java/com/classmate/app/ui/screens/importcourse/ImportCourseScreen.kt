@@ -55,7 +55,9 @@ import com.classmate.app.importing.MultimodalEntryId
 import com.classmate.app.importing.MultimodalImportCatalog
 import com.classmate.app.importing.MultimodalImportEntry
 import com.classmate.app.importing.OcrImportAssembler
+import com.classmate.app.importing.OcrImportFileMeta
 import com.classmate.app.importing.OcrImportKind
+import com.classmate.app.importing.OcrImportStatus
 import com.classmate.app.importing.SelectedLocalFileMetadata
 import com.classmate.app.sample.SampleLessonLibrary
 import com.classmate.app.state.AppViewModel
@@ -118,8 +120,13 @@ fun ImportCourseScreen(viewModel: AppViewModel) {
 
     val perms = remember { OnDevicePermissions(context) }
     // Photo Picker (no permission needed) → decode → on-device multimodal draft.
-    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
-        if (uri != null) handlePickedImage(context, uri, perms, viewModel)
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia()) { uris: List<Uri> ->
+        if (uris.isNotEmpty()) {
+            val batchId = viewModel.beginImageOcrBatch("图片学习输入", uris.size)
+            uris.forEachIndexed { index, uri ->
+                handlePickedImageBatch(context, uri, perms, viewModel, batchId, index + 1, uris.size)
+            }
+        }
     }
     // Camera thumbnail (uses the declared CAMERA permission) → decode → on-device multimodal draft.
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap: Bitmap? ->
@@ -638,6 +645,21 @@ private fun ImageDraftCard(viewModel: AppViewModel) {
                 )
                 Spacer(Modifier.height(Dimens.s))
             }
+            if (ui.ocrImports.isNotEmpty()) {
+                ui.ocrImports.sortedBy { it.pageIndex ?: Int.MAX_VALUE }.forEach { draft ->
+                    val statusText = when (draft.status) {
+                        OcrImportStatus.PENDING -> "识别中"
+                        OcrImportStatus.OK -> if (draft.errorReason.isBlank()) "已识别" else "建议检查"
+                        OcrImportStatus.FAILED -> "需手动补充"
+                    }
+                    Text(
+                        "${draft.fileMeta.safeDisplayLabel()} · $statusText${draft.errorReason.takeIf { it.isNotBlank() }?.let { "：$it" }.orEmpty()}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (draft.status == OcrImportStatus.FAILED) cs.error else cs.onSurfaceVariant,
+                    )
+                }
+                Spacer(Modifier.height(Dimens.s))
+            }
             // Paper-like editing surface.
             OutlinedTextField(
                 value = ui.imageDraftText,
@@ -658,7 +680,17 @@ private fun ImageDraftCard(viewModel: AppViewModel) {
             }
             Spacer(Modifier.height(Dimens.m))
             // Two-level footer: confirm dominant, cancel quiet.
-            PrimaryButton(text = "确认并进入学习资料", onClick = { viewModel.confirmImageDraft() }, modifier = Modifier.fillMaxWidth())
+            PrimaryButton(
+                text = "确认并进入学习资料",
+                onClick = {
+                    if (ui.ocrImports.any { it.batchId.isNotBlank() }) {
+                        viewModel.confirmImageOcrBatch()
+                    } else {
+                        viewModel.confirmImageDraft()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
             Spacer(Modifier.height(Dimens.xs))
             SecondaryButton(text = "取消", onClick = { viewModel.cancelImageDraft() }, modifier = Modifier.fillMaxWidth())
         }
@@ -701,6 +733,66 @@ private fun handlePickedImage(context: Context, uri: Uri, perms: OnDevicePermiss
     )
 }
 
+/** Decode one image inside a multi-image batch. A bad image becomes one FAILED draft, not a batch failure. */
+private fun handlePickedImageBatch(
+    context: Context,
+    uri: Uri,
+    perms: OnDevicePermissions,
+    viewModel: AppViewModel,
+    batchId: String,
+    pageIndex: Int,
+    total: Int,
+) {
+    val imageBytes = runCatching {
+        context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+    }.getOrNull() ?: ByteArray(0)
+    val bitmap = runCatching {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri)) { decoder, _, _ ->
+                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
+        }
+    }.getOrNull()
+    if (bitmap == null) {
+        viewModel.applyImageOcrBatchItem(
+            com.classmate.app.importing.OcrImportDraft(
+                id = "${batchId}_$pageIndex",
+                kind = OcrImportKind.SLIDE_IMAGE,
+                fileMeta = OcrImportFileMeta(
+                    fileName = readDisplayName(context, uri).ifBlank { "image_$pageIndex" },
+                    mimeType = context.contentResolver.getType(uri).orEmpty().ifBlank { "image/*" },
+                    sizeBytes = imageBytes.size.toLong().takeIf { it > 0L },
+                    displayLabel = "图片$pageIndex",
+                    pageIndex = pageIndex,
+                ),
+                pastedText = "",
+                status = OcrImportStatus.FAILED,
+                errorReason = "无法读取该图片，请重试或手动补充文字。",
+                batchId = batchId,
+                pageIndex = pageIndex,
+                blockIndex = pageIndex,
+                createdAt = System.currentTimeMillis(),
+                updatedAt = System.currentTimeMillis(),
+            ),
+            total,
+        )
+        return
+    }
+    viewModel.ingestMultiImageOcr(
+        BitmapToRgb.toRgbScaled(bitmap),
+        perms.allFilesAccessGranted(),
+        originalWidth = bitmap.width,
+        originalHeight = bitmap.height,
+        encodedImageBytes = imageBytes,
+        pageIndex = pageIndex,
+        total = total,
+        batchId = batchId,
+    )
+}
+
 @Composable
 fun MaterialTrayScreen(viewModel: AppViewModel) {
     val ui = viewModel.ui
@@ -740,10 +832,15 @@ fun MaterialTrayScreen(viewModel: AppViewModel) {
                 Text("还没有文本资料。可以在下方粘贴课堂文本，或加入 OCR 资料。", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             ui.ocrImports.forEach { draft ->
+                val statusText = when (draft.status) {
+                    OcrImportStatus.PENDING -> "识别中"
+                    OcrImportStatus.OK -> if (draft.errorReason.isBlank()) "已确认" else "建议检查"
+                    OcrImportStatus.FAILED -> "需手动补充"
+                }
                 MaterialTrayItem(
                     title = draft.fileMeta.safeDisplayLabel(),
                     source = OcrImportAssembler.sourceLabel(draft.kind),
-                    meta = "${draft.pastedText.count { !it.isWhitespace() }} 字",
+                    meta = "$statusText · ${draft.pastedText.count { !it.isWhitespace() }} 字",
                     onRemove = { viewModel.removeOcrImport(draft.id) },
                 )
             }
@@ -956,13 +1053,13 @@ fun ImportSettingsScreen(viewModel: AppViewModel) {
             PrimaryButton(
                 text = "生成知识时间线",
                 onClick = { viewModel.startAnalysis() },
-                enabled = ui.courseText.isNotBlank() || ui.ocrImports.any { it.pastedText.isNotBlank() },
+                enabled = ui.courseText.isNotBlank() || ui.ocrImports.any { it.status == OcrImportStatus.OK && it.pastedText.isNotBlank() },
                 modifier = Modifier.fillMaxWidth(),
             )
             SecondaryButton(
                 text = "生成 L3 本地学习闭环",
                 onClick = { viewModel.generateL3PipelineFromCurrentMaterial() },
-                enabled = ui.courseText.isNotBlank() || ui.ocrImports.any { it.pastedText.isNotBlank() } || ui.transcripts.any { it.segments.any { seg -> seg.text.isNotBlank() } },
+                enabled = ui.courseText.isNotBlank() || ui.ocrImports.any { it.status == OcrImportStatus.OK && it.pastedText.isNotBlank() } || ui.transcripts.any { it.segments.any { seg -> seg.text.isNotBlank() } },
                 modifier = Modifier.fillMaxWidth(),
             )
         }

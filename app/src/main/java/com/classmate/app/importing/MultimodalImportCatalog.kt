@@ -1,5 +1,7 @@
 package com.classmate.app.importing
 
+import com.classmate.core.importing.ImportCapabilityStatus
+
 enum class MultimodalEntryId {
     PASTE_TEXT,
     TXT_MD,
@@ -20,6 +22,16 @@ data class MultimodalImportEntry(
     val opensPicker: Boolean,
     val mimeTypes: List<String> = emptyList(),
     val requiresNetwork: Boolean = false,
+    val capabilityStatus: ImportCapabilityStatus = when (id) {
+        MultimodalEntryId.PASTE_TEXT,
+        MultimodalEntryId.TXT_MD -> ImportCapabilityStatus.AVAILABLE
+        MultimodalEntryId.AUDIO,
+        MultimodalEntryId.SLIDE_IMAGE,
+        MultimodalEntryId.BLACKBOARD_PHOTO,
+        MultimodalEntryId.PDF_HANDOUT -> ImportCapabilityStatus.NEEDS_CONFIG
+        MultimodalEntryId.VIDEO,
+        MultimodalEntryId.NETWORK_VIDEO_LINK -> ImportCapabilityStatus.UNSUPPORTED
+    },
 )
 
 data class SelectedLocalFileMetadata(

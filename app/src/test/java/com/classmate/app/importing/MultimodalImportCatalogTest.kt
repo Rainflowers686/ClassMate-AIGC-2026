@@ -1,5 +1,6 @@
 package com.classmate.app.importing
 
+import com.classmate.core.importing.ImportCapabilityStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -23,7 +24,26 @@ class MultimodalImportCatalogTest {
     fun unsupportedEntriesDoNotRequireNetworkOrProviderCalls() {
         MultimodalImportCatalog.entries.filterNot { it.availableNow }.forEach { entry ->
             assertFalse(entry.requiresNetwork)
+            assertEquals(ImportCapabilityStatus.UNSUPPORTED, entry.capabilityStatus)
         }
+    }
+
+    @Test
+    fun entriesExposeExplicitCapabilityStatus() {
+        assertEquals(ImportCapabilityStatus.AVAILABLE, MultimodalImportCatalog.byId(MultimodalEntryId.PASTE_TEXT).capabilityStatus)
+        assertEquals(ImportCapabilityStatus.AVAILABLE, MultimodalImportCatalog.byId(MultimodalEntryId.TXT_MD).capabilityStatus)
+        assertEquals(ImportCapabilityStatus.NEEDS_CONFIG, MultimodalImportCatalog.byId(MultimodalEntryId.AUDIO).capabilityStatus)
+        assertEquals(ImportCapabilityStatus.NEEDS_CONFIG, MultimodalImportCatalog.byId(MultimodalEntryId.SLIDE_IMAGE).capabilityStatus)
+        assertEquals(ImportCapabilityStatus.UNSUPPORTED, MultimodalImportCatalog.byId(MultimodalEntryId.VIDEO).capabilityStatus)
+    }
+
+    @Test
+    fun videoEntryIsMetadataOnlyAndDoesNotPromiseEmbeddedSubtitleExtraction() {
+        val video = MultimodalImportCatalog.byId(MultimodalEntryId.VIDEO)
+
+        assertEquals(ImportCapabilityStatus.UNSUPPORTED, video.capabilityStatus)
+        assertFalse(video.availableNow)
+        assertTrue(video.detail.contains("不解析视频"))
     }
 
     @Test

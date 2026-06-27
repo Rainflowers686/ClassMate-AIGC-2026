@@ -49,6 +49,46 @@ class OcrImportAssemblerTest {
     }
 
     @Test
+    fun failedOcrTextDoesNotCreateSource() {
+        val failed = draft(OcrImportKind.SLIDE_IMAGE, "should not enter material").copy(
+            status = OcrImportStatus.FAILED,
+            errorReason = "failed",
+        )
+
+        assertNull(OcrImportAssembler.toMaterialSource(failed))
+    }
+
+    @Test
+    fun mergeByOrderKeepsImageSectionsAndSkipsFailedDrafts() {
+        val third = draft(OcrImportKind.SLIDE_IMAGE, "第三张内容").copy(
+            id = "draft_3",
+            fileMeta = OcrImportFileMeta("third.png", "image/png", 100L, "第三张", pageIndex = 3),
+            pageIndex = 3,
+        )
+        val first = draft(OcrImportKind.SLIDE_IMAGE, "第一张内容").copy(
+            id = "draft_1",
+            fileMeta = OcrImportFileMeta("first.png", "image/png", 100L, "第一张", pageIndex = 1),
+            pageIndex = 1,
+        )
+        val failed = draft(OcrImportKind.SLIDE_IMAGE, "").copy(
+            id = "draft_2",
+            fileMeta = OcrImportFileMeta("second.png", "image/png", 100L, "第二张", pageIndex = 2),
+            status = OcrImportStatus.FAILED,
+            errorReason = "无法读取",
+            pageIndex = 2,
+        )
+
+        val merged = OcrImportAssembler.mergeByOrder(listOf(third, failed, first))
+
+        assertTrue(merged.text.indexOf("图片1") < merged.text.indexOf("图片3"))
+        assertTrue(merged.text.contains("第一张内容"))
+        assertTrue(merged.text.contains("第三张内容"))
+        assertFalse(merged.text.contains("第二张"))
+        assertEquals(2, merged.okDrafts.size)
+        assertEquals(1, merged.failedDrafts.size)
+    }
+
+    @Test
     fun ocrQuoteIsLocatableInAnalyzerRawText() {
         val source = OcrImportAssembler.toMaterialSource(draft(OcrImportKind.SLIDE_IMAGE, "p 级数：p > 1 收敛，p <= 1 发散"))!!
         val rawText = "${safeSourceMarker(source.segments.single())}\n${source.segments.single().text}"

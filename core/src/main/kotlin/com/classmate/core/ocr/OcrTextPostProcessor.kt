@@ -11,6 +11,14 @@ data class OcrCleanResult(
     val reviewHint: String = "",
 )
 
+data class OcrQualityAssessment(
+    val nonWhitespaceCount: Int,
+    val suspiciousCharRatio: Double,
+    val replacementCharCount: Int,
+    val needsReview: Boolean,
+    val warning: String = "",
+)
+
 /**
  * Best-effort, conservative OCR post-processing so a photo's text is readable instead of a wall of broken
  * lines and ASCII-mangled symbols. It only does SAFE transforms: width normalization, a small set of
@@ -39,8 +47,25 @@ object OcrTextPostProcessor {
         text = mergeWrappedLines(text)
         text = text.lines().joinToString("\n") { it.replace(Regex("[ \\t]{2,}"), " ").trimEnd() }
         text = text.replace(Regex("\n{3,}"), "\n\n").trim()
-        val review = garbageRatio(text) > GARBAGE_THRESHOLD
-        return OcrCleanResult(text, review, if (review) REVIEW_HINT else "")
+        val quality = qualityAssessment(text)
+        return OcrCleanResult(text, quality.needsReview, quality.warning)
+    }
+
+    fun qualityAssessment(text: String): OcrQualityAssessment {
+        val visible = text.filterNot { it.isWhitespace() }
+        if (visible.isEmpty()) {
+            return OcrQualityAssessment(0, 0.0, 0, needsReview = false)
+        }
+        val replacement = visible.count { it == '\uFFFD' }
+        val suspicious = garbageRatio(text)
+        val needsReview = suspicious > GARBAGE_THRESHOLD || replacement > 0
+        return OcrQualityAssessment(
+            nonWhitespaceCount = visible.length,
+            suspiciousCharRatio = suspicious,
+            replacementCharCount = replacement,
+            needsReview = needsReview,
+            warning = if (needsReview) REVIEW_HINT else "",
+        )
     }
 
     /**
@@ -80,7 +105,7 @@ object OcrTextPostProcessor {
             (line.firstOrNull() ?: ' ') in setOf('·', '•', '-', '*', '①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩')
 
     private fun looksLikeFormula(line: String): Boolean =
-        line.length <= 40 && line.any { it in "=≤≥≠→√×÷±∑∫" }
+        line.length <= 60 && line.any { it in "=≤≥≠→√×÷±∑∫^><*/+-" }
 
     private fun endsClause(line: String): Boolean =
         (line.lastOrNull() ?: ' ') in "。！？.!?；;：:"

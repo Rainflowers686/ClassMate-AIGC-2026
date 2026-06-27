@@ -12,6 +12,18 @@ enum class OcrImportKind(val displayName: String) {
     HANDOUT_IMAGE("讲义图片"),
 }
 
+enum class OcrImportStatus {
+    PENDING,
+    OK,
+    FAILED,
+}
+
+data class MergedOcrImport(
+    val text: String,
+    val okDrafts: List<OcrImportDraft>,
+    val failedDrafts: List<OcrImportDraft>,
+)
+
 data class OcrImportFileMeta(
     val fileName: String,
     val mimeType: String? = null,
@@ -37,6 +49,9 @@ data class OcrImportDraft(
     val kind: OcrImportKind,
     val fileMeta: OcrImportFileMeta,
     val pastedText: String,
+    val status: OcrImportStatus = OcrImportStatus.OK,
+    val errorReason: String = "",
+    val batchId: String = "",
     val pageIndex: Int? = null,
     val blockIndex: Int? = null,
     val createdAt: Long,
@@ -45,6 +60,7 @@ data class OcrImportDraft(
 
 object OcrImportAssembler {
     fun toMaterialSource(draft: OcrImportDraft): MaterialSource? {
+        if (draft.status != OcrImportStatus.OK) return null
         val clean = draft.pastedText.trim()
         if (clean.isBlank()) return null
 
@@ -86,6 +102,22 @@ object OcrImportAssembler {
 
     fun toMaterialSources(drafts: List<OcrImportDraft>): List<MaterialSource> =
         drafts.mapNotNull(::toMaterialSource)
+
+    fun mergeByOrder(drafts: List<OcrImportDraft>): MergedOcrImport {
+        val ordered = drafts.sortedWith(
+            compareBy<OcrImportDraft> { it.pageIndex ?: it.fileMeta.pageIndex ?: Int.MAX_VALUE }
+                .thenBy { it.createdAt }
+                .thenBy { it.id },
+        )
+        val ok = ordered.filter { it.status == OcrImportStatus.OK && it.pastedText.isNotBlank() }
+        val failed = ordered.filter { it.status == OcrImportStatus.FAILED }
+        val body = ok.joinToString("\n\n") { draft ->
+            val index = draft.pageIndex ?: draft.fileMeta.pageIndex ?: (ok.indexOf(draft) + 1)
+            val label = draft.fileMeta.safeDisplayLabel().ifBlank { "图片$index" }
+            "【图片$index：$label】\n${draft.pastedText.trim()}"
+        }
+        return MergedOcrImport(body, ok, failed)
+    }
 
     fun materialType(kind: OcrImportKind): MaterialSourceType = when (kind) {
         OcrImportKind.SLIDE_IMAGE -> MaterialSourceType.SLIDE_OCR

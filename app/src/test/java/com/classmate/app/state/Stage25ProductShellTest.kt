@@ -56,7 +56,8 @@ class Stage25ProductShellTest {
         viewModel.showImportPlaceholder(ImportSourceType.AUDIO_FILE)
 
         assertEquals(0, calls)
-        assertTrue(viewModel.ui.toast.orEmpty().contains("not connected", ignoreCase = true))
+        assertTrue(viewModel.ui.toast.orEmpty().isNotBlank())
+        assertFalse(viewModel.ui.toast.orEmpty().contains("not connected", ignoreCase = true))
     }
 
     @Test

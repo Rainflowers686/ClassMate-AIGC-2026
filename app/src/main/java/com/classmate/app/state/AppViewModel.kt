@@ -43,6 +43,7 @@ import com.classmate.app.importing.OcrImportAssembler
 import com.classmate.app.importing.OcrImportDraft
 import com.classmate.app.importing.OcrImportFileMeta
 import com.classmate.app.importing.OcrImportKind
+import com.classmate.app.importing.OcrImportStatus
 import com.classmate.app.importing.SelectedLocalFileMetadata
 import com.classmate.app.l3.ClassroomAudioRecorder
 import com.classmate.app.l3.ClassroomRecordingRecord
@@ -1086,11 +1087,37 @@ class AppViewModel(
     /** Open the image-draft editor. [origin] is the honest input label (图片学习输入 / 拍照学习输入). */
     fun beginImageDraft(origin: String? = null) {
         ui = ui.copy(
+            ocrImports = ui.ocrImports.filter { it.batchId.isBlank() },
             imageDraftActive = true, imageDraftRunning = false, imageDraftText = "",
             imageDraftManualMode = false, imageDraftMessage = null,
             imageDraftOrigin = origin, imageDraftMeta = null,
             imageDraftImageRef = "", imageDraftThumbnailRef = "", imageDraftMimeType = "",
+            imageDraftBatchId = "", imageDraftBatchTotal = 0, imageDraftBatchProcessed = 0,
         )
+    }
+
+    fun beginImageOcrBatch(origin: String? = null, total: Int, now: Long = System.currentTimeMillis()): String {
+        val batchId = "ocr_batch_$now"
+        ui = ui.copy(
+            ocrImports = emptyList(),
+            imageDraftActive = true,
+            imageDraftRunning = total > 0,
+            imageDraftText = "",
+            imageDraftManualMode = false,
+            imageDraftMessage = if (total > 0) "正在识别 $total 张图片，请稍后检查草稿。" else "未选择图片。",
+            imageDraftOrigin = origin ?: "图片学习输入",
+            imageDraftMeta = "0/$total",
+            imageStudyDraft = null,
+            imageDraftSource = null,
+            imageDraftOcrError = null,
+            imageDraftImageRef = "",
+            imageDraftThumbnailRef = "",
+            imageDraftMimeType = "",
+            imageDraftBatchId = batchId,
+            imageDraftBatchTotal = total.coerceAtLeast(0),
+            imageDraftBatchProcessed = 0,
+        )
+        return batchId
     }
 
     /**
@@ -1155,6 +1182,118 @@ class AppViewModel(
             }
             applyImageStudyDraftResult(routed, onDevice)
         }
+    }
+
+    fun ingestMultiImageOcr(
+        image: RgbImage,
+        allFilesGranted: Boolean,
+        originalWidth: Int = 0,
+        originalHeight: Int = 0,
+        encodedImageBytes: ByteArray = image.bytes,
+        pageIndex: Int,
+        total: Int,
+        batchId: String = ui.imageDraftBatchId,
+    ) {
+        val activeBatch = batchId.ifBlank { beginImageOcrBatch(ui.imageDraftOrigin, total) }
+        val now = System.currentTimeMillis()
+        val origin = ui.imageDraftOrigin ?: "图片学习输入"
+        val dimensionLabel = if (originalWidth > 0 && originalHeight > 0) " · ${originalWidth}x$originalHeight" else ""
+        val storedImage = evidenceAssetStore.saveImage(
+            bytes = encodedImageBytes,
+            sourceLabel = "$origin 第${pageIndex}张$dimensionLabel",
+            mimeType = "image/jpeg",
+            now = now + pageIndex,
+        )
+        val draftId = "${activeBatch}_$pageIndex"
+        val pending = OcrImportDraft(
+            id = draftId,
+            kind = OcrImportKind.SLIDE_IMAGE,
+            fileMeta = OcrImportFileMeta(
+                fileName = storedImage.imageRef,
+                mimeType = storedImage.mimeType,
+                sizeBytes = encodedImageBytes.size.toLong(),
+                displayLabel = "图片$pageIndex$dimensionLabel",
+                pageIndex = pageIndex,
+            ),
+            pastedText = "",
+            status = OcrImportStatus.PENDING,
+            batchId = activeBatch,
+            pageIndex = pageIndex,
+            blockIndex = pageIndex,
+            createdAt = now,
+            updatedAt = now,
+        )
+        ui = ui.copy(
+            ocrImports = (ui.ocrImports.filterNot { it.id == draftId } + pending).sortedBy { it.pageIndex ?: Int.MAX_VALUE },
+            imageDraftActive = true,
+            imageDraftRunning = true,
+            imageDraftMessage = "正在识别第 $pageIndex / $total 张图片。",
+            imageDraftMeta = "${ui.imageDraftBatchProcessed}/$total",
+            imageDraftBatchId = activeBatch,
+            imageDraftBatchTotal = total,
+        )
+        viewModelScope.launch {
+            val onDevice = onDeviceController.describeImageToDraft(image, allFilesGranted)
+            val onDeviceText = (onDevice as? OnDeviceImageDraftResult.Draft)?.text.orEmpty()
+            val routed = withContext(Dispatchers.IO) {
+                runCatching {
+                    captureGateway.createImageStudyDraftRouted(
+                        imageBytes = encodedImageBytes,
+                        origin = "$origin 第${pageIndex}张",
+                        onDeviceDraftText = onDeviceText,
+                    )
+                }.getOrElse {
+                    imageFallbackResult(
+                        origin = "$origin 第${pageIndex}张",
+                        onDeviceText = onDeviceText,
+                        status = AiExecutionStatus.FAILED,
+                    )
+                }
+            }
+            val draft = routed.value
+            val rawText = draft?.initialEditableText().orEmpty().ifBlank { onDeviceText }
+            val clean = OcrTextPostProcessor.clean(rawText)
+            val completed = if (clean.text.isBlank()) {
+                pending.copy(
+                    status = OcrImportStatus.FAILED,
+                    errorReason = "未识别到可用文字，请手动补充或重拍。",
+                    updatedAt = System.currentTimeMillis(),
+                )
+            } else {
+                pending.copy(
+                    pastedText = clean.text,
+                    status = OcrImportStatus.OK,
+                    errorReason = if (clean.needsReview) clean.reviewHint else "",
+                    updatedAt = System.currentTimeMillis(),
+                )
+            }
+            applyImageOcrBatchItem(completed, total)
+        }
+    }
+
+    internal fun applyImageOcrBatchItem(draft: OcrImportDraft, total: Int = ui.imageDraftBatchTotal) {
+        val imports = (ui.ocrImports.filterNot { it.id == draft.id } + draft)
+            .sortedBy { it.pageIndex ?: Int.MAX_VALUE }
+        val merged = OcrImportAssembler.mergeByOrder(imports)
+        val processed = imports.count { it.status != OcrImportStatus.PENDING }
+        val failedCount = merged.failedDrafts.size
+        val reviewCount = merged.okDrafts.count { it.errorReason.isNotBlank() }
+        val message = buildString {
+            append("已处理 $processed / ${total.coerceAtLeast(imports.size)} 张图片。")
+            if (failedCount > 0) append(" $failedCount 张需要手动补充。")
+            if (reviewCount > 0) append(" $reviewCount 张建议人工检查识别结果。")
+        }
+        ui = ui.copy(
+            ocrImports = imports,
+            imageDraftText = merged.text,
+            imageDraftRunning = processed < total.coerceAtLeast(imports.size),
+            imageDraftManualMode = merged.okDrafts.isEmpty(),
+            imageDraftMessage = message,
+            imageDraftMeta = "$processed/${total.coerceAtLeast(imports.size)}",
+            imageDraftBatchProcessed = processed,
+            imageDraftSource = if (merged.okDrafts.isNotEmpty()) AiExecutionSource.ON_DEVICE else AiExecutionSource.MANUAL,
+            aiProcessing = AiProcessingUiState.hidden(),
+        )
     }
 
     /** Apply a draft result to UI state (separated for unit testing without a Main dispatcher). */
@@ -1295,6 +1434,9 @@ class AppViewModel(
             imageDraftImageRef = "",
             imageDraftThumbnailRef = "",
             imageDraftMimeType = "",
+            imageDraftBatchId = "",
+            imageDraftBatchTotal = 0,
+            imageDraftBatchProcessed = 0,
             aiProcessing = AiProcessingUiState.hidden(),
         )
         val input = currentLearningLoopInput(
@@ -1330,14 +1472,89 @@ class AppViewModel(
         )
     }
 
+    fun confirmImageOcrBatch(now: Long = System.currentTimeMillis()): Boolean {
+        val batchDrafts = ui.ocrImports.filter {
+            ui.imageDraftBatchId.isBlank() || it.batchId == ui.imageDraftBatchId
+        }
+        val merged = OcrImportAssembler.mergeByOrder(batchDrafts)
+        val text = ui.imageDraftText.trim().ifBlank { merged.text.trim() }
+        if (merged.okDrafts.isEmpty() || text.isBlank()) {
+            ui = ui.copy(toast = "未识别到可用图片文字，请先手动补充或重新选择图片。")
+            return false
+        }
+        val origin = ui.imageDraftOrigin ?: "图片学习输入"
+        val title = ui.courseTitle.ifBlank { origin }
+        val assets = merged.okDrafts.map { draft ->
+            EvidenceAsset(
+                id = "asset_${draft.id}",
+                type = EvidenceAssetType.OCR_IMAGE,
+                sourceType = L3SourceType.OCR_IMAGE,
+                text = draft.pastedText,
+                sourceLabel = draft.fileMeta.safeDisplayLabel(),
+                fileName = draft.fileMeta.fileName,
+                fileExt = draft.fileMeta.fileName.substringAfterLast('.', "image"),
+                mimeType = draft.fileMeta.mimeType.orEmpty().ifBlank { "image/jpeg" },
+                localUri = draft.fileMeta.fileName,
+                thumbnailRef = draft.fileMeta.fileName,
+                imageRef = draft.fileMeta.fileName,
+                pageHint = draft.pageIndex?.let { "image $it" }.orEmpty(),
+                segmentHint = "image ${draft.pageIndex ?: 1}",
+                snippet = draft.pastedText.take(180),
+                createdAt = draft.createdAt,
+                status = "OCR_TEXT_CONFIRMED",
+            )
+        }
+        ui = ui.copy(
+            courseTitle = title,
+            courseText = text,
+            importSourceType = ImportSourceType.IMAGE_OCR,
+            ocrImports = emptyList(),
+            imageDraftActive = false,
+            imageDraftRunning = false,
+            imageDraftText = "",
+            imageDraftManualMode = false,
+            imageDraftMessage = null,
+            imageDraftOrigin = null,
+            imageDraftMeta = null,
+            imageStudyDraft = null,
+            imageDraftSource = null,
+            imageDraftOcrError = null,
+            imageDraftImageRef = "",
+            imageDraftThumbnailRef = "",
+            imageDraftMimeType = "",
+            imageDraftBatchId = "",
+            imageDraftBatchTotal = 0,
+            imageDraftBatchProcessed = 0,
+            aiProcessing = AiProcessingUiState.hidden(),
+        )
+        val input = currentLearningLoopInput(
+            now = now,
+            text = text,
+            sourceType = L3SourceType.OCR_IMAGE,
+            title = title,
+            assets = assets,
+            sourceLabel = origin,
+            providerProvenance = providerProvenanceFor(L3SourceType.OCR_IMAGE),
+        )
+        publishL3Snapshot(
+            l3Pipeline.buildFromLearningLoopInput(input, ui.providerConfigSummary, now),
+            now,
+            "已确认图片 OCR 批次，成功图片 ${merged.okDrafts.size} 张，失败 ${merged.failedDrafts.size} 张；已生成 L3 学习闭环。",
+        )
+        return true
+    }
+
     /** Cancel the draft — nothing enters the course text or the knowledge base. */
     fun cancelImageDraft() {
+        val activeBatchId = ui.imageDraftBatchId
         ui = ui.copy(
+            ocrImports = if (activeBatchId.isBlank()) ui.ocrImports else ui.ocrImports.filterNot { it.batchId == activeBatchId },
             imageDraftActive = false, imageDraftRunning = false, imageDraftText = "",
             imageDraftManualMode = false, imageDraftMessage = null,
             imageDraftOrigin = null, imageDraftMeta = null,
             imageStudyDraft = null, imageDraftSource = null, imageDraftOcrError = null,
             imageDraftImageRef = "", imageDraftThumbnailRef = "", imageDraftMimeType = "",
+            imageDraftBatchId = "", imageDraftBatchTotal = 0, imageDraftBatchProcessed = 0,
             aiProcessing = AiProcessingUiState.hidden(),
         )
     }
@@ -1382,7 +1599,8 @@ class AppViewModel(
         fileMetadata: SelectedLocalFileMetadata? = null,
         now: Long = System.currentTimeMillis(),
     ): Boolean {
-        val clean = pastedText.trim()
+        val cleanResult = OcrTextPostProcessor.clean(pastedText)
+        val clean = cleanResult.text.trim()
         if (clean.isBlank()) {
             ui = ui.copy(toast = "请先粘贴 OCR 识别文字。")
             return false
@@ -1400,6 +1618,8 @@ class AppViewModel(
                 pageIndex = ordinal,
             ),
             pastedText = clean,
+            status = OcrImportStatus.OK,
+            errorReason = if (cleanResult.needsReview) cleanResult.reviewHint else "",
             pageIndex = ordinal,
             blockIndex = ordinal,
             createdAt = now,
@@ -1407,15 +1627,35 @@ class AppViewModel(
         )
         ui = ui.copy(
             ocrImports = ui.ocrImports + draft,
-            toast = "已加入本节课资料：${OcrImportAssembler.sourceLabel(kind)}",
+            toast = if (cleanResult.needsReview) {
+                "已加入本节课资料，建议人工检查 OCR 识别结果。"
+            } else {
+                "已加入本节课资料：${OcrImportAssembler.sourceLabel(kind)}"
+            },
         )
         return true
     }
 
     fun updateOcrImportText(id: String, text: String, now: Long = System.currentTimeMillis()) {
+        val cleanResult = OcrTextPostProcessor.clean(text)
         ui = ui.copy(
             ocrImports = ui.ocrImports.map { draft ->
-                if (draft.id == id) draft.copy(pastedText = text, updatedAt = now) else draft
+                if (draft.id == id) {
+                    draft.copy(
+                        pastedText = cleanResult.text,
+                        status = if (cleanResult.text.isBlank()) OcrImportStatus.FAILED else OcrImportStatus.OK,
+                        errorReason = if (cleanResult.text.isBlank()) {
+                            "OCR 文本为空，请重新输入。"
+                        } else if (cleanResult.needsReview) {
+                            cleanResult.reviewHint
+                        } else {
+                            ""
+                        },
+                        updatedAt = now,
+                    )
+                } else {
+                    draft
+                }
             },
         )
     }
@@ -1882,7 +2122,7 @@ class AppViewModel(
     private fun l3MaterialText(): String =
         buildString {
             if (ui.courseText.isNotBlank()) appendLine(ui.courseText.trim())
-            ui.ocrImports.filter { it.pastedText.isNotBlank() }.forEach { appendLine(it.pastedText.trim()) }
+            ui.ocrImports.filter { it.status == OcrImportStatus.OK && it.pastedText.isNotBlank() }.forEach { appendLine(it.pastedText.trim()) }
             ui.transcripts.forEach { transcript ->
                 transcript.segments.filter { it.text.isNotBlank() }.forEach { appendLine(it.text.trim()) }
             }
@@ -1896,7 +2136,7 @@ class AppViewModel(
                 L3SourceType.MANUAL_TRANSCRIPT
             }
         }
-        ui.ocrImports.any { it.pastedText.isNotBlank() } -> L3SourceType.OCR_IMAGE
+        ui.ocrImports.any { it.status == OcrImportStatus.OK && it.pastedText.isNotBlank() } -> L3SourceType.OCR_IMAGE
         ui.importSourceType == ImportSourceType.IMAGE_OCR -> L3SourceType.OCR_IMAGE
         ui.inputArtifacts.lastOrNull { it.extractedText.isNotBlank() }?.kind in setOf(
             InputFileKind.TXT,
@@ -1961,7 +2201,7 @@ class AppViewModel(
         }
         if (transcriptAssets.isNotEmpty()) return transcriptAssets
 
-        val ocrAssets = ui.ocrImports.filter { it.pastedText.isNotBlank() }.map { draft ->
+        val ocrAssets = ui.ocrImports.filter { it.status == OcrImportStatus.OK && it.pastedText.isNotBlank() }.map { draft ->
             EvidenceAsset(
                 id = "asset_${draft.id}",
                 type = EvidenceAssetType.OCR_IMAGE,
@@ -2456,7 +2696,7 @@ class AppViewModel(
         val hasManualSession = ui.liveTranscript != null
         if (hasManualSession) endLiveClass() // flushes the pending draft, ends the session, fills courseText
         val hasTranscript = ui.transcripts.any { t -> t.segments.any { it.text.isNotBlank() } }
-        val hasContent = ui.courseText.isNotBlank() || hasTranscript || ui.ocrImports.any { it.pastedText.isNotBlank() }
+        val hasContent = ui.courseText.isNotBlank() || hasTranscript || ui.ocrImports.any { it.status == OcrImportStatus.OK && it.pastedText.isNotBlank() }
         if (!hasContent) {
             ui = ui.copy(toast = "还没有任何课堂片段或转写，无法生成时间线。")
             return
@@ -2729,7 +2969,7 @@ class AppViewModel(
 
     fun startAnalysis() {
         val text = ui.courseText
-        val hasOcrText = ui.ocrImports.any { it.pastedText.isNotBlank() }
+        val hasOcrText = ui.ocrImports.any { it.status == OcrImportStatus.OK && it.pastedText.isNotBlank() }
         val hasTranscript = ui.transcripts.any { t -> t.segments.any { it.text.isNotBlank() } }
         if (text.isBlank() && !hasOcrText && !hasTranscript) {
             ui = ui.copy(toast = "请先粘贴课堂文本，或加入 OCR / 转写稿资料。")

@@ -93,12 +93,38 @@ class StudyReportExportTest {
 
     @Test
     fun allFormatsAreSafeAndForbiddenTokenFree() {
+        val forbidden = listOf(
+            "Authorization",
+            "Bearer",
+            "appKey",
+            "apiKey",
+            "app_id",
+            "reasoning_content",
+            "prompt",
+            "messages",
+            "config.local.json",
+            "LOCAL_FALLBACK",
+            "provider trace",
+            "BuildConfig",
+            "Semantic index",
+            "Tool steps",
+            "ASR Long job",
+            "PDF page",
+            "Import report",
+            "Transcript timeline",
+            "assetId",
+            "MIME",
+            "Evidence chain",
+            "kp_",
+            "q_",
+            "ev_",
+        )
         ExportFileFormat.entries.forEach { format ->
             val artifact = ExportCenter.artifactFromStudyReport(report(), format, createdAt = 1L)
             assertTrue(artifact.bytes.isNotEmpty())
             assertFalse("$format leaked sensitive content", artifact.containsSensitiveContent)
             val text = artifact.bytes.decodeToString()
-            listOf("Authorization", "Bearer", "appKey", "apiKey", "app_id", "reasoning_content", "prompt", "messages").forEach {
+            forbidden.forEach {
                 assertFalse("$format contains $it", text.contains(it, ignoreCase = true))
             }
         }
