@@ -119,6 +119,21 @@ class ModelConfigRepositoryTest {
     }
 
     @Test
+    fun reSavingWithBlankKeyKeepsTheStoredCredential() {
+        val file = tempFile()
+        val repo = ModelConfigRepository(file)
+        assertTrue(repo.saveOfficial("https://api-ai.vivo.com.cn/v1", "qwen3.5-plus", "2026374747", "real-official-key"))
+        assertTrue(repo.load()!!.officialConfigured())
+
+        // The AppKey field is never pre-filled (secret), so saving again — e.g. after editing the AppID —
+        // with a BLANK key must NOT wipe the stored credential. (P0-0: cloud BlueLM became unconfigured.)
+        assertTrue(repo.saveOfficial("https://api-ai.vivo.com.cn/v1", "qwen3.5-plus", "2026374747", ""))
+        val after = ModelConfigRepository(file).load()!!
+        assertEquals("real-official-key", after.appKey)
+        assertTrue("BlueLM stays configured after a blank re-save", after.officialConfigured())
+    }
+
+    @Test
     fun disabledRepositoryIsInertNoOp() {
         val repo = ModelConfigRepository.disabled()
         assertFalse(repo.isEnabled)

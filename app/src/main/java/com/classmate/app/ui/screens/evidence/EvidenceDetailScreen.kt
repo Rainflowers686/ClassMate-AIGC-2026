@@ -174,10 +174,18 @@ fun EvidenceDetailScreen(viewModel: AppViewModel) {
                 val linkedKnowledge = ui.l3Pipeline.knowledgePoints.filter { l3Evidence.id in it.sourceEvidenceIds }
                 val linkedQuestions = ui.l3Pipeline.questions.filter { l3Evidence.id in it.evidenceIds }
                 if (linkedKnowledge.isNotEmpty()) {
+                    // P0-5: lead with the related knowledge — what this evidence supports — for learning value.
                     ClassMateCard {
-                        Text("关联知识点", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Spacer(Modifier.height(Dimens.s))
-                        linkedKnowledge.forEach { Text(it.title, style = MaterialTheme.typography.bodyMedium) }
+                        Text("相关知识点", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(Dimens.xs))
+                        Text("这条证据支持下面的知识点结论：", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        linkedKnowledge.take(5).forEach { kp ->
+                            Spacer(Modifier.height(Dimens.s))
+                            Text(kp.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                            if (kp.explanation.isNotBlank()) {
+                                Text(kp.explanation, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
                     }
                 }
                 if (linkedQuestions.isNotEmpty()) {

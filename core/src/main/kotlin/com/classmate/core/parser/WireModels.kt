@@ -49,6 +49,10 @@ data class WireQuizQuestion(
     @JsonNames("question")
     val stem: String = "",
     val options: List<WireQuizOption> = emptyList(),
+    // Many models (esp. for true/false) put the answer in a separate field instead of per-option flags.
+    // Captured here and normalized in the parser so the correct option is never lost.
+    @JsonNames("correct_answer", "answer", "correctOption", "correct_option")
+    val correctAnswer: String = "",
     // Reference the tested knowledge points by their title (preferred) or id.
     @JsonNames("tested_knowledge_points", "knowledgePoints", "knowledge_points", "tested")
     val testedKnowledgePoints: List<String> = emptyList(),

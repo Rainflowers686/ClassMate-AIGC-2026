@@ -2186,7 +2186,9 @@ class AppViewModel(
         )
         persistHistory(updatedHistory)
         persistL3(enrichedSnapshot)
-        navigateTo(Screen.COURSE_DETAIL)
+        // Replace the loading screen so system back from the course never returns to the analyze/loading
+        // screen (P0-1). From any other entry, just push the course.
+        if (currentScreen == Screen.ANALYZE) navigateReplacing(Screen.COURSE_DETAIL) else navigateTo(Screen.COURSE_DETAIL)
         return true
     }
 
@@ -2908,7 +2910,6 @@ class AppViewModel(
 
             when (outcome) {
                 is AnalysisOutcome.Success -> {
-                    val learning = LearningState.seed(outcome.result.sessionId, outcome.result.knowledgePoints, now)
                     val l3Snapshot = l3Pipeline.buildFromAnalysis(
                         session = session,
                         result = outcome.result,
@@ -2932,31 +2933,6 @@ class AppViewModel(
                             else -> ui.toast
                         },
                     )
-                    return@launch
-                    val updatedHistory = (listOf(buildHistoryRecord(session, outcome, now)) + ui.history).take(MAX_HISTORY)
-                    // Cross-course review tasks: one per kept knowledge point (idempotent per session).
-                    val provider = outcome.result.provenance.provider
-                    learningStore.addTasksFromAnalysis(
-                        result = outcome.result,
-                        courseTitle = session.title.ifBlank { "未命名课程" },
-                        sourceProvider = provider.name,
-                        sourceProfile = ui.providerConfigSummary.profileLabel,
-                        sourceModel = configBundle.configOf(provider)?.model.orEmpty(),
-                    )
-                    ui = ui.copy(
-                        analysisStatus = AnalysisStatus.SUCCESS,
-                        result = outcome.result,
-                        learningState = learning,
-                        logs = outcome.logs,
-                        history = updatedHistory,
-                        learningSnapshot = learningStore.snapshot(),
-                        l3Pipeline = l3Snapshot,
-                        analysisSourceReport = sourceReport,
-                        onDeviceAnalysisReason = onDeviceReason ?: ui.onDeviceAnalysisReason,
-                        onDeviceAnalysisDiagnostic = onDeviceDiag ?: ui.onDeviceAnalysisDiagnostic,
-                    )
-                    persistHistory(updatedHistory)
-                    navigateReplacing(Screen.COURSE_DETAIL)
                 }
 
                 is AnalysisOutcome.Failure -> {

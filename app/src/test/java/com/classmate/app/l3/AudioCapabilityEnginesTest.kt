@@ -174,7 +174,9 @@ class AudioCapabilityEnginesTest {
         assertTrue(video?.scenes?.isNotEmpty() == true)
         assertEquals(GeneratedStudyAssetStatus.STORYBOARD_READY, video?.status)
         assertNull(video?.videoRef)
-        assertTrue(audio?.script?.contains("Listen review") == true)
+        // 听背文稿对中文用户必须是中文（P0-6），不再输出英文 "Listen review"。
+        assertTrue(audio?.script?.contains("听背复习") == true)
+        assertFalse(audio?.script?.contains("Listen review") == true)
         assertEquals(GeneratedStudyAssetStatus.SCRIPT_READY, audio?.status)
         assertNull(audio?.audioRef)
     }

@@ -9,6 +9,7 @@ import com.classmate.core.model.Ids
 import com.classmate.core.model.Importance
 import com.classmate.core.model.KnowledgePoint
 import com.classmate.core.model.QuestionType
+import com.classmate.core.model.QuizAnswerNormalizer
 import com.classmate.core.model.QuizOption
 import com.classmate.core.model.QuizQuestion
 import kotlinx.serialization.json.Json
@@ -139,15 +140,15 @@ class LlmDraftAssembler(
             item.options
         }.map { it.trim() }.filter { it.isNotBlank() }
         if (raw.size < 2) return null
-        if (item.correctIndex !in raw.indices) return null
-        return raw.take(4).mapIndexed { index, text ->
-            QuizOption(
-                id = Ids.option('A' + index),
-                text = text,
-                isCorrect = index == item.correctIndex,
-                rationale = if (index == item.correctIndex) item.explanation.trim() else "",
-            )
+        val base = raw.take(4).mapIndexed { index, text -> QuizOption(id = Ids.option('A' + index), text = text, isCorrect = false) }
+        // Prefer an explicit answer string ("\u9519\u8bef"/"B"/"false"); else fall back to correctIndex.
+        val resolved = when {
+            item.correctAnswer.isNotBlank() -> QuizAnswerNormalizer.withResolvedCorrect(base, item.correctAnswer)
+            item.correctIndex in base.indices -> base.mapIndexed { i, o -> if (i == item.correctIndex) o.copy(isCorrect = true) else o }
+            else -> base
         }
+        if (resolved.none { it.isCorrect }) return null // cannot determine the answer -> never show an unanswerable question
+        return resolved.map { if (it.isCorrect) it.copy(rationale = item.explanation.trim()) else it }
     }
 
     private fun normalizeTitle(value: String): String? {

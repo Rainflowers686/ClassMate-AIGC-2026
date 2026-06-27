@@ -302,7 +302,11 @@ object ExperimentalStudyAssetEngine {
         val evidenceIds = (review?.evidenceId?.let { listOf(it) } ?: emptyList()) + kp.sourceEvidenceIds
         return AudioReviewAsset(
             id = "audio_review_$now",
-            script = "Listen review: ${kp.title}. First recall the definition, then explain the evidence in your own words, then answer one related question.",
+            script = buildString {
+                append("听背复习：${kp.title}。")
+                if (kp.explanation.isNotBlank()) append("要点：${kp.explanation.trim()}。")
+                append("复习步骤：先回忆定义，再用自己的话解释证据，最后回答一道相关的题。")
+            },
             relatedReviewTaskId = review?.id,
             relatedKnowledgePointIds = listOf(kp.id),
             evidenceIds = evidenceIds.distinct().take(5),

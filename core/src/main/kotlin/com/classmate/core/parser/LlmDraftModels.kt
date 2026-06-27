@@ -32,6 +32,9 @@ data class LlmDraftQuizItem(
     val question: String = "",
     val options: List<String> = emptyList(),
     val correctIndex: Int = 0,
+    // A separate string answer ("错误" / "B" / "false") when the model doesn't use correctIndex.
+    @JsonNames("correct_answer", "answer", "correctOption")
+    val correctAnswer: String = "",
     val explanation: String = "",
     val evidenceQuote: String = "",
 )
