@@ -55,7 +55,6 @@ private val STAGES = listOf(
 fun AnalyzeProgressScreen(viewModel: AppViewModel) {
     val ui = viewModel.ui
     val failed = ui.analysisStatus == AnalysisStatus.FAILED
-    val progress = (ui.analysisStageIndex.coerceIn(0, STAGES.size)).toFloat() / STAGES.size
 
     // Keep the screen awake while analysis runs (深度 mode can take 1–3 min) so the phone does not
     // sleep mid-analysis; restore on completion / leaving the screen. No extra permission needed.
@@ -86,15 +85,15 @@ fun AnalyzeProgressScreen(viewModel: AppViewModel) {
                     Text("蓝心大模型正在处理课堂内容", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        "${ui.analysisIntensity.displayName} · ${ui.analysisIntensity.expectedHintZh}",
+                        "${ui.analysisIntensity.displayName} · ${ui.analysisEstimateText.ifBlank { ui.analysisIntensity.expectedHintZh }}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(Modifier.height(Dimens.s))
-                    LinearProgressIndicator(
-                        progress = progress,
-                        modifier = Modifier.fillMaxWidth().height(6.dp),
-                    )
+                    // Honest "working" heartbeat: we cannot know the model's true progress, so we never
+                    // fake a determinate percent (no frozen-then-jump bar). The stage list below is the
+                    // real progress signal.
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(6.dp))
                     Spacer(Modifier.height(Dimens.s))
                     Text(
                         "已用时 ${ui.analysisElapsedMs / 1000} 秒",

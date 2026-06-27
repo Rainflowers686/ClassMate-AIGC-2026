@@ -119,6 +119,7 @@ import com.classmate.core.practice.PracticeFeedbackEngine
 import com.classmate.core.practice.PracticeGenerationRequest
 import com.classmate.core.practice.PracticeItem
 import com.classmate.core.practice.PracticeItemType
+import com.classmate.core.practice.isAnswerableQuiz
 import com.classmate.core.practice.PracticeMode
 import com.classmate.core.practice.PracticeOption
 import com.classmate.core.practice.PracticeOutcome
@@ -158,7 +159,9 @@ import com.classmate.core.ai.AiCapabilityRouter
 import com.classmate.core.analysis.CourseDomainDetector
 import com.classmate.core.glossary.DynamicGlossaryExtractor
 import com.classmate.core.glossary.GlossarySource
+import com.classmate.core.provider.AnalysisEstimateInput
 import com.classmate.core.provider.AnalysisIntensity
+import com.classmate.core.provider.AnalysisTimeEstimator
 import com.classmate.core.provider.BlueLmConfigDoctor
 import com.classmate.core.provider.BlueLmConfigState
 import com.classmate.core.ai.AiExecutionStatus
@@ -326,6 +329,7 @@ class AppViewModel(
             accentColor = initialThemePreference.accentColorPreset,
             customPalette = initialThemePreference.customPalette,
             typographyPreset = initialThemePreference.typographyPreset,
+            language = initialThemePreference.language,
             enableExperimentalImageGeneration = initialThemePreference.enableExperimentalImageGeneration,
             enableExperimentalVideoGeneration = initialThemePreference.enableExperimentalVideoGeneration,
             enableExperimentalSimultaneousInterpretation = initialThemePreference.enableExperimentalSimultaneousInterpretation,
@@ -490,7 +494,11 @@ class AppViewModel(
         )
     }
     fun setDarkMode(dark: Boolean?) { ui = ui.copy(darkMode = dark) }
-    fun setLanguage(language: AppLanguage) { ui = ui.copy(language = language) }
+    fun setLanguage(language: AppLanguage) {
+        // Persist so the choice survives app restarts (P0-1: language was reverting to Chinese on relaunch).
+        themePreferenceRepository.saveLanguage(language)
+        ui = ui.copy(language = language)
+    }
     fun setExperimentalImageGeneration(enabled: Boolean) {
         val next = themePreferenceRepository.saveExperimentalImageGeneration(enabled)
         ui = ui.copy(
@@ -3033,6 +3041,20 @@ class AppViewModel(
         }
 
         val intensity = ui.analysisIntensity
+        // Content-aware time estimate (P0-4): scales with text length, image / OCR count and cloud-vs-local
+        // — replaces the old fixed "60～90 秒" hint. Computed from the ACTUAL assembled material.
+        val analysisEstimate = AnalysisTimeEstimator.estimate(
+            AnalysisEstimateInput(
+                chineseChars = bodyText.count { it.code in 0x4E00..0x9FFF },
+                englishWords = Regex("[A-Za-z]+").findAll(bodyText).count(),
+                imageCount = ui.ocrImports.count { it.status == OcrImportStatus.OK },
+                ocrBatches = if (ui.ocrImports.any { it.status == OcrImportStatus.OK }) 1 else 0,
+                usesCloudModel = hasConfiguredCloudModel(),
+                hasAudioOrSubtitle = hasTranscript,
+                localFallback = !hasConfiguredCloudModel(),
+                intensity = intensity,
+            ),
+        )
         // Honest long-text record: the FULL original stays as Evidence (session segments); this only
         // documents the prompt view. analyzedLength >= originalLength because nothing is truncated.
         val longTextInfo = LongTextAnalysisInfo(
@@ -3049,6 +3071,7 @@ class AppViewModel(
             analysisStageIndex = 0,
             analysisElapsedMs = 0L,
             analysisSlowNotice = false,
+            analysisEstimateText = analysisEstimate.displayText,
             longTextInfo = longTextInfo,
             result = null,
             reviewPlan = null,
@@ -3955,22 +3978,25 @@ class AppViewModel(
     fun startRandomQuiz(questionCount: Int = 5, now: Long = System.currentTimeMillis()) {
         startPracticeInternal(PracticeMode.QUICK_REVIEW, PracticeQuestionMode.REAL_QUIZ)
         val session = ui.practiceSession ?: return
-        val picked = session.items
-            .filter { it.options.isNotEmpty() }
-            .shuffled(Random(now))
-            .take(questionCount.coerceIn(1, 10))
-            .ifEmpty { session.items.filter { it.options.isNotEmpty() }.take(questionCount.coerceIn(1, 10)) }
-        if (picked.isNotEmpty()) {
+        // Only questions that actually have a correct answer may enter the random quiz (shared gate).
+        val answerable = session.items.filter { it.isAnswerableQuiz() }
+        if (answerable.isEmpty()) {
             ui = ui.copy(
-                practiceSession = session.copy(items = picked, routeReason = "random quiz from current lesson/question bank"),
-                practiceIndex = 0,
-                practiceSelectedAnswers = emptyMap(),
-                practiceSubmittedAnswers = emptyMap(),
-                practiceAttempts = emptyList(),
-                practiceResult = null,
-                toast = "已生成 ${picked.size} 题随机小测。",
+                practiceSession = session.copy(items = emptyList()),
+                toast = "暂时没有带正确答案的题目，请先生成微测题或重新分析课程。",
             )
+            return
         }
+        val picked = answerable.shuffled(Random(now)).take(questionCount.coerceIn(1, 10))
+        ui = ui.copy(
+            practiceSession = session.copy(items = picked, routeReason = "random quiz from current lesson/question bank"),
+            practiceIndex = 0,
+            practiceSelectedAnswers = emptyMap(),
+            practiceSubmittedAnswers = emptyMap(),
+            practiceAttempts = emptyList(),
+            practiceResult = null,
+            toast = "已生成 ${picked.size} 题随机小测。",
+        )
     }
 
     fun retryWrongQuestion(wrongRecordId: String, now: Long = System.currentTimeMillis()): Boolean {
@@ -4082,8 +4108,10 @@ class AppViewModel(
         )
         val generatedPractice = generated.value?.session ?: PracticeSessionEngine.build(r, ui.learningSnapshot, mode, now, courseTitle = s.title)
         val practice = when (questionMode) {
+            // Graded quizzes (real quiz / exam) only keep questions that actually have a correct answer
+            // — see PracticeItem.isAnswerableQuiz(). Self-assessment cards have no graded answer.
             PracticeQuestionMode.REAL_QUIZ, PracticeQuestionMode.EXAM -> {
-                val quizItems = generatedPractice.items.filter { it.options.isNotEmpty() }
+                val quizItems = generatedPractice.items.filter { it.isAnswerableQuiz() }
                 generatedPractice.copy(items = quizItems)
             }
             PracticeQuestionMode.SELF_ASSESSMENT -> generatedPractice

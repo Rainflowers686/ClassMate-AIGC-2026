@@ -10,6 +10,7 @@ import com.classmate.core.learning.InMemoryLearningStore
 import com.classmate.core.audio.CourseEssenceAudioStatus
 import com.classmate.core.practice.PracticeMode
 import com.classmate.core.practice.PracticeOutcome
+import com.classmate.core.practice.isAnswerableQuiz
 import com.classmate.core.sample.SampleCourses
 import java.io.File
 import java.nio.file.Files
@@ -57,6 +58,22 @@ class PracticeFlowTest {
         assertEquals(PracticeQuestionMode.REAL_QUIZ, viewModel.ui.practiceQuestionMode)
         assertTrue(viewModel.ui.practiceSession!!.items.all { it.options.isNotEmpty() })
         assertEquals(Screen.PRACTICE, viewModel.currentScreen)
+    }
+
+    @Test
+    fun randomQuizOnlyContainsAnswerableQuestions() {
+        // P0-3: every question that enters the random quiz must have a resolved correct answer.
+        val viewModel = vm()
+        viewModel.openHistory(viewModel.ui.history.first())
+        viewModel.startRandomQuiz(now = now)
+
+        val session = viewModel.ui.practiceSession
+        assertNotNull(session)
+        assertTrue("random quiz produced questions", session!!.items.isNotEmpty())
+        assertTrue(
+            "every random-quiz question must have a correct answer",
+            session.items.all { it.isAnswerableQuiz() && it.correctOptionIds.isNotEmpty() },
+        )
     }
 
     @Test

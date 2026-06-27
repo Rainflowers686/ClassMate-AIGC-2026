@@ -1,5 +1,6 @@
 package com.classmate.app.data
 
+import com.classmate.app.ui.i18n.AppLanguage
 import com.classmate.app.ui.theme.AccentColorPreset
 import com.classmate.app.ui.theme.CustomPalette
 import com.classmate.app.ui.theme.ThemePreset
@@ -17,6 +18,7 @@ data class ThemePreference(
     val accentColorPreset: AccentColorPreset = AccentColorPreset.Default,
     val customPalette: CustomPalette = CustomPalette.Default,
     val typographyPreset: TypographyPreset = TypographyPreset.Default,
+    val language: AppLanguage = AppLanguage.ZH,
     val enableExperimentalImageGeneration: Boolean = false,
     val enableExperimentalVideoGeneration: Boolean = false,
     val enableExperimentalSimultaneousInterpretation: Boolean = false,
@@ -40,6 +42,7 @@ class ThemePreferenceRepository(private val file: File?) {
                 tertiaryHex = obj.str("customTertiaryHex") ?: CustomPalette.DEFAULT_TERTIARY,
             ),
             typographyPreset = obj.str("typographyPreset")?.let(::typographyPresetOrNull) ?: TypographyPreset.Default,
+            language = obj.str("language")?.let(::languageOrNull) ?: AppLanguage.ZH,
             enableExperimentalImageGeneration = obj.bool("enableExperimentalImageGeneration") ?: false,
             enableExperimentalVideoGeneration = obj.bool("enableExperimentalVideoGeneration") ?: false,
             enableExperimentalSimultaneousInterpretation = obj.bool("enableExperimentalSimultaneousInterpretation") ?: false,
@@ -59,6 +62,7 @@ class ThemePreferenceRepository(private val file: File?) {
                     put("customSecondaryHex", preference.customPalette.secondaryHex)
                     put("customTertiaryHex", preference.customPalette.tertiaryHex)
                     put("typographyPreset", preference.typographyPreset.name)
+                    put("language", preference.language.name)
                     put("enableExperimentalImageGeneration", preference.enableExperimentalImageGeneration)
                     put("enableExperimentalVideoGeneration", preference.enableExperimentalVideoGeneration)
                     put("enableExperimentalSimultaneousInterpretation", preference.enableExperimentalSimultaneousInterpretation)
@@ -90,6 +94,12 @@ class ThemePreferenceRepository(private val file: File?) {
 
     fun saveTypographyPreset(preset: TypographyPreset): ThemePreference {
         val next = load().copy(typographyPreset = preset)
+        save(next)
+        return next
+    }
+
+    fun saveLanguage(language: AppLanguage): ThemePreference {
+        val next = load().copy(language = language)
         save(next)
         return next
     }
@@ -133,6 +143,9 @@ private fun accentPresetOrNull(value: String): AccentColorPreset? =
 
 private fun typographyPresetOrNull(value: String): TypographyPreset? =
     TypographyPreset.entries.firstOrNull { it.name.equals(value.trim(), ignoreCase = true) }
+
+private fun languageOrNull(value: String): AppLanguage? =
+    AppLanguage.entries.firstOrNull { it.name.equals(value.trim(), ignoreCase = true) }
 
 private fun JsonObject.str(key: String): String? =
     (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.content?.takeIf { it.isNotBlank() }

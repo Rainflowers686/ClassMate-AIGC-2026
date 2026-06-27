@@ -192,9 +192,14 @@ fun CourseDetailScreen(viewModel: AppViewModel) {
                 }
                 if (records.isNotEmpty()) {
                     ProductCollapse(title = "课堂记录（${records.size}）") {
+                        Text(
+                            "本课程的学习记录（时间与来源）。当前页面就是这门课程，记录仅作查看。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                         records.forEach { record ->
                             Spacer(Modifier.height(Dimens.s))
-                            LessonRecordCard(record, onOpen = { viewModel.openHistoryTimeline(record) })
+                            LessonRecordCard(record)
                         }
                     }
                 }
@@ -372,10 +377,13 @@ private fun L3PipelineStatusCard(viewModel: AppViewModel) {
     }
 }
 
+// A lesson record is an informational summary of when/how this course was studied. It is NOT clickable:
+// you are already viewing this course's detail, so re-opening it would just reload the same course
+// (a confusing dead-end). See P0-2.
 @Composable
-private fun LessonRecordCard(record: HistoryRecord, onOpen: () -> Unit) {
+private fun LessonRecordCard(record: HistoryRecord) {
     val cs = MaterialTheme.colorScheme
-    QuietCard(onClick = onOpen) {
+    QuietCard {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Column(Modifier.weight(1f)) {
                 Text(record.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)

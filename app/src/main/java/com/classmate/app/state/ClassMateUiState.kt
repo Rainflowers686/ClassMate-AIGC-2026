@@ -109,6 +109,8 @@ data class ClassMateUiState(
     val analysisIntensity: AnalysisIntensity = AnalysisIntensity.Default,
     val analysisElapsedMs: Long = 0L,
     val analysisSlowNotice: Boolean = false,
+    // Content-aware time estimate shown while analysis runs (P0-4) — never a fixed "60～90 秒".
+    val analysisEstimateText: String = "",
     val lastAnalysisLatencyMs: Long = 0L,
     val longTextInfo: LongTextAnalysisInfo? = null,
     val selectedImportFileMetadata: SelectedLocalFileMetadata? = null,

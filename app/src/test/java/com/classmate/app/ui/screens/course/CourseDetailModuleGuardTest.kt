@@ -42,6 +42,20 @@ class CourseDetailModuleGuardTest {
     }
 
     @Test
+    fun lessonRecordsAreNotClickableDeadEnds() {
+        // P0-2: tapping a 课堂记录 used to reload the same course into the timeline (a confusing
+        // dead-end the user read as a deprecated page). The list is now a read-only summary.
+        assertFalse(
+            "CourseDetail lesson records must not navigate via openHistoryTimeline",
+            source.contains("openHistoryTimeline"),
+        )
+        assertFalse(
+            "LessonRecordCard must not take an onOpen click handler",
+            source.contains("LessonRecordCard(record, onOpen"),
+        )
+    }
+
+    @Test
     fun knowledgeMapIsTrimmedToTitleAndEntry() {
         // The verbose per-edge "A → B" dump is replaced by a count + a single entry button.
         assertFalse(
