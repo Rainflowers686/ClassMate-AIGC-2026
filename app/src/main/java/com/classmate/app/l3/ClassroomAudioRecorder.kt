@@ -13,6 +13,7 @@ data class RecordingArtifactResult(
 interface ClassroomAudioRecorder {
     fun start(sessionId: String): RecordingArtifactResult
     fun stop(): RecordingArtifactResult
+    fun cancel(): RecordingArtifactResult = stop()
 }
 
 object NoOpClassroomAudioRecorder : ClassroomAudioRecorder {
@@ -21,6 +22,9 @@ object NoOpClassroomAudioRecorder : ClassroomAudioRecorder {
 
     override fun stop(): RecordingArtifactResult =
         RecordingArtifactResult(false, safeMessage = "当前环境未提供录音器，可继续手动转写。")
+
+    override fun cancel(): RecordingArtifactResult =
+        RecordingArtifactResult(false, safeMessage = "当前环境未提供录音器。")
 }
 
 class AndroidClassroomAudioRecorder(private val directory: File) : ClassroomAudioRecorder {
@@ -73,6 +77,13 @@ class AndroidClassroomAudioRecorder(private val directory: File) : ClassroomAudi
             runCatching { file?.delete() }
             RecordingArtifactResult(false, file?.name, "录音保存失败，可继续手动转写。")
         }
+    }
+
+    override fun cancel(): RecordingArtifactResult {
+        val file = currentFile
+        cleanup()
+        runCatching { file?.delete() }
+        return RecordingArtifactResult(true, file?.name, "录音已取消，未生成音频证据。")
     }
 
     private fun cleanup() {

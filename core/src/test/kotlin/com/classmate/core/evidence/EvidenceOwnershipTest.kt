@@ -16,43 +16,62 @@ class EvidenceOwnershipTest {
     }
 
     @Test
-    fun crossCourseSourceIdDowngradesToWeak() {
+    fun crossCourseSourceIdIsMissing() {
         val snapshot = snapshot(
             lessonSourceId = "lesson_a",
             evidence = listOf(record(id = "ev_cross", sourceId = "lesson_b")),
         )
 
-        assertEquals(EvidenceRelationLevel.WEAK, EvidenceOwnership.assess(snapshot, "ev_cross"))
+        assertEquals(EvidenceRelationLevel.MISSING, EvidenceOwnership.assess(snapshot, "ev_cross"))
     }
 
     @Test
-    fun realCourseRejectsSampleEvidenceAsWeak() {
+    fun realCourseRejectsSampleEvidenceAsMissing() {
         val snapshot = snapshot(
             isSampleCourse = false,
             evidence = listOf(record(id = "ev_sample", sourceId = "sample_lesson", sourceLabel = "示例课程")),
         )
 
-        assertEquals(EvidenceRelationLevel.WEAK, EvidenceOwnership.assess(snapshot, "ev_sample"))
+        assertEquals(EvidenceRelationLevel.MISSING, EvidenceOwnership.assess(snapshot, "ev_sample"))
     }
 
     @Test
-    fun missingAssetDowngradesToWeak() {
+    fun missingAssetIsMissing() {
         val snapshot = snapshot(
             evidence = listOf(record(id = "ev_image", sourceId = "lesson_a", assetId = "asset_missing")),
             assets = emptyList(),
         )
 
-        assertEquals(EvidenceRelationLevel.WEAK, EvidenceOwnership.assess(snapshot, "ev_image"))
+        assertEquals(EvidenceRelationLevel.MISSING, EvidenceOwnership.assess(snapshot, "ev_image"))
     }
 
     @Test
-    fun assetMetadataMismatchDowngradesToWeak() {
+    fun assetMetadataMismatchIsMissing() {
         val snapshot = snapshot(
             evidence = listOf(record(id = "ev_image", sourceId = "lesson_a", assetId = "asset_1", sourceType = "OCR_IMAGE", imageRef = "image-a.jpg")),
             assets = listOf(EvidenceOwnership.AssetRecord(id = "asset_1", sourceType = "OCR_IMAGE", imageRef = "image-b.jpg")),
         )
 
-        assertEquals(EvidenceRelationLevel.WEAK, EvidenceOwnership.assess(snapshot, "ev_image"))
+        assertEquals(EvidenceRelationLevel.MISSING, EvidenceOwnership.assess(snapshot, "ev_image"))
+    }
+
+    @Test
+    fun emptyExcerptIsMissing() {
+        val snapshot = snapshot(
+            evidence = listOf(record(id = "ev_empty", sourceId = "lesson_a", excerpt = "")),
+        )
+
+        assertEquals(EvidenceRelationLevel.MISSING, EvidenceOwnership.assess(snapshot, "ev_empty"))
+    }
+
+    @Test
+    fun incompleteAssetMetadataIsWeak() {
+        val snapshot = snapshot(
+            evidence = listOf(record(id = "ev_legacy", sourceId = "lesson_a", assetId = "asset_1", sourceType = "OCR_IMAGE")),
+            assets = listOf(EvidenceOwnership.AssetRecord(id = "asset_1", sourceType = "OCR_IMAGE")),
+        )
+
+        assertEquals(EvidenceRelationLevel.WEAK, EvidenceOwnership.assess(snapshot, "ev_legacy"))
     }
 
     private fun snapshot(
@@ -75,6 +94,7 @@ class EvidenceOwnershipTest {
         assetId: String? = null,
         sourceLabel: String = "",
         imageRef: String = "",
+        excerpt: String = "class evidence excerpt",
     ) = EvidenceOwnership.EvidenceRecord(
         id = id,
         sourceId = sourceId,
@@ -82,5 +102,6 @@ class EvidenceOwnershipTest {
         assetId = assetId,
         sourceLabel = sourceLabel,
         imageRef = imageRef,
+        excerpt = excerpt,
     )
 }

@@ -46,7 +46,7 @@ class EvidenceRetraceabilityTest {
     }
 
     @Test
-    fun sourceMismatchedEvidenceIsWeakNotStrong() {
+    fun sourceMismatchedEvidenceIsMissingNotStrong() {
         val file = Files.createTempDirectory("cm-ev-owner").resolve("classmate_l3_store.json").toFile()
         L3PersistenceRepository(file).saveSnapshot(
             L3PipelineSnapshot(
@@ -66,11 +66,11 @@ class EvidenceRetraceabilityTest {
             l3PersistenceRepository = L3PersistenceRepository(file),
         )
 
-        assertEquals(EvidenceRelationLevel.WEAK, viewModel.evidenceRelationLevel("ev_stale", "电磁感应"))
+        assertEquals(EvidenceRelationLevel.MISSING, viewModel.evidenceRelationLevel("ev_stale", "电磁感应"))
     }
 
     @Test
-    fun missingEvidenceAssetIsWeakNotStrong() {
+    fun missingEvidenceAssetIsMissingNotStrong() {
         val file = Files.createTempDirectory("cm-ev-asset").resolve("classmate_l3_store.json").toFile()
         L3PersistenceRepository(file).saveSnapshot(
             L3PipelineSnapshot(
@@ -99,6 +99,6 @@ class EvidenceRetraceabilityTest {
             l3PersistenceRepository = L3PersistenceRepository(file),
         )
 
-        assertEquals(EvidenceRelationLevel.WEAK, viewModel.evidenceRelationLevel("ev_photo", "OCR text"))
+        assertEquals(EvidenceRelationLevel.MISSING, viewModel.evidenceRelationLevel("ev_photo", "OCR text"))
     }
 }

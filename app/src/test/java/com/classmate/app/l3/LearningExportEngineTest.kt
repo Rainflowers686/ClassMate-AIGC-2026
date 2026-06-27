@@ -132,12 +132,37 @@ class LearningExportEngineTest {
     }
 
     @Test
-    fun weakEvidenceIsMarkedForReview() {
+    fun semanticallyWeakEvidenceIsMarkedForReview() {
         val snapshot = L3PipelineSnapshot(
             lessonSource = LessonSource("lesson_a", "Physics", L3SourceType.TEXT, 1L, "电磁感应", "READY"),
             evidence = listOf(
                 Evidence(
-                    id = "ev_wrong_source",
+                    id = "ev_weak",
+                    sourceId = "lesson_a",
+                    sourceType = L3SourceType.TEXT,
+                    text = "光合作用发生在叶绿体中。",
+                    sourceLabel = "课堂文本",
+                ),
+            ),
+            knowledgePoints = listOf(
+                L3KnowledgePoint("kp_induction", "电磁感应", "磁通量变化产生感应电流。", listOf("ev_weak"), L3MasteryState.LEARNING),
+            ),
+        )
+
+        val markdown = LearningExportEngine.buildStudyPackMarkdown(snapshot, 1_700_000_000_000L)
+
+        assertTrue(markdown.contains("证据待核对"))
+        assertFalse(markdown.contains("ev_weak"))
+        assertFalse(markdown.contains("kp_induction"))
+    }
+
+    @Test
+    fun missingOwnershipEvidenceExportsAsNoEvidence() {
+        val snapshot = L3PipelineSnapshot(
+            lessonSource = LessonSource("lesson_a", "Physics", L3SourceType.TEXT, 1L, "电磁感应", "READY"),
+            evidence = listOf(
+                Evidence(
+                    id = "ev_cross",
                     sourceId = "lesson_b",
                     sourceType = L3SourceType.TEXT,
                     text = "电磁感应和磁通量变化有关。",
@@ -145,14 +170,14 @@ class LearningExportEngineTest {
                 ),
             ),
             knowledgePoints = listOf(
-                L3KnowledgePoint("kp_induction", "电磁感应", "磁通量变化产生感应电流。", listOf("ev_wrong_source"), L3MasteryState.LEARNING),
+                L3KnowledgePoint("kp_induction", "电磁感应", "磁通量变化产生感应电流。", listOf("ev_cross"), L3MasteryState.LEARNING),
             ),
         )
 
         val markdown = LearningExportEngine.buildStudyPackMarkdown(snapshot, 1_700_000_000_000L)
 
-        assertTrue(markdown.contains("证据待核对"))
-        assertFalse(markdown.contains("ev_wrong_source"))
-        assertFalse(markdown.contains("kp_induction"))
+        assertTrue(markdown.contains("暂无可回溯"))
+        assertFalse(markdown.contains("ev_cross"))
+        assertFalse(markdown.contains("other lesson"))
     }
 }

@@ -24,6 +24,9 @@ class ClassroomRecordingHonestyTest {
         override fun stop() =
             if (stopSucceeds) RecordingArtifactResult(true, "rec.m4a", "录音已保存。", fileSizeBytes = 2048L)
             else RecordingArtifactResult(false, "rec.m4a", "录音文件为空或保存失败。")
+
+        override fun cancel() =
+            RecordingArtifactResult(true, "rec.m4a", "录音已取消。")
     }
 
     private fun vm(stopSucceeds: Boolean) = AppViewModel(
@@ -59,5 +62,16 @@ class ClassroomRecordingHonestyTest {
             "saved recording should create an AUDIO artifact",
             viewModel.ui.inputArtifacts.any { it.kind == InputFileKind.AUDIO },
         )
+    }
+
+    @Test
+    fun cancelRecordingDoesNotCreateEvidenceOrRecord() {
+        val viewModel = vm(stopSucceeds = true)
+        viewModel.startClassroomRecording(now = 1_000L)
+        viewModel.cancelClassroomRecording()
+
+        assertEquals(null, viewModel.ui.currentRecording)
+        assertTrue(viewModel.ui.recordingRecords.isEmpty())
+        assertFalse(viewModel.ui.inputArtifacts.any { it.kind == InputFileKind.AUDIO })
     }
 }

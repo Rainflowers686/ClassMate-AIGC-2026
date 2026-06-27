@@ -16,6 +16,7 @@ class SafeExportTextRedactionTest {
             "LOCAL_FALLBACK",
             "local-learning-pipeline",
             "Evidence chain",
+            "provider trace",
             "mastery events",
             "topHit",
             "BuildConfig",
@@ -32,6 +33,17 @@ class SafeExportTextRedactionTest {
             "ASR Long job",
             "PDF page",
             "Import report",
+            "Transcript timeline",
+            "assetId",
+            "MIME",
+            "snippet",
+            "safe placeholder",
+            "SafetyPlaceholder",
+            "安全占位",
+            "Study diagram prompt",
+            "Review video storyboard",
+            "Bilingual transcript draft",
+            "Audio review script",
         ).forEach { token ->
             val redacted = SafeExportText.redact("学习笔记 $token 结束")
             assertFalse("token must be redacted: $token", redacted.contains(token, ignoreCase = true))
@@ -49,7 +61,7 @@ class SafeExportTextRedactionTest {
 
     @Test
     fun stripsSecrets() {
-        listOf("appKey", "apiKey", "Authorization", "Bearer", "reasoning_content").forEach { token ->
+        listOf("appKey", "apiKey", "Authorization", "Bearer", "reasoning_content", "secret").forEach { token ->
             assertFalse("secret must be redacted: $token", SafeExportText.redact("x $token y").contains(token, ignoreCase = true))
         }
     }

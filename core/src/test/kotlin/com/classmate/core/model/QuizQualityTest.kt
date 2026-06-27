@@ -28,6 +28,7 @@ class QuizQualityTest {
         assertFalse("no correct option is not usable", QuizQuality.isUsable(q("q3", listOf(opt("A", false), opt("B", false)))))
         assertFalse("blank option id is not usable", QuizQuality.isUsable(q("q4", listOf(opt("", true), opt("B", false)))))
         assertFalse("duplicate option ids are not usable", QuizQuality.isUsable(q("q5", listOf(opt("A", true), opt("A", false)))))
+        assertFalse("blank option text is not usable", QuizQuality.isUsable(q("q6", listOf(QuizOption("A", "", true), opt("B", false)))))
     }
 
     @Test

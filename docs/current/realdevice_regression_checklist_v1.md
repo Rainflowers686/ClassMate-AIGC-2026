@@ -55,3 +55,5 @@
 3. **Recording lifecycle**：0 字节录音和失败录音不生成 AUDIO evidence；删除录音或删除课程会清理 app 私有录音文件；重启后缺失文件应降级显示，不冒充可播放证据。
 4. **Export safety**：PDF / Word(HTML) / Markdown / TXT / Study Pack 均需经过 SafeExportText；不得出现 AppKey、Authorization、config.local.json、provider/debug token、裸 `kp_/q_/ev_`。
 5. **Quiz completeness**：练习、导入题、错题、导出前的题目必须有可用选项、正确答案、解析和证据状态；坏题不得进入 WrongBook 或导出。
+6. **Transcript parser**：SRT/VTT/TXT、BOM、畸形时间轴、空文件都应返回可理解状态；视频 metadata 只保留文件信息，不生成假转写证据。
+7. **i18n domain copy**：普通用户可见的 evidence/recording/export/quiz/transcript/deletion 状态应使用中文或已接入语言资源，不把 errorCode/provider code 当主文案。

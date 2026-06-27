@@ -1751,6 +1751,27 @@ class AppViewModel(
         createAsrLongJobForArtifact(audioArtifact.id, now)
     }
 
+    fun cancelClassroomRecording(message: String = "录音已取消，未生成音频证据。") {
+        val current = ui.currentRecording
+        if (current == null || current.status != L3RecordingStatus.RECORDING) {
+            ui = ui.copy(toast = "当前没有正在进行的课堂录音。")
+            return
+        }
+        val artifact = classroomAudioRecorder.cancel()
+        val canceled = current.copy(
+            status = L3RecordingStatus.FAILED,
+            artifactFileName = artifact.fileName ?: current.artifactFileName,
+            fileSizeBytes = 0L,
+            message = message,
+        )
+        recordingFileManager.deleteForRecords(listOf(canceled))
+        ui = ui.copy(
+            currentRecording = null,
+            audioCaptureMessage = message,
+            toast = message,
+        )
+    }
+
     /** Drop a recording record from state and remove the app-private audio file when present. */
     fun removeRecordingRecord(recordId: String, message: String = "录音已删除。") {
         ui.recordingRecords.firstOrNull { it.id == recordId }?.let { recordingFileManager.deleteForRecords(listOf(it)) }
@@ -3104,6 +3125,7 @@ class AppViewModel(
                     fileName = it.fileName,
                     imageRef = it.imageRef,
                     audioRef = it.audioRef,
+                    excerpt = it.text.ifBlank { it.snippet }.ifBlank { it.transcriptSegment },
                 )
             },
             assets = snapshot.evidenceAssets.map {

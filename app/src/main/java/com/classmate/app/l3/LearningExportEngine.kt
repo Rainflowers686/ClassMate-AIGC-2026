@@ -130,16 +130,22 @@ object LearningExportEngine {
             }
 
             appendSection("证据索引") {
-                if (snapshot.evidence.isEmpty()) {
+                val exportableEvidence = snapshot.evidence
+                    .mapNotNull { ev ->
+                        val level = EvidenceOwnership.assess(ownership, ev.id)
+                        if (level == EvidenceRelationLevel.MISSING) null else ev to level
+                    }
+                if (exportableEvidence.isEmpty()) {
                     appendLine("- 暂无证据。")
                 } else {
-                    snapshot.evidence.take(30).forEach { ev ->
+                    exportableEvidence.take(30).forEach { (ev, level) ->
                         val label = ev.sourceLabel.ifBlank { ev.fileName }.ifBlank { sourceTypeZh(ev.sourceType) }
                         val excerpt = ev.snippet.ifBlank { ev.text }.take(120)
+                        val suffix = if (level == EvidenceRelationLevel.WEAK) "（证据待核对）" else ""
                         if (excerpt.isBlank()) {
                             appendLine("- ${sourceTypeZh(ev.sourceType)} · ${safe(label)}：$NO_EVIDENCE")
                         } else {
-                            appendLine("- ${sourceTypeZh(ev.sourceType)} · ${safe(label)}：「${safe(excerpt)}」")
+                            appendLine("- ${sourceTypeZh(ev.sourceType)} · ${safe(label)}$suffix：「${safe(excerpt)}」")
                         }
                     }
                 }
@@ -209,6 +215,7 @@ object LearningExportEngine {
                     fileName = it.fileName,
                     imageRef = it.imageRef,
                     audioRef = it.audioRef,
+                    excerpt = it.text.ifBlank { it.snippet }.ifBlank { it.transcriptSegment },
                 )
             },
             assets = snapshot.evidenceAssets.map {

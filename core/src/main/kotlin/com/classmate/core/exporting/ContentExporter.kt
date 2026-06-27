@@ -350,12 +350,14 @@ object SafeExportText {
         "mes" + "sages",
         "vendor" + " response body",
         "vendor" + " body",
+        "secret",
         // Internal pipeline / debug tokens that must never leak into a study export. Only unambiguous
         // code tokens + app-specific phrases are listed — generic study words (embedding, similarity)
         // are intentionally NOT redacted so a CS/ML course export stays intact.
         "LOCAL_FALLBACK",
         "local-learning-pipeline",
         "Evidence chain",
+        "provider trace",
         "mastery events",
         "topHit",
         "BuildConfig",
@@ -372,6 +374,17 @@ object SafeExportText {
         "ASR Long job",
         "PDF page",
         "Import report",
+        "Transcript timeline",
+        "assetId",
+        "MIME",
+        "snippet",
+        "safe placeholder",
+        "SafetyPlaceholder",
+        "安全占位",
+        "Study diagram prompt",
+        "Review video storyboard",
+        "Bilingual transcript draft",
+        "Audio review script",
     )
     private val rawIdPatterns = listOf(
         Regex("\\bkp_[A-Za-z0-9_-]+\\b"),

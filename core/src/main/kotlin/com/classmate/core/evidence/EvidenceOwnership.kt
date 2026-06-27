@@ -5,8 +5,10 @@ package com.classmate.core.evidence
  *
  * The app does not have a global courseId on every legacy record, so this deliberately uses the
  * strongest local signals that are already persisted: current lesson/source id, current evidence
- * ids, asset ids, and source metadata. It is conservative: missing current evidence is MISSING,
- * stale/cross-course/sample evidence is WEAK, and only in-snapshot, source-matching evidence is STRONG.
+ * ids, asset ids, source metadata, and a retraceable excerpt. It is conservative: missing current
+ * evidence, cross-course evidence, sample evidence bound to a real course, missing assets, and clear
+ * metadata conflicts are MISSING. Incomplete but non-conflicting metadata is WEAK. Only in-snapshot,
+ * source-matching evidence with a non-empty excerpt is STRONG.
  */
 object EvidenceOwnership {
 
@@ -29,6 +31,7 @@ object EvidenceOwnership {
         val fileName: String = "",
         val imageRef: String = "",
         val audioRef: String = "",
+        val excerpt: String = "",
     )
 
     data class AssetRecord(
@@ -52,32 +55,34 @@ object EvidenceOwnership {
         val evidence = snapshot.evidence.firstOrNull { it.id == id }
             ?: return EvidenceRelationLevel.MISSING
 
-        if (!snapshot.isSampleCourse && evidence.looksLikeSample()) return EvidenceRelationLevel.WEAK
+        if (evidence.excerpt.isBlank()) return EvidenceRelationLevel.MISSING
+        if (!snapshot.isSampleCourse && evidence.looksLikeSample()) return EvidenceRelationLevel.MISSING
 
         val expected = listOfNotNull(expectedLessonId, expectedSourceLessonId)
             .map { it.trim() }
             .filter { it.isNotBlank() }
             .toSet()
         if (expected.isNotEmpty() && evidence.sourceId.isNotBlank() && evidence.sourceId !in expected) {
-            return EvidenceRelationLevel.WEAK
+            return EvidenceRelationLevel.MISSING
         }
 
         val currentSource = snapshot.lessonSourceId.ifBlank { snapshot.snapshotId }
         if (currentSource.isNotBlank() && evidence.sourceId.isNotBlank() && evidence.sourceId != currentSource) {
-            return EvidenceRelationLevel.WEAK
+            return EvidenceRelationLevel.MISSING
         }
 
         val assetId = evidence.assetId?.trim().orEmpty()
         if (assetId.isNotBlank()) {
             val asset = snapshot.assets.firstOrNull { it.id == assetId }
-                ?: return EvidenceRelationLevel.WEAK
+                ?: return EvidenceRelationLevel.MISSING
             if (evidence.sourceType.isNotBlank() && asset.sourceType.isNotBlank() && evidence.sourceType != asset.sourceType) {
-                return EvidenceRelationLevel.WEAK
+                return EvidenceRelationLevel.MISSING
             }
-            if (mismatched(evidence.sourceLabel, asset.sourceLabel)) return EvidenceRelationLevel.WEAK
-            if (mismatched(evidence.fileName, asset.fileName)) return EvidenceRelationLevel.WEAK
-            if (mismatched(evidence.imageRef, asset.imageRef)) return EvidenceRelationLevel.WEAK
-            if (mismatched(evidence.audioRef, asset.audioRef)) return EvidenceRelationLevel.WEAK
+            if (mismatched(evidence.sourceLabel, asset.sourceLabel)) return EvidenceRelationLevel.MISSING
+            if (mismatched(evidence.fileName, asset.fileName)) return EvidenceRelationLevel.MISSING
+            if (mismatched(evidence.imageRef, asset.imageRef)) return EvidenceRelationLevel.MISSING
+            if (mismatched(evidence.audioRef, asset.audioRef)) return EvidenceRelationLevel.MISSING
+            if (asset.hasIncompleteMetadataFor(evidence.sourceType)) return EvidenceRelationLevel.WEAK
         }
 
         return EvidenceRelationLevel.STRONG
@@ -98,4 +103,10 @@ object EvidenceOwnership {
 
     private fun normalize(value: String): String =
         value.trim().replace('\\', '/').lowercase()
+
+    private fun AssetRecord.hasIncompleteMetadataFor(sourceType: String): Boolean {
+        val type = sourceType.uppercase()
+        val hasAnyRef = listOf(sourceLabel, fileName, imageRef, audioRef).any { it.isNotBlank() }
+        return type in setOf("OCR_IMAGE", "DOCUMENT", "AUDIO_TRANSCRIPT", "RECORDING_ARTIFACT", "MANUAL_TRANSCRIPT") && !hasAnyRef
+    }
 }

@@ -20,6 +20,7 @@ object QuizQuality {
     /** A question can enter practice iff it has >=2 options and >=1 correct option that exists in options. */
     fun isUsable(q: QuizQuestion): Boolean {
         if (q.options.size < 2) return false
+        if (q.options.any { it.text.isBlank() }) return false
         val ids = q.options.map { it.id.trim() }
         if (ids.any { it.isBlank() }) return false
         val optionIds = ids.toSet()
