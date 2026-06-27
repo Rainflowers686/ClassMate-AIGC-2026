@@ -30,6 +30,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.classmate.app.data.HistoryRecord
@@ -343,10 +345,27 @@ private fun L3PipelineStatusCard(viewModel: AppViewModel) {
                 )
             }
             SecondaryButton(
-                "生成听背复习脚本",
+                "生成听背文稿",
                 onClick = { viewModel.generateAudioReviewScript() },
                 modifier = Modifier.fillMaxWidth(),
             )
+            l3.audioReviewAssets.lastOrNull()?.takeIf { it.script.isNotBlank() }?.let { asset ->
+                val clipboard = LocalClipboardManager.current
+                Spacer(Modifier.height(Dimens.xs))
+                Text(
+                    if (asset.audioRef != null) "听背音频已生成" else "听背文稿已生成（当前设备暂未生成音频，可先用文稿复习）",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(Dimens.xxs))
+                Text(asset.script, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 8)
+                Spacer(Modifier.height(Dimens.xs))
+                SecondaryButton(
+                    "复制听背文稿",
+                    onClick = { clipboard.setText(AnnotatedString(asset.script)); viewModel.toast("听背文稿已复制，可粘贴分享。") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
         if (l3.qualityWarnings.isNotEmpty()) {
             Spacer(Modifier.height(Dimens.s))

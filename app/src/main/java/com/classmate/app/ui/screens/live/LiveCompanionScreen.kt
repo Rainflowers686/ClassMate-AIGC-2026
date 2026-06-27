@@ -247,10 +247,12 @@ fun LiveCompanionScreen(viewModel: AppViewModel) {
                                     modifier = Modifier.fillMaxWidth(),
                                 )
                                 Spacer(Modifier.height(10.dp))
+                                // Full-width button under the input — not stranded narrow/left (P1).
                                 FlowPillButton(
                                     "追加片段",
                                     filled = true,
                                     accent = accent,
+                                    modifier = Modifier.fillMaxWidth(),
                                     onClick = { viewModel.appendLiveSegment() },
                                 )
                             }

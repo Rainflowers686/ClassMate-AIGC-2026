@@ -31,12 +31,18 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.core.content.ContextCompat
+import androidx.compose.ui.text.font.FontStyle
+import com.classmate.app.asr.AndroidSpeechRecognizerClient
+import com.classmate.app.asr.AsrEventListener
+import com.classmate.app.asr.AsrSession
+import com.classmate.app.asr.AsrState
 import com.classmate.app.l3.L3RecordingStatus
 import com.classmate.app.l3.ClassroomRecordingRecord
 import com.classmate.app.l3.DialectMode
@@ -129,12 +135,37 @@ fun ImportCourseScreen(viewModel: AppViewModel) {
             viewModel.toast("未拍摄到图片。")
         }
     }
+    // P0-1: live speech-to-text engine for INLINE "record + transcribe". Uses the system recognizer as
+    // the non-official fallback (no raw audio kept by the recognizer itself); honest states drive the UI.
+    val asrEngine = remember { AndroidSpeechRecognizerClient(context) }
+    val asrListener = remember {
+        object : AsrEventListener {
+            override fun onListening() = viewModel.asrOnListening()
+            override fun onPartial(text: String) = viewModel.asrOnPartial(text)
+            override fun onFinal(text: String, confidence: Double?) = viewModel.asrOnFinal(text, confidence)
+            override fun onEndOfSpeech() = viewModel.asrOnEndOfSpeech()
+            override fun onError(message: String) { viewModel.asrOnError(message); asrEngine.stop() }
+        }
+    }
+    DisposableEffect(Unit) { onDispose { asrEngine.destroy() } }
+    fun beginRecordAndTranscribe(granted: Boolean) {
+        val state = viewModel.startRecordingWithTranscription(asrEngine.isAvailable(), granted)
+        if (state == AsrState.LISTENING) asrEngine.start(asrListener)
+    }
     val recordingPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) viewModel.startClassroomRecording() else viewModel.toast("未授权麦克风，仍可粘贴手动转写文本。")
+        beginRecordAndTranscribe(granted)
     }
     fun startRecordingWithPermission() {
         val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-        if (granted) viewModel.startClassroomRecording() else recordingPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        if (granted) beginRecordAndTranscribe(true) else recordingPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+    }
+    fun stopRecordAndTranscribe() {
+        asrEngine.stop()
+        viewModel.stopRecordingWithTranscription()
+    }
+    fun cancelRecordAndTranscribe() {
+        asrEngine.stop()
+        viewModel.cancelRecordingWithTranscription()
     }
 
     AiProcessingDialog(
@@ -234,7 +265,12 @@ fun ImportCourseScreen(viewModel: AppViewModel) {
                     )
                 }
                 DocumentEvidenceIntakeCard(viewModel)
-                ClassroomRecordingCard(viewModel, onStartRecording = { startRecordingWithPermission() })
+                ClassroomRecordingCard(
+                    viewModel,
+                    onStartRecording = { startRecordingWithPermission() },
+                    onStopRecording = { stopRecordAndTranscribe() },
+                    onCancelRecording = { cancelRecordAndTranscribe() },
+                )
             }
         }
     }
@@ -305,7 +341,12 @@ private fun DocumentEvidenceIntakeCard(viewModel: AppViewModel) {
 }
 
 @Composable
-private fun ClassroomRecordingCard(viewModel: AppViewModel, onStartRecording: () -> Unit) {
+private fun ClassroomRecordingCard(
+    viewModel: AppViewModel,
+    onStartRecording: () -> Unit,
+    onStopRecording: () -> Unit,
+    onCancelRecording: () -> Unit,
+) {
     val ui = viewModel.ui
     val active = ui.currentRecording?.status == L3RecordingStatus.RECORDING
     val latestAsrJob = ui.asrLongJobs.lastOrNull()
@@ -420,10 +461,56 @@ private fun ClassroomRecordingCard(viewModel: AppViewModel, onStartRecording: ()
         )
         Spacer(Modifier.height(Dimens.s))
         if (active) {
-            PrimaryButton("停止并保存录音", onClick = { viewModel.stopClassroomRecording() }, modifier = Modifier.fillMaxWidth())
+            // Inline live speech-to-text while recording (P0-1): partial + confirmed segments + honest state.
+            LiveTranscriptPanel(ui.asrSession)
+            Spacer(Modifier.height(Dimens.s))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+                PrimaryButton("停止并保存", onClick = onStopRecording, modifier = Modifier.weight(1f))
+                SecondaryButton("取消", onClick = onCancelRecording, modifier = Modifier.weight(1f))
+            }
         } else {
-            PrimaryButton("开始课堂录音", onClick = onStartRecording, modifier = Modifier.fillMaxWidth())
+            PrimaryButton("开始录音并实时转写", onClick = onStartRecording, modifier = Modifier.fillMaxWidth())
         }
+    }
+}
+
+/** Inline live transcript view for the recording card: honest state + confirmed segments + interim text. */
+@Composable
+private fun LiveTranscriptPanel(asr: AsrSession) {
+    val cs = MaterialTheme.colorScheme
+    val stateLabel = when (asr.state) {
+        AsrState.LISTENING -> "正在听写…（系统语音识别）"
+        AsrState.PROCESSING -> "识别中…"
+        AsrState.ERROR -> "识别失败，可手动补充或导入转写稿"
+        AsrState.UNSUPPORTED -> "本机语音识别不可用，录音继续；可手动粘贴或导入转写稿"
+        AsrState.PERMISSION_REQUIRED -> "未授权麦克风，录音继续；可手动转写"
+        else -> "录音中"
+    }
+    Spacer(Modifier.height(Dimens.s))
+    Text(
+        "实时转写 · $stateLabel",
+        style = MaterialTheme.typography.labelLarge,
+        color = if (asr.state == AsrState.ERROR) cs.error else cs.primary,
+    )
+    if (asr.segments.isNotEmpty()) {
+        Spacer(Modifier.height(Dimens.xs))
+        Text("已识别 ${asr.segments.size} 段", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+        asr.segments.takeLast(3).forEach { seg ->
+            Text("· ${seg.text}", style = MaterialTheme.typography.bodyMedium, color = cs.onSurface)
+        }
+    }
+    if (asr.partialText.isNotBlank()) {
+        Spacer(Modifier.height(Dimens.xxs))
+        Text(
+            "临时识别：${asr.partialText}",
+            style = MaterialTheme.typography.bodySmall,
+            color = cs.onSurfaceVariant,
+            fontStyle = FontStyle.Italic,
+        )
+    }
+    if (asr.segments.isEmpty() && asr.partialText.isBlank() && asr.state == AsrState.LISTENING) {
+        Spacer(Modifier.height(Dimens.xxs))
+        Text("开始说话后，识别文本会实时显示在这里。", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
     }
 }
 

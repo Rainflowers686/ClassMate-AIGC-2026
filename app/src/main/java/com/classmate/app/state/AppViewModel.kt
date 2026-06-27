@@ -537,7 +537,7 @@ class AppViewModel(
         val next = refreshCapabilityMatrix(
             ui.l3Pipeline.copy(audioReviewAssets = (ui.l3Pipeline.audioReviewAssets + asset).takeLast(20)),
         )
-        ui = ui.copy(l3Pipeline = next, toast = "已生成听背复习脚本；音频生成待配置。")
+        ui = ui.copy(l3Pipeline = next, toast = "已生成听背文稿，可复制或分享复习；当前设备暂未生成音频。")
         persistL3(next)
         return true
     }
@@ -1787,6 +1787,43 @@ class AppViewModel(
             currentRecording = ui.currentRecording?.takeUnless { it.id == recordId },
             toast = message,
         )
+    }
+
+    // --- P0-1: inline "record + live transcribe" — recording file AND live speech-to-text together ---
+
+    /**
+     * Start classroom recording AND live speech-to-text in one action. The recording produces the AUDIO
+     * file; the live transcript (official ASR when configured, else the system SpeechRecognizer) shows
+     * partial/final text inline. Returns the [AsrState] so the screen knows whether the recognizer is
+     * listening or fell back (UNSUPPORTED / PERMISSION_REQUIRED) — the recording still proceeds either way.
+     */
+    fun startRecordingWithTranscription(
+        asrAvailable: Boolean,
+        permissionGranted: Boolean,
+        now: Long = System.currentTimeMillis(),
+    ): AsrState {
+        startClassroomRecording(now)
+        return asrBegin(asrAvailable, permissionGranted, now)
+    }
+
+    /**
+     * Stop both. The AUDIO evidence is kept ONLY when a real non-empty file landed on disk; the live
+     * transcript is committed as a SEPARATE text evidence (system speech recognition) only when something
+     * was actually recognized — a recording with no transcript never fabricates one.
+     */
+    fun stopRecordingWithTranscription(now: Long = System.currentTimeMillis()) {
+        val hadTranscript = ui.asrSession.segments.any { it.text.isNotBlank() }
+        stopAsr() // folds confirmed ASR segments into ui.transcripts (LIVE_ASR transcript evidence)
+        stopClassroomRecording(now) // AUDIO evidence only when a real file is present
+        if (hadTranscript) {
+            ui = ui.copy(audioCaptureMessage = "录音已保存，实时转写已生成文本，可继续整理或生成学习闭环。")
+        }
+    }
+
+    /** Cancel both: no AUDIO evidence, no transcript evidence, live text dropped. */
+    fun cancelRecordingWithTranscription() {
+        ui = ui.copy(asrSession = AsrSession())
+        cancelClassroomRecording("录音已取消，未生成音频或转写证据。")
     }
 
     fun showImportPlaceholder(sourceType: ImportSourceType) {
