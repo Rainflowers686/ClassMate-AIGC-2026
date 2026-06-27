@@ -40,6 +40,7 @@ import com.classmate.app.state.AppViewModel
 import com.classmate.app.state.Screen
 import com.classmate.app.ui.flow.AmbientSoundPlayer
 import com.classmate.app.ui.flow.FlowBreathingTimer
+import com.classmate.app.ui.flow.FocusDurations
 import com.classmate.app.ui.flow.FlowCompColors
 import com.classmate.app.ui.flow.FlowCompPanel
 import com.classmate.app.ui.flow.FlowCompSectionLabel
@@ -125,9 +126,10 @@ fun LiveCompanionScreen(viewModel: AppViewModel) {
         }
     }
 
+    var focusTargetMin by remember { mutableStateOf(FocusDurations.DEFAULT_MIN) }
     val elapsedMs = session?.elapsedMs(nowTick) ?: 0L
     val minutes = (elapsedMs / 60000L).toInt()
-    val progress = (elapsedMs.toFloat() / (FOCUS_TARGET_MIN * 60_000f)).coerceIn(0f, 1f)
+    val progress = (elapsedMs.toFloat() / (focusTargetMin * 60_000f)).coerceIn(0f, 1f)
     val cachedCount = ui.result?.knowledgePoints?.size ?: session?.segments?.size ?: 0
     val course = ui.liveTitleDraft.ifBlank { ui.session?.title?.ifBlank { "心流学习" } ?: "心流学习" }
 
@@ -191,11 +193,23 @@ fun LiveCompanionScreen(viewModel: AppViewModel) {
                             FlowBreathingTimer(
                                 modifier = Modifier.flowCompEnter(),
                                 elapsedLabel = formatElapsed(elapsedMs),
-                                sublabel = "本次专注 · 目标 $FOCUS_TARGET_MIN 分钟",
+                                sublabel = "本次专注 · 目标 $focusTargetMin 分钟",
                                 progress = progress,
                                 running = running,
                                 accent = accent,
                             )
+                            Spacer(Modifier.height(10.dp))
+                            // Pick the focus length (P1-2): was a fixed 75-minute target users couldn't change.
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                FocusDurations.presets.forEach { m ->
+                                    FlowPillButton(
+                                        FocusDurations.label(m),
+                                        filled = m == focusTargetMin,
+                                        accent = accent,
+                                        onClick = { focusTargetMin = m },
+                                    )
+                                }
+                            }
                         }
                         Spacer(Modifier.height(4.dp))
                         FlowControlCluster(

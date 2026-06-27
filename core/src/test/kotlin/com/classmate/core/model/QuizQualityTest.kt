@@ -35,8 +35,13 @@ class QuizQualityTest {
     fun completeFillsBlankRationaleAndExplanation() {
         val completed = QuizQuality.complete(q("q4", listOf(opt("A", true, ""), opt("B", false, "")), explanation = ""))
         assertEquals(QuizQuality.CORRECT_RATIONALE, completed.options[0].rationale)
-        assertEquals(QuizQuality.WRONG_RATIONALE, completed.options[1].rationale)
+        // The wrong option explains why it is wrong + the correct understanding + how to fix it.
+        val wrong = completed.options[1].rationale
+        assertTrue("names it a distractor", wrong.contains("干扰项"))
+        assertTrue("points at the correct understanding", wrong.contains("text A"))
+        assertTrue("tells how to fix it", wrong.contains("若要改对"))
         assertEquals(QuizQuality.DEFAULT_EXPLANATION, completed.explanation)
+        assertTrue(QuizQuality.hasUsefulOptionExplanations(completed))
     }
 
     @Test
@@ -44,8 +49,17 @@ class QuizQualityTest {
         val completed = QuizQuality.complete(q("q5", listOf(opt("A", true, "因为 A 与证据一致"), opt("B", false, "")), explanation = "总解析在此"))
         assertEquals("因为 A 与证据一致", completed.options[0].rationale)
         assertEquals("总解析在此", completed.explanation)
-        // The still-blank wrong option is filled.
-        assertEquals(QuizQuality.WRONG_RATIONALE, completed.options[1].rationale)
+        // The still-blank wrong option is filled with a structured, fix-oriented rationale.
+        assertTrue(completed.options[1].rationale.contains("text A"))
+        assertTrue(completed.options[1].rationale.contains("若要改对"))
+    }
+
+    @Test
+    fun completeRebuildsTooShortWrongRationale() {
+        val completed = QuizQuality.complete(q("q7", listOf(opt("A", true, "对"), opt("B", false, "错")), explanation = "x"))
+        // "错" is too short to be a useful explanation -> rebuilt structurally.
+        assertTrue(completed.options[1].rationale.contains("若要改对"))
+        assertTrue(QuizQuality.hasUsefulOptionExplanations(completed))
     }
 
     @Test

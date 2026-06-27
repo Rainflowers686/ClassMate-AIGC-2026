@@ -31,6 +31,7 @@ import com.classmate.core.audio.ConfigMissingTtsProvider
 import com.classmate.core.audio.CourseEssenceAudioExporter
 import com.classmate.core.evidence.EvidenceRelation
 import com.classmate.core.evidence.EvidenceRelationLevel
+import com.classmate.core.ocr.OcrTextPostProcessor
 import com.classmate.core.evidence.EvidenceOwnership
 import com.classmate.core.exporting.StudyReport
 import com.classmate.core.exporting.StudyReportBuilder
@@ -1110,15 +1111,19 @@ class AppViewModel(
     /** Apply a draft result to UI state (separated for unit testing without a Main dispatcher). */
     internal fun applyImageDraftResult(result: OnDeviceImageDraftResult) {
         ui = when (result) {
-            is OnDeviceImageDraftResult.Draft -> ui.copy(
-                imageDraftActive = true,
-                imageDraftRunning = false,
-                imageDraftText = result.text.trim(),
-                imageDraftManualMode = false,
-                imageDraftSource = AiExecutionSource.ON_DEVICE,
-                aiProcessing = AiProcessingUiState.hidden(),
-                imageDraftMessage = "已由端侧蓝心生成图片学习文本草稿，请检查并编辑后确认。",
-            )
+            is OnDeviceImageDraftResult.Draft -> {
+                val cleaned = OcrTextPostProcessor.clean(result.text)
+                ui.copy(
+                    imageDraftActive = true,
+                    imageDraftRunning = false,
+                    imageDraftText = cleaned.text,
+                    imageDraftManualMode = false,
+                    imageDraftSource = AiExecutionSource.ON_DEVICE,
+                    aiProcessing = AiProcessingUiState.hidden(),
+                    imageDraftMessage = "已由端侧蓝心生成图片学习文本草稿，请检查并编辑后确认。" +
+                        if (cleaned.needsReview) " " + cleaned.reviewHint else "",
+                )
+            }
             is OnDeviceImageDraftResult.Unavailable -> ui.copy(
                 imageDraftActive = true,
                 imageDraftRunning = false,
@@ -1140,14 +1145,16 @@ class AppViewModel(
             applyImageDraftResult(onDeviceResult ?: OnDeviceImageDraftResult.Unavailable("ROUTED_IMAGE_DRAFT_EMPTY"))
             return
         }
-        val text = draft.initialEditableText().trim()
+        val cleaned = OcrTextPostProcessor.clean(draft.initialEditableText().trim())
+        val text = cleaned.text
         val needsManualText = text.isBlank()
         ui = ui.copy(
             imageDraftActive = true,
             imageDraftRunning = false,
             imageDraftText = text,
             imageDraftManualMode = needsManualText,
-            imageDraftMessage = imageDraftStatusMessage(result.source, draft.ocrError),
+            imageDraftMessage = imageDraftStatusMessage(result.source, draft.ocrError) +
+                if (cleaned.needsReview) " " + OcrTextPostProcessor.REVIEW_HINT else "",
             imageStudyDraft = draft,
             imageDraftSource = result.source,
             imageDraftOcrError = draft.ocrError,

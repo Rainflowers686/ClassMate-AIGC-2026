@@ -1,6 +1,7 @@
 package com.classmate.app.ui.screens.course
 
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -119,7 +120,12 @@ fun CourseDetailScreen(viewModel: AppViewModel) {
                 // FIRST-SCREEN CORE — a visual learning map (connected nodes), not a list.
                 if (result != null && result.knowledgePoints.isNotEmpty()) {
                     ProductSectionTitle("知识结构大纲", trailing = {
-                        Text("查看全部 ›", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                        Text(
+                            "查看全部 ›",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.clickable { viewModel.navigateTo(Screen.KNOWLEDGE) },
+                        )
                     })
                     val nodes = result.knowledgePoints.take(5)
                     nodes.forEachIndexed { i, kp ->
@@ -258,13 +264,17 @@ private fun L3PipelineStatusCard(viewModel: AppViewModel) {
         }
         Spacer(Modifier.height(Dimens.s))
         Text("学习状态总览", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        // Each stat is a real shortcut to its surface; only tappable when it actually has content (no
+        // fake clickability on empty data).
+        fun tapTo(enabled: Boolean, action: () -> Unit): Modifier =
+            if (enabled) Modifier.clickable { action() } else Modifier
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
-            StatusChip("资料 ${l3.evidenceAssets.size}", tone = ChipTone.INFO)
-            StatusChip("知识点 ${l3.knowledgePoints.size}", tone = ChipTone.INFO)
-            StatusChip("微测 ${l3.questions.size}", tone = ChipTone.INFO)
-            StatusChip("错题 ${l3.wrongBook.size}", tone = if (l3.wrongBook.isEmpty()) ChipTone.NEUTRAL else ChipTone.WARNING)
-            StatusChip("今日复习 ${l3.reviewQueue.size}", tone = ChipTone.INFO)
-            StatusChip("证据 ${l3.evidence.size}", tone = ChipTone.INFO)
+            StatusChip("资料 ${l3.evidenceAssets.size}", tone = ChipTone.INFO, modifier = tapTo(l3.knowledgePoints.isNotEmpty()) { viewModel.navigateTo(Screen.KNOWLEDGE) })
+            StatusChip("知识点 ${l3.knowledgePoints.size}", tone = ChipTone.INFO, modifier = tapTo(l3.knowledgePoints.isNotEmpty()) { viewModel.navigateTo(Screen.KNOWLEDGE) })
+            StatusChip("微测 ${l3.questions.size}", tone = ChipTone.INFO, modifier = tapTo(l3.questions.isNotEmpty()) { viewModel.navigateTo(Screen.QUIZ) })
+            StatusChip("错题 ${l3.wrongBook.size}", tone = if (l3.wrongBook.isEmpty()) ChipTone.NEUTRAL else ChipTone.WARNING, modifier = tapTo(l3.wrongBook.isNotEmpty()) { viewModel.ensureReviewPlan(); viewModel.navigateTo(Screen.REVIEW) })
+            StatusChip("今日复习 ${l3.reviewQueue.size}", tone = ChipTone.INFO, modifier = tapTo(l3.reviewQueue.isNotEmpty()) { viewModel.ensureReviewPlan(); viewModel.navigateTo(Screen.REVIEW) })
+            StatusChip("证据 ${l3.evidence.size}", tone = ChipTone.INFO, modifier = tapTo(l3.evidence.isNotEmpty()) { l3.evidence.firstOrNull()?.let { viewModel.openEvidenceById(it.id) } })
             if (l3.qualityWarnings.isNotEmpty()) StatusChip("需确认 ${l3.qualityWarnings.size}", tone = ChipTone.WARNING)
         }
         if (l3.wrongBook.isNotEmpty() || l3.reviewQueue.isNotEmpty()) {

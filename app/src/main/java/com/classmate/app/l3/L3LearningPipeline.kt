@@ -301,6 +301,16 @@ class L3LearningPipeline {
             )
         }
         val questions = QuizQuality.repairAndFilter(result.quizQuestions).mapIndexed { index, question ->
+            // Carry the per-option "why right / why wrong + how to fix" reasoning into the L3 question so it
+            // reaches the Study Pack export and the WrongBook (both read this explanation), not just the quiz UI.
+            val optionExplanations = question.options
+                .filter { it.rationale.isNotBlank() }
+                .joinToString("；") { "${it.id}：${it.rationale}" }
+            val fullExplanation = listOf(question.explanation, optionExplanations.takeIf { it.isNotBlank() }?.let { "选项解析：$it" })
+                .filterNotNull()
+                .filter { it.isNotBlank() }
+                .joinToString(" ")
+                .ifBlank { question.explanation }
             L3GeneratedQuestion(
                 id = question.id,
                 lessonId = session.id,
@@ -308,7 +318,7 @@ class L3LearningPipeline {
                 stem = question.stem,
                 options = question.options.map { "${it.id}. ${it.text}" },
                 correctAnswer = question.correctOptionIds.joinToString(","),
-                explanation = question.explanation,
+                explanation = fullExplanation,
                 evidenceIds = question.evidence.mapIndexed { evIndex, _ -> evidence.getOrNull(evIndex)?.id }.filterNotNull()
                     .ifEmpty { knowledge.getOrNull(index % knowledge.size.coerceAtLeast(1))?.sourceEvidenceIds.orEmpty() },
                 difficulty = question.difficulty,

@@ -104,6 +104,23 @@ fun TranscriptImportScreen(viewModel: AppViewModel) {
                 Text("导入字幕文件或粘贴转写稿即可开始。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
+            // Live speech-to-text via the system recognizer — the non-official fallback when ASR isn't configured.
+            ClassMateCard {
+                Text("实时语音转写", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(Dimens.xs))
+                Text(
+                    "边说边转：官方 ASR 未配置时，使用系统语音识别实时转写（不保存原始音频，结果标注为系统语音识别）。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(Dimens.s))
+                SecondaryButton(
+                    text = "开始实时语音转写",
+                    onClick = { viewModel.navigateTo(Screen.LIVE) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+
             // --- source type selection (horizontal, never per-character wrapping chips) ---
             ClassMateCard {
                 Text("资料类型", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
