@@ -8,6 +8,8 @@ import com.classmate.app.l3.PracticeQuestionMode
 import com.classmate.app.platform.ConfigRepository
 import com.classmate.core.learning.InMemoryLearningStore
 import com.classmate.core.audio.CourseEssenceAudioStatus
+import com.classmate.core.model.FeedbackTargetKind
+import com.classmate.core.model.FeedbackType
 import com.classmate.core.practice.PracticeMode
 import com.classmate.core.practice.PracticeOutcome
 import com.classmate.core.practice.isAnswerableQuiz
@@ -45,6 +47,54 @@ class PracticeFlowTest {
             learningStore = learningStore,
             exportStore = InMemoryExportStore(),
         )
+    }
+
+    @Test
+    fun multipleFileImportsAccumulateIntoTheMaterialLibrary() {
+        // P0-4: each imported file is added to the 本课资料库 (superhub) — later files never overwrite earlier ones.
+        val viewModel = vm()
+        viewModel.importSuperhubFile("第一份资料：级数收敛判别法的定义。".toByteArray(Charsets.UTF_8), "a.txt", "text/plain")
+        val afterFirst = viewModel.ui.inputArtifacts.size
+        viewModel.importSuperhubFile("第二份资料：比值判别法的应用。".toByteArray(Charsets.UTF_8), "b.txt", "text/plain")
+        assertTrue("a second file adds, not overwrites", viewModel.ui.inputArtifacts.size > afterFirst)
+    }
+
+    @Test
+    fun inaccurateFeedbackProducesVisibleFlagAndExcludesQuestion() {
+        // P0-3: feedback must produce a VISIBLE effect, not just a toast.
+        val viewModel = vm()
+        viewModel.openHistory(viewModel.ui.history.first())
+
+        // Knowledge-point feedback → 需复核 flag + review plan rebuild.
+        val kp = viewModel.ui.result!!.knowledgePoints.first()
+        viewModel.submitFeedback(FeedbackType.EVIDENCE_WRONG, FeedbackTargetKind.KNOWLEDGE_POINT, kp.id)
+        assertTrue("knowledge point is flagged 需复核", viewModel.ui.flaggedKnowledgePointIds.contains(kp.id))
+        assertNull("review plan is rebuilt after feedback", viewModel.ui.reviewPlan)
+
+        // Question feedback → the question is flagged and excluded from random practice.
+        val question = viewModel.ui.result!!.quizQuestions.first()
+        viewModel.submitFeedback(FeedbackType.NOT_ACCURATE, FeedbackTargetKind.QUIZ_QUESTION, question.id)
+        assertTrue(viewModel.ui.flaggedQuestionIds.contains(question.id))
+        viewModel.startRandomQuiz(now = now)
+        viewModel.ui.practiceSession?.let { s ->
+            assertTrue("flagged question excluded from random quiz", s.items.none { it.quizId == question.id })
+        }
+    }
+
+    @Test
+    fun practiceQuestionEvidenceResolvesContextAndGuardsNulls() {
+        // P0-2: a quiz question's evidence (image / OCR / text) is resolvable so the practice screen can show
+        // it while answering; unknown / null ids resolve to no context (never a crash).
+        val viewModel = vm()
+        viewModel.openHistory(viewModel.ui.history.first())
+        val question = viewModel.ui.l3Pipeline.questions.firstOrNull { it.evidenceIds.isNotEmpty() }
+        if (question != null) {
+            val ctx = viewModel.practiceQuestionEvidence(question.id)
+            assertNotNull("a question with evidence should resolve a context", ctx)
+            assertTrue("context carries a quote or an image", ctx!!.quote.isNotBlank() || ctx.hasImage)
+        }
+        assertNull(viewModel.practiceQuestionEvidence("nonexistent_question_id"))
+        assertNull(viewModel.practiceQuestionEvidence(null))
     }
 
     @Test

@@ -191,6 +191,7 @@ import com.classmate.core.ondevice.OnDeviceLlmDiagnostic
 import com.classmate.core.ondevice.OnDeviceLlmTaskProfile
 import com.classmate.core.ondevice.OnDevicePromptTemplate
 import com.classmate.core.provider.Credential
+import com.classmate.core.provider.HttpTimeouts
 import com.classmate.core.provider.LearnerProfile
 import com.classmate.core.provider.ProviderAskChatClient
 import com.classmate.core.analysis.AnalysisOutcome
@@ -3513,6 +3514,32 @@ class AppViewModel(
         openEvidenceById(evidenceId.orEmpty())
     }
 
+    /**
+     * P0-2: resolve the evidence behind a quiz question so the practice screen can show its image / OCR /
+     * source WHILE answering. Returns null when the question has no resolvable evidence. No raw ids leak —
+     * only a local image file path + quote + source label.
+     */
+    fun practiceQuestionEvidence(quizId: String?): PracticeEvidenceContext? {
+        val qId = quizId?.takeIf { it.isNotBlank() } ?: return null
+        val evidenceId = ui.l3Pipeline.questions.firstOrNull { it.id == qId }?.evidenceIds?.firstOrNull()
+            ?: return null
+        val evidence = ui.l3Pipeline.evidence.firstOrNull { it.id == evidenceId } ?: return null
+        val asset = evidence.assetId?.let { id -> ui.l3Pipeline.evidenceAssets.firstOrNull { it.id == id } }
+        val imagePath = evidence.thumbnailRef.ifBlank { evidence.imageRef }
+            .ifBlank { asset?.thumbnailRef.orEmpty() }
+            .ifBlank { asset?.imageRef.orEmpty() }
+        val quote = evidence.text.ifBlank { asset?.text.orEmpty() }
+        val isImage = evidence.sourceType == L3SourceType.OCR_IMAGE || imagePath.isNotBlank()
+        if (quote.isBlank() && imagePath.isBlank()) return null
+        return PracticeEvidenceContext(
+            evidenceId = evidenceId,
+            quote = quote,
+            imagePath = imagePath,
+            sourceLabel = evidence.sourceLabel.ifBlank { asset?.sourceLabel.orEmpty() },
+            isImage = isImage,
+        )
+    }
+
     fun reviewEvidenceIdForKnowledgePoint(knowledgePointId: String): String? =
         ui.l3Pipeline.knowledgePoints.firstOrNull { it.id == knowledgePointId }
             ?.sourceEvidenceIds
@@ -3658,11 +3685,22 @@ class AppViewModel(
             createdAtEpochMs = now,
         )
         val updated = ui.learningState?.let { LearningStateUpdater().applyFeedback(it, event) }
+        // P0-3: a "this is inaccurate / evidence is wrong" feedback produces a VISIBLE effect — the target
+        // knowledge point gets a 需复核 marker on the timeline, and a flagged question leaves random practice.
+        val inaccurate = type == FeedbackType.NOT_ACCURATE || type == FeedbackType.EVIDENCE_WRONG || type == FeedbackType.MISSING_KEY_POINT
+        val flaggedKpId = when (targetKind) {
+            FeedbackTargetKind.KNOWLEDGE_POINT -> targetId
+            FeedbackTargetKind.QUIZ_QUESTION -> ui.result?.quizQuestions?.firstOrNull { it.id == targetId }?.testedKnowledgePointIds?.firstOrNull()
+            else -> null
+        }?.takeIf { inaccurate }
+        val flaggedQId = targetId.takeIf { inaccurate && targetKind == FeedbackTargetKind.QUIZ_QUESTION }
         ui = ui.copy(
             feedbackEvents = ui.feedbackEvents + event,
             learningState = updated ?: ui.learningState,
             reviewPlan = null,
-            toast = "已记录反馈：${type.displayZh}",
+            flaggedKnowledgePointIds = if (flaggedKpId != null) ui.flaggedKnowledgePointIds + flaggedKpId else ui.flaggedKnowledgePointIds,
+            flaggedQuestionIds = if (flaggedQId != null) ui.flaggedQuestionIds + flaggedQId else ui.flaggedQuestionIds,
+            toast = if (inaccurate) "已加入待复核，复习计划已更新。" else "已记录反馈：${type.displayZh}",
         )
         // Mirror into the cross-course review queue (when the feedback maps to a known kp).
         val sessionId = ui.result?.sessionId
@@ -4145,7 +4183,7 @@ class AppViewModel(
             enhancementUseCase.enhance(
                 type = type,
                 cloud = {
-                    val reply = runCatching { ProviderAskChatClient(bundle, tx).chat(prompt, null) }.getOrNull()
+                    val reply = runCatching { ProviderAskChatClient(bundle, tx, timeouts = HttpTimeouts.BLUE_LM_DIAGNOSTIC).chat(prompt, null) }.getOrNull()
                     if (reply != null && reply.text.isNotBlank()) StageOutcome.Produced(reply.text)
                     else StageOutcome.Unavailable(AiExecutionStatus.CONFIG_MISSING)
                 },
@@ -4320,7 +4358,7 @@ class AppViewModel(
         ui = ui.copy(weakVariantStatus = EnhancementUiState(type = AiEnhancementType.WEAKNESS_VARIANTS, running = true))
         viewModelScope.launch {
             val (items, source) = withContext(Dispatchers.IO) {
-                val cloud = runCatching { ProviderAskChatClient(bundle, tx).chat(prompt, null) }.getOrNull()
+                val cloud = runCatching { ProviderAskChatClient(bundle, tx, timeouts = HttpTimeouts.BLUE_LM_DIAGNOSTIC).chat(prompt, null) }.getOrNull()
                 val cloudItems = cloud?.text?.let { VariantQuizParser.parse(it, AiExecutionSource.CLOUD, idPrefix, kpResolver) }.orEmpty()
                 if (cloudItems.isNotEmpty()) return@withContext cloudItems to AiExecutionSource.CLOUD
                 val device = runCatching { onDeviceController.askSeam().chat(prompt, null) }.getOrNull()
@@ -4403,7 +4441,7 @@ class AppViewModel(
         startPracticeInternal(PracticeMode.QUICK_REVIEW, PracticeQuestionMode.REAL_QUIZ)
         val session = ui.practiceSession ?: return
         // Only questions that actually have a correct answer may enter the random quiz (shared gate).
-        val answerable = session.items.filter { it.isAnswerableQuiz() }
+        val answerable = session.items.filter { it.isAnswerableQuiz() && it.quizId !in ui.flaggedQuestionIds }
         if (answerable.isEmpty()) {
             ui = ui.copy(
                 practiceSession = session.copy(items = emptyList()),
@@ -4535,7 +4573,8 @@ class AppViewModel(
             // Graded quizzes (real quiz / exam) only keep questions that actually have a correct answer
             // — see PracticeItem.isAnswerableQuiz(). Self-assessment cards have no graded answer.
             PracticeQuestionMode.REAL_QUIZ, PracticeQuestionMode.EXAM -> {
-                val quizItems = generatedPractice.items.filter { it.isAnswerableQuiz() }
+                // P0-3: flagged-as-wrong questions are excluded from graded practice.
+                val quizItems = generatedPractice.items.filter { it.isAnswerableQuiz() && it.quizId !in ui.flaggedQuestionIds }
                 generatedPractice.copy(items = quizItems)
             }
             PracticeQuestionMode.SELF_ASSESSMENT -> generatedPractice

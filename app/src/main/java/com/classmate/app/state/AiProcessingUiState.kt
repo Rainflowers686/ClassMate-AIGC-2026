@@ -37,6 +37,21 @@ data class TtsAudioUiState(
     val hasFile: Boolean get() = filePath.isNotBlank() && !running
 }
 
+/**
+ * The source evidence behind a quiz question, surfaced INSIDE the practice screen (P0-2) so a "根据图片"
+ * question always shows its image / OCR / source — never a bare instruction with no context. Carries only
+ * learner-facing fields (a local image file path + quote + label), never a raw assetId or provider trace.
+ */
+data class PracticeEvidenceContext(
+    val evidenceId: String,
+    val quote: String,
+    val imagePath: String,
+    val sourceLabel: String,
+    val isImage: Boolean,
+) {
+    val hasImage: Boolean get() = imagePath.isNotBlank()
+}
+
 data class AiProcessingUiState(
     val visible: Boolean = false,
     val title: String = "",

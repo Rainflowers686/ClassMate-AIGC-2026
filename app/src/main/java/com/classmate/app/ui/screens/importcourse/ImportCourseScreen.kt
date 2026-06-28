@@ -108,17 +108,24 @@ fun ImportCourseScreen(viewModel: AppViewModel) {
     val context = LocalContext.current
     val ui = viewModel.ui
     val pendingFileSource = remember { mutableStateOf(ImportSourceType.TXT_FILE) }
-    val fileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
-        if (uri != null) {
-            val name = readDisplayName(context, uri)
-            val mimeType = context.contentResolver.getType(uri).orEmpty()
-            val bytes = runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } }.getOrNull()
-            if (bytes == null) {
-                viewModel.toast("无法读取该文件，请重试。")
-            } else {
-                val accepted = viewModel.importSuperhubFile(bytes, name, mimeType)
-                if (accepted) viewModel.navigateTo(Screen.IMPORT_TRAY)
+    // P0-4: multi-file selection — every chosen file is added to the same "本课资料库" (the superhub),
+    // not overwriting earlier materials; a single unreadable file is skipped, not the whole batch.
+    val fileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris: List<Uri> ->
+        if (uris.isNotEmpty()) {
+            var acceptedAny = false
+            var skipped = 0
+            uris.forEach { uri ->
+                val name = readDisplayName(context, uri)
+                val mimeType = context.contentResolver.getType(uri).orEmpty()
+                val bytes = runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } }.getOrNull()
+                if (bytes == null) {
+                    skipped++
+                } else if (viewModel.importSuperhubFile(bytes, name, mimeType)) {
+                    acceptedAny = true
+                }
             }
+            if (skipped > 0) viewModel.toast("有 $skipped 个文件无法读取，已跳过其余已加入资料库。")
+            if (acceptedAny) viewModel.navigateTo(Screen.IMPORT_TRAY)
         }
     }
 

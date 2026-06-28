@@ -1,6 +1,8 @@
 package com.classmate.app.ui.screens.practice
 
+import android.graphics.BitmapFactory
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -16,7 +18,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import com.classmate.app.state.PracticeEvidenceContext
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -94,6 +100,17 @@ fun PracticeSessionScreen(viewModel: AppViewModel) {
                 Text(item.knowledgePointTitle, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.height(Dimens.xs))
                 Text(item.question, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+
+                // P0-2: a "根据图片" question must show its source WHILE answering — image thumbnail, OCR text,
+                // or an honest "图片证据暂不可用，已保留 OCR 文本" fallback. Tapping opens the full evidence.
+                viewModel.practiceQuestionEvidence(item.quizId)?.let { ctx ->
+                    Spacer(Modifier.height(Dimens.s))
+                    PracticeEvidenceContextCard(ctx) {
+                        val quizId = item.quizId
+                        if (quizId != null) viewModel.openEvidenceForQuestion(quizId)
+                        else viewModel.openEvidenceForKnowledgePoint(item.knowledgePointId)
+                    }
+                }
 
                 if (ui.practiceQuestionMode != PracticeQuestionMode.SELF_ASSESSMENT && item.options.isNotEmpty()) {
                     Spacer(Modifier.height(Dimens.s))
@@ -328,4 +345,48 @@ private fun PracticeSummary(viewModel: AppViewModel, session: PracticeSession) {
     }
 
     PrimaryButton(text = "完成练习", onClick = { viewModel.exitPractice() }, modifier = Modifier.fillMaxWidth())
+}
+
+/** P0-2: shows a quiz question's source evidence while answering — image thumbnail, OCR text, or an honest
+ *  "image unavailable, OCR kept" note — and opens the full evidence on tap. Never shows raw ids. */
+@Composable
+private fun PracticeEvidenceContextCard(context: PracticeEvidenceContext, onOpenEvidence: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    QuietCard(onClick = onOpenEvidence) {
+        val title = if (context.isImage) "图片证据" else "来源证据"
+        Text(
+            if (context.sourceLabel.isNotBlank()) "$title · ${context.sourceLabel}" else title,
+            style = MaterialTheme.typography.labelLarge,
+            color = cs.primary,
+        )
+        if (context.hasImage) {
+            val bitmap = remember(context.imagePath) {
+                runCatching { BitmapFactory.decodeFile(context.imagePath) }.getOrNull()
+            }
+            Spacer(Modifier.height(Dimens.s))
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = "题目图片证据",
+                    modifier = Modifier.fillMaxWidth().height(160.dp),
+                    contentScale = ContentScale.Fit,
+                )
+            } else {
+                Text(
+                    "图片证据暂不可用，已保留 OCR 文本。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = cs.error,
+                )
+            }
+        }
+        if (context.quote.isNotBlank()) {
+            Spacer(Modifier.height(Dimens.s))
+            Text("「${context.quote}」", style = MaterialTheme.typography.bodyMedium, color = cs.onSurface)
+        } else if (context.isImage && context.imagePath.isBlank()) {
+            Spacer(Modifier.height(Dimens.xs))
+            Text("图片证据暂不可用，但题目仍可作答。", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+        }
+        Spacer(Modifier.height(Dimens.xs))
+        Text("点击查看完整证据", style = MaterialTheme.typography.labelMedium, color = cs.primary)
+    }
 }

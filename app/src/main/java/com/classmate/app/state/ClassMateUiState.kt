@@ -118,6 +118,10 @@ data class ClassMateUiState(
     val weaknessEnhancement: EnhancementUiState = EnhancementUiState.idle(),
     val weakVariantStatus: EnhancementUiState = EnhancementUiState.idle(),
     val ttsAudio: TtsAudioUiState = TtsAudioUiState(),
+    // P0-3 visible feedback closure: knowledge points / questions the user flagged as inaccurate. Drives a
+    // "需复核" chip on the timeline and excludes flagged questions from random practice.
+    val flaggedKnowledgePointIds: Set<String> = emptySet(),
+    val flaggedQuestionIds: Set<String> = emptySet(),
     val lastAnalysisLatencyMs: Long = 0L,
     val longTextInfo: LongTextAnalysisInfo? = null,
     val selectedImportFileMetadata: SelectedLocalFileMetadata? = null,

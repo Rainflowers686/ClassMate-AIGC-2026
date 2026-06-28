@@ -117,6 +117,7 @@ fun KnowledgeTimelineScreen(viewModel: AppViewModel) {
                 KnowledgePointCard(
                     number = index + 1,
                     kp = kp,
+                    flagged = kp.id in ui.flaggedKnowledgePointIds,
                     segmentLabel = if (segIndex != null) s.quizSegmentLabel(segIndex) else s.quizSourceLabel,
                     openEvidenceLabel = s.knowledgeOpenEvidence,
                     onOpenEvidence = { viewModel.openEvidence(kp.id) },
@@ -135,7 +136,7 @@ private fun Stat(value: String, label: String) {
 }
 
 @Composable
-private fun KnowledgePointCard(number: Int, kp: KnowledgePoint, segmentLabel: String, openEvidenceLabel: String, onOpenEvidence: () -> Unit) {
+private fun KnowledgePointCard(number: Int, kp: KnowledgePoint, flagged: Boolean, segmentLabel: String, openEvidenceLabel: String, onOpenEvidence: () -> Unit) {
     QuietCard(onClick = onOpenEvidence) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
@@ -145,6 +146,8 @@ private fun KnowledgePointCard(number: Int, kp: KnowledgePoint, segmentLabel: St
             }
             Spacer(Modifier.width(Dimens.m))
             Text(kp.title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            // P0-3: a visible marker after the user flags this point as inaccurate.
+            if (flagged) StatusChip("需复核", tone = ChipTone.WARNING)
         }
         Spacer(Modifier.height(Dimens.s))
         Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
