@@ -43,6 +43,16 @@ object EnhancementPromptBuilder {
         },
     )
 
+    fun weaknessRemediation(knowledgePointTitle: String, reason: String, missCount: Int): Prompt = Prompt(
+        system = "你是薄弱点强化助手，为一个被反复答错的知识点设计循序渐进的强化方案。$GROUND_RULE",
+        user = buildString {
+            append("薄弱知识点：$knowledgePointTitle\n")
+            if (reason.isNotBlank()) append("薄弱原因：$reason\n")
+            if (missCount > 0) append("已答错次数：$missCount\n")
+            append("请输出：① 用一句话复述定义 ② 2～3 道由易到难的练习方向（不直接给出完整题目，给练习重点） ③ 掌握后如何进阶。")
+        },
+    )
+
     fun evidenceExplanation(knowledgePointTitle: String, evidenceQuote: String, questionStem: String?, weak: Boolean): Prompt = Prompt(
         system = "你是证据解读助手，解释一段原文如何支持某个知识点。$GROUND_RULE" +
             if (weak) "这条证据关联较弱，请保守表述并提示需要核对，不要给出确定结论。" else "",

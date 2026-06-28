@@ -29,6 +29,7 @@ import com.classmate.app.data.ThemePreferenceRepository
 import com.classmate.app.exporting.ExportArtifact
 import com.classmate.app.exporting.ExportCenter
 import com.classmate.app.exporting.ExportFileFormat
+import com.classmate.core.exporting.SafeExportText
 import com.classmate.core.audio.ConfigMissingTtsProvider
 import com.classmate.core.audio.CourseEssenceAudioExporter
 import com.classmate.core.evidence.EvidenceRelation
@@ -1492,7 +1493,13 @@ class AppViewModel(
             ui.imageDraftBatchId.isBlank() || it.batchId == ui.imageDraftBatchId
         }
         val merged = OcrImportAssembler.mergeByOrder(batchDrafts)
-        val text = ui.imageDraftText.trim().ifBlank { merged.text.trim() }
+        // For a real image batch, the per-image edited text (re-merged) is authoritative; the single merged
+        // field is only the fallback. For a single/non-batch draft, the editable field stays authoritative.
+        val text = if (batchDrafts.size > 1) {
+            merged.text.trim().ifBlank { ui.imageDraftText.trim() }
+        } else {
+            ui.imageDraftText.trim().ifBlank { merged.text.trim() }
+        }
         if (merged.okDrafts.isEmpty() || text.isBlank()) {
             ui = ui.copy(toast = "未识别到可用图片文字，请先手动补充或重新选择图片。")
             return false
@@ -3666,6 +3673,24 @@ class AppViewModel(
         )
     }
 
+    /** P0-3: export the AI-organized study material (CourseDetail's 'AI 复习材料' result) into the export
+     *  chain. The source label is carried into the document; SafeExportText strips any ids/debug tokens. */
+    fun buildAiStudyMaterialArtifact(format: ExportFileFormat): ExportArtifact? {
+        val state = ui.studyPackEnhancement
+        if (!state.hasResult) {
+            ui = ui.copy(toast = "请先生成 AI 整理版材料，再导出。")
+            return null
+        }
+        val title = ui.session?.title?.ifBlank { "未命名课程" } ?: "ClassMate AI 整理版"
+        val formLabel = if (state.type == AiEnhancementType.EXAM_CRAM_SHEET) "考前速记版" else "讲义版"
+        val markdown = buildString {
+            append("# 《$title》· AI $formLabel\n\n")
+            append("> 来源：${state.sourceZh}\n\n")
+            append(SafeExportText.redact(state.text))
+        }
+        return ExportCenter.artifactFromMarkdown(courseTitle = "$title-AI-$formLabel", markdown = markdown, format = format)
+    }
+
     fun buildHistoryReportArtifact(record: HistoryRecord, format: ExportFileFormat): ExportArtifact =
         buildReportArtifact(record.session, record.result, reviewPlan = null, learningState = null, format = format)
 
@@ -4093,6 +4118,60 @@ class AppViewModel(
     }
 
     fun clearQuizFeedbackEnhancement() { ui = ui.copy(quizFeedbackEnhancement = EnhancementUiState.idle()) }
+
+    /** P0-1: explain how the CURRENTLY-open evidence supports its knowledge point; hedge weak links. */
+    fun generateEvidenceExplanation() {
+        val evidenceId = ui.selectedEvidenceId ?: run {
+            ui = ui.copy(toast = "请先打开一条证据。")
+            return
+        }
+        val evidence = ui.l3Pipeline.evidence.firstOrNull { it.id == evidenceId } ?: run {
+            ui = ui.copy(toast = "这条证据已不可用。")
+            return
+        }
+        val asset = evidence.assetId?.let { id -> ui.l3Pipeline.evidenceAssets.firstOrNull { it.id == id } }
+        val excerpt = evidence.text.ifBlank { asset?.text.orEmpty() }
+        if (excerpt.isBlank()) {
+            ui = ui.copy(toast = "这条证据暂无可解释的原文片段。")
+            return
+        }
+        val kpTitle = ui.l3Pipeline.knowledgePoints.firstOrNull { evidenceId in it.sourceEvidenceIds }?.title.orEmpty()
+        val questionStem = ui.l3Pipeline.questions.firstOrNull { evidenceId in it.evidenceIds }?.stem
+        val boundContext = (
+            ui.l3Pipeline.knowledgePoints.filter { evidenceId in it.sourceEvidenceIds }.joinToString(" ") { it.title } + " " +
+                ui.l3Pipeline.questions.filter { evidenceId in it.evidenceIds }.joinToString(" ") { it.stem }
+            ).trim()
+        val weak = boundContext.isNotBlank() && evidenceRelationLevel(evidenceId, boundContext) == EvidenceRelationLevel.WEAK
+        val type = AiEnhancementType.EVIDENCE_EXPLANATION
+        val prompt = EnhancementPromptBuilder.evidenceExplanation(kpTitle.ifBlank { "本条证据" }, excerpt, questionStem, weak)
+        val local: () -> String = { LocalEnhancementTemplates.evidenceExplanation(kpTitle.ifBlank { "本条证据" }, excerpt, weak) }
+        ui = ui.copy(evidenceEnhancement = EnhancementUiState(type = type, running = true))
+        viewModelScope.launch {
+            val routed = routeEnhancement(type, prompt, local)
+            ui = ui.copy(evidenceEnhancement = enhancementResultState(type, routed))
+        }
+    }
+
+    fun clearEvidenceEnhancement() { ui = ui.copy(evidenceEnhancement = EnhancementUiState.idle()) }
+
+    /** P0-2: AI remediation plan for the top weak knowledge point. Pairs with the gated 薄弱点专项 practice
+     *  (startPractice(WEAKNESS_DRILL)) which only admits answerable questions. */
+    fun generateWeaknessRemediation() {
+        val weak = ui.l3Pipeline.learningDiagnosis.weakKnowledgePoints.firstOrNull() ?: run {
+            ui = ui.copy(toast = "暂无薄弱知识点，继续练习后再生成加练方案。")
+            return
+        }
+        val type = AiEnhancementType.WEAKNESS_VARIANTS
+        val prompt = EnhancementPromptBuilder.weaknessRemediation(weak.title, weak.reason, weak.wrongCount)
+        val local: () -> String = { LocalEnhancementTemplates.weaknessRemediation(weak.title, weak.wrongCount) }
+        ui = ui.copy(weaknessEnhancement = EnhancementUiState(type = type, running = true))
+        viewModelScope.launch {
+            val routed = routeEnhancement(type, prompt, local)
+            ui = ui.copy(weaknessEnhancement = enhancementResultState(type, routed))
+        }
+    }
+
+    fun clearWeaknessRemediation() { ui = ui.copy(weaknessEnhancement = EnhancementUiState.idle()) }
 
     fun startRandomQuiz(questionCount: Int = 5, now: Long = System.currentTimeMillis()) {
         startPracticeInternal(PracticeMode.QUICK_REVIEW, PracticeQuestionMode.REAL_QUIZ)

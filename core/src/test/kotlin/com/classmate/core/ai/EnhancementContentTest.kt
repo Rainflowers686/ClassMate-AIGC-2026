@@ -49,6 +49,15 @@ class EnhancementContentTest {
     }
 
     @Test
+    fun weaknessRemediationPromptIsGroundedAndProgressive() {
+        val p = EnhancementPromptBuilder.weaknessRemediation("受力分析", "多次在合力方向上出错", missCount = 3)
+        assertTrue(p.system.contains("强化"))
+        assertTrue(p.user.contains("受力分析"))
+        assertTrue("carries the miss count", p.user.contains("3"))
+        assertTrue("asks for progressive difficulty", p.user.contains("进阶"))
+    }
+
+    @Test
     fun emptyPointsDegradeHonestly() {
         assertTrue(LocalEnhancementTemplates.studyPackHandout("空课程", emptyList()).contains("暂无知识点"))
         assertTrue(LocalEnhancementTemplates.examCramSheet("空课程", emptyList()).contains("暂无知识点"))

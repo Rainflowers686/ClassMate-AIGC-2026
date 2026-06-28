@@ -27,9 +27,12 @@ import com.classmate.app.l3.L3SourceType
 import com.classmate.app.ui.i18n.appStrings
 import com.classmate.core.evidence.EvidenceRelationLevel
 import com.classmate.app.state.AppViewModel
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import com.classmate.app.ui.components.ClassMateCard
 import com.classmate.app.ui.components.ClassMateScaffold
 import com.classmate.app.ui.components.DifficultyBadge
+import com.classmate.app.ui.components.EnhancementPanel
 import com.classmate.app.ui.components.HighlightedSegmentText
 import com.classmate.app.ui.components.ImportanceBadge
 import com.classmate.app.ui.components.Pill
@@ -41,6 +44,7 @@ import com.classmate.core.model.FeedbackType
 @Composable
 fun EvidenceDetailScreen(viewModel: AppViewModel) {
     val ui = viewModel.ui
+    val clipboard = LocalClipboardManager.current
     val result = ui.result
     val session = ui.session
     val l3Evidence = ui.selectedEvidenceId?.let { id -> ui.l3Pipeline.evidence.firstOrNull { it.id == id } }
@@ -101,6 +105,27 @@ fun EvidenceDetailScreen(viewModel: AppViewModel) {
                         Text("该内容暂无可回溯的原文片段。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
                         Spacer(Modifier.height(Dimens.xs))
                         Text("它可能来自本地基础整理，或未能定位到原始材料位置，请结合课堂材料人工确认。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+
+                // P0-1: AI evidence explanation — only offered when there is a real excerpt to explain.
+                // Routes cloud BlueLM → on-device → conservative local template, with an honest source label.
+                if (excerpt.isNotBlank()) {
+                    EnhancementPanel(
+                        state = ui.evidenceEnhancement,
+                        idleTitle = "AI 证据解释",
+                        idleHint = "解释这条证据为什么支持相关知识点；关联较弱时会提示「证据待核对」。",
+                        triggerText = "生成 AI 证据解释",
+                        runningTitle = "正在生成证据解释",
+                        onGenerate = { viewModel.generateEvidenceExplanation() },
+                        onCopy = { text -> clipboard.setText(AnnotatedString(text)); viewModel.toast("已复制证据解释。") },
+                        onDismiss = { viewModel.clearEvidenceEnhancement() },
+                    )
+                } else {
+                    ClassMateCard {
+                        Text("AI 证据解释", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(Dimens.xxs))
+                        Text("暂无可解释的证据片段。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
 

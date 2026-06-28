@@ -128,6 +128,16 @@ class OcrImportAssemblerTest {
         }
     }
 
+    @Test
+    fun isLowQualityFlagsOkDraftsWithAReviewNote() {
+        // P0-4: an OK draft carrying an errorReason note is "low quality, needs review"; a clean OK draft
+        // and a failed draft are not "low quality".
+        val clean = draft(OcrImportKind.SLIDE_IMAGE, "清晰文本")
+        assertFalse(clean.isLowQuality())
+        assertTrue(clean.copy(errorReason = "识别置信度偏低").isLowQuality())
+        assertFalse(clean.copy(status = OcrImportStatus.FAILED, errorReason = "无法识别").isLowQuality())
+    }
+
     private fun draft(kind: OcrImportKind, text: String) = OcrImportDraft(
         id = "draft_1",
         kind = kind,

@@ -181,13 +181,38 @@ fun ExportCenterCard(
                 modifier = Modifier.weight(1f),
             )
         }
-        viewModel.ui.lastExportReceipt?.let {
+        viewModel.ui.lastExportReceipt?.let { receipt ->
             Spacer(Modifier.height(Dimens.s))
-            Text(
-                "最近导出：${it.fileName} · ${it.format.ifBlank { selectedFormat.displayName }} · ${it.message.ifBlank { it.pathSummary }}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            if (receipt.lastAction == ExportActionStatus.FAILED) {
+                // P0-6: export failures are prominent, not a quiet line — with a real retry on the current draft.
+                ProminentErrorCard(
+                    whatHappened = "导出未成功",
+                    possibleCause = receipt.message.ifBlank { "可能是存储权限或所选格式暂不可用。" },
+                    nextStep = "可重试，或改用 HTML / Text 兜底格式；基础版内容仍然保留。",
+                    retryText = "重试保存",
+                    onRetry = {
+                        val artifact = artifactOrNotify()
+                        if (artifact != null) {
+                            when (val r = DownloadsExporter.saveToDownloads(context, artifact)) {
+                                is DownloadsExporter.Result.Saved ->
+                                    viewModel.recordExportAction(artifact, ExportActionStatus.SAVED_DOWNLOADS, "已保存到下载目录 / Downloads。")
+                                is DownloadsExporter.Result.Unsupported ->
+                                    viewModel.recordExportAction(artifact, ExportActionStatus.FAILED, r.reason)
+                                is DownloadsExporter.Result.Failed ->
+                                    viewModel.recordExportAction(artifact, ExportActionStatus.FAILED, r.reason)
+                            }
+                        }
+                    },
+                    secondaryText = "改用 HTML",
+                    onSecondary = { selectedFormat = ExportFileFormat.HTML; viewModel.toast("已切换为 HTML，可再次保存。") },
+                )
+            } else {
+                Text(
+                    "最近导出：${receipt.fileName} · ${receipt.format.ifBlank { selectedFormat.displayName }} · ${receipt.message.ifBlank { receipt.pathSummary }}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 

@@ -405,21 +405,31 @@ private fun AiStudyMaterialSection(viewModel: AppViewModel) {
             secondaryText = "取消",
             onSecondary = { viewModel.clearStudyPackEnhancement() },
         )
-        state.hasResult -> PremiumCard {
-            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text("AI 整理版材料", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                StatusChip(state.sourceZh, tone = ChipTone.INFO)
+        state.hasResult -> {
+            PremiumCard {
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Text("AI 整理版材料", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    StatusChip(state.sourceZh, tone = ChipTone.INFO)
+                }
+                Spacer(Modifier.height(Dimens.s))
+                Text(state.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                Spacer(Modifier.height(Dimens.s))
+                ActionButtonRow(
+                    primaryText = "复制",
+                    onPrimary = { clipboard.setText(AnnotatedString(state.text)); viewModel.toast("已复制 AI 整理版，可粘贴或打印。") },
+                    secondaryText = "重新生成",
+                    onSecondary = { viewModel.generateStudyPackEnhancement(AiEnhancementType.EXPORT_HANDOUT) },
+                    tertiaryText = "关闭",
+                    onTertiary = { viewModel.clearStudyPackEnhancement() },
+                )
             }
+            // P0-3: the AI-organized material flows into the real export chain (DOCX/PDF/HTML/MD/TXT).
             Spacer(Modifier.height(Dimens.s))
-            Text(state.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
-            Spacer(Modifier.height(Dimens.s))
-            ActionButtonRow(
-                primaryText = "复制",
-                onPrimary = { clipboard.setText(AnnotatedString(state.text)); viewModel.toast("已复制 AI 整理版，可粘贴或打印。") },
-                secondaryText = "重新生成",
-                onSecondary = { viewModel.generateStudyPackEnhancement(AiEnhancementType.EXPORT_HANDOUT) },
-                tertiaryText = "关闭",
-                onTertiary = { viewModel.clearStudyPackEnhancement() },
+            ExportCenterCard(
+                viewModel = viewModel,
+                title = "导出 AI 整理版",
+                description = "把上面的 AI 整理版材料导出为可保存 / 打印文件；文档会标注来源（${state.sourceZh}），不含密钥或内部状态。",
+                buildArtifact = viewModel::buildAiStudyMaterialArtifact,
             )
         }
         else -> PremiumCard {

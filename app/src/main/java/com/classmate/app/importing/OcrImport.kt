@@ -18,6 +18,9 @@ enum class OcrImportStatus {
     FAILED,
 }
 
+/** True when an OK draft was flagged low-quality (has an errorReason note) and should be verified. */
+fun OcrImportDraft.isLowQuality(): Boolean = status == OcrImportStatus.OK && errorReason.isNotBlank()
+
 data class MergedOcrImport(
     val text: String,
     val okDrafts: List<OcrImportDraft>,

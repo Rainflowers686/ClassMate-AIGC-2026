@@ -79,6 +79,33 @@ class PracticeFlowTest {
     }
 
     @Test
+    fun weaknessRemediationGuardsWhenNoWeakPoint() {
+        // P0-2 guard: no weak knowledge point -> AI remediation entry guides instead of running.
+        val viewModel = vm()
+        viewModel.generateWeaknessRemediation()
+        assertFalse(viewModel.ui.weaknessEnhancement.running)
+        assertNotNull(viewModel.ui.toast)
+    }
+
+    @Test
+    fun aiStudyMaterialExportGuardsWithoutAResult() {
+        // P0-3 guard: exporting the AI material before generating it returns null and guides the user.
+        val viewModel = vm()
+        viewModel.openHistory(viewModel.ui.history.first())
+        assertNull(viewModel.buildAiStudyMaterialArtifact(ExportFileFormat.MARKDOWN))
+        assertNotNull(viewModel.ui.toast)
+    }
+
+    @Test
+    fun evidenceExplanationGuardsWithoutSelectedEvidence() {
+        // P0-1 guard: no open evidence -> the explanation entry guides instead of running.
+        val viewModel = vm()
+        viewModel.generateEvidenceExplanation()
+        assertFalse(viewModel.ui.evidenceEnhancement.running)
+        assertNotNull(viewModel.ui.toast)
+    }
+
+    @Test
     fun randomQuizOnlyContainsAnswerableQuestions() {
         // P0-3: every question that enters the random quiz must have a resolved correct answer.
         val viewModel = vm()

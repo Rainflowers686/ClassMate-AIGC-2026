@@ -55,9 +55,11 @@ import com.classmate.app.importing.MultimodalEntryId
 import com.classmate.app.importing.MultimodalImportCatalog
 import com.classmate.app.importing.MultimodalImportEntry
 import com.classmate.app.importing.OcrImportAssembler
+import com.classmate.app.importing.OcrImportDraft
 import com.classmate.app.importing.OcrImportFileMeta
 import com.classmate.app.importing.OcrImportKind
 import com.classmate.app.importing.OcrImportStatus
+import com.classmate.app.importing.isLowQuality
 import com.classmate.app.importing.SelectedLocalFileMetadata
 import com.classmate.app.sample.SampleLessonLibrary
 import com.classmate.app.state.AppViewModel
@@ -77,6 +79,7 @@ import com.classmate.app.ui.components.ClassMateScaffold
 import com.classmate.app.ui.components.CompactSectionHeader
 import com.classmate.app.ui.components.MaterialTrayItem
 import com.classmate.app.ui.components.PageHero
+import com.classmate.app.ui.components.ActionButtonRow
 import com.classmate.app.ui.components.PrimaryButton
 import com.classmate.app.ui.components.SecondaryButton
 import com.classmate.app.ui.components.SourceBadge
@@ -645,54 +648,65 @@ private fun ImageDraftCard(viewModel: AppViewModel) {
                 )
                 Spacer(Modifier.height(Dimens.s))
             }
-            if (ui.ocrImports.isNotEmpty()) {
-                ui.ocrImports.sortedBy { it.pageIndex ?: Int.MAX_VALUE }.forEach { draft ->
-                    val statusText = when (draft.status) {
-                        OcrImportStatus.PENDING -> "识别中"
-                        OcrImportStatus.OK -> if (draft.errorReason.isBlank()) "已识别" else "建议检查"
-                        OcrImportStatus.FAILED -> "需手动补充"
-                    }
+            val batch = ui.ocrImports.sortedBy { it.pageIndex ?: Int.MAX_VALUE }
+            val isMultiImage = batch.size > 1 || batch.any { it.batchId.isNotBlank() }
+            if (isMultiImage) {
+                // P0-4: per-image segmented confirm — each image edited / retried / deleted on its own,
+                // a failed image never blocks the others, low quality is called out, nothing enters the
+                // learning loop until 确认加入课程.
+                batch.forEachIndexed { index, draft ->
+                    OcrImageSegment(number = index + 1, draft = draft, viewModel = viewModel)
+                    Spacer(Modifier.height(Dimens.s))
+                }
+                val okCount = batch.count { it.status == OcrImportStatus.OK && it.pastedText.isNotBlank() }
+                val failedCount = batch.count { it.status == OcrImportStatus.FAILED }
+                if (failedCount > 0) {
                     Text(
-                        "${draft.fileMeta.safeDisplayLabel()} · $statusText${draft.errorReason.takeIf { it.isNotBlank() }?.let { "：$it" }.orEmpty()}",
+                        "$failedCount 张未能识别已跳过；其余 $okCount 张可确认加入课程。",
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (draft.status == OcrImportStatus.FAILED) cs.error else cs.onSurfaceVariant,
+                        color = cs.error,
+                    )
+                    Spacer(Modifier.height(Dimens.s))
+                }
+                ActionButtonRow(
+                    primaryText = "确认加入课程",
+                    onPrimary = { viewModel.confirmImageOcrBatch() },
+                    secondaryText = "重新选择图片",
+                    onSecondary = { viewModel.cancelImageDraft() },
+                    tertiaryText = "取消",
+                    onTertiary = { viewModel.cancelImageDraft() },
+                    primaryEnabled = okCount > 0,
+                )
+            } else {
+                // Single image / on-device draft / manual: one editable surface.
+                OutlinedTextField(
+                    value = ui.imageDraftText,
+                    onValueChange = viewModel::updateImageDraftText,
+                    label = { Text("可编辑学习文本（确认后作为课程文本）") },
+                    minLines = 5,
+                    maxLines = 12,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium,
+                )
+                if (ui.imageDraftText.trim().length < 20) {
+                    Spacer(Modifier.height(Dimens.xs))
+                    Text(
+                        "建议人工检查识别结果：当前 OCR 文本较短或质量可能不足，确认后才会进入学习闭环。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = cs.error,
                     )
                 }
-                Spacer(Modifier.height(Dimens.s))
-            }
-            // Paper-like editing surface.
-            OutlinedTextField(
-                value = ui.imageDraftText,
-                onValueChange = viewModel::updateImageDraftText,
-                label = { Text("可编辑学习文本（确认后作为课程文本）") },
-                minLines = 5,
-                maxLines = 12,
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.medium,
-            )
-            if (ui.imageDraftText.trim().length < 20) {
-                Spacer(Modifier.height(Dimens.xs))
-                Text(
-                    "建议人工检查识别结果：当前 OCR 文本较短或质量可能不足，确认后才会进入学习闭环。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = cs.error,
+                Spacer(Modifier.height(Dimens.m))
+                ActionButtonRow(
+                    primaryText = "确认加入课程",
+                    onPrimary = {
+                        if (ui.ocrImports.any { it.batchId.isNotBlank() }) viewModel.confirmImageOcrBatch() else viewModel.confirmImageDraft()
+                    },
+                    secondaryText = "取消",
+                    onSecondary = { viewModel.cancelImageDraft() },
+                    primaryEnabled = ui.imageDraftText.isNotBlank(),
                 )
             }
-            Spacer(Modifier.height(Dimens.m))
-            // Two-level footer: confirm dominant, cancel quiet.
-            PrimaryButton(
-                text = "确认并进入学习资料",
-                onClick = {
-                    if (ui.ocrImports.any { it.batchId.isNotBlank() }) {
-                        viewModel.confirmImageOcrBatch()
-                    } else {
-                        viewModel.confirmImageDraft()
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(Dimens.xs))
-            SecondaryButton(text = "取消", onClick = { viewModel.cancelImageDraft() }, modifier = Modifier.fillMaxWidth())
         }
         Spacer(Modifier.height(Dimens.s))
         Text(
@@ -700,6 +714,57 @@ private fun ImageDraftCard(viewModel: AppViewModel) {
             style = MaterialTheme.typography.labelSmall,
             color = cs.onSurfaceVariant,
         )
+    }
+}
+
+/** P0-4: one image's OCR result inside the confirm page — its own status, editable text, low-quality note,
+ *  and per-image delete. A failed image is contained here and never blocks the rest of the batch. */
+@Composable
+private fun OcrImageSegment(number: Int, draft: OcrImportDraft, viewModel: AppViewModel) {
+    val cs = MaterialTheme.colorScheme
+    val (statusLabel, tone) = when {
+        draft.status == OcrImportStatus.FAILED -> "识别失败" to ChipTone.WARNING
+        draft.isLowQuality() -> "低质量 · 需核对" to ChipTone.WARNING
+        draft.status == OcrImportStatus.PENDING -> "识别中" to ChipTone.INFO
+        else -> "识别成功" to ChipTone.SUCCESS
+    }
+    androidx.compose.material3.Surface(shape = MaterialTheme.shapes.medium, color = cs.surfaceVariant) {
+        Column(Modifier.fillMaxWidth().padding(Dimens.m)) {
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text("图片 $number · ${draft.fileMeta.safeDisplayLabel()}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                StatusChip(statusLabel, tone = tone)
+            }
+            when (draft.status) {
+                OcrImportStatus.FAILED -> {
+                    Spacer(Modifier.height(Dimens.xs))
+                    Text("识别失败：${draft.errorReason.ifBlank { "无法读取该图片，可删除后重新选择。" }}", style = MaterialTheme.typography.bodySmall, color = cs.error)
+                    Spacer(Modifier.height(Dimens.xs))
+                    SecondaryButton("删除该图片", onClick = { viewModel.removeOcrImport(draft.id) }, modifier = Modifier.fillMaxWidth())
+                }
+                OcrImportStatus.PENDING -> {
+                    Spacer(Modifier.height(Dimens.xs))
+                    Text("正在识别…", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+                }
+                OcrImportStatus.OK -> {
+                    if (draft.isLowQuality()) {
+                        Spacer(Modifier.height(Dimens.xs))
+                        Text("识别质量可能不足，请核对后再确认：${draft.errorReason}", style = MaterialTheme.typography.bodySmall, color = cs.error)
+                    }
+                    Spacer(Modifier.height(Dimens.xs))
+                    OutlinedTextField(
+                        value = draft.pastedText,
+                        onValueChange = { viewModel.updateOcrImportText(draft.id, it) },
+                        label = { Text("图片 $number 文本（可编辑）") },
+                        minLines = 3,
+                        maxLines = 10,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.medium,
+                    )
+                    Spacer(Modifier.height(Dimens.xs))
+                    SecondaryButton("删除该图片", onClick = { viewModel.removeOcrImport(draft.id) }, modifier = Modifier.fillMaxWidth())
+                }
+            }
+        }
     }
 }
 

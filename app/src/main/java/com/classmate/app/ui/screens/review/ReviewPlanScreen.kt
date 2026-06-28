@@ -239,6 +239,27 @@ private fun LearningDiagnosisCard(viewModel: AppViewModel) {
                 Spacer(Modifier.height(Dimens.xxs))
                 EvidenceActionChip(viewModel, item.evidenceIds.firstOrNull(), item.title + " " + item.reason, "查看诊断证据")
             }
+            // P0-2: AI remediation plan + the gated 薄弱点专项 practice (admits only answerable questions).
+            val we = viewModel.ui.weaknessEnhancement
+            val clipboard = LocalClipboardManager.current
+            Spacer(Modifier.height(Dimens.s))
+            when {
+                we.running -> Text("正在生成 AI 加练方案…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                we.hasResult -> {
+                    Text("AI 加练方案 · ${we.sourceZh}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(Dimens.xxs))
+                    Text(we.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                }
+                we.failed -> Text("AI 加练方案暂时无法生成，可重试或直接开始薄弱点专项。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            }
+            Spacer(Modifier.height(Dimens.xs))
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+                ActionChip(if (we.running) "生成中…" else "AI 加练方案") { viewModel.generateWeaknessRemediation() }
+                ActionChip("开始薄弱点专项") { viewModel.startPractice(PracticeMode.WEAKNESS_DRILL) }
+                if (we.hasResult) ActionChip("复制") {
+                    clipboard.setText(AnnotatedString(we.text)); viewModel.toast("已复制加练方案。")
+                }
+            }
         }
         if (diagnosis.commonMistakeTypes.isNotEmpty()) {
             Spacer(Modifier.height(Dimens.s))
