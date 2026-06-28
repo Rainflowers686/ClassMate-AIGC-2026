@@ -20,6 +20,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.classmate.app.state.EnhancementUiState
 import com.classmate.app.ui.design.Dimens
+import com.classmate.app.ui.i18n.AppLanguage
+import com.classmate.app.ui.i18n.appStrings
 
 /**
  * Shared status surfaces for long-running tasks (analysis / import / OCR / export / study pack / AI
@@ -74,7 +76,8 @@ fun ProminentLoadingCard(
     estimateText: String? = null,
     longWaitNote: String? = null,
     onCancel: (() -> Unit)? = null,
-    cancelText: String = "取消",
+    language: AppLanguage = AppLanguage.ZH,
+    cancelText: String = appStrings(language).enhancementCancel,
 ) {
     PremiumCard(modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -116,16 +119,18 @@ fun ProminentErrorCard(
     onSecondary: (() -> Unit)? = null,
     dismissText: String? = null,
     onDismiss: (() -> Unit)? = null,
+    language: AppLanguage = AppLanguage.ZH,
 ) {
+    val s = appStrings(language)
     PremiumCard(modifier) {
         Text(whatHappened, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.error)
         if (!possibleCause.isNullOrBlank()) {
             Spacer(Modifier.height(Dimens.xs))
-            Text("可能原因：$possibleCause", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(s.enhancementPossibleCause(possibleCause), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (!nextStep.isNullOrBlank()) {
             Spacer(Modifier.height(Dimens.xxs))
-            Text("下一步：$nextStep", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(s.enhancementNextStep(nextStep), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (onRetry != null && retryText != null) {
             Spacer(Modifier.height(Dimens.s))
@@ -157,21 +162,25 @@ fun EnhancementPanel(
     onCopy: (String) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    language: AppLanguage = AppLanguage.ZH,
 ) {
+    val s = appStrings(language)
     when {
         state.running -> ProminentLoadingCard(
             title = runningTitle,
-            statusText = "正在调用蓝心 / 端侧模型，不可用时会用本地整理版。",
+            statusText = s.enhancementRunningStatus,
+            language = language,
             modifier = modifier,
         )
         state.failed -> ProminentErrorCard(
-            whatHappened = "AI 整理未完成",
-            possibleCause = "云端或端侧模型暂时不可用。",
-            nextStep = "可重试，或继续使用基础版材料。",
-            retryText = "重试",
+            whatHappened = s.enhancementAiIncomplete,
+            possibleCause = s.enhancementAiUnavailable,
+            nextStep = s.enhancementUseBasicMaterial,
+            retryText = s.retry,
             onRetry = onGenerate,
-            secondaryText = "取消",
+            secondaryText = s.cancel,
             onSecondary = onDismiss,
+            language = language,
             modifier = modifier,
         )
         state.hasResult -> PremiumCard(modifier) {
@@ -183,9 +192,9 @@ fun EnhancementPanel(
             Text(state.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
             Spacer(Modifier.height(Dimens.s))
             ActionButtonRow(
-                primaryText = "复制",
+                primaryText = s.copy,
                 onPrimary = { onCopy(state.text) },
-                secondaryText = "重新生成",
+                secondaryText = s.regenerate,
                 onSecondary = onGenerate,
             )
         }

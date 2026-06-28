@@ -18,10 +18,11 @@ class LearningExperienceUiGuardTest {
     @Test
     fun audioEvidenceShowsLearningLinksAndLowConfidenceGuard() {
         val source = File("src/main/java/com/classmate/app/ui/screens/evidence/EvidenceDetailScreen.kt").readText()
+        val strings = File("src/main/java/com/classmate/app/ui/i18n/Strings.kt").readText()
 
-        assertTrue(source.contains("低置信片段"))
-        assertTrue(source.contains("关联知识点"))
-        assertTrue(source.contains("关联错题"))
-        assertTrue(source.contains("关联复习任务"))
+        assertTrue(source.contains("低置信片段") || strings.contains("低置信片段"))
+        assertTrue(source.contains("关联知识点") || strings.contains("关联知识点"))
+        assertTrue(source.contains("关联错题") || strings.contains("关联错题"))
+        assertTrue(source.contains("关联复习任务") || strings.contains("关联复习任务"))
     }
 }

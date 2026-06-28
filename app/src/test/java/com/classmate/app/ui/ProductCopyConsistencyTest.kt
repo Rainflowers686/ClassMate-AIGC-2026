@@ -100,8 +100,11 @@ class ProductCopyConsistencyTest {
         // The ASR-config status note moved into the transcript help pack (i18n) — still present, just relocated.
         val strings = read("src/main/java/com/classmate/app/ui/i18n/Strings.kt")
         assertTrue("ASR config note present on screen or in help", transcript.contains("官方 ASR 按配置启用") || strings.contains("官方 ASR 按配置启用"))
-        listOf("知识时间线", "问这节课", "专项练习", "复习计划", "导出中心").forEach {
-            assertTrue("missing course entry: $it", course.contains(it) || export.contains(it))
+        listOf("知识时间线", "问这节课", "专项练习", "复习计划").forEach {
+            assertTrue("missing course entry: $it", course.contains(it))
+        }
+        listOf("导出中心").forEach {
+            assertTrue("missing export entry: $it", course.contains(it) || export.contains(it) || strings.contains(it))
         }
         listOf("建议追问", "加入复习").forEach {
             assertTrue("missing Ask entry: $it", knowledge.contains(it))
@@ -113,7 +116,7 @@ class ProductCopyConsistencyTest {
             assertTrue("missing review text: $it", review.contains(it))
         }
         listOf("PDF", "DOCX", "HTML", "Markdown", "Text", "课程精华音频脚本").forEach {
-            assertTrue("missing export format text: $it", export.contains(it) || settings.contains(it))
+            assertTrue("missing export format text: $it", export.contains(it) || settings.contains(it) || strings.contains(it))
         }
         listOf("TTS", "Function", "smoke", "docId", "Product-facing").forEach {
             assertTrue("missing official provider readiness copy: $it", settings.contains(it))

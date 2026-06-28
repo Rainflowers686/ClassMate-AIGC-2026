@@ -106,8 +106,6 @@ fun KnowledgeTimelineScreen(viewModel: AppViewModel) {
 
             ExportCenterCard(
                 viewModel = viewModel,
-                title = "导出当前课程报告",
-                description = "把当前 Timeline、证据链、微测、复习计划、Ask 记录和资料来源摘要导出为可保存或可分享文件。",
                 buildArtifact = viewModel::buildCurrentReportArtifact,
             )
 

@@ -115,18 +115,22 @@ class CloudDeviceReadinessGuardTest {
             "app/src/main/java/com/classmate/app/ui/screens/practice/PracticeSessionScreen.kt",
             "../app/src/main/java/com/classmate/app/ui/screens/practice/PracticeSessionScreen.kt",
         ).readText(Charsets.UTF_8)
+        val strings = firstExisting(
+            "app/src/main/java/com/classmate/app/ui/i18n/Strings.kt",
+            "../app/src/main/java/com/classmate/app/ui/i18n/Strings.kt",
+        ).readText(Charsets.UTF_8)
 
         listOf(
             "图片已保存为 evidence asset",
             "添加该页文本并生成学习闭环",
             "确认转写",
-        ).forEach { marker -> assertTrue("Import UI marker missing: $marker", importScreen.contains(marker)) }
+        ).forEach { marker -> assertTrue("Import UI marker missing: $marker", importScreen.contains(marker) || strings.contains(marker)) }
 
         listOf(
             "图片预览暂不可用",
             "当前保留转写证据，播放定位待真机验证",
             "证据资产缺失，但保留文本证据",
-        ).forEach { marker -> assertTrue("Evidence UI marker missing: $marker", evidenceScreen.contains(marker)) }
+        ).forEach { marker -> assertTrue("Evidence UI marker missing: $marker", evidenceScreen.contains(marker) || strings.contains(marker)) }
 
         listOf(
             "学习诊断",

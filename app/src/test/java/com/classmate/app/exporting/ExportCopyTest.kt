@@ -28,17 +28,16 @@ class ExportCopyTest {
             "src/main/java/com/classmate/app/ui/components/ExportCenterCard.kt",
             "app/src/main/java/com/classmate/app/ui/components/ExportCenterCard.kt",
         )
-        // The card keeps the draft / fallback flow copy; per-format guidance moved into the export help pack.
-        listOf("生成学习报告草稿", "选择导出格式", "HTML 或 Text 兜底").forEach {
-            assertTrue("missing export center copy: $it", source.contains(it))
-        }
-        assertFalse(source.contains("声音" + "复刻"))
-        assertFalse(source.contains("老师" + "声音克隆"))
-
         val strings = readFirst(
             "src/main/java/com/classmate/app/ui/i18n/Strings.kt",
             "app/src/main/java/com/classmate/app/ui/i18n/Strings.kt",
         )
+        // The card keeps the draft / fallback flow copy; per-format guidance moved into the export help pack.
+        listOf("生成学习报告草稿", "选择导出格式", "HTML 或 Text 兜底").forEach {
+            assertTrue("missing export center copy: $it", source.contains(it) || strings.contains(it))
+        }
+        assertFalse(source.contains("声音" + "复刻"))
+        assertFalse(source.contains("老师" + "声音克隆"))
         listOf(
             "DOCX 是真实 Word 文档",
             "PDF 适合打印",

@@ -17,11 +17,11 @@ class ExportDocxFlowTextTest {
     @Test
     fun exportCenterUsesRefinedDraftFlowAndDocxCopy() {
         val source = read("app/src/main/java/com/classmate/app/ui/components/ExportCenterCard.kt")
+        val strings = read("app/src/main/java/com/classmate/app/ui/i18n/Strings.kt")
         // Draft / fallback flow copy stays on the card; per-format guidance moved into the export help pack.
         listOf("生成学习报告草稿", "选择导出格式", "HTML 或 Text").forEach {
-            assertTrue("missing export copy: $it", source.contains(it))
+            assertTrue("missing export copy: $it", source.contains(it) || strings.contains(it))
         }
-        val strings = read("app/src/main/java/com/classmate/app/ui/i18n/Strings.kt")
         listOf("DOCX 是真实 Word 文档", "PDF 适合打印", "课程精华音频脚本").forEach {
             assertTrue("missing export help copy: $it", strings.contains(it))
         }

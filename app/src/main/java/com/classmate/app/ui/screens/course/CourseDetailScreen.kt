@@ -183,8 +183,6 @@ fun CourseDetailScreen(viewModel: AppViewModel) {
                 ProductSectionTitle("导出")
                 ExportCenterCard(
                     viewModel = viewModel,
-                    title = "导出中心",
-                    description = "导出学习包、知识结构大纲、PDF、Word 兼容 HTML 或演示 HTML；导出不含密钥与内部状态。",
                     buildArtifact = viewModel::buildLearningStudyPackArtifact,
                 )
 
@@ -490,8 +488,6 @@ private fun AiStudyMaterialSection(viewModel: AppViewModel) {
             Spacer(Modifier.height(Dimens.s))
             ExportCenterCard(
                 viewModel = viewModel,
-                title = "导出 AI 整理版",
-                description = "把上面的 AI 整理版材料导出为可保存 / 打印文件；文档会标注来源（${state.sourceZh}），不含密钥或内部状态。",
                 buildArtifact = viewModel::buildAiStudyMaterialArtifact,
             )
         }

@@ -47,9 +47,10 @@ class ProductLightweightActionsGuardTest {
     fun ocrDraftRequiresUserCheckBeforeLearningLoop() {
         val import = read("src/main/java/com/classmate/app/ui/screens/importcourse/ImportCourseScreen.kt")
         val state = read("src/main/java/com/classmate/app/state/AppViewModel.kt")
+        val strings = read("src/main/java/com/classmate/app/ui/i18n/Strings.kt")
 
-        assertTrue(import.contains("检查识别结果"))
-        assertTrue(import.contains("建议人工检查识别结果"))
+        assertTrue(import.contains("检查识别结果") || strings.contains("检查识别结果"))
+        assertTrue(import.contains("建议人工检查识别结果") || strings.contains("建议人工检查识别结果"))
         assertTrue(import.contains("updateImageDraftText"))
         assertTrue(import.contains("confirmImageDraft"))
         assertTrue(state.contains("confirmImageDraft"))
@@ -77,12 +78,14 @@ class ProductLightweightActionsGuardTest {
         val settings = read("src/main/java/com/classmate/app/ui/screens/settings/SettingsScreen.kt")
         val transcript = read("src/main/java/com/classmate/app/ui/screens/transcript/TranscriptImportScreen.kt")
         val practice = read("src/main/java/com/classmate/app/ui/screens/practice/PracticeSessionScreen.kt")
+        val strings = read("src/main/java/com/classmate/app/ui/i18n/Strings.kt")
+        val searchable = export + settings + transcript + practice + strings
 
         listOf("保存到文件…", "分享…", "确认转写并生成课堂学习闭环", "进入转写编辑器", "查看答案 / 证据").forEach {
-            assertFalse("old long button text remains: $it", (export + settings + transcript + practice).contains(it))
+            assertFalse("old long button text remains: $it", searchable.contains(it))
         }
         listOf("保存文件", "分享", "转写编辑", "查看证据", "生成听背脚本", "图片测试").forEach {
-            assertTrue("short copy missing: $it", (export + settings + transcript + practice).contains(it))
+            assertTrue("short copy missing: $it", searchable.contains(it))
         }
     }
 }

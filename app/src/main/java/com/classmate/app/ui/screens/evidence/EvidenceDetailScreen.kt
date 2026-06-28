@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import com.classmate.app.l3.Evidence
 import com.classmate.app.l3.EvidenceAsset
 import com.classmate.app.l3.L3SourceType
+import com.classmate.app.ui.i18n.Strings
 import com.classmate.app.ui.i18n.appStrings
 import com.classmate.core.evidence.EvidenceRelationLevel
 import com.classmate.app.state.AppViewModel
@@ -47,13 +48,14 @@ fun EvidenceDetailScreen(viewModel: AppViewModel) {
     val clipboard = LocalClipboardManager.current
     val result = ui.result
     val session = ui.session
+    val s = appStrings(ui.language)
     val l3Evidence = ui.selectedEvidenceId?.let { id -> ui.l3Pipeline.evidence.firstOrNull { it.id == id } }
     val l3Asset = l3Evidence?.assetId?.let { id -> ui.l3Pipeline.evidenceAssets.firstOrNull { it.id == id } }
     val kp = result?.knowledgePoint(ui.selectedKnowledgePointId ?: "")
 
-    ClassMateScaffold(title = "查看证据", onBack = { viewModel.goBack() }) { padding ->
+    ClassMateScaffold(title = s.evidenceView, onBack = { viewModel.goBack() }) { padding ->
         if (l3Evidence != null) {
-            // The real, user-facing excerpt — never raw ids, MIME types or file paths on a study page.
+            // The real, user-facing excerpt; technical metadata stays out of the study page.
             val excerpt = l3Evidence.text.ifBlank { l3Asset?.text.orEmpty() }
             val material = listOf(
                 l3Evidence.sourceLabel,
@@ -61,7 +63,7 @@ fun EvidenceDetailScreen(viewModel: AppViewModel) {
                 l3Evidence.fileName,
                 l3Asset?.fileName.orEmpty(),
             ).firstOrNull { it.isNotBlank() }.orEmpty()
-            val location = evidenceLocation(l3Evidence, l3Asset)
+            val location = evidenceLocation(l3Evidence, l3Asset, s)
             Column(
                 Modifier
                     .padding(padding)
@@ -71,17 +73,17 @@ fun EvidenceDetailScreen(viewModel: AppViewModel) {
                 verticalArrangement = Arrangement.spacedBy(Dimens.cardGap),
             ) {
                 ClassMateCard {
-                    Text(l3SourceTitle(l3Evidence.sourceType), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+                    Text(l3SourceTitle(l3Evidence.sourceType, s), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
                     if (material.isNotBlank()) {
                         Spacer(Modifier.height(Dimens.xs))
-                        Text("来源资料：$material", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(s.evidenceSourceMaterial(material), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     if (location.isNotBlank()) {
                         Text(location, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Spacer(Modifier.height(Dimens.m))
                     if (excerpt.isNotBlank()) {
-                        Text("原文片段", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                        Text(s.evidenceOriginalExcerpt, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                         Spacer(Modifier.height(Dimens.xs))
                         Text("「$excerpt」", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
                         // Honest weak-binding warning: if the excerpt shares no keywords with the points /
@@ -102,9 +104,9 @@ fun EvidenceDetailScreen(viewModel: AppViewModel) {
                         }
                     } else {
                         // Honest: don't pretend an excerpt exists when we couldn't locate one.
-                        Text("该内容暂无可回溯的原文片段。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                        Text(s.evidenceNoExcerpt, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
                         Spacer(Modifier.height(Dimens.xs))
-                        Text("它可能来自本地基础整理，或未能定位到原始材料位置，请结合课堂材料人工确认。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(s.evidenceNoExcerptHint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
 
@@ -113,28 +115,29 @@ fun EvidenceDetailScreen(viewModel: AppViewModel) {
                 if (excerpt.isNotBlank()) {
                     EnhancementPanel(
                         state = ui.evidenceEnhancement,
-                        idleTitle = "AI 证据解释",
-                        idleHint = "解释这条证据为什么支持相关知识点；关联较弱时会提示「证据待核对」。",
-                        triggerText = "生成 AI 证据解释",
-                        runningTitle = "正在生成证据解释",
+                        idleTitle = s.evidenceAiExplanationTitle,
+                        idleHint = s.evidenceAiExplanationHint,
+                        triggerText = s.evidenceAiExplanationTrigger,
+                        runningTitle = s.evidenceAiExplanationRunning,
                         onGenerate = { viewModel.generateEvidenceExplanation() },
-                        onCopy = { text -> clipboard.setText(AnnotatedString(text)); viewModel.toast("已复制证据解释。") },
+                        onCopy = { text -> clipboard.setText(AnnotatedString(text)); viewModel.toast(s.evidenceAiExplanationCopied) },
                         onDismiss = { viewModel.clearEvidenceEnhancement() },
+                        language = ui.language,
                     )
                 } else {
                     ClassMateCard {
-                        Text("AI 证据解释", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        Text(s.evidenceAiExplanationTitle, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(Dimens.xxs))
-                        Text("暂无可解释的证据片段。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(s.evidenceAiExplanationEmpty, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
 
-                // OCR image evidence: show the picture itself, never raw file paths.
+                // OCR image evidence: show the picture itself when the asset preview is available.
                 val imageRef = l3Evidence.imageRef.ifBlank { l3Asset?.imageRef.orEmpty() }
                 val thumbnailRef = l3Evidence.thumbnailRef.ifBlank { l3Asset?.thumbnailRef.orEmpty() }
                 if (l3Evidence.sourceType == L3SourceType.OCR_IMAGE || imageRef.isNotBlank()) {
                     ClassMateCard {
-                        Text("图片证据", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(s.evidenceImageTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         val previewBitmap = remember(thumbnailRef, imageRef) {
                             runCatching {
                                 val ref = thumbnailRef.ifBlank { imageRef }
@@ -145,14 +148,14 @@ fun EvidenceDetailScreen(viewModel: AppViewModel) {
                         if (previewBitmap != null) {
                             Image(
                                 bitmap = previewBitmap.asImageBitmap(),
-                                contentDescription = "OCR 图片证据预览",
+                                contentDescription = s.evidenceImagePreviewDescription,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(180.dp),
                                 contentScale = ContentScale.Crop,
                             )
                         } else {
-                            Text("图片预览暂不可用，已保留 OCR 文本作为证据。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(s.evidenceImagePreviewUnavailable, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -166,10 +169,10 @@ fun EvidenceDetailScreen(viewModel: AppViewModel) {
                     audioRef.isNotBlank()
                 ) {
                     ClassMateCard {
-                        Text("音频 / 转写证据", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(s.evidenceAudioTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         if (transcriptSegment.isNotBlank()) {
                             Spacer(Modifier.height(Dimens.s))
-                            Text("转写片段：「$transcriptSegment」", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                            Text(s.evidenceTranscriptSegment(transcriptSegment), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
                         }
                         val audioSegments = ui.l3Pipeline.transcriptSegments.filter {
                             it.sourceId == l3Evidence.sourceId || it.sourceId == audioRef || it.text == transcriptSegment
@@ -177,7 +180,7 @@ fun EvidenceDetailScreen(viewModel: AppViewModel) {
                         val lowConfidenceCount = audioSegments.count { it.lowConfidence }
                         if (lowConfidenceCount > 0) {
                             Spacer(Modifier.height(Dimens.xs))
-                            Text("低置信片段：$lowConfidenceCount 条，请确认后再作为高可信复习材料。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                            Text(s.evidenceLowConfidence(lowConfidenceCount), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                         }
                         val relatedKnowledgeCount = ui.l3Pipeline.knowledgePoints.count { l3Evidence.id in it.sourceEvidenceIds }
                         val relatedWrongCount = ui.l3Pipeline.wrongBook.count { l3Evidence.id in it.evidenceIds }
@@ -185,14 +188,14 @@ fun EvidenceDetailScreen(viewModel: AppViewModel) {
                             item.evidenceId == l3Evidence.id || ui.l3Pipeline.knowledgePoints.firstOrNull { it.id == item.knowledgePointId }?.sourceEvidenceIds?.contains(l3Evidence.id) == true
                         }
                         Spacer(Modifier.height(Dimens.xs))
-                        Text("关联知识点 $relatedKnowledgeCount · 关联错题 $relatedWrongCount · 关联复习任务 $relatedReviewCount", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("当前保留转写证据，播放定位待真机验证。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(s.evidenceRelatedCounts(relatedKnowledgeCount, relatedWrongCount, relatedReviewCount), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(s.evidencePlaybackPending, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
 
                 if (l3Asset == null && l3Evidence.assetId != null) {
                     ClassMateCard {
-                        Text("证据资产缺失，但保留文本证据。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                        Text(s.evidenceAssetMissing, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                     }
                 }
 
@@ -201,9 +204,9 @@ fun EvidenceDetailScreen(viewModel: AppViewModel) {
                 if (linkedKnowledge.isNotEmpty()) {
                     // P0-5: lead with the related knowledge — what this evidence supports — for learning value.
                     ClassMateCard {
-                        Text("相关知识点", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(s.evidenceRelatedKnowledgeTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(Dimens.xs))
-                        Text("这条证据支持下面的知识点结论：", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(s.evidenceRelatedKnowledgeHint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         linkedKnowledge.take(5).forEach { kp ->
                             Spacer(Modifier.height(Dimens.s))
                             Text(kp.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
@@ -215,7 +218,7 @@ fun EvidenceDetailScreen(viewModel: AppViewModel) {
                 }
                 if (linkedQuestions.isNotEmpty()) {
                     ClassMateCard {
-                        Text("关联微测题", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(s.evidenceRelatedQuizTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(Dimens.s))
                         linkedQuestions.forEach { question ->
                             Text(question.stem, style = MaterialTheme.typography.bodyMedium)
@@ -228,9 +231,9 @@ fun EvidenceDetailScreen(viewModel: AppViewModel) {
         }
         if (kp == null || session == null) {
             val message = if (ui.selectedEvidenceId != null) {
-                "该证据暂时无法回溯：它可能来自本地整理，或原始材料已变更。"
+                s.evidenceRetraceUnavailable
             } else {
-                "未选择知识点。"
+                s.evidenceNoKnowledgeSelected
             }
             Box(Modifier.padding(padding).fillMaxWidth().padding(Dimens.screen)) {
                 Text(message, style = MaterialTheme.typography.bodyMedium)
@@ -258,10 +261,10 @@ fun EvidenceDetailScreen(viewModel: AppViewModel) {
             }
 
             ClassMateCard {
-                Text("为什么这个知识点成立", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(s.evidenceWhyPointTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(Dimens.s))
                 Text(
-                    "它不是凭空生成的：下面的原文片段（高亮处）正是它的依据。ClassMate 只保留能在课堂原文中定位证据的结论。",
+                    s.evidenceWhyPointBody,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -272,7 +275,7 @@ fun EvidenceDetailScreen(viewModel: AppViewModel) {
             bySegment.forEach { (segmentId, spans) ->
                 val segment = session.segment(segmentId) ?: return@forEach
                 ClassMateCard {
-                    Text("第 ${segment.index} 段原文", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    Text(s.evidenceSegmentOriginal(segment.index), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.height(Dimens.s))
                     HighlightedSegmentText(
                         text = segment.text,
@@ -283,7 +286,7 @@ fun EvidenceDetailScreen(viewModel: AppViewModel) {
 
             if (kp.relatedPointIds.isNotEmpty()) {
                 ClassMateCard {
-                    Text("相关知识点", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text(s.evidenceRelatedKnowledgeTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(Dimens.s))
                     Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
                         kp.relatedPointIds.forEach { relatedId ->
@@ -301,14 +304,14 @@ fun EvidenceDetailScreen(viewModel: AppViewModel) {
 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Dimens.m)) {
                 SecondaryButton(
-                    text = "证据不对",
+                    text = s.evidenceWrong,
                     onClick = {
                         viewModel.submitFeedback(FeedbackType.EVIDENCE_WRONG, FeedbackTargetKind.KNOWLEDGE_POINT, kp.id)
                     },
                     modifier = Modifier.weight(1f),
                 )
                 SecondaryButton(
-                    text = "已掌握",
+                    text = s.mastered,
                     onClick = {
                         viewModel.submitFeedback(FeedbackType.ALREADY_MASTERED, FeedbackTargetKind.KNOWLEDGE_POINT, kp.id)
                     },
@@ -319,27 +322,27 @@ fun EvidenceDetailScreen(viewModel: AppViewModel) {
     }
 }
 
-private fun l3SourceTitle(sourceType: L3SourceType): String = when (sourceType) {
-    L3SourceType.TEXT -> "来自课堂文本"
-    L3SourceType.OCR_IMAGE -> "来自 OCR 图片"
-    L3SourceType.DOCUMENT -> "来自文档"
-    L3SourceType.AUDIO_TRANSCRIPT -> "来自课堂录音转写"
-    L3SourceType.MANUAL_TRANSCRIPT -> "来自手动转写"
-    L3SourceType.RECORDING_ARTIFACT -> "来自录音"
-    L3SourceType.QUESTION_BANK -> "来自题库"
-    L3SourceType.WEB -> "来自网络资料"
+private fun l3SourceTitle(sourceType: L3SourceType, s: Strings): String = when (sourceType) {
+    L3SourceType.TEXT -> s.evidenceSourceText
+    L3SourceType.OCR_IMAGE -> s.evidenceSourceOcrImage
+    L3SourceType.DOCUMENT -> s.evidenceSourceDocument
+    L3SourceType.AUDIO_TRANSCRIPT -> s.evidenceSourceAudioTranscript
+    L3SourceType.MANUAL_TRANSCRIPT -> s.evidenceSourceManualTranscript
+    L3SourceType.RECORDING_ARTIFACT -> s.evidenceSourceRecording
+    L3SourceType.QUESTION_BANK -> s.evidenceSourceQuestionBank
+    L3SourceType.WEB -> s.evidenceSourceWeb
 }
 
 /** A user-readable location line from structured fields only (page / paragraph / time) — no raw refs. */
-private fun evidenceLocation(evidence: Evidence, asset: EvidenceAsset?): String {
+private fun evidenceLocation(evidence: Evidence, asset: EvidenceAsset?, s: Strings): String {
     val parts = mutableListOf<String>()
-    evidence.page?.let { parts += "第 $it 页" }
-    evidence.blockIndex?.let { parts += "第 ${it + 1} 段" }
+    evidence.page?.let { parts += s.evidencePage(it) }
+    evidence.blockIndex?.let { parts += s.evidenceBlock(it + 1) }
     val start = evidence.segmentStartMs ?: asset?.startMs
     val end = evidence.segmentEndMs ?: asset?.endMs
     if (start != null || end != null) {
         val range = listOfNotNull(start?.let { "${it / 1000}s" }, end?.let { "${it / 1000}s" }).joinToString("–")
-        if (range.isNotBlank()) parts += "时间 $range"
+        if (range.isNotBlank()) parts += s.evidenceTime(range)
     }
-    return if (parts.isEmpty()) "" else "位置：" + parts.joinToString(" · ")
+    return if (parts.isEmpty()) "" else s.evidencePosition(parts.joinToString(" · "))
 }

@@ -348,8 +348,6 @@ private fun WeaknessCard(viewModel: AppViewModel) {
 private fun ExportCard(viewModel: AppViewModel) {
     ExportCenterCard(
         viewModel = viewModel,
-        title = "导出复习报告",
-        description = "包含复习任务、薄弱点、课程库、证据链和可用的学习报告内容。",
         buildArtifact = viewModel::buildReviewReportArtifact,
     )
 }

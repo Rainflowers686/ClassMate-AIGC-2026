@@ -96,6 +96,7 @@ import com.classmate.app.ui.product.ProductSpace
 import com.classmate.app.ui.product.QuietCard
 import com.classmate.app.platform.CaptureConfigLoader
 import com.classmate.app.ui.design.Dimens
+import com.classmate.app.ui.i18n.Strings
 import com.classmate.app.ui.i18n.appStrings
 import com.classmate.core.importing.ImportSourceType
 import com.classmate.core.provider.AnalysisIntensity
@@ -600,6 +601,7 @@ private fun formatRecordingSize(bytes: Long): String = when {
 @Composable
 private fun ImageDraftCard(viewModel: AppViewModel) {
     val ui = viewModel.ui
+    val s = appStrings(ui.language)
     val cs = MaterialTheme.colorScheme
     QuietCard {
         // Header: origin + live status badge.
@@ -620,10 +622,10 @@ private fun ImageDraftCard(viewModel: AppViewModel) {
         }
         if (ui.imageDraftImageRef.isNotBlank() || ui.imageDraftThumbnailRef.isNotBlank()) {
             Spacer(Modifier.height(Dimens.s))
-            StatusChip("图片已保存为 evidence asset", tone = ChipTone.SUCCESS)
+            StatusChip(s.ocrAssetSaved, tone = ChipTone.SUCCESS)
             Spacer(Modifier.height(Dimens.xs))
             Text(
-                "缩略图引用：${ui.imageDraftThumbnailRef.ifBlank { "待生成" }}",
+                s.ocrThumbnailRef(ui.imageDraftThumbnailRef.ifBlank { s.ocrThumbnailPending }),
                 style = MaterialTheme.typography.bodySmall,
                 color = cs.onSurfaceVariant,
             )
@@ -636,13 +638,13 @@ private fun ImageDraftCard(viewModel: AppViewModel) {
                 Row(Modifier.fillMaxWidth().padding(Dimens.l), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     androidx.compose.material3.CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                     Spacer(Modifier.width(Dimens.m))
-                    Text("端侧多模态理解中…", style = MaterialTheme.typography.bodyMedium)
+                    Text(s.ocrUnderstanding, style = MaterialTheme.typography.bodyMedium)
                 }
             }
         } else {
             if (ui.imageDraftManualMode) {
                 Text(
-                    ui.imageDraftMessage ?: "端侧图像理解暂不可用，可手动输入图片中的学习内容。",
+                    ui.imageDraftMessage ?: s.ocrManualFallback,
                     style = MaterialTheme.typography.bodySmall,
                     color = cs.onSurfaceVariant,
                 )
@@ -653,27 +655,27 @@ private fun ImageDraftCard(viewModel: AppViewModel) {
             if (isMultiImage) {
                 // P0-4: per-image segmented confirm — each image edited / retried / deleted on its own,
                 // a failed image never blocks the others, low quality is called out, nothing enters the
-                // learning loop until 确认加入课程.
+                // learning loop until the user explicitly accepts the batch.
                 batch.forEachIndexed { index, draft ->
-                    OcrImageSegment(number = index + 1, draft = draft, viewModel = viewModel)
+                    OcrImageSegment(number = index + 1, draft = draft, viewModel = viewModel, s = s)
                     Spacer(Modifier.height(Dimens.s))
                 }
                 val okCount = batch.count { it.status == OcrImportStatus.OK && it.pastedText.isNotBlank() }
                 val failedCount = batch.count { it.status == OcrImportStatus.FAILED }
                 if (failedCount > 0) {
                     Text(
-                        "$failedCount 张未能识别已跳过；其余 $okCount 张可确认加入课程。",
+                        s.ocrFailedSummary(failedCount, okCount),
                         style = MaterialTheme.typography.bodySmall,
                         color = cs.error,
                     )
                     Spacer(Modifier.height(Dimens.s))
                 }
                 ActionButtonRow(
-                    primaryText = "确认加入课程",
+                    primaryText = s.ocrConfirmAddCourse,
                     onPrimary = { viewModel.confirmImageOcrBatch() },
-                    secondaryText = "重新选择图片",
+                    secondaryText = s.ocrReselectImages,
                     onSecondary = { viewModel.cancelImageDraft() },
-                    tertiaryText = "取消",
+                    tertiaryText = s.cancel,
                     onTertiary = { viewModel.cancelImageDraft() },
                     primaryEnabled = okCount > 0,
                 )
@@ -682,7 +684,7 @@ private fun ImageDraftCard(viewModel: AppViewModel) {
                 OutlinedTextField(
                     value = ui.imageDraftText,
                     onValueChange = viewModel::updateImageDraftText,
-                    label = { Text("可编辑学习文本（确认后作为课程文本）") },
+                    label = { Text(s.ocrEditableTextLabel) },
                     minLines = 5,
                     maxLines = 12,
                     modifier = Modifier.fillMaxWidth(),
@@ -691,18 +693,18 @@ private fun ImageDraftCard(viewModel: AppViewModel) {
                 if (ui.imageDraftText.trim().length < 20) {
                     Spacer(Modifier.height(Dimens.xs))
                     Text(
-                        "建议人工检查识别结果：当前 OCR 文本较短或质量可能不足，确认后才会进入学习闭环。",
+                        s.ocrShortReviewWarning,
                         style = MaterialTheme.typography.bodySmall,
                         color = cs.error,
                     )
                 }
                 Spacer(Modifier.height(Dimens.m))
                 ActionButtonRow(
-                    primaryText = "确认加入课程",
+                    primaryText = s.ocrConfirmAddCourse,
                     onPrimary = {
                         if (ui.ocrImports.any { it.batchId.isNotBlank() }) viewModel.confirmImageOcrBatch() else viewModel.confirmImageDraft()
                     },
-                    secondaryText = "取消",
+                    secondaryText = s.cancel,
                     onSecondary = { viewModel.cancelImageDraft() },
                     primaryEnabled = ui.imageDraftText.isNotBlank(),
                 )
@@ -710,7 +712,7 @@ private fun ImageDraftCard(viewModel: AppViewModel) {
         }
         Spacer(Modifier.height(Dimens.s))
         Text(
-            "确认后会生成知识点、微测题和复习计划；题目、错题和复习任务都可以回到这张图片证据。端侧/手动草稿不替代 OCR。",
+            s.ocrConfirmExplanation,
             style = MaterialTheme.typography.labelSmall,
             color = cs.onSurfaceVariant,
         )
@@ -720,48 +722,48 @@ private fun ImageDraftCard(viewModel: AppViewModel) {
 /** P0-4: one image's OCR result inside the confirm page — its own status, editable text, low-quality note,
  *  and per-image delete. A failed image is contained here and never blocks the rest of the batch. */
 @Composable
-private fun OcrImageSegment(number: Int, draft: OcrImportDraft, viewModel: AppViewModel) {
+private fun OcrImageSegment(number: Int, draft: OcrImportDraft, viewModel: AppViewModel, s: Strings) {
     val cs = MaterialTheme.colorScheme
     val (statusLabel, tone) = when {
-        draft.status == OcrImportStatus.FAILED -> "识别失败" to ChipTone.WARNING
-        draft.isLowQuality() -> "低质量 · 需核对" to ChipTone.WARNING
-        draft.status == OcrImportStatus.PENDING -> "识别中" to ChipTone.INFO
-        else -> "识别成功" to ChipTone.SUCCESS
+        draft.status == OcrImportStatus.FAILED -> s.ocrStatusFailed to ChipTone.WARNING
+        draft.isLowQuality() -> s.ocrStatusLowQuality to ChipTone.WARNING
+        draft.status == OcrImportStatus.PENDING -> s.ocrStatusPending to ChipTone.INFO
+        else -> s.ocrStatusOk to ChipTone.SUCCESS
     }
     androidx.compose.material3.Surface(shape = MaterialTheme.shapes.medium, color = cs.surfaceVariant) {
         Column(Modifier.fillMaxWidth().padding(Dimens.m)) {
             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text("图片 $number · ${draft.fileMeta.safeDisplayLabel()}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Text(s.ocrSegmentTitle(number, draft.fileMeta.safeDisplayLabel()), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 StatusChip(statusLabel, tone = tone)
             }
             when (draft.status) {
                 OcrImportStatus.FAILED -> {
                     Spacer(Modifier.height(Dimens.xs))
-                    Text("识别失败：${draft.errorReason.ifBlank { "无法读取该图片，可删除后重新选择。" }}", style = MaterialTheme.typography.bodySmall, color = cs.error)
+                    Text(s.ocrFailure(draft.errorReason.ifBlank { s.ocrFailureFallback }), style = MaterialTheme.typography.bodySmall, color = cs.error)
                     Spacer(Modifier.height(Dimens.xs))
-                    SecondaryButton("删除该图片", onClick = { viewModel.removeOcrImport(draft.id) }, modifier = Modifier.fillMaxWidth())
+                    SecondaryButton(s.ocrDeleteImage, onClick = { viewModel.removeOcrImport(draft.id) }, modifier = Modifier.fillMaxWidth())
                 }
                 OcrImportStatus.PENDING -> {
                     Spacer(Modifier.height(Dimens.xs))
-                    Text("正在识别…", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+                    Text(s.ocrRecognizing, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
                 }
                 OcrImportStatus.OK -> {
                     if (draft.isLowQuality()) {
                         Spacer(Modifier.height(Dimens.xs))
-                        Text("识别质量可能不足，请核对后再确认：${draft.errorReason}", style = MaterialTheme.typography.bodySmall, color = cs.error)
+                        Text(s.ocrLowQualityMessage(draft.errorReason), style = MaterialTheme.typography.bodySmall, color = cs.error)
                     }
                     Spacer(Modifier.height(Dimens.xs))
                     OutlinedTextField(
                         value = draft.pastedText,
                         onValueChange = { viewModel.updateOcrImportText(draft.id, it) },
-                        label = { Text("图片 $number 文本（可编辑）") },
+                        label = { Text(s.ocrSegmentTextLabel(number)) },
                         minLines = 3,
                         maxLines = 10,
                         modifier = Modifier.fillMaxWidth(),
                         shape = MaterialTheme.shapes.medium,
                     )
                     Spacer(Modifier.height(Dimens.xs))
-                    SecondaryButton("删除该图片", onClick = { viewModel.removeOcrImport(draft.id) }, modifier = Modifier.fillMaxWidth())
+                    SecondaryButton(s.ocrDeleteImage, onClick = { viewModel.removeOcrImport(draft.id) }, modifier = Modifier.fillMaxWidth())
                 }
             }
         }
@@ -785,7 +787,7 @@ private fun handlePickedImage(context: Context, uri: Uri, perms: OnDevicePermiss
         }
     }.getOrNull()
     if (bitmap == null) {
-        viewModel.toast("无法读取该图片，请改用手动输入。")
+        viewModel.toast(appStrings(viewModel.ui.language).ocrDecodeFailedToast)
         viewModel.applyImageDraftResult(com.classmate.core.ondevice.OnDeviceImageDraftResult.Unavailable("DECODE_FAILED"))
         return
     }
@@ -830,12 +832,12 @@ private fun handlePickedImageBatch(
                     fileName = readDisplayName(context, uri).ifBlank { "image_$pageIndex" },
                     mimeType = context.contentResolver.getType(uri).orEmpty().ifBlank { "image/*" },
                     sizeBytes = imageBytes.size.toLong().takeIf { it > 0L },
-                    displayLabel = "图片$pageIndex",
+                    displayLabel = appStrings(viewModel.ui.language).ocrImageLabel(pageIndex),
                     pageIndex = pageIndex,
                 ),
                 pastedText = "",
                 status = OcrImportStatus.FAILED,
-                errorReason = "无法读取该图片，请重试或手动补充文字。",
+                errorReason = appStrings(viewModel.ui.language).ocrDecodeFailedReason,
                 batchId = batchId,
                 pageIndex = pageIndex,
                 blockIndex = pageIndex,
