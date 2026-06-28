@@ -22,6 +22,8 @@ data class ThemePreference(
     val enableExperimentalImageGeneration: Boolean = false,
     val enableExperimentalVideoGeneration: Boolean = false,
     val enableExperimentalSimultaneousInterpretation: Boolean = false,
+    // Stable non-privacy id sent as `user_id` to official streaming capabilities (TTS/ASR). Generated once.
+    val officialUserId: String = "",
 )
 
 class ThemePreferenceRepository(private val file: File?) {
@@ -43,6 +45,7 @@ class ThemePreferenceRepository(private val file: File?) {
             ),
             typographyPreset = obj.str("typographyPreset")?.let(::typographyPresetOrNull) ?: TypographyPreset.Default,
             language = obj.str("language")?.let(::languageOrNull) ?: AppLanguage.ZH,
+            officialUserId = obj.str("officialUserId").orEmpty(),
             enableExperimentalImageGeneration = obj.bool("enableExperimentalImageGeneration") ?: false,
             enableExperimentalVideoGeneration = obj.bool("enableExperimentalVideoGeneration") ?: false,
             enableExperimentalSimultaneousInterpretation = obj.bool("enableExperimentalSimultaneousInterpretation") ?: false,
@@ -63,6 +66,7 @@ class ThemePreferenceRepository(private val file: File?) {
                     put("customTertiaryHex", preference.customPalette.tertiaryHex)
                     put("typographyPreset", preference.typographyPreset.name)
                     put("language", preference.language.name)
+                    put("officialUserId", preference.officialUserId)
                     put("enableExperimentalImageGeneration", preference.enableExperimentalImageGeneration)
                     put("enableExperimentalVideoGeneration", preference.enableExperimentalVideoGeneration)
                     put("enableExperimentalSimultaneousInterpretation", preference.enableExperimentalSimultaneousInterpretation)
@@ -94,6 +98,12 @@ class ThemePreferenceRepository(private val file: File?) {
 
     fun saveTypographyPreset(preset: TypographyPreset): ThemePreference {
         val next = load().copy(typographyPreset = preset)
+        save(next)
+        return next
+    }
+
+    fun saveOfficialUserId(userId: String): ThemePreference {
+        val next = load().copy(officialUserId = userId)
         save(next)
         return next
     }

@@ -274,6 +274,9 @@ class AppViewModel(
     private val l3PersistenceRepository: L3PersistenceRepository = L3PersistenceRepository.disabled(),
     private val evidenceAssetStore: EvidenceAssetStore = EvidenceAssetStore.disabled(),
     private val localTtsPlayer: LocalTtsPlayer = NoOpLocalTtsPlayer(),
+    // Official TTS WebSocket provider (云端). Null until the composition root injects the OkHttp-backed one,
+    // so unit tests run with the system-TTS path only. Used config-gated, with a system-TTS fallback.
+    private val officialTtsProvider: com.classmate.app.asr.OfficialTtsProvider? = null,
     private val officialRuntimeGateway: OfficialRuntimeGateway = OfficialRuntimeGatewayFactory.production(),
     // On-device BlueLM 3B owner. Defaults to the honest missing-SDK bridge until the AAR is bundled.
     private val onDeviceController: OnDeviceLlmController = OnDeviceLlmController(),
@@ -624,31 +627,77 @@ class AppViewModel(
             ui = ui.copy(toast = "暂无可朗读的听背文稿。")
             return
         }
-        if (!localTtsPlayer.canAttemptLocalPlayback()) {
-            ui = ui.copy(ttsAudio = TtsAudioUiState(failed = true, message = "系统 TTS 不可用，已保留听背文稿。", sourceZh = "TTS 不可用"))
-            return
-        }
         deleteTtsAudioFileOnly()
         val now = System.currentTimeMillis()
         val courseId = ui.session?.id ?: ui.result?.sessionId ?: "course"
         val fileName = "tts_${courseId}_$now.wav"
         ui = ui.copy(ttsAudio = TtsAudioUiState(running = true))
-        localTtsPlayer.synthesizeToFile("tts_$now", script, fileName) { result ->
-            viewModelScope.launch {
-                ui = if (result.success && result.filePath.isNotBlank()) {
-                    ui.copy(
+        // Route: 官方 TTS WebSocket → 系统 Android TTS → 仅保留文稿. Each step is honestly labelled.
+        val officialConfig = officialTtsConfig()
+        val provider = officialTtsProvider
+        viewModelScope.launch {
+            if (provider != null && officialConfig != null) {
+                val official = withContext(Dispatchers.IO) {
+                    runCatching { provider.synthesizeToFile(officialConfig, script, fileName) }.getOrNull()
+                }
+                if (official != null && official.success && official.filePath.isNotBlank()) {
+                    ui = ui.copy(
                         ttsAudio = TtsAudioUiState(
-                            filePath = result.filePath,
+                            filePath = official.filePath,
                             fileName = fileName,
-                            sizeBytes = result.sizeBytes,
-                            sourceZh = "系统 TTS 生成",
+                            sizeBytes = official.sizeBytes,
+                            sourceZh = "官方 TTS 生成",
                         ),
                     )
-                } else {
-                    ui.copy(ttsAudio = TtsAudioUiState(failed = true, message = "音频生成失败，已保留听背文稿。", sourceZh = "仅生成文稿"))
+                    return@launch
                 }
             }
+            if (localTtsPlayer.canAttemptLocalPlayback()) {
+                localTtsPlayer.synthesizeToFile("tts_$now", script, fileName) { result ->
+                    viewModelScope.launch {
+                        ui = if (result.success && result.filePath.isNotBlank()) {
+                            ui.copy(
+                                ttsAudio = TtsAudioUiState(
+                                    filePath = result.filePath,
+                                    fileName = fileName,
+                                    sizeBytes = result.sizeBytes,
+                                    sourceZh = "系统 TTS 生成",
+                                ),
+                            )
+                        } else {
+                            ui.copy(ttsAudio = TtsAudioUiState(failed = true, message = "音频生成失败，已保留听背文稿。", sourceZh = "仅生成文稿"))
+                        }
+                    }
+                }
+            } else {
+                ui = ui.copy(ttsAudio = TtsAudioUiState(failed = true, message = "系统 TTS 不可用，已保留听背文稿。", sourceZh = "TTS 不可用"))
+            }
         }
+    }
+
+    /** Build the official TTS WS config from the in-memory cloud credential. Null when no AppKey is configured. */
+    private fun officialTtsConfig(): com.classmate.core.official.ws.OfficialWsConfig? {
+        val appKey = officialCloudAppKeyOrNull() ?: return null
+        return com.classmate.core.official.ws.OfficialWsConfig(
+            baseUrl = com.classmate.core.official.ws.OfficialTtsWsProtocol.DEFAULT_URL,
+            appKey = appKey,
+            userId = stableOfficialUserId(),
+        )
+    }
+
+    /** Reads the BlueLM AppKey from the in-memory bundle. NEVER logged/exported (Credential.toString masks it). */
+    private fun officialCloudAppKeyOrNull(): String? {
+        val cred = configBundle.configOf(ProviderKind.BLUELM)?.credential as? Credential.BlueLm ?: return null
+        return cred.appKey.takeIf { it.isNotBlank() }
+    }
+
+    /** A stable, non-privacy 32-char id for the official `user_id` param, generated once and persisted. */
+    private fun stableOfficialUserId(): String {
+        themePreferenceRepository.load().officialUserId.takeIf { it.isNotBlank() }?.let { return it }
+        val generated = (java.util.UUID.randomUUID().toString() + java.util.UUID.randomUUID().toString())
+            .filter { it.isLetterOrDigit() }.lowercase().take(32)
+        themePreferenceRepository.saveOfficialUserId(generated)
+        return generated
     }
 
     fun deleteTtsAudio() {

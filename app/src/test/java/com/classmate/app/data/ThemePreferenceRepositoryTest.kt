@@ -75,6 +75,15 @@ class ThemePreferenceRepositoryTest {
     }
 
     @Test
+    fun officialUserIdPersistsAcrossRepositoryInstances() {
+        // The stable non-privacy user_id sent to official TTS/ASR must survive restarts (generated once).
+        val file = tempFile()
+        assertEquals("", ThemePreferenceRepository(file).load().officialUserId)
+        ThemePreferenceRepository(file).saveOfficialUserId("abc123def456")
+        assertEquals("abc123def456", ThemePreferenceRepository(file).load().officialUserId)
+    }
+
+    @Test
     fun themeAndAccentPersistAcrossRepositoryInstances() {
         val file = tempFile()
         val repo = ThemePreferenceRepository(file)

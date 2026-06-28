@@ -1735,6 +1735,13 @@ private fun OnDeviceDiagnosticCard(viewModel: AppViewModel) {
             "通道已就绪 · 需配置官方密钥后启用 · 未配置/失败自动用系统实时转写（待真机验证）",
         )
 
+        // Official TTS (wss://.../tts, docId 1735): WS provider + PCM→WAV present; uses the cloud AppKey,
+        // falls back to system TTS then script. Honest, never the key.
+        ProviderStatusRow(
+            "官方 TTS（WebSocket）",
+            "通道已就绪 · 听背音频优先官方 TTS · 未配置/失败自动用系统 TTS，再失败保留文稿（待真机验证）",
+        )
+
         // Bounded model-file diagnostic (Task 3): exists/readable only — never reads content.
         files?.let { f ->
             Spacer(Modifier.height(Dimens.s))

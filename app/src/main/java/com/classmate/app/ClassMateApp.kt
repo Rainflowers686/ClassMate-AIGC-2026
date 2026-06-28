@@ -107,6 +107,9 @@ fun ClassMateApp() {
                     classroomAudioRecorder = AndroidClassroomAudioRecorder(File(context.filesDir, "classmate_recordings")),
                     recordingFileManager = RecordingFileManager(File(context.filesDir, "classmate_recordings")),
                     localTtsPlayer = AndroidLocalTtsPlayer(context),
+                    // Official TTS WebSocket (config-gated); writes WAV into the same classmate_tts dir as the
+                    // system TTS so course-deletion cleanup and play/share/delete all keep working.
+                    officialTtsProvider = com.classmate.app.asr.OfficialTtsProvider(File(context.filesDir, "classmate_tts")),
                     // Real reflection bridge: drives the vivo on-device SDK when app/libs/llm-sdk-release.aar
                     // is bundled, and honestly reports SDK_MISSING (no crash) when it is absent.
                     onDeviceController = OnDeviceLlmController.real(),
