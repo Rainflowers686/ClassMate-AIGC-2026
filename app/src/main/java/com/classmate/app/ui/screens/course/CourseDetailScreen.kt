@@ -156,24 +156,18 @@ fun CourseDetailScreen(viewModel: AppViewModel) {
                     }
                 }
 
-                // SECOND LAYER — learning actions as a connected dock, not a button pile.
+                // SECOND LAYER — learning actions as a connected dock, not a button pile. Micro-quiz and
+                // practice entries are consolidated into the 知识点时间线 (做微测) and 复习计划 (各类练习) hubs,
+                // so this card does not duplicate them (real-device issues #10, #17, #18). The ask-lesson
+                // Q&A entry was also removed here.
                 ProductSectionTitle("今日建议")
                 LearningActionDock(
                     listOf(
-                        DockAction("问这节课", Icons.Filled.Edit) { viewModel.navigateTo(Screen.KNOWLEDGE) },
-                        DockAction("做微测", Icons.Filled.CheckCircle) { viewModel.navigateTo(Screen.QUIZ) },
+                        DockAction("知识点时间线", Icons.Filled.Edit) { viewModel.navigateTo(Screen.KNOWLEDGE) },
                         DockAction("复习计划", Icons.Filled.DateRange) { viewModel.ensureReviewPlan(); viewModel.navigateTo(Screen.REVIEW) },
                         DockAction("导出笔记", Icons.Filled.Share) { viewModel.navigateTo(Screen.KNOWLEDGE) },
                     ),
                 )
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
-                    SecondaryButton("专项练习", onClick = { viewModel.startPractice(PracticeMode.QUICK_REVIEW) }, modifier = Modifier.weight(1f))
-                    SecondaryButton("错题重练", onClick = { viewModel.startPractice(PracticeMode.WRONG_ANSWER_RETRY) }, modifier = Modifier.weight(1f))
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
-                    SecondaryButton("随机小测", onClick = { viewModel.startRandomQuiz() }, modifier = Modifier.weight(1f))
-                    SecondaryButton("模拟考试", onClick = { viewModel.startExam() }, modifier = Modifier.weight(1f))
-                }
                 // Restrained entry into the immersive Flow companion (sound scenes + focus timer).
                 SecondaryButton("心流复习 · 沉浸专注", onClick = { viewModel.navigateTo(Screen.LIVE) }, modifier = Modifier.fillMaxWidth())
 

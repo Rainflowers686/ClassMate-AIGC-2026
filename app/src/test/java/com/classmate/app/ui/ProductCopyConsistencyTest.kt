@@ -100,15 +100,18 @@ class ProductCopyConsistencyTest {
         // The ASR-config status note moved into the transcript help pack (i18n) — still present, just relocated.
         val strings = read("src/main/java/com/classmate/app/ui/i18n/Strings.kt")
         assertTrue("ASR config note present on screen or in help", transcript.contains("官方 ASR 按配置启用") || strings.contains("官方 ASR 按配置启用"))
-        listOf("知识时间线", "问这节课", "专项练习", "复习计划").forEach {
+        // Real-device #10/#17/#18: course page consolidates entries into the timeline + review hubs and
+        // drops "问这节课" + duplicate quiz buttons.
+        listOf("知识点时间线", "复习计划", "导出").forEach {
             assertTrue("missing course entry: $it", course.contains(it))
         }
+        assertFalse("问这节课 removed from course page", course.contains("问这节课"))
         listOf("导出中心").forEach {
             assertTrue("missing export entry: $it", course.contains(it) || export.contains(it) || strings.contains(it))
         }
-        listOf("建议追问", "加入复习").forEach {
-            assertTrue("missing Ask entry: $it", knowledge.contains(it))
-        }
+        // The 微测/练习 entries live in the timeline (开始微测) and review (各类练习) hubs.
+        assertTrue("review hub keeps practice entries", review.contains("专项练习") || review.contains("薄弱点专项"))
+        assertFalse("问这节课 removed from knowledge page", knowledge.contains("问这节课"))
         listOf("答案 / 解释", "证据", "下一步建议").forEach {
             assertTrue("missing practice feedback text: $it", practice.contains(it))
         }

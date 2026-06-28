@@ -222,16 +222,13 @@ private fun L3LearningLoopCard(viewModel: AppViewModel) {
 @Composable
 private fun LearningDiagnosisCard(viewModel: AppViewModel) {
     val diagnosis = viewModel.ui.l3Pipeline.learningDiagnosis
-    if (diagnosis.generatedAt == 0L && diagnosis.weakKnowledgePoints.isEmpty() && diagnosis.nextStudyTasks.isEmpty()) return
+    // P1-4: the "学习诊断 / 建议下一步" prose framework is removed; this is now a lightweight, actionable
+    // 薄弱知识点 hub (weak points + AI remediation + variant generation), only shown when there ARE weak points.
+    if (diagnosis.weakKnowledgePoints.isEmpty()) return
     ClassMateCard {
-        Text("学习诊断", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text("薄弱知识点", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.s))
-        if (diagnosis.recentReviewPressure.isNotBlank()) {
-            Text(diagnosis.recentReviewPressure, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(Dimens.xs))
-        }
-        if (diagnosis.weakKnowledgePoints.isNotEmpty()) {
-            Text("薄弱知识点 Top ${diagnosis.weakKnowledgePoints.size}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        run {
             diagnosis.weakKnowledgePoints.forEach { item ->
                 Spacer(Modifier.height(Dimens.xs))
                 Text(item.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
@@ -269,21 +266,6 @@ private fun LearningDiagnosisCard(viewModel: AppViewModel) {
             }
             Spacer(Modifier.height(Dimens.xs))
             ActionChip(if (variant.running) "蓝心出题中…" else "蓝心生成变式题") { viewModel.generateWeakPointVariants() }
-        }
-        if (diagnosis.commonMistakeTypes.isNotEmpty()) {
-            Spacer(Modifier.height(Dimens.s))
-            Text("常错题型：${diagnosis.commonMistakeTypes.joinToString(" / ")}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        if (diagnosis.masteredKnowledgePoints.isNotEmpty()) {
-            Spacer(Modifier.height(Dimens.xs))
-            Text("已掌握：${diagnosis.masteredKnowledgePoints.joinToString(" / ")}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        if (diagnosis.nextStudyTasks.isNotEmpty()) {
-            Spacer(Modifier.height(Dimens.s))
-            Text("建议下一步", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            diagnosis.nextStudyTasks.forEach { task ->
-                Text("• $task", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
         }
     }
 }

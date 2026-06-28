@@ -57,6 +57,26 @@ class LearningLoopAppTest {
         )
 
     @Test
+    fun markingReviewDoneAndWeakActuallyChangesState() {
+        // Real-device #16: marking a review task 完成 / 太难 must change state, not just toast — the loop closes.
+        val store = seededLearningStore()
+        val viewModel = vm(store)
+        val dueBefore = store.listDueTasks()
+        assertTrue("seed has due tasks", dueBefore.isNotEmpty())
+
+        val doneId = dueBefore.first().taskId
+        viewModel.reviewMarkDone(doneId)
+        assertTrue("completed task leaves the due list", store.listDueTasks().none { it.taskId == doneId })
+
+        store.listDueTasks().firstOrNull()?.let { weakTask ->
+            viewModel.reviewTaskFeedback(weakTask.taskId, com.classmate.core.learning.ReviewEventType.TOO_HARD)
+            val after = store.listDueTasks().firstOrNull { it.taskId == weakTask.taskId }
+            // The weakness counter was recorded (or the task was re-prioritised out of today's due list).
+            assertTrue(after == null || after.counters.tooHard > 0)
+        }
+    }
+
+    @Test
     fun homeSummaryShowsDueCountAndRecentCourse() {
         val viewModel = vm(seededLearningStore())
 

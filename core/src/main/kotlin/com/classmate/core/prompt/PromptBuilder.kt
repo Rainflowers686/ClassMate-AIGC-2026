@@ -48,14 +48,20 @@ class PromptBuilder {
         }
 
         Rules:
-        1. Produce 5-8 knowledgePoints and 5-8 quizItems unless the source is very short.
-        2. evidenceQuote must be copied verbatim from the original source text. Do not paraphrase.
-        3. segmentIndex must be one of the provided segmentIndex values.
-        4. Do not use generic classroom filler as titles: greetings, lesson-start phrases,
-           first/last transition words, or "this lesson" labels.
-        5. Keep every explanation short. Prefer formulas, definitions, methods, examples, and warnings.
-        6. If evidence cannot be copied exactly, omit that item.
-        7. Return JSON object only. The first character must be { and the last must be }.
+        1. The number of knowledgePoints is decided BY THE MATERIAL, never a fixed quota. Thin material →
+           1-2 points; normal → 3-6; rich/long → more (up to the max). NEVER pad to reach a number and
+           NEVER invent a point to "fill" the list. Quality over quantity.
+        2. If the source is too thin or low-quality to yield reliable points, return as few as 0-1 points.
+           Returning fewer real points is correct; fabricating is forbidden.
+        3. Every knowledgePoint MUST carry a verbatim evidenceQuote copied exactly from the source segment.
+           Do not paraphrase. If you cannot copy real evidence for a point, omit that point entirely.
+        4. segmentIndex must be one of the provided segmentIndex values.
+        5. Do not summarize non-learning content: greetings, lesson-start/end phrases, transition words,
+           "this lesson" labels, or organisational chatter. These are NOT knowledge points.
+        6. Keep every explanation short. Prefer formulas, definitions, methods, examples, and warnings.
+        7. quizItems: one per knowledgePoint that supports a real question; fewer is fine. Each quiz needs a
+           verbatim evidenceQuote. Do not write questions without supporting evidence.
+        8. Return JSON object only. The first character must be { and the last must be }.
     """.trimIndent()
 
     private fun userPrompt(request: AnalysisRequest): String {
@@ -70,8 +76,9 @@ class PromptBuilder {
             append("courseTitle: ").append(session.title.ifBlank { "Untitled course" }).append('\n')
             append("source segments:\n").append(segmentsBlock).append("\n\n")
             append("Return ClassMateLlmDraftV1 JSON only. ")
-            append("knowledgePoints max=").append(request.maxKnowledgePoints).append(", ")
-            append("quizItems target=5-8.")
+            append("knowledgePoints: as many as the material truly supports, max=").append(request.maxKnowledgePoints)
+            append(" (fewer is correct when the material is thin; do not pad). ")
+            append("quizItems: one per knowledge point that has real supporting evidence.")
             if (request.repairHint != null) {
                 append("\nRepair instruction: ").append(request.repairHint)
                 append(". Return the same compact JSON schema only, shorter than before.")

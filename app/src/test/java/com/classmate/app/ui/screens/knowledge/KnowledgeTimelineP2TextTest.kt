@@ -13,13 +13,12 @@ class KnowledgeTimelineP2TextTest {
     ).first { it.exists() }.readText()
 
     @Test
-    fun askCardShowsFollowUpsAndAddToReviewAction() {
-        listOf(
-            "建议追问",
-            "加入复习",
-            "suggestedFollowUps",
-            "addAskAnswerToReview",
-        ).forEach { assertTrue("missing Ask learning-loop copy: $it", source.contains(it)) }
+    fun askThisLessonEntryIsRemoved() {
+        // Real-device #10/#17: the "问这节课" Q&A box is removed from the timeline; the page leads with
+        // knowledge points + evidence + 微测.
+        listOf("问这节课", "AskThisLessonCard", "updateAskLessonQuestion").forEach {
+            assertFalse("ask-this-lesson UI should be removed: $it", source.contains(it))
+        }
     }
 
     /**

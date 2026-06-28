@@ -109,7 +109,8 @@ fun KnowledgeTimelineScreen(viewModel: AppViewModel) {
                 buildArtifact = viewModel::buildCurrentReportArtifact,
             )
 
-            AskThisLessonCard(viewModel, session)
+            // Real-device #10/#17: the ask-this-lesson Q&A box is no longer surfaced; the timeline leads
+            // with knowledge points, evidence and 微测.
 
             result.knowledgePoints.forEachIndexed { index, kp ->
                 val segIndex = session.segments.firstOrNull { it.id == kp.sourceSegmentId }?.index
@@ -121,88 +122,6 @@ fun KnowledgeTimelineScreen(viewModel: AppViewModel) {
                     onOpenEvidence = { viewModel.openEvidence(kp.id) },
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun AskThisLessonCard(viewModel: AppViewModel, session: com.classmate.core.model.CourseSession) {
-    val ui = viewModel.ui
-    val cs = MaterialTheme.colorScheme
-    QuietCard {
-        Text("问这节课", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(Dimens.s))
-        Text(
-            "回答只依据本节课的知识点与原文证据；没有依据时会标注「未找到依据」，不会编造。",
-            style = MaterialTheme.typography.bodySmall,
-            color = cs.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(Dimens.s))
-        OutlinedTextField(
-            value = ui.askLessonQuestion,
-            onValueChange = viewModel::updateAskLessonQuestion,
-            label = { Text("输入你的问题") },
-            minLines = 2,
-            maxLines = 4,
-            enabled = !ui.askLessonPending,
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.medium,
-        )
-        Spacer(Modifier.height(Dimens.s))
-        PrimaryButton(
-            text = if (ui.askLessonPending) "正在查找本节课证据…" else "提问",
-            onClick = { viewModel.askThisLesson() },
-            enabled = ui.askLessonQuestion.isNotBlank() && !ui.askLessonPending,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        ui.askLessonAnswers.withIndex().toList().takeLast(3).reversed().forEach { indexedAnswer ->
-            val answerIndex = indexedAnswer.index
-            val answer = indexedAnswer.value
-            Spacer(Modifier.height(Dimens.m))
-            Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
-                val (label, tone) = when (answer.groundedness) {
-                    "grounded" -> "有证据" to ChipTone.SUCCESS
-                    "partial" -> "部分依据" to ChipTone.WARNING
-                    "not_found" -> "未找到依据" to ChipTone.NEUTRAL
-                    else -> "出错" to ChipTone.WARNING
-                }
-                StatusChip(label, tone = tone)
-                // Honest answer source: 云端蓝心 / 端侧蓝心 / 安全占位 (never raw provider id, never LocalRule).
-                StatusChip(
-                    com.classmate.core.ondevice.ProviderPathNode.sourceLabelZh(answer.providerName),
-                    tone = if (answer.fallbackUsed) ChipTone.NEUTRAL else ChipTone.INFO,
-                )
-            }
-            Spacer(Modifier.height(Dimens.xs))
-            Text(answer.answer, style = MaterialTheme.typography.bodyMedium, color = cs.onSurface)
-            if (answer.relatedKnowledgePointTitles.isNotEmpty()) {
-                Spacer(Modifier.height(Dimens.xxs))
-                Text("相关知识点：${answer.relatedKnowledgePointTitles.joinToString("、")}", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
-            }
-            answer.evidenceRefs.take(3).forEach { ref ->
-                Spacer(Modifier.height(Dimens.xxs))
-                val sourceLabel = sourceLabelForSegment(ref.segmentId?.let { session.segment(it) }?.text)
-                Text(
-                    "证据${sourceLabel?.let { " · $it" }.orEmpty()}：「${ref.quote}」${ref.knowledgePointTitle?.let { " — $it" } ?: ""}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = cs.onSurfaceVariant,
-                )
-            }
-            if (answer.suggestedFollowUps.isNotEmpty()) {
-                Spacer(Modifier.height(Dimens.s))
-                Text("建议追问", style = MaterialTheme.typography.labelLarge, color = cs.onSurfaceVariant)
-                answer.suggestedFollowUps.take(4).forEach { followUp ->
-                    Spacer(Modifier.height(Dimens.xxs))
-                    Text("• $followUp", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
-                }
-            }
-            Spacer(Modifier.height(Dimens.s))
-            SecondaryButton(
-                text = "加入复习",
-                onClick = { viewModel.addAskAnswerToReview(answerIndex) },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = answer.relatedKnowledgePointTitles.isNotEmpty() || answer.evidenceRefs.isNotEmpty(),
-            )
         }
     }
 }
@@ -241,13 +160,4 @@ private fun KnowledgePointCard(number: Int, kp: KnowledgePoint, segmentLabel: St
         Spacer(Modifier.height(Dimens.s))
         Text(openEvidenceLabel, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
     }
-}
-
-private fun sourceLabelForSegment(text: String?): String? = when {
-    text == null -> null
-    text.contains("[课件 OCR") -> "课件 OCR"
-    text.contains("[板书 OCR") -> "板书 OCR"
-    text.contains("[讲义 OCR") -> "讲义 OCR"
-    text.contains("[PDF OCR") -> "PDF OCR"
-    else -> null
 }
