@@ -36,8 +36,8 @@ android {
         applicationId = "com.classmate.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 109
-        versionName = "1.13.6"
+        versionCode = 110
+        versionName = "1.13.7"
         vectorDrawables { useSupportLibrary = true }
         buildConfigField("String", "BUILT_AT", "\"$builtAtValue\"")
         buildConfigField("String", "GIT_COMMIT", "\"$gitCommitValue\"")
@@ -107,6 +107,11 @@ dependencies {
 
     // Runtime JSON parsing for the debug-only config import preview (no codegen needed).
     implementation(libs.kotlinx.serialization.json)
+
+    // OkHttp WebSocket — the official vivo WebSocket capabilities (real-time / dictation ASR over
+    // /asr/v2) need a WS client; Android has none built-in at minSdk 24. App module only; the official
+    // WS path is config-gated and falls back to the system SpeechRecognizer when unavailable.
+    implementation(libs.okhttp)
 
     testImplementation(libs.junit)
 }

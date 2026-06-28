@@ -17,6 +17,12 @@ activityCompose = "1.8.2"
 
 kotlinxSerialization = "1.6.2"
 
+# OkHttp: the official vivo WebSocket capabilities (ASR /asr/v2, doc 1738/1740/2065/2068) use a
+# WebSocket handshake with a Bearer header. Android has no built-in WS client at minSdk 24, so this
+# adds the de-facto-standard, lightweight WS client (app module only). Used solely for the official
+# WebSocket transport; the existing HttpURLConnection BlueLM/OCR/long-ASR paths are unchanged.
+okhttp = "4.12.0"
+
 junit = "4.13.2"
 
 [libraries]
@@ -35,6 +41,9 @@ androidx-compose-material3 = { group = "androidx.compose.material3", name = "mat
 
 # --- Serialization (shared) ---
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+
+# --- Networking (app module): OkHttp WebSocket for official vivo WS capabilities ---
+okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 
 # --- Test ---
 junit = { group = "junit", name = "junit", version.ref = "junit" }

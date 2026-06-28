@@ -1727,6 +1727,14 @@ private fun OnDeviceDiagnosticCard(viewModel: AppViewModel) {
             ProviderStatusRow("系统语音识别", asrReadiness.diagnosticsLine())
         }
 
+        // Official WebSocket ASR (/asr/v2, docId 1738/1740) readiness — honest config-gated status. The
+        // WebSocket transport (OkHttp) is present; the official path needs credentials + real-device
+        // validation, and falls back to the system recognizer above when unavailable. Never shows the key.
+        ProviderStatusRow(
+            "官方实时转写（WebSocket）",
+            "通道已就绪 · 需配置官方密钥后启用 · 未配置/失败自动用系统实时转写（待真机验证）",
+        )
+
         // Bounded model-file diagnostic (Task 3): exists/readable only — never reads content.
         files?.let { f ->
             Spacer(Modifier.height(Dimens.s))

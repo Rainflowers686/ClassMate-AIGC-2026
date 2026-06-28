@@ -18,6 +18,16 @@ Date: 2026-06-28. Source of truth: `docs/current/official_docs_strict_alignment_
 | 端侧 3B 大模型 | 1802 | **Android SDK/AAR** 本地模型 | llm-sdk-release.aar + llm/ + llm-demo.apk | 否 (本地推理) | 需 AAR (本地 gitignored, 已存在) | 已接入 (反射 bridge, 设备就绪时可用) | 见 P0-6 |
 | 蓝心生成变式题 | 1745 | HTTP (复用大模型) | — | 是 | 否 | **已接入** (BlueLM→解析→质量门→练习) | — |
 
+## 官方能力深接入 v1 更新 (2026-06-28)
+
+新增 **OkHttp WebSocket 依赖 + 官方 WS ASR 底座**（基于官方 demo 实测协议）：
+
+- **WebSocket 底座 (P0-1)**：`core/official/ws/OfficialAsrWsProtocol`(URL/started 帧/`--end--`/`--close--`/事件解析/`Authorization: Bearer` + 密钥脱敏) + `OfficialWsTransport` 接口 + `OfficialRealtimeAsrSession`（纯核、可测）；app `OkHttpOfficialWsTransport`(ws→http 归一 + 安全失败映射) + `PcmAudioCapture`(AudioRecord 16k/16b 单声道, 1280B/帧)。协议 100% 来自官方 demo（`ws://api-ai.vivo.com.cn/asr/v2`, engineid `shortasrinput`/`longasrlisten`/`longasrsubtitle`, Bearer 鉴权, JSON+PCM 帧, `{action,type,data:{text,is_last},code}` 事件）。
+- **实时短语音(1738)/长语句听写(1740)**：底座 + session **已真实接入**(config-gated)；真机+凭据验证待做；未配置/失败**自动回退系统 SpeechRecognizer**，不破坏现有直播流。诊断页新增"官方实时转写（WebSocket）"诚实只读状态行。
+- **方言(2065)/同传(2068)**：同 `/asr/v2`，enum 已含（experimental）。
+- **官方 TTS(1735)**：**无 demo**，doc 仅给 `wss://.../tts` 不含帧/响应格式 → 无法据证据真实实现 → 诚实保留 seam；系统 Android TTS（已真实生成音频文件）继续承接，标"系统 TTS 生成"。**这是证据不足，不是偷懒**。
+- **未提交 AAR**：`llm-sdk-release.aar`/文本审核 aar 仍 gitignored + 反射可选接入（见 P0-6），不入库（保护非 vivo/云真机 + 避免仓库膨胀）。
+
 ## 结论 (本轮可真实接入的边界)
 
 - **HTTP 类官方能力可用现有 transport 复刻**：大模型(1745)✅、长语音转写(1739)✅seam、OCR/检索/相似度/嵌入(已 PASS)。
