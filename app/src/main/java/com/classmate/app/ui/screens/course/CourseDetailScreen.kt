@@ -38,6 +38,8 @@ import com.classmate.app.data.HistoryRecord
 import com.classmate.app.state.AppViewModel
 import com.classmate.app.state.Screen
 import com.classmate.app.state.Tab
+import androidx.compose.ui.platform.LocalContext
+import com.classmate.app.exporting.ExportIntentFactory
 import com.classmate.app.ui.components.ActionButtonRow
 import com.classmate.app.ui.components.ChipTone
 import com.classmate.app.ui.components.PremiumCard
@@ -356,6 +358,7 @@ private fun L3PipelineStatusCard(viewModel: AppViewModel) {
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
+                AiAudioReviewControls(viewModel)
             }
         }
         if (l3.qualityWarnings.isNotEmpty()) {
@@ -383,6 +386,66 @@ private fun L3PipelineStatusCard(viewModel: AppViewModel) {
             }
         }
     }
+}
+
+// P0-2: real on-device TTS audio for the 听背文稿 — generate / play / share / delete, with an honest source
+// label. The text script always remains; a failed or 0-byte synthesis never shows a fake audio file.
+@Composable
+private fun AiAudioReviewControls(viewModel: AppViewModel) {
+    val tts = viewModel.ui.ttsAudio
+    val context = LocalContext.current
+    Spacer(Modifier.height(Dimens.s))
+    when {
+        tts.running -> Text("正在用系统 TTS 生成听背音频…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+        tts.hasFile -> {
+            Text(
+                "听背音频 · ${tts.sourceZh} · ${tts.fileName} · ${formatBytes(tts.sizeBytes)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(Dimens.xs))
+            ActionButtonRow(
+                primaryText = "播放",
+                onPrimary = { playLocalAudio(tts.filePath) { viewModel.toast("无法播放音频文件。") } },
+                secondaryText = "分享",
+                onSecondary = {
+                    val file = java.io.File(tts.filePath)
+                    if (!file.exists()) viewModel.toast("音频文件不存在，请重新生成。")
+                    else runCatching { context.startActivity(ExportIntentFactory.shareAudioFileChooser(context, file)) }
+                        .onFailure { viewModel.toast("分享失败，请稍后重试。") }
+                },
+                tertiaryText = "删除",
+                onTertiary = { viewModel.deleteTtsAudio() },
+            )
+        }
+        tts.failed -> Text(tts.message.ifBlank { "音频生成失败，已保留听背文稿。" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+    }
+    Spacer(Modifier.height(Dimens.xs))
+    SecondaryButton(
+        if (tts.running) "生成中…" else "生成听背音频",
+        onClick = { viewModel.generateAudioReviewFile() },
+        modifier = Modifier.fillMaxWidth(),
+        enabled = !tts.running,
+    )
+}
+
+private fun playLocalAudio(path: String, onError: () -> Unit) {
+    runCatching {
+        android.media.MediaPlayer().apply {
+            setDataSource(path)
+            setOnCompletionListener { it.release() }
+            setOnErrorListener { mp, _, _ -> mp.release(); onError(); true }
+            prepare()
+            start()
+        }
+    }.onFailure { onError() }
+}
+
+private fun formatBytes(bytes: Long): String = when {
+    bytes <= 0L -> "0 B"
+    bytes < 1024 -> "$bytes B"
+    bytes < 1024 * 1024 -> "${bytes / 1024} KB"
+    else -> "${"%.1f".format(bytes / (1024.0 * 1024.0))} MB"
 }
 
 // P0-1: a real AI second-pass that turns the current course into review/print-ready material. Cloud BlueLM

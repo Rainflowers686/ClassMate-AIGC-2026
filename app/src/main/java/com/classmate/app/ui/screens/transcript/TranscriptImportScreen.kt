@@ -69,7 +69,14 @@ fun TranscriptImportScreen(viewModel: AppViewModel) {
                     viewModel.transcribeAudioFile(bytes, metadata.fileName, metadata.mimeType)
                 }
             } else {
-                viewModel.toast("视频文件当前只记录元数据，请导入字幕或粘贴转写文本。")
+                // P0-3: make a REAL attempt to read an embedded subtitle track; only fall back to the honest
+                // "metadata only" message when the video genuinely has no extractable text track.
+                val embedded = com.classmate.app.importing.VideoSubtitleExtractor.extract(context, uri)
+                if (!embedded.isNullOrBlank()) {
+                    viewModel.importVideoEmbeddedSubtitle(embedded)
+                } else {
+                    viewModel.toast("未检测到可自动提取的内嵌字幕；可导入 SRT/VTT 字幕、粘贴转写文本，或用实时转写生成课堂记录。")
+                }
             }
             return@rememberLauncherForActivityResult
         }

@@ -163,6 +163,7 @@ import com.classmate.core.ai.EnhancementPoint
 import com.classmate.core.ai.EnhancementPromptBuilder
 import com.classmate.core.ai.LocalEnhancementTemplates
 import com.classmate.core.ai.RoutedEnhancementUseCase
+import com.classmate.core.ai.VariantQuizParser
 import com.classmate.core.analysis.CourseDomainDetector
 import com.classmate.core.glossary.DynamicGlossaryExtractor
 import com.classmate.core.glossary.GlossarySource
@@ -603,9 +604,62 @@ class AppViewModel(
         val next = refreshCapabilityMatrix(
             ui.l3Pipeline.copy(audioReviewAssets = (ui.l3Pipeline.audioReviewAssets + asset).takeLast(20)),
         )
-        ui = ui.copy(l3Pipeline = next, toast = "已生成听背文稿，可复制或分享复习；当前设备暂未生成音频。")
+        ui = ui.copy(l3Pipeline = next, toast = "已生成听背文稿，可复制或分享复习；如需音频可点「生成听背音频」。")
         persistL3(next)
         return true
+    }
+
+    /**
+     * P0-2: synthesize the 听背文稿 into a REAL on-device audio file via the system TextToSpeech engine.
+     * Honest source label "系统 TTS 生成" (never 蓝心 TTS); 0-byte / failed output is deleted and the text
+     * script stays available. Re-generating replaces the previous file; course deletion cleans it up.
+     */
+    fun generateAudioReviewFile() {
+        val script = ui.l3Pipeline.audioReviewAssets.lastOrNull()?.script?.takeIf { it.isNotBlank() }
+            ?: run {
+                if (!generateAudioReviewScript()) return
+                ui.l3Pipeline.audioReviewAssets.lastOrNull()?.script.orEmpty()
+            }
+        if (script.isBlank()) {
+            ui = ui.copy(toast = "暂无可朗读的听背文稿。")
+            return
+        }
+        if (!localTtsPlayer.canAttemptLocalPlayback()) {
+            ui = ui.copy(ttsAudio = TtsAudioUiState(failed = true, message = "系统 TTS 不可用，已保留听背文稿。", sourceZh = "TTS 不可用"))
+            return
+        }
+        deleteTtsAudioFileOnly()
+        val now = System.currentTimeMillis()
+        val courseId = ui.session?.id ?: ui.result?.sessionId ?: "course"
+        val fileName = "tts_${courseId}_$now.wav"
+        ui = ui.copy(ttsAudio = TtsAudioUiState(running = true))
+        localTtsPlayer.synthesizeToFile("tts_$now", script, fileName) { result ->
+            viewModelScope.launch {
+                ui = if (result.success && result.filePath.isNotBlank()) {
+                    ui.copy(
+                        ttsAudio = TtsAudioUiState(
+                            filePath = result.filePath,
+                            fileName = fileName,
+                            sizeBytes = result.sizeBytes,
+                            sourceZh = "系统 TTS 生成",
+                        ),
+                    )
+                } else {
+                    ui.copy(ttsAudio = TtsAudioUiState(failed = true, message = "音频生成失败，已保留听背文稿。", sourceZh = "仅生成文稿"))
+                }
+            }
+        }
+    }
+
+    fun deleteTtsAudio() {
+        deleteTtsAudioFileOnly()
+        ui = ui.copy(ttsAudio = TtsAudioUiState(), toast = "已删除听背音频。")
+    }
+
+    private fun deleteTtsAudioFileOnly() {
+        ui.ttsAudio.filePath.takeIf { it.isNotBlank() }?.let { path ->
+            runCatching { java.io.File(path).takeIf { it.exists() }?.delete() }
+        }
     }
 
     private fun refreshCapabilityMatrix(snapshot: L3PipelineSnapshot): L3PipelineSnapshot =
@@ -2863,6 +2917,18 @@ class AppViewModel(
     }
 
     /** Parse the pasted/loaded transcript text into an editable [TranscriptDraft]; warnings, no crash. */
+    /** P0-3: feed a video's REAL embedded subtitle track (from VideoSubtitleExtractor) through the parser. */
+    fun importVideoEmbeddedSubtitle(rawSubtitle: String, now: Long = System.currentTimeMillis()): Boolean {
+        if (rawSubtitle.isBlank()) {
+            ui = ui.copy(toast = "未检测到可提取的内嵌字幕，请导入字幕文件或粘贴转写文本。")
+            return false
+        }
+        ui = ui.copy(transcriptPasteDraft = rawSubtitle, transcriptSourceType = TranscriptParser.autoDetect(rawSubtitle))
+        val ok = parseTranscript(now)
+        if (ok) ui = ui.copy(toast = "已从视频内嵌字幕轨提取并解析字幕，可编辑确认。")
+        return ok
+    }
+
     fun parseTranscript(now: Long = System.currentTimeMillis()): Boolean {
         val raw = ui.transcriptPasteDraft
         if (raw.isBlank()) {
@@ -4173,6 +4239,117 @@ class AppViewModel(
 
     fun clearWeaknessRemediation() { ui = ui.copy(weaknessEnhancement = EnhancementUiState.idle()) }
 
+    /**
+     * P0-4: ask BlueLM (云端蓝心) / on-device for BRAND-NEW variant questions for the top weak knowledge
+     * point, parse the strict JSON, keep only answerable questions, and enter practice. Cloud → on-device
+     * → local (existing course questions for this KP, labelled 本地基础变式). Empty → no practice + error.
+     */
+    fun generateWeakPointVariants() {
+        val result = ui.result ?: run { ui = ui.copy(toast = "请先打开一门已分析的课程。"); return }
+        val weak = ui.l3Pipeline.learningDiagnosis.weakKnowledgePoints.firstOrNull() ?: run {
+            ui = ui.copy(toast = "暂无薄弱知识点，继续练习后再生成变式题。")
+            return
+        }
+        val courseId = ui.session?.id ?: result.sessionId
+        val courseTitle = ui.session?.title?.ifBlank { weak.title } ?: weak.title
+        val kpId = weak.knowledgePointId
+        val wrongStems = ui.l3Pipeline.wrongBook
+            .filter { it.knowledgePointId == kpId }
+            .mapNotNull { wb -> ui.l3Pipeline.questions.firstOrNull { it.id == wb.questionId }?.stem }
+            .take(3)
+        val evidenceQuotes = weak.evidenceIds
+            .mapNotNull { id -> ui.l3Pipeline.evidence.firstOrNull { it.id == id }?.text?.takeIf { it.isNotBlank() } }
+            .take(3)
+        val kpResolver: (String) -> String = { title ->
+            result.knowledgePoints.firstOrNull { it.title == title }?.id ?: kpId
+        }
+        val prompt = EnhancementPromptBuilder.weakPointVariants(weak.title, weak.reason, wrongStems, evidenceQuotes)
+        val bundle = configBundle
+        val tx = transport
+        val now = System.currentTimeMillis()
+        val idPrefix = "var_${courseId}_$now"
+        ui = ui.copy(weakVariantStatus = EnhancementUiState(type = AiEnhancementType.WEAKNESS_VARIANTS, running = true))
+        viewModelScope.launch {
+            val (items, source) = withContext(Dispatchers.IO) {
+                val cloud = runCatching { ProviderAskChatClient(bundle, tx).chat(prompt, null) }.getOrNull()
+                val cloudItems = cloud?.text?.let { VariantQuizParser.parse(it, AiExecutionSource.CLOUD, idPrefix, kpResolver) }.orEmpty()
+                if (cloudItems.isNotEmpty()) return@withContext cloudItems to AiExecutionSource.CLOUD
+                val device = runCatching { onDeviceController.askSeam().chat(prompt, null) }.getOrNull()
+                val deviceItems = device?.text?.let { VariantQuizParser.parse(it, AiExecutionSource.ON_DEVICE, idPrefix, kpResolver) }.orEmpty()
+                if (deviceItems.isNotEmpty()) return@withContext deviceItems to AiExecutionSource.ON_DEVICE
+                // Honest local fallback: reuse THIS course's existing questions for the weak KP (no fabrication).
+                existingQuestionsAsVariants(kpId, idPrefix) to AiExecutionSource.SAFE_PLACEHOLDER
+            }
+            if (items.isEmpty()) {
+                ui = ui.copy(
+                    weakVariantStatus = EnhancementUiState(
+                        type = AiEnhancementType.WEAKNESS_VARIANTS,
+                        running = false,
+                        failed = true,
+                        sourceZh = "暂无可用变式题",
+                    ),
+                )
+                return@launch
+            }
+            val sourceZh = when (source) {
+                AiExecutionSource.CLOUD -> "蓝心生成变式题"
+                AiExecutionSource.ON_DEVICE -> "端侧模型草稿"
+                else -> "本地基础变式"
+            }
+            val session = PracticeSession(
+                id = "variant_$now",
+                courseSessionId = courseId,
+                courseTitle = courseTitle,
+                mode = PracticeMode.WEAKNESS_DRILL,
+                items = items,
+                createdAt = now,
+                source = source,
+                routeReason = "weak-point variants · $sourceZh",
+            )
+            ui = ui.copy(
+                weakVariantStatus = EnhancementUiState.idle(),
+                practiceSession = session,
+                practiceIndex = 0,
+                practiceAttempts = emptyList(),
+                practiceResult = null,
+                practiceSelectedAnswers = emptyMap(),
+                practiceSubmittedAnswers = emptyMap(),
+                practiceQuestionMode = PracticeQuestionMode.REAL_QUIZ,
+                practiceStartedAt = now,
+                practiceRevealed = false,
+                toast = "已生成 ${items.size} 道变式题（$sourceZh）。",
+            )
+            navigateTo(Screen.PRACTICE)
+        }
+    }
+
+    /** Local fallback for variants: this course's existing answerable questions for the weak KP. */
+    private fun existingQuestionsAsVariants(knowledgePointId: String, idPrefix: String): List<PracticeItem> {
+        val kp = ui.result?.knowledgePoints?.firstOrNull { it.id == knowledgePointId }
+        return ui.l3Pipeline.questions
+            .filter { it.knowledgePointId == knowledgePointId }
+            .mapIndexed { index, q ->
+                val quizOptions = q.options.mapIndexed { i, text ->
+                    com.classmate.core.model.QuizOption(id = ('A' + i).toString(), text = text, isCorrect = false)
+                }
+                val correctIds = com.classmate.core.model.QuizAnswerNormalizer
+                    .resolveCorrectIds(quizOptions, q.correctAnswer).toSet()
+                PracticeItem(
+                    id = "${idPrefix}_local_$index",
+                    type = PracticeItemType.QUIZ_RETRY,
+                    knowledgePointId = knowledgePointId,
+                    knowledgePointTitle = kp?.title.orEmpty(),
+                    question = q.stem,
+                    answer = q.explanation.ifBlank { kp?.summary.orEmpty() },
+                    options = quizOptions.map { PracticeOption(it.id, it.text, it.id in correctIds) },
+                    source = AiExecutionSource.SAFE_PLACEHOLDER,
+                )
+            }
+            .filter { it.isAnswerableQuiz() }
+    }
+
+    fun clearWeakVariantStatus() { ui = ui.copy(weakVariantStatus = EnhancementUiState.idle()) }
+
     fun startRandomQuiz(questionCount: Int = 5, now: Long = System.currentTimeMillis()) {
         startPracticeInternal(PracticeMode.QUICK_REVIEW, PracticeQuestionMode.REAL_QUIZ)
         val session = ui.practiceSession ?: return
@@ -4885,6 +5062,11 @@ class AppViewModel(
             toast = successToast,
         )
         persistHistory(updated)
+        if (activeDeleted) {
+            // P0-2: clean the current course's generated TTS audio file so it doesn't orphan on disk.
+            deleteTtsAudioFileOnly()
+            ui = ui.copy(ttsAudio = TtsAudioUiState())
+        }
         if (activeDeleted && currentScreen == Screen.COURSE_DETAIL) selectTab(Tab.HISTORY)
         return true
     }

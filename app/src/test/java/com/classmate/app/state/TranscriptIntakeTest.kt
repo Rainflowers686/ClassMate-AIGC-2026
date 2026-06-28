@@ -7,6 +7,7 @@ import com.classmate.core.material.SpeakerLabel
 import com.classmate.core.transcript.TranscriptSourceType
 import java.nio.file.Files
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -16,6 +17,27 @@ class TranscriptIntakeTest {
     private fun vm() = AppViewModel(
         configRepository = ConfigRepository(Files.createTempDirectory("cm-transcript").resolve("config.local.json").toFile()),
     )
+
+    @Test
+    fun videoEmbeddedSubtitleParsesWhenPresentAndGuidesWhenEmpty() {
+        // P0-3: a real extracted subtitle track parses into a draft; an empty extraction guides honestly
+        // (never fabricates a transcript).
+        val viewModel = vm()
+        assertFalse(viewModel.importVideoEmbeddedSubtitle(""))
+        assertNotNull(viewModel.ui.toast)
+
+        val ok = viewModel.importVideoEmbeddedSubtitle(
+            """
+            WEBVTT
+
+            00:00:01.000 --> 00:00:03.000
+            老师：这是从视频字幕轨提取的内容
+            """.trimIndent(),
+        )
+        assertTrue(ok)
+        assertNotNull(viewModel.ui.transcriptDraft)
+        assertTrue(viewModel.ui.transcriptDraft!!.segments.isNotEmpty())
+    }
 
     @Test
     fun parseEditSpeakerAndSaveToTray() {

@@ -43,6 +43,38 @@ object EnhancementPromptBuilder {
         },
     )
 
+    /** P0-4: ask the model for brand-new variant questions as STRICT JSON for the parser to consume. */
+    fun weakPointVariants(
+        knowledgePointTitle: String,
+        reason: String,
+        wrongStems: List<String>,
+        evidenceQuotes: List<String>,
+        count: Int = 3,
+    ): Prompt = Prompt(
+        system = "你是出题助手，为一个薄弱知识点生成全新的变式练习题。$GROUND_RULE " +
+            "只输出一个 JSON 对象，不要输出任何解释性文字、Markdown 标题或代码块以外的内容。",
+        user = buildString {
+            append("薄弱知识点：$knowledgePointTitle\n")
+            if (reason.isNotBlank()) append("薄弱原因：$reason\n")
+            if (wrongStems.isNotEmpty()) {
+                append("学生答错过的相关题目：\n")
+                wrongStems.take(3).forEach { append("- $it\n") }
+            }
+            if (evidenceQuotes.isNotEmpty()) {
+                append("可参考的课堂证据：\n")
+                evidenceQuotes.take(3).forEach { append("- ${it.take(80)}\n") }
+            }
+            append("请生成 $count 道由易到难的单选或判断题，每题必须有正确答案与中文解析。\n")
+            append("严格输出如下 JSON：\n")
+            append(
+                """{"questions":[{"stem":"题干","type":"single_choice|true_false",""" +
+                    """"options":[{"id":"A","text":"选项A"},{"id":"B","text":"选项B"}],""" +
+                    """"answer":"A","explanation":"解析","knowledgePointTitle":"$knowledgePointTitle",""" +
+                    """"difficulty":"basic|normal|advanced","whyThisVariant":"为什么适合当前薄弱点"}]}""",
+            )
+        },
+    )
+
     fun weaknessRemediation(knowledgePointTitle: String, reason: String, missCount: Int): Prompt = Prompt(
         system = "你是薄弱点强化助手，为一个被反复答错的知识点设计循序渐进的强化方案。$GROUND_RULE",
         user = buildString {

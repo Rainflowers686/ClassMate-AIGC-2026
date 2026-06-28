@@ -79,6 +79,23 @@ class PracticeFlowTest {
     }
 
     @Test
+    fun weakPointVariantGenerationGuardsWhenNoCourse() {
+        // P0-4 guard: with no analyzed course, BlueLM variant generation must not run.
+        val viewModel = vm()
+        viewModel.generateWeakPointVariants()
+        assertFalse(viewModel.ui.weakVariantStatus.running)
+        assertNotNull(viewModel.ui.toast)
+    }
+
+    @Test
+    fun audioReviewFileGuardsWhenNoScript() {
+        // P0-2 guard: with no course/script, generating the TTS audio file must not run or crash.
+        val viewModel = vm()
+        viewModel.generateAudioReviewFile()
+        assertFalse(viewModel.ui.ttsAudio.running)
+    }
+
+    @Test
     fun weaknessRemediationGuardsWhenNoWeakPoint() {
         // P0-2 guard: no weak knowledge point -> AI remediation entry guides instead of running.
         val viewModel = vm()

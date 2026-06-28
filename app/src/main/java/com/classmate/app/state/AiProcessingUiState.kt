@@ -20,6 +20,23 @@ data class EnhancementUiState(
     }
 }
 
+/**
+ * State for a real on-device TTS audio file generated from the 听背文稿 (P0-2). Carries the safe file name +
+ * size + an honest source label ("系统 TTS 生成" / "仅生成文稿" / "TTS 不可用") — never "蓝心 TTS". The raw
+ * filePath is for playback/share/delete only and is never shown verbatim in normal UI.
+ */
+data class TtsAudioUiState(
+    val running: Boolean = false,
+    val filePath: String = "",
+    val fileName: String = "",
+    val sizeBytes: Long = 0L,
+    val failed: Boolean = false,
+    val message: String = "",
+    val sourceZh: String = "",
+) {
+    val hasFile: Boolean get() = filePath.isNotBlank() && !running
+}
+
 data class AiProcessingUiState(
     val visible: Boolean = false,
     val title: String = "",

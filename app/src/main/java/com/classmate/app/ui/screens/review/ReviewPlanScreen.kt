@@ -260,6 +260,15 @@ private fun LearningDiagnosisCard(viewModel: AppViewModel) {
                     clipboard.setText(AnnotatedString(we.text)); viewModel.toast("已复制加练方案。")
                 }
             }
+            // P0-4: BlueLM generates brand-new variant questions that enter practice (cloud → on-device →
+            // 本地基础变式), filtered by the answerable gate; results flow back into mastery / wrong book.
+            val variant = viewModel.ui.weakVariantStatus
+            if (variant.failed) {
+                Spacer(Modifier.height(Dimens.xs))
+                Text("暂时没有生成可用的变式题，可重试或先做薄弱点专项。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            }
+            Spacer(Modifier.height(Dimens.xs))
+            ActionChip(if (variant.running) "蓝心出题中…" else "蓝心生成变式题") { viewModel.generateWeakPointVariants() }
         }
         if (diagnosis.commonMistakeTypes.isNotEmpty()) {
             Spacer(Modifier.height(Dimens.s))

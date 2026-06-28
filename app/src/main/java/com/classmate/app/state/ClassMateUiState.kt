@@ -116,6 +116,8 @@ data class ClassMateUiState(
     val quizFeedbackEnhancement: EnhancementUiState = EnhancementUiState.idle(),
     val evidenceEnhancement: EnhancementUiState = EnhancementUiState.idle(),
     val weaknessEnhancement: EnhancementUiState = EnhancementUiState.idle(),
+    val weakVariantStatus: EnhancementUiState = EnhancementUiState.idle(),
+    val ttsAudio: TtsAudioUiState = TtsAudioUiState(),
     val lastAnalysisLatencyMs: Long = 0L,
     val longTextInfo: LongTextAnalysisInfo? = null,
     val selectedImportFileMetadata: SelectedLocalFileMetadata? = null,
