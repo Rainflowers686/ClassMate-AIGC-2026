@@ -55,6 +55,18 @@
 6. `docs/current/REAL_DEVICE_TEST_MANUAL_1_14_2.md`
 7. `docs/current/BUILD_AND_RELEASE.md`
 
+## Official Interface Knowledge Base
+
+These documents are the current lookup layer for vivo / BlueLM / official capability implementation work. They do not replace historical reports; they index them and state the current ClassMate 1.14.2 implementation boundary.
+
+| File | Purpose |
+| --- | --- |
+| `docs/current/OFFICIAL_INTERFACE_REFERENCE_INDEX.md` | Main index for local official interface materials, code mappings, validation status, and overclaim boundaries. |
+| `docs/current/CLAUDE_OFFICIAL_INTERFACE_LOOKUP_GUIDE.md` | Fast lookup guide for Claude before changing TTS, ASR, OCR, BlueLM, on-device, retrieval, or export behavior. |
+| `docs/current/OFFICIAL_PROTOCOL_QUICK_REFERENCE.md` | Short protocol reference for TTS WebSocket, realtime ASR WebSocket, long ASR HTTP, BlueLM, OCR, retrieval, and system fallbacks. |
+| `docs/current/OFFICIAL_SOURCE_FILE_MAP.md` | Source-file and test map for official capability development. |
+| `docs/current/OFFICIAL_INTERFACE_GAPS_AND_BOUNDARIES.md` | Claim boundary and remaining validation gaps for official capabilities. |
+
 ## 旧文档处理原则
 
 历史文档可以出现旧版本、旧问题和旧风险，但必须理解为当时记录。凡是涉及当前状态、答辩、发布、真机复测、官方能力叙事，以本索引列出的 1.14.2 文档为准。
