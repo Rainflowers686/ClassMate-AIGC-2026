@@ -1,3 +1,5 @@
+> 状态：历史/参考材料，可能包含旧版本事实或阶段性问题。当前 1.14.2 / versionCode 115 状态请见 [FINAL_STATUS_1_14_2.md](FINAL_STATUS_1_14_2.md) 与 [DOCUMENT_INDEX.md](DOCUMENT_INDEX.md)。
+
 # 蓝心云端大模型 — vivo 真机排查指南 (v1)
 
 本文面向真机调试：用户已在「设置 → AI 模型配置 → 蓝心大模型」填写并保存 AppID/AppKey，但课堂分析仍显示

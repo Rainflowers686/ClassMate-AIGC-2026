@@ -1,3 +1,5 @@
+> 状态：历史/参考材料，可能包含旧版本事实或阶段性问题。当前 1.14.2 / versionCode 115 状态请见 [FINAL_STATUS_1_14_2.md](FINAL_STATUS_1_14_2.md) 与 [DOCUMENT_INDEX.md](DOCUMENT_INDEX.md)。
+
 # P0 Capture Acceptance QA Plan
 
 本文件用于验证 P0 主链是否在 App 侧真实可走。它不是功能设计文档，也不替代 Gradle 测试。测试目标是确认：

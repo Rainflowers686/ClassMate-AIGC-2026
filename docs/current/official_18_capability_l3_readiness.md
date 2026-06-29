@@ -1,3 +1,5 @@
+> 状态：历史/参考材料，可能包含旧版本事实或阶段性问题。当前 1.14.2 / versionCode 115 状态请见 [FINAL_STATUS_1_14_2.md](FINAL_STATUS_1_14_2.md) 与 [DOCUMENT_INDEX.md](DOCUMENT_INDEX.md)。
+
 # ClassMate 18 项有效能力 · L3-Readiness 自检表（中文，最新真实状态）
 
 > 单一事实来源：`core/.../official/CapabilityReadinessRegistry`（代码） + `VivoOfficialProviderRegistry`。
@@ -8,6 +10,7 @@
 - **主学习链路（文本 → 知识点 → 微测 → 错题 → 复习 → 诊断 → 证据 → Study Pack）已在 vivo 真机验证**，是本项目的黄金标准。
 - 其余能力**按主链路标准做了 L3-readiness 横向对齐**（入口、证据、路由、失败终态、fallback、测试、诚实文案），**仍需真机/云真机抽测**。
 - **本项目不宣称所有 18 项能力都已在真机完整验证。** 实验性能力默认关闭。各能力真实状态见下表，绝不把 `SEAM_READY / CONFIG_REQUIRED / FALLBACK_ONLY` 写成 `USED`。
+- 官方或端侧配置缺失时，主链路回到本地基础整理；图片生成、视频生成、同声传译等实验性入口默认关闭，不影响资料 -> 证据 -> 微测 -> 复习的核心闭环。
 
 ## 1. L3-Readiness 黄金标准（每个能力对齐的检查清单）
 

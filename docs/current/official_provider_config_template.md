@@ -1,4 +1,6 @@
-﻿# Official Provider Config Template
+> 状态：历史/参考材料，可能包含旧版本事实或阶段性问题。当前 1.14.2 / versionCode 115 状态请见 [FINAL_STATUS_1_14_2.md](FINAL_STATUS_1_14_2.md) 与 [DOCUMENT_INDEX.md](DOCUMENT_INDEX.md)。
+
+# Official Provider Config Template
 
 鏈枃浠跺彧鎻愪緵 `config.local.json` 鐨勬湰鍦板～鍐欐ā鏉裤€備笉瑕佹妸鐪熷疄 endpoint銆乤ppId銆乤ppKey銆乼oken銆丄uthorization 鎴?cookie 鍐欏叆鏈枃妗ｏ紝涔熶笉瑕佹彁浜?`config.local.json`銆?
 ## Usage

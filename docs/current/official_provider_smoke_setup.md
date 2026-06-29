@@ -1,4 +1,6 @@
-﻿# Official Provider Smoke Setup v5
+> 状态：历史/参考材料，可能包含旧版本事实或阶段性问题。当前 1.14.2 / versionCode 115 状态请见 [FINAL_STATUS_1_14_2.md](FINAL_STATUS_1_14_2.md) 与 [DOCUMENT_INDEX.md](DOCUMENT_INDEX.md)。
+
+# Official Provider Smoke Setup v5
 
 This note explains how to run the official provider smoke harness safely. v5 is deliberately conservative: generic cloud model config can describe the large-model path, but it cannot make OCR, ASR, retrieval, translation, TTS, or function-calling smoke `READY`. v5 also validates composed URLs before any network request is sent.
 

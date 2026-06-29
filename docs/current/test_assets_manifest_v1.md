@@ -1,3 +1,5 @@
+> 状态：历史/参考材料，可能包含旧版本事实或阶段性问题。当前 1.14.2 / versionCode 115 状态请见 [FINAL_STATUS_1_14_2.md](FINAL_STATUS_1_14_2.md) 与 [DOCUMENT_INDEX.md](DOCUMENT_INDEX.md)。
+
 # ClassMate Test Assets Manifest v1
 
 This manifest lists small, non-secret materials for cloud real-device validation. Do not commit binary photos, recordings, APKs, AABs, AARs, private class notes, or credentials.

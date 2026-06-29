@@ -1,3 +1,5 @@
+> 状态：历史/参考材料，可能包含旧版本事实或阶段性问题。当前 1.14.2 / versionCode 115 状态请见 [FINAL_STATUS_1_14_2.md](FINAL_STATUS_1_14_2.md) 与 [DOCUMENT_INDEX.md](DOCUMENT_INDEX.md)。
+
 # Stage 10 当前基线
 
 本文记录 ClassMate 在 Stage 10 之后的当前事实基线，供评委材料、后续开发和 issue 清理使用。

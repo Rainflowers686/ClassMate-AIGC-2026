@@ -1,8 +1,10 @@
-﻿# P0 Claude Engineering Batch Pack
+> 状态：历史/参考材料，可能包含旧版本事实或阶段性问题。当前 1.14.2 / versionCode 115 状态请见 [FINAL_STATUS_1_14_2.md](FINAL_STATUS_1_14_2.md) 与 [DOCUMENT_INDEX.md](DOCUMENT_INDEX.md)。
 
-Status: ready for Claude implementation planning  
-Scope: P0 Integrated Release, Learning AI Main Chain  
-Source baseline: Stage 10 product UI + Stage 8E on-device BlueLM + official vivo AIGC docs capture  
+# P0 Claude Engineering Batch Pack
+
+Status: ready for Claude implementation planning
+Scope: P0 Integrated Release, Learning AI Main Chain
+Source baseline: Stage 10 product UI + Stage 8E on-device BlueLM + official vivo AIGC docs capture
 Primary rule: this is an engineering handoff. It is not a feature implementation.
 
 ## P0 Batch Goal
