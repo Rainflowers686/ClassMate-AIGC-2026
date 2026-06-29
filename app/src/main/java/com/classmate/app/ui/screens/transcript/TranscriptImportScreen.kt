@@ -29,6 +29,8 @@ import com.classmate.app.state.Screen
 import com.classmate.app.ui.components.AiProcessingDialog
 import com.classmate.app.ui.components.ChipTone
 import com.classmate.app.ui.components.ClassMateCard
+import com.classmate.app.ui.components.HelpHint
+import com.classmate.app.ui.i18n.appStrings
 import com.classmate.app.ui.components.ClassMateScaffold
 import com.classmate.app.ui.components.PrimaryButton
 import com.classmate.app.ui.components.SecondaryButton
@@ -67,7 +69,14 @@ fun TranscriptImportScreen(viewModel: AppViewModel) {
                     viewModel.transcribeAudioFile(bytes, metadata.fileName, metadata.mimeType)
                 }
             } else {
-                viewModel.toast("视频文件当前只记录元数据，请导入字幕或粘贴转写文本。")
+                // P0-3: make a REAL attempt to read an embedded subtitle track; only fall back to the honest
+                // "metadata only" message when the video genuinely has no extractable text track.
+                val embedded = com.classmate.app.importing.VideoSubtitleExtractor.extract(context, uri)
+                if (!embedded.isNullOrBlank()) {
+                    viewModel.importVideoEmbeddedSubtitle(embedded)
+                } else {
+                    viewModel.toast("未检测到可自动提取的内嵌字幕；可导入 SRT/VTT 字幕、粘贴转写文本，或用实时转写生成课堂记录。")
+                }
             }
             return@rememberLauncherForActivityResult
         }
@@ -90,17 +99,33 @@ fun TranscriptImportScreen(viewModel: AppViewModel) {
                 onContinueManual = viewModel::hideAiProcessing,
             )
             ClassMateCard {
-                Text("导入字幕 / 转写稿", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(Dimens.xs))
-                listOf(
-                    "官方 ASR 按配置启用；未配置或不可用时，可以粘贴转写文本继续学习。",
-                    "你可以导入字幕（SRT/VTT）或粘贴转写稿；视频文件仅记录文件名/类型/大小。",
-                    "不会爬取第三方平台内容，请粘贴你有权使用的字幕或转写稿。",
-                    "确认后的 TranscriptDraft 会进入课程分析；手动粘贴不会被标记为 ASR 结果。",
-                ).forEach {
-                    Text("· $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(Dimens.xxs))
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Text("导入字幕 / 转写稿", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    HelpHint(
+                        title = appStrings(ui.language).helpTranscriptTitle,
+                        points = appStrings(ui.language).helpTranscriptPoints,
+                        dismiss = appStrings(ui.language).helpDismiss,
+                    )
                 }
+                Spacer(Modifier.height(Dimens.xs))
+                Text("导入字幕文件或粘贴转写稿即可开始。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+
+            // Live speech-to-text via the system recognizer — the non-official fallback when ASR isn't configured.
+            ClassMateCard {
+                Text("实时语音转写", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(Dimens.xs))
+                Text(
+                    "边说边转：官方 ASR 未配置时，使用系统语音识别实时转写（不保存原始音频，结果标注为系统语音识别）。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(Dimens.s))
+                SecondaryButton(
+                    text = "开始实时语音转写",
+                    onClick = { viewModel.navigateTo(Screen.LIVE) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
 
             // --- source type selection (horizontal, never per-character wrapping chips) ---
@@ -149,23 +174,35 @@ fun TranscriptImportScreen(viewModel: AppViewModel) {
             )
 
             // --- glossary nudge (display-only, never evidence, bounded) ---
+            // Honestly separate REAL terms (matched in the current transcript) from the built-in DEMO pack.
             val hints = viewModel.transcriptGlossaryHints()
+            val hasRealInput = ui.transcriptPasteDraft.isNotBlank() || ui.transcriptDraft != null
             ClassMateCard {
                 Text("术语表", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(Dimens.xxs))
-                Text(
-                    "本课程术语：${ui.selectedSubject} · ${CourseGlossary.countFor(ui.selectedSubject)} 个",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                if (hints.isNotEmpty()) {
-                    Spacer(Modifier.height(Dimens.xxs))
-                    Text(
-                        "可检查术语（仅提示，不改写原文）：${hints.joinToString("、")}",
+                when {
+                    hints.isNotEmpty() -> Text(
+                        "从当前转写稿提取（仅提示，不改写原文）：${hints.joinToString("、")}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    hasRealInput -> Text(
+                        "已粘贴转写稿，解析后会从中提取术语。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    else -> Text(
+                        "暂无真实转写内容，导入字幕或粘贴转写稿后将从中提取术语。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                Spacer(Modifier.height(Dimens.xxs))
+                Text(
+                    "内置术语参考（演示数据）：${ui.selectedSubject} · ${CourseGlossary.countFor(ui.selectedSubject)} 个",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
 
             PrimaryButton(
@@ -219,7 +256,7 @@ fun TranscriptImportScreen(viewModel: AppViewModel) {
                     }
                     Spacer(Modifier.height(Dimens.s))
                     PrimaryButton(
-                        text = "进入转写编辑器",
+                        text = "转写编辑",
                         onClick = { viewModel.navigateTo(Screen.TRANSCRIPT_EDITOR) },
                         modifier = Modifier.fillMaxWidth(),
                     )

@@ -1,5 +1,6 @@
 package com.classmate.app.ui.screens.review
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -32,9 +33,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.classmate.app.practice.PracticeSearchLauncher
 import com.classmate.app.state.AppViewModel
+import com.classmate.app.video.BilibiliSearch
 import com.classmate.app.ui.components.ClassMateCard
 import com.classmate.app.ui.components.ExportCenterCard
 import com.classmate.app.ui.components.ClassMateScaffold
+import com.classmate.app.ui.components.HelpHint
 import com.classmate.app.ui.product.ProductCanvas
 import com.classmate.app.ui.product.ProductHero
 import com.classmate.app.ui.product.ProductScaffold
@@ -42,6 +45,9 @@ import com.classmate.app.ui.product.ProductSpace
 import com.classmate.app.ui.components.Pill
 import com.classmate.app.ui.components.PrimaryButton
 import com.classmate.app.ui.design.Dimens
+import com.classmate.app.l3.ReviewPlanEnhancementEngine
+import com.classmate.app.ui.i18n.appStrings
+import com.classmate.core.evidence.EvidenceRelationLevel
 import com.classmate.core.learning.ReviewEngine
 import com.classmate.core.learning.ReviewEventType
 import com.classmate.core.learning.ReviewPriorityLevel
@@ -87,9 +93,9 @@ fun ReviewPlanScreen(viewModel: AppViewModel) {
                 needsReview = ReviewEngine.needsHumanReviewCount(snapshot),
             )
             L3LearningLoopCard(viewModel)
+            LearningDiagnosisCard(viewModel)
             WeaknessCard(viewModel)
             PracticeEntryCard(viewModel)
-            OnDeviceReviewSuggestionCard(viewModel)
             ExportCard(viewModel)
 
             if (due.isNotEmpty()) {
@@ -125,11 +131,15 @@ fun ReviewPlanScreen(viewModel: AppViewModel) {
             }
 
             ClassMateCard {
-                Text("复习计划如何生成", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(Dimens.s))
+                val s = appStrings(viewModel.ui.language)
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Text(s.helpReviewTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    HelpHint(title = s.helpReviewTitle, points = s.helpReviewPoints, dismiss = s.helpDismiss)
+                }
+                Spacer(Modifier.height(Dimens.xs))
                 Text(
-                    "复习任务来自校验通过的知识点。答错、太难、需要多练、证据复核以及手动调整优先级都会更新队列，且不会削弱证据校验。",
-                    style = MaterialTheme.typography.bodyMedium,
+                    "复习任务来自校验通过的知识点；详情见右上角「?」。",
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -145,7 +155,6 @@ private fun L3LearningLoopCard(viewModel: AppViewModel) {
     val weak = l3.masteryStats.count { it.state.name == "WEAK" }
     val reviewing = l3.masteryStats.count { it.state.name == "REVIEWING" }
     val mastered = l3.masteryStats.count { it.state.name == "MASTERED" }
-    val daily = l3.reviewDailyStats
     ClassMateCard {
         Text("L3 闭环统计", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.s))
@@ -156,69 +165,108 @@ private fun L3LearningLoopCard(viewModel: AppViewModel) {
             Stat("$reviewing", "复习中")
             Stat("$mastered", "掌握")
         }
-        if (daily.totalKnowledgePoints > 0) {
+        if (l3.reviewQueue.isNotEmpty()) {
             Spacer(Modifier.height(Dimens.s))
-            Text(
-                "每日复习卡：今日 ${daily.dueToday} · 逾期 ${daily.overdueCount} · 薄弱 ${daily.weakCount} · 已掌握 ${daily.masteredCount}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        if (l3.masteryTrendStats.recentSevenDaySummary.isNotBlank()) {
-            Spacer(Modifier.height(Dimens.xs))
-            Text(
-                "趋势：${l3.masteryTrendStats.recentSevenDaySummary} · streak ${l3.masteryTrendStats.reviewCompletionStreak}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        if (l3.semanticSearchResults.isNotEmpty()) {
-            Spacer(Modifier.height(Dimens.xs))
-            Text(
-                "语义检索：${l3.semanticSearchResults.first().status} · ${l3.semanticSearchResults.first().hits.size} 条相关证据/题目",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Text("20 分钟复习计划", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            l3.reviewQueue.take(5).forEach { item ->
+                val kp = l3.knowledgePoints.firstOrNull { it.id == item.knowledgePointId }
+                val evidenceId = item.evidenceId ?: viewModel.reviewEvidenceIdForKnowledgePoint(item.knowledgePointId)
+                val wrongCount = l3.wrongBook.count { it.knowledgePointId == item.knowledgePointId }
+                Spacer(Modifier.height(Dimens.xs))
+                Text(kp?.title ?: "复习知识点", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "安排原因：${ReviewPlanEnhancementEngine.reasonFor(item, wrongCount)} · 优先级 ${item.priority}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    "推荐动作：${ReviewPlanEnhancementEngine.actionsFor(item, wrongCount).joinToString(" / ")}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(Dimens.xxs))
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+                    EvidenceActionChip(viewModel, evidenceId, kp?.title.orEmpty())
+                    ActionChip("再测一次") { viewModel.startPractice(com.classmate.core.practice.PracticeMode.QUICK_REVIEW) }
+                    if (wrongCount > 0) ActionChip("重练错题") { viewModel.startPractice(com.classmate.core.practice.PracticeMode.WRONG_ANSWER_RETRY) }
+                    ActionChip("复述知识点") { viewModel.startSelfAssessment() }
+                }
+            }
         }
         if (l3.wrongBook.isNotEmpty()) {
             Spacer(Modifier.height(Dimens.s))
             Text("错题本", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             l3.wrongBook.takeLast(3).reversed().forEach { wrong ->
-                val evidence = l3.evidence.firstOrNull { it.id in wrong.evidenceIds }?.text ?: "暂无证据"
+                val evidence = l3.evidence.firstOrNull { it.id in wrong.evidenceIds }?.text?.ifBlank { null } ?: "暂无可回溯原文片段"
+                val kp = l3.knowledgePoints.firstOrNull { it.id == wrong.knowledgePointId }
                 Spacer(Modifier.height(Dimens.xs))
+                Text(l3.questions.firstOrNull { it.id == wrong.questionId }?.stem ?: "错题", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                 Text("用户答案：${wrong.userAnswer} · 正确答案：${wrong.correctAnswer}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("关联知识点：${kp?.title ?: wrong.knowledgePointId}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(wrong.mistakeReason.ifBlank { "错因分析：请回到证据核对题干和选项。" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(wrong.remediationHint.ifBlank { "补救建议：先看证据，再重练这题。" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text("解析：${wrong.explanation}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text("证据：$evidence", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(Dimens.xxs))
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+                    val wrongContext = (l3.questions.firstOrNull { it.id == wrong.questionId }?.stem.orEmpty() + " " + (kp?.title ?: ""))
+                    EvidenceActionChip(viewModel, wrong.evidenceIds.firstOrNull(), wrongContext)
+                    ActionChip("重练这题") { viewModel.retryWrongQuestion(wrong.id) }
+                    ActionChip("复习相关知识点") { viewModel.openEvidenceForKnowledgePoint(wrong.knowledgePointId) }
+                }
             }
         }
-        Spacer(Modifier.height(Dimens.s))
-        Text("Evidence chain：${l3.evidence.size} 条证据已绑定到题目和解析。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
-/** Phase 4: on-device review suggestion (端侧蓝心). Safety placeholder when unavailable — never fabricated. */
 @Composable
-private fun OnDeviceReviewSuggestionCard(viewModel: AppViewModel) {
-    val ui = viewModel.ui
+private fun LearningDiagnosisCard(viewModel: AppViewModel) {
+    val diagnosis = viewModel.ui.l3Pipeline.learningDiagnosis
+    // P1-4: the "学习诊断 / 建议下一步" prose framework is removed; this is now a lightweight, actionable
+    // 薄弱知识点 hub (weak points + AI remediation + variant generation), only shown when there ARE weak points.
+    if (diagnosis.weakKnowledgePoints.isEmpty()) return
     ClassMateCard {
-        Text("端侧复习建议（端侧蓝心）", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(Dimens.xs))
-        Text(
-            "由端侧 BlueLM 3B 解释为什么这些知识点需要复习并给出下一步；端侧不可用时仅显示安全占位，不伪造建议。",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        ui.onDeviceReviewSuggestion?.let {
-            Spacer(Modifier.height(Dimens.s))
-            Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
-        }
+        Text("薄弱知识点", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.s))
-        PrimaryButton(
-            text = if (ui.onDeviceReviewSuggestionRunning) "生成中…" else "生成端侧复习建议",
-            onClick = { viewModel.generateOnDeviceReviewSuggestion() },
-            enabled = !ui.onDeviceReviewSuggestionRunning,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        run {
+            diagnosis.weakKnowledgePoints.forEach { item ->
+                Spacer(Modifier.height(Dimens.xs))
+                Text(item.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                Text(item.reason, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(Dimens.xxs))
+                EvidenceActionChip(viewModel, item.evidenceIds.firstOrNull(), item.title + " " + item.reason, "查看诊断证据")
+            }
+            // P0-2: AI remediation plan + the gated 薄弱点专项 practice (admits only answerable questions).
+            val we = viewModel.ui.weaknessEnhancement
+            val clipboard = LocalClipboardManager.current
+            Spacer(Modifier.height(Dimens.s))
+            when {
+                we.running -> Text("正在生成 AI 加练方案…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                we.hasResult -> {
+                    Text("AI 加练方案 · ${we.sourceZh}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(Dimens.xxs))
+                    Text(we.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                }
+                we.failed -> Text("AI 加练方案暂时无法生成，可重试或直接开始薄弱点专项。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            }
+            Spacer(Modifier.height(Dimens.xs))
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+                ActionChip(if (we.running) "生成中…" else "AI 加练方案") { viewModel.generateWeaknessRemediation() }
+                ActionChip("开始薄弱点专项") { viewModel.startPractice(PracticeMode.WEAKNESS_DRILL) }
+                if (we.hasResult) ActionChip("复制") {
+                    clipboard.setText(AnnotatedString(we.text)); viewModel.toast("已复制加练方案。")
+                }
+            }
+            // P0-4: BlueLM generates brand-new variant questions that enter practice (cloud → on-device →
+            // 本地基础变式), filtered by the answerable gate; results flow back into mastery / wrong book.
+            val variant = viewModel.ui.weakVariantStatus
+            if (variant.failed) {
+                Spacer(Modifier.height(Dimens.xs))
+                Text("暂时没有生成可用的变式题，可重试或先做薄弱点专项。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            }
+            Spacer(Modifier.height(Dimens.xs))
+            ActionChip(if (variant.running) "蓝心出题中…" else "蓝心生成变式题") { viewModel.generateWeakPointVariants() }
+        }
     }
 }
 
@@ -232,12 +280,9 @@ private fun PracticeEntryCard(viewModel: AppViewModel) {
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
             ActionChip("开始练习") { viewModel.startPractice(PracticeMode.QUICK_REVIEW) }
             ActionChip("错题重练") { viewModel.startPractice(PracticeMode.WRONG_ANSWER_RETRY) }
-            ActionChip("随机 3 题") { viewModel.startRandomQuiz(3) }
             ActionChip("随机 5 题") { viewModel.startRandomQuiz(5) }
-            ActionChip("随机 10 题") { viewModel.startRandomQuiz(10) }
             ActionChip("模拟考试") { viewModel.startExam() }
             ActionChip("回忆复盘") { viewModel.startSelfAssessment() }
-            ActionChip("需要多练") { viewModel.startPractice(PracticeMode.NEED_MORE_PRACTICE) }
             ActionChip("薄弱点专项") { viewModel.startPractice(PracticeMode.WEAKNESS_DRILL) }
         }
     }
@@ -285,8 +330,6 @@ private fun WeaknessCard(viewModel: AppViewModel) {
 private fun ExportCard(viewModel: AppViewModel) {
     ExportCenterCard(
         viewModel = viewModel,
-        title = "导出复习报告",
-        description = "包含复习任务、薄弱点、课程库、证据链和可用的学习报告内容。",
         buildArtifact = viewModel::buildReviewReportArtifact,
     )
 }
@@ -388,12 +431,23 @@ private fun TaskCard(task: ReviewTask, index: Int, total: Int, viewModel: AppVie
             Spacer(Modifier.height(Dimens.xxs))
             ActionChip("找视频：${video.source}") { uriHandler.openUri(video.searchUrl) }
         }
-        Spacer(Modifier.height(Dimens.s))
-        Text("来源：${task.sourceProfile}${if (task.sourceModel.isNotBlank()) " / ${task.sourceModel}" else ""}", style = MaterialTheme.typography.labelSmall, color = cs.onSurfaceVariant)
         Spacer(Modifier.height(Dimens.m))
+        // Core learning actions only — open / practice / evidence / done. Priority/move/pin admin
+        // controls are intentionally not shown to keep this a study page, not a backstage console.
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+            ActionChip("B站搜讲解") {
+                val link = BilibiliSearch.linkFor(task.title, task.courseTitle)
+                if (!PracticeSearchLauncher.open(context, link)) {
+                    clipboard.setText(AnnotatedString(link.query))
+                    viewModel.toast("未找到浏览器，已复制 B站搜索词。")
+                }
+            }
+        }
+        Spacer(Modifier.height(Dimens.xs))
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
             ActionChip("打开") { viewModel.openTaskCourse(task) }
             ActionChip("开始练习") { viewModel.startPracticeForTask(task) }
+            EvidenceActionChip(viewModel, viewModel.reviewEvidenceIdForKnowledgePoint(task.knowledgePointId), "")
             ActionChip("完成") { viewModel.reviewMarkDone(task.taskId) }
         }
         Spacer(Modifier.height(Dimens.s))
@@ -401,19 +455,6 @@ private fun TaskCard(task: ReviewTask, index: Int, total: Int, viewModel: AppVie
             ActionChip("已掌握") { viewModel.reviewTaskFeedback(task.taskId, ReviewEventType.MASTERED) }
             ActionChip("太难") { viewModel.reviewTaskFeedback(task.taskId, ReviewEventType.TOO_HARD) }
             ActionChip("需要多练") { viewModel.reviewTaskFeedback(task.taskId, ReviewEventType.NEED_EXAMPLE) }
-            ActionChip("证据存疑") { viewModel.reviewTaskFeedback(task.taskId, ReviewEventType.EVIDENCE_WRONG) }
-        }
-        Spacer(Modifier.height(Dimens.s))
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
-            ActionChip("高") { viewModel.reviewSetPriority(task.taskId, ReviewPriorityLevel.HIGH) }
-            ActionChip("中") { viewModel.reviewSetPriority(task.taskId, ReviewPriorityLevel.MEDIUM) }
-            ActionChip("低") { viewModel.reviewSetPriority(task.taskId, ReviewPriorityLevel.LOW) }
-            if (index > 0) ActionChip("上移") { viewModel.reviewMoveUp(task.taskId) }
-            if (index < total - 1) ActionChip("下移") { viewModel.reviewMoveDown(task.taskId) }
-        }
-        Spacer(Modifier.height(Dimens.s))
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
-            ActionChip(if (task.manuallyPinned) "取消置顶" else "置顶") { viewModel.reviewSetPinned(task.taskId, !task.manuallyPinned) }
             ActionChip("移除") { viewModel.reviewRemove(task.taskId) }
         }
     }
@@ -474,6 +515,35 @@ private fun ActionChip(text: String, onClick: () -> Unit) {
         color = cs.surfaceVariant,
         contentColor = cs.onSurfaceVariant,
         modifier = Modifier.clickable { onClick() },
+    ) {
+        Text(text, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+    }
+}
+
+/**
+ * Evidence entry that tells the truth about the binding: a real "查看证据" only when the excerpt actually
+ * relates to [context]; "证据待核对" when it resolves but shares no keywords (likely mis-bound); and
+ * "暂无可回溯证据" when there is no retraceable excerpt at all.
+ */
+@Composable
+private fun EvidenceActionChip(viewModel: AppViewModel, evidenceId: String?, context: String, label: String? = null) {
+    val s = appStrings(viewModel.ui.language)
+    when (viewModel.evidenceRelationLevel(evidenceId, context)) {
+        EvidenceRelationLevel.STRONG -> ActionChip(label ?: s.evidenceView) { viewModel.openEvidenceById(evidenceId.orEmpty()) }
+        EvidenceRelationLevel.WEAK -> EvidenceHintChip(s.evidenceCheck)
+        EvidenceRelationLevel.MISSING -> EvidenceHintChip(s.evidenceNone)
+    }
+}
+
+/** Non-actionable, honest chip shown in place of "查看证据" when no retraceable evidence exists. */
+@Composable
+private fun EvidenceHintChip(text: String) {
+    val cs = MaterialTheme.colorScheme
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = cs.surface,
+        contentColor = cs.onSurfaceVariant,
+        border = BorderStroke(1.dp, cs.outlineVariant),
     ) {
         Text(text, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
     }

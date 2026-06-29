@@ -13,13 +13,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * App-level wiring of the cross-course learning queue into Home / Review / History. The pure rules
- * live in :core (LearningStoreTest); here we prove the ViewModel surfaces one shared snapshot and
- * that the closed loop survives tab switches and history deletes.
- */
 class LearningLoopAppTest {
-
     private val now = 1_700_000_000_000L
 
     private fun missingFile() = Files.createTempDirectory("cm-loop").resolve("config.local.json").toFile()
@@ -40,10 +34,18 @@ class LearningLoopAppTest {
         val session = SampleCourses.seriesSession(now)
         val result = SampleCourses.seriesAnalysis(now)
         return HistoryRecord(
-            id = "hist_1", title = "无穷级数", createdAtEpochMs = now,
-            providerName = "BLUELM", profileLabel = "官方 BlueLM", model = "qwen3.5-plus",
-            knowledgePointCount = result.knowledgePoints.size, quizCount = result.quizQuestions.size,
-            fallbackUsed = false, validationStatus = "PASS", session = session, result = result,
+            id = "hist_1",
+            title = "无穷级数",
+            createdAtEpochMs = now,
+            providerName = "BLUELM",
+            profileLabel = "官方 BlueLM",
+            model = "qwen3.5-plus",
+            knowledgePointCount = result.knowledgePoints.size,
+            quizCount = result.quizQuestions.size,
+            fallbackUsed = false,
+            validationStatus = "PASS",
+            session = session,
+            result = result,
         )
     }
 
@@ -55,9 +57,29 @@ class LearningLoopAppTest {
         )
 
     @Test
+    fun markingReviewDoneAndWeakActuallyChangesState() {
+        // Real-device #16: marking a review task 完成 / 太难 must change state, not just toast — the loop closes.
+        val store = seededLearningStore()
+        val viewModel = vm(store)
+        val dueBefore = store.listDueTasks()
+        assertTrue("seed has due tasks", dueBefore.isNotEmpty())
+
+        val doneId = dueBefore.first().taskId
+        viewModel.reviewMarkDone(doneId)
+        assertTrue("completed task leaves the due list", store.listDueTasks().none { it.taskId == doneId })
+
+        store.listDueTasks().firstOrNull()?.let { weakTask ->
+            viewModel.reviewTaskFeedback(weakTask.taskId, com.classmate.core.learning.ReviewEventType.TOO_HARD)
+            val after = store.listDueTasks().firstOrNull { it.taskId == weakTask.taskId }
+            // The weakness counter was recorded (or the task was re-prioritised out of today's due list).
+            assertTrue(after == null || after.counters.tooHard > 0)
+        }
+    }
+
+    @Test
     fun homeSummaryShowsDueCountAndRecentCourse() {
         val viewModel = vm(seededLearningStore())
-        // Home reads the same snapshot the store persists.
+
         assertTrue(ReviewEngine.dueCount(viewModel.ui.learningSnapshot, now) > 0)
         assertTrue(ReviewEngine.totalDueMinutes(viewModel.ui.learningSnapshot, now) > 0)
         assertEquals("无穷级数", viewModel.ui.history.first().title)
@@ -67,6 +89,7 @@ class LearningLoopAppTest {
     fun reviewSeesDueTasksFromLearningStore() {
         val viewModel = vm(seededLearningStore())
         val due = ReviewEngine.listDueTasks(viewModel.ui.learningSnapshot, now)
+
         assertEquals(SampleCourses.seriesAnalysis(now).knowledgePoints.size, due.size)
         assertTrue(due.all { it.courseTitle == "无穷级数" && it.sourceModel == "qwen3.5-plus" })
     }
@@ -76,22 +99,24 @@ class LearningLoopAppTest {
         val viewModel = vm(seededLearningStore())
         val before = viewModel.ui.learningSnapshot.tasks.size
         assertTrue(before > 0)
+
         viewModel.selectTab(Tab.REVIEW)
         viewModel.selectTab(Tab.HISTORY)
         viewModel.selectTab(Tab.SETTINGS)
         viewModel.selectTab(Tab.HOME)
+
         assertEquals(before, viewModel.ui.learningSnapshot.tasks.size)
     }
 
     @Test
-    fun deleteHistoryKeepsLearningStateAndProviderConfig() {
+    fun deleteHistoryRemovesCourseLearningStateAndKeepsProviderConfig() {
         val viewModel = vm(seededLearningStore())
-        val tasksBefore = viewModel.ui.learningSnapshot.tasks.size
+        assertTrue(viewModel.ui.learningSnapshot.tasks.isNotEmpty())
+
         viewModel.deleteHistory("hist_1")
+
         assertEquals(0, viewModel.ui.history.size)
-        // Deleting a course's history must NOT wipe the cross-course review queue …
-        assertEquals(tasksBefore, viewModel.ui.learningSnapshot.tasks.size)
-        // … nor the active provider config (default profile from a missing config file).
+        assertEquals(0, viewModel.ui.learningSnapshot.tasks.size)
         assertEquals(LearnerProfile.OFFICIAL_BLUELM, viewModel.activeConfigBundle().profile)
     }
 }

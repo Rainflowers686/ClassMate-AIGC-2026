@@ -1,38 +1,24 @@
-# Roadmap
+# ClassMate Roadmap
 
-## Round 1 — foundation (done)
+当前版本：`1.14.2 / versionCode 115`。
 
-- [x] Buildable Android (Kotlin + Jetpack Compose) project.
-- [x] `app` / `core` two-module split; `core` is pure Kotlin/JVM.
-- [x] Core data model (schemaVersion + traceability + validation hooks).
-- [x] Provider / Prompt / Parser / Validator / Feedback / Review skeletons (BlueLM-first).
-- [x] Minimal-but-real UI: 9 screens, 3 themes, evidence highlight, design system.
-- [x] `config.example.json` (placeholders only).
-- [x] README / ARCHITECTURE / ROADMAP / SECURITY.
-- [x] GitHub Actions: Android CI (build + tests) and secrets scan; no APK artifact.
-- [x] Unit tests (core: 34 incl. evidence/validator/fallback/planner/safety; app: importer/theme).
-- [x] Local build green: `:core:test`, `:app:testDebugUnitTest`, `:app:assembleDebug`.
+## 当前候选版状态
 
-## Round 2 — make BlueLM real (复赛)
+- 核心学习闭环已进入最终候选版。
+- 主演示链路聚焦：资料 -> 证据 -> 微测 -> 反馈 -> 复习 -> AI 精修导出。
+- 官方 ASR/TTS/OCR/蓝心网络能力具备代码路径和 fallback，但真实网络成功仍需 AppKey 与真机验证。
 
-- [ ] Implement a real `HttpTransport` (OkHttp/Ktor) in an app/data layer.
-- [ ] Implement `BlueLmSigner` (vivo HMAC over appId/appKey) — keys injected locally only.
-- [ ] Wire the debug config import to actually build a `ProviderConfigBundle` (BuildConfig.DEBUG).
-- [ ] Confirm the real vivo endpoint path / request & response shapes; tune `PromptBuilder`.
-- [ ] Persist sessions / learning state (Room or DataStore) so progress survives restarts.
-- [ ] Capture proof: screenshots + redacted logs of a real BlueLM run.
+## 近期必须完成
 
-## Round 3 — depth (决赛)
+1. 使用真实 AppKey 在目标设备验证官方 OCR、ASR Long、ASR WebSocket、TTS WebSocket。
+2. 按 [docs/current/REAL_DEVICE_TEST_MANUAL_1_14_2.md](docs/current/REAL_DEVICE_TEST_MANUAL_1_14_2.md) 录屏。
+3. 打包 `ClassMate-debug-v1.14.2-<commit>.apk`。
+4. 准备 3/5/8 分钟演示材料。
 
-- [ ] Spaced-repetition scheduling on top of `ReviewPlan` (due dates, streaks).
-- [ ] Richer question generation (multi-select, worked examples on demand).
-- [ ] Flow theme immersive mode: white-noise / rain, focus cards, light motion.
-- [ ] Per-knowledge-point mastery analytics and weak-spot dashboard.
-- [ ] Optional: multi-lecture courses and cross-lecture knowledge graph.
-- [ ] Accessibility & localisation pass; bundled brand font.
+## 后续优化，不纳入 1.14.2 承诺
 
-## Explicitly out of scope (for now)
-
-- Audio capture / ASR (text input only by design in round 1).
-- Accounts / cloud sync.
-- Using the local fallback as primary intelligence.
+- PDF 原生全文解析。
+- 更稳定的富格式 DOCX/PPTX/XLSX 解析。
+- 真正产品化同声传译、图片生成、视频生成。
+- 跨课程长期趋势和同步。
+- 更完整的端侧 3B 适配矩阵。

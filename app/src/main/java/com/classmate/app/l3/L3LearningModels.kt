@@ -5,10 +5,32 @@ import com.classmate.core.model.Difficulty
 enum class L3SourceType {
     TEXT,
     OCR_IMAGE,
+    DOCUMENT,
     AUDIO_TRANSCRIPT,
     MANUAL_TRANSCRIPT,
     RECORDING_ARTIFACT,
     QUESTION_BANK,
+    WEB,
+}
+
+enum class EvidenceAssetType {
+    TEXT,
+    OCR_IMAGE,
+    DOCUMENT,
+    AUDIO,
+    WEB,
+    UNKNOWN,
+}
+
+enum class LearningLoopInputKind {
+    TEXT,
+    MARKDOWN,
+    OCR_IMAGE,
+    DOCUMENT,
+    AUDIO_TRANSCRIPT,
+    MANUAL_TRANSCRIPT,
+    QUESTION_BANK,
+    WEB,
 }
 
 enum class L3MasteryState {
@@ -35,6 +57,30 @@ enum class L3AsrStatus {
     ASR_FAILED,
     TRANSCRIPT_READY,
     MANUAL_TRANSCRIPT_FALLBACK,
+}
+
+enum class AudioProcessingStatus {
+    RECORDED,
+    CHUNKING_READY,
+    PROCESSING,
+    PARTIAL_FAILED,
+    TRANSCRIPT_READY,
+    MANUAL_TRANSCRIPT_FALLBACK,
+}
+
+enum class AudioChunkStatus {
+    PENDING,
+    PROCESSING,
+    TRANSCRIPT_READY,
+    FAILED,
+    SKIPPED_MANUAL_FALLBACK,
+}
+
+enum class DialectMode {
+    AUTO,
+    STANDARD_MANDARIN,
+    DIALECT_OR_ACCENT_ENHANCED,
+    CLASSROOM_MIXED_SPEAKERS,
 }
 
 enum class ExtractedTextRecommendedStatus {
@@ -181,6 +227,114 @@ enum class MasteryHistoryEventType {
     DECAYED,
 }
 
+enum class OfficialCapabilityId {
+    LARGE_MODEL,
+    QUERY_REWRITE,
+    TEXT_EMBEDDING,
+    TEXT_SIMILARITY,
+    OCR,
+    REALTIME_SHORT_ASR,
+    LONG_AUDIO_DICTATION,
+    LONG_AUDIO_TRANSCRIPTION,
+    DIALECT_FREE_SPEECH,
+    TEXT_TRANSLATION,
+    TTS,
+    FUNCTION_CALLING,
+    IMAGE_GENERATION,
+    VIDEO_GENERATION,
+    SIMULTANEOUS_INTERPRETATION,
+    AUDIO_GENERATION,
+    EDGE_3B_MODEL,
+    EDGE_TEXT_AUDIT,
+    EDGE_CAPABILITY_FILES,
+    ASR_LONG,
+    EMBEDDING,
+    TRANSLATION,
+    CLOUD_LARGE_MODEL_ANALYSIS,
+    EDGE_MODEL,
+    DOCUMENT_IMPORT,
+    SEMANTIC_INDEX,
+}
+
+enum class OfficialCapabilitySource {
+    CLOUD,
+    DEVICE,
+    LOCAL,
+    FALLBACK,
+}
+
+enum class OfficialCapabilityStatus {
+    COMPLETE,
+    OFFICIAL_RUNTIME_READY,
+    OFFICIAL_RUNTIME_USED,
+    CONFIG_GATED,
+    LOCAL_FALLBACK,
+    SEAM_ONLY,
+    APP_WIRING_PENDING,
+    NOT_CONFIGURED,
+    NEEDS_DOC_CONFIRM,
+}
+
+enum class OfficialCapabilityLearningSurface {
+    EVIDENCE,
+    KNOWLEDGE_POINT,
+    QUIZ,
+    WRONG_BOOK,
+    REVIEW_PLAN,
+    LEARNING_DIAGNOSIS,
+    TIMELINE,
+    SEMANTIC_INDEX,
+    SIMILAR_KNOWLEDGE,
+    AUDIO_REVIEW,
+    VISUAL_STUDY_ASSET,
+    REVIEW_VIDEO_PLAN,
+    BILINGUAL_TRANSCRIPT,
+    SAFETY_GUARD,
+    DEVICE_READINESS,
+}
+
+enum class LearningLoopQualityLevel {
+    OK,
+    NEEDS_CONFIRMATION,
+    LOCAL_FALLBACK_USED,
+    ASSET_MISSING,
+}
+
+enum class OfficialCapabilityPriority {
+    CORE,
+    ENHANCEMENT,
+    EXPERIMENTAL,
+}
+
+enum class OfficialCapabilityImplementationStatus {
+    USED_IN_LEARNING_LOOP,
+    CONFIG_REQUIRED,
+    FALLBACK_ONLY,
+    SEAM_READY,
+}
+
+enum class LearningModelRoute {
+    BLUE_LM_CLOUD,
+    EDGE_3B,
+    LOCAL_RULE,
+}
+
+enum class LearningCapabilityRiskLevel {
+    LOW,
+    MEDIUM,
+    HIGH,
+}
+
+enum class GeneratedStudyAssetStatus {
+    PROMPT_READY,
+    STORYBOARD_READY,
+    SCRIPT_READY,
+    CONFIG_REQUIRED,
+    SEAM_READY,
+    GENERATED,
+    FAILED,
+}
+
 data class LessonSource(
     val id: String,
     val title: String,
@@ -199,6 +353,108 @@ data class TranscriptSegment(
     val sourceType: L3SourceType,
     val confidence: Double? = null,
     val fallbackGenerated: Boolean = false,
+    val rawText: String = "",
+    val correctedText: String = "",
+    val lowConfidence: Boolean = false,
+    val glossaryHits: List<String> = emptyList(),
+    val qualityWarnings: List<String> = emptyList(),
+    val dialectMode: DialectMode = DialectMode.AUTO,
+)
+
+data class AudioArtifact(
+    val id: String,
+    val fileName: String,
+    val audioRef: String,
+    val durationMs: Long,
+    val fileSizeBytes: Long = 0L,
+    val mimeType: String = "audio/mp4",
+    val createdAt: Long,
+    val segmentCount: Int = 0,
+    val processingStatus: AudioProcessingStatus = AudioProcessingStatus.RECORDED,
+    val sourceLabel: String = "",
+)
+
+data class AudioChunkState(
+    val id: String,
+    val audioArtifactId: String,
+    val chunkIndex: Int,
+    val startMs: Long,
+    val endMs: Long,
+    val status: AudioChunkStatus,
+    val errorMessage: String = "",
+)
+
+data class AsrQualityEvaluation(
+    val id: String,
+    val expectedTranscript: String,
+    val actualTranscript: String,
+    val charErrorRate: Double,
+    val glossaryHitRate: Double,
+    val createdAt: Long,
+)
+
+data class VisualStudyAsset(
+    val id: String,
+    val knowledgePointId: String,
+    val evidenceId: String,
+    val prompt: String,
+    val styleHint: String,
+    val status: GeneratedStudyAssetStatus,
+    val imageRef: String? = null,
+    val createdAt: Long,
+)
+
+data class ReviewVideoPlan(
+    val id: String,
+    val title: String,
+    val relatedKnowledgePointIds: List<String>,
+    val evidenceIds: List<String>,
+    val scenes: List<String>,
+    val narrationScript: String,
+    val status: GeneratedStudyAssetStatus,
+    val videoRef: String? = null,
+    val createdAt: Long,
+)
+
+data class BilingualTranscriptSegment(
+    val id: String,
+    val sourceLanguage: String,
+    val targetLanguage: String,
+    val originalText: String,
+    val translatedText: String,
+    val startMs: Long? = null,
+    val endMs: Long? = null,
+    val confidence: Double? = null,
+    val evidenceId: String? = null,
+    val status: GeneratedStudyAssetStatus = GeneratedStudyAssetStatus.SEAM_READY,
+)
+
+data class AudioReviewAsset(
+    val id: String,
+    val script: String,
+    val relatedReviewTaskId: String? = null,
+    val relatedKnowledgePointIds: List<String>,
+    val evidenceIds: List<String>,
+    val status: GeneratedStudyAssetStatus,
+    val audioRef: String? = null,
+    val createdAt: Long,
+)
+
+data class SafetyGuardResult(
+    val id: String,
+    val sourceId: String,
+    val status: OfficialCapabilityImplementationStatus,
+    val provider: String,
+    val message: String,
+    val createdAt: Long,
+)
+
+data class DeviceReadinessResult(
+    val id: String,
+    val capabilityId: OfficialCapabilityId,
+    val status: OfficialCapabilityImplementationStatus,
+    val message: String,
+    val createdAt: Long,
 )
 
 data class Evidence(
@@ -210,6 +466,53 @@ data class Evidence(
     val segmentEndMs: Long? = null,
     val page: Int? = null,
     val blockIndex: Int? = null,
+    val providerProvenance: String = "",
+    val assetId: String? = null,
+    val sourceLabel: String = "",
+    val fileName: String = "",
+    val fileExt: String = "",
+    val mimeType: String = "",
+    val localUri: String = "",
+    val thumbnailRef: String = "",
+    val imageRef: String = "",
+    val audioRef: String = "",
+    val pageHint: String = "",
+    val segmentHint: String = "",
+    val transcriptSegment: String = "",
+    val snippet: String = "",
+)
+
+data class EvidenceAsset(
+    val id: String,
+    val type: EvidenceAssetType,
+    val sourceType: L3SourceType,
+    val text: String = "",
+    val sourceLabel: String = "",
+    val fileName: String = "",
+    val fileExt: String = "",
+    val mimeType: String = "",
+    val localUri: String = "",
+    val thumbnailRef: String = "",
+    val imageRef: String = "",
+    val audioRef: String = "",
+    val pageHint: String = "",
+    val segmentHint: String = "",
+    val startMs: Long? = null,
+    val endMs: Long? = null,
+    val createdAt: Long = 0L,
+    val status: String = "READY",
+    val transcriptSegment: String = "",
+    val snippet: String = "",
+)
+
+data class LearningLoopInput(
+    val id: String,
+    val title: String,
+    val kind: LearningLoopInputKind,
+    val sourceType: L3SourceType,
+    val text: String,
+    val evidenceAssets: List<EvidenceAsset> = emptyList(),
+    val sourceLabel: String = "",
     val providerProvenance: String = "",
 )
 
@@ -280,6 +583,9 @@ data class WrongQuestionRecord(
     val evidenceIds: List<String>,
     val createdAt: Long,
     val retryCount: Int,
+    val mistakeReason: String = "",
+    val remediationHint: String = "",
+    val relatedKnowledgePointIds: List<String> = if (knowledgePointId.isBlank()) emptyList() else listOf(knowledgePointId),
 )
 
 data class ReviewQueueItem(
@@ -290,6 +596,9 @@ data class ReviewQueueItem(
     val sourceLessonId: String,
     val priority: Int = 1,
     val source: String = "L3_PIPELINE",
+    val arrangementReason: String = "",
+    val evidenceId: String? = null,
+    val recommendedActions: List<String> = emptyList(),
 )
 
 data class MasteryStat(
@@ -398,6 +707,65 @@ data class AsrLongJob(
     val errorMessage: String? = null,
     val createdAt: Long,
     val updatedAt: Long,
+    val chunks: List<AudioChunkState> = emptyList(),
+    val qualityEvaluation: AsrQualityEvaluation? = null,
+    val glossary: List<String> = emptyList(),
+    val dialectMode: DialectMode = DialectMode.AUTO,
+)
+
+data class OfficialCapabilityContribution(
+    val capabilityId: OfficialCapabilityId,
+    val officialNavOrder: Int = 0,
+    val officialName: String = "",
+    val officialCategory: String = "",
+    val priority: OfficialCapabilityPriority = OfficialCapabilityPriority.CORE,
+    val includedInClassMate: Boolean = true,
+    val implementationStatus: OfficialCapabilityImplementationStatus = OfficialCapabilityImplementationStatus.SEAM_READY,
+    val displayName: String,
+    val source: OfficialCapabilitySource,
+    val configuredStatus: OfficialCapabilityStatus,
+    val runtimeAvailability: OfficialCapabilityStatus,
+    val learningSurfaces: List<OfficialCapabilityLearningSurface>,
+    val learningLoopEntryPoint: String,
+    val outputAssetType: EvidenceAssetType? = null,
+    val evidenceImpact: String = "",
+    val cloudModelRole: String = "",
+    val edgeModelRole: String = "",
+    val fallbackStrategy: String = "",
+    val userVisibleLearningValue: String = "",
+    val tests: List<String> = emptyList(),
+    val trueDeviceValidationStatus: String = "VALIDATION_PENDING",
+    val requiresExperimentalFlag: Boolean = false,
+)
+
+data class LearningLoopCapabilityPlanStep(
+    val capabilityId: OfficialCapabilityId,
+    val reason: String,
+    val fallbackStrategy: String,
+    val outputSurface: OfficialCapabilityLearningSurface,
+    val providerMode: ToolProviderMode,
+    val primaryModelRoute: LearningModelRoute = LearningModelRoute.LOCAL_RULE,
+    val fallbackModelRoute: LearningModelRoute = LearningModelRoute.LOCAL_RULE,
+    val userVisibleBenefit: String = "",
+    val riskLevel: LearningCapabilityRiskLevel = LearningCapabilityRiskLevel.LOW,
+    val requiresConfirmation: Boolean = false,
+)
+
+data class LearningLoopCapabilityPlan(
+    val id: String,
+    val inputKind: LearningLoopInputKind,
+    val sourceType: L3SourceType,
+    val steps: List<LearningLoopCapabilityPlanStep>,
+    val userVisibleSummary: List<String>,
+    val createdAt: Long,
+)
+
+data class LearningLoopQualityWarning(
+    val id: String,
+    val level: LearningLoopQualityLevel,
+    val sourceId: String,
+    val message: String,
+    val evidenceId: String? = null,
 )
 
 data class L3CapabilityStatus(
@@ -516,6 +884,25 @@ data class MasteryTrendStats(
     val recentSevenDaySummary: String,
 )
 
+data class WeakKnowledgeDiagnosis(
+    val knowledgePointId: String,
+    val title: String,
+    val reason: String,
+    val evidenceIds: List<String>,
+    val wrongCount: Int,
+    val reviewPriority: Int,
+)
+
+data class LearningDiagnosis(
+    val weakKnowledgePoints: List<WeakKnowledgeDiagnosis> = emptyList(),
+    val commonMistakeTypes: List<String> = emptyList(),
+    val recentReviewPressure: String = "",
+    val masteredKnowledgePoints: List<String> = emptyList(),
+    val nextStudyTasks: List<String> = emptyList(),
+    val evidenceIds: List<String> = emptyList(),
+    val generatedAt: Long = 0L,
+)
+
 data class TtsPlaybackState(
     val id: String,
     val text: String,
@@ -562,6 +949,7 @@ data class ClassroomRecordingRecord(
     val status: L3RecordingStatus = L3RecordingStatus.IDLE,
     val artifactFileName: String? = null,
     val artifactPath: String? = artifactFileName,
+    val fileSizeBytes: Long = 0L,
     val asrStatus: L3AsrStatus = L3AsrStatus.PENDING_ASR_CONFIG,
     val message: String = "",
 )
@@ -595,6 +983,7 @@ data class L3PipelineSnapshot(
     val reviewFocus: List<String> = emptyList(),
     val actionItems: List<String> = emptyList(),
     val evidence: List<Evidence> = emptyList(),
+    val evidenceAssets: List<EvidenceAsset> = emptyList(),
     val knowledgePoints: List<L3KnowledgePoint> = emptyList(),
     val questions: List<L3GeneratedQuestion> = emptyList(),
     val attempts: List<L3PracticeAttempt> = emptyList(),
@@ -614,7 +1003,13 @@ data class L3PipelineSnapshot(
     val pdfDocuments: List<PdfDocumentArtifact> = emptyList(),
     val pdfPages: List<PdfPageArtifact> = emptyList(),
     val asrJobs: List<AsrLongJob> = emptyList(),
+    val audioArtifacts: List<AudioArtifact> = emptyList(),
+    val audioChunks: List<AudioChunkState> = emptyList(),
+    val asrQualityEvaluations: List<AsrQualityEvaluation> = emptyList(),
     val officialToolSeams: List<OfficialToolSeam> = emptyList(),
+    val officialCapabilityContributions: List<OfficialCapabilityContribution> = emptyList(),
+    val capabilityPlans: List<LearningLoopCapabilityPlan> = emptyList(),
+    val qualityWarnings: List<LearningLoopQualityWarning> = emptyList(),
     val toolOrchestrationPlan: ToolOrchestrationPlan? = null,
     val toolStepRecords: List<ToolStepRecord> = emptyList(),
     val ttsPlaybackStates: List<TtsPlaybackState> = emptyList(),
@@ -638,6 +1033,13 @@ data class L3PipelineSnapshot(
         totalKnowledgePoints = 0,
         distribution = emptyMap(),
     ),
+    val learningDiagnosis: LearningDiagnosis = LearningDiagnosis(),
+    val visualStudyAssets: List<VisualStudyAsset> = emptyList(),
+    val reviewVideoPlans: List<ReviewVideoPlan> = emptyList(),
+    val bilingualTranscriptSegments: List<BilingualTranscriptSegment> = emptyList(),
+    val audioReviewAssets: List<AudioReviewAsset> = emptyList(),
+    val safetyGuardResults: List<SafetyGuardResult> = emptyList(),
+    val deviceReadinessResults: List<DeviceReadinessResult> = emptyList(),
     val examReports: List<ExamResultReport> = emptyList(),
     val distractorExplanations: List<DistractorExplanation> = emptyList(),
     val diagnostics: List<L3CapabilityStatus> = emptyList(),

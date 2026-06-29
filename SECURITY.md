@@ -1,59 +1,19 @@
-# Security
+# ClassMate Security
 
-ClassMate is built so that secrets cannot leak — by construction, not just by convention.
+当前安全策略见：
 
-## Credentials
+- [docs/current/PRIVACY_SECURITY_AND_SECRETS.md](docs/current/PRIVACY_SECURITY_AND_SECRETS.md)
+- [docs/current/SAFE_EXPORT_POLICY.md](docs/current/SAFE_EXPORT_POLICY.md)
 
-- Real `AppID` / `AppKEY` (and any API key) **must never** appear in: Git, README, issues, PRs,
-  proof artifacts, logs, screenshots, tests, or `config.example.json`.
-- `config.example.json` ships **placeholders only**: `YOUR_BLUELM_APP_ID`, `YOUR_BLUELM_APP_KEY`.
-- Real values are injected locally via **either**:
-  1. a git-ignored `config.local.json` (copy the example, fill in locally), or
-  2. the **debug-only** config import entry in Settings (round 1 inspects only; it does not persist
-     and never echoes a secret value — only field names / booleans).
-- `Credential` is an opaque holder whose `toString()` returns `***`, so an accidental log/crash
-  dump cannot print it.
+## 核心规则
 
-## What is logged (and what is never)
+- 不提交 `config.local.json`。
+- 不提交 AppKey、Authorization、Bearer、token 或任何真实密钥值。
+- 不提交 AAR/APK/AAB、字体、OfficialDemos、keystore。
+- QA 脚本只检查配置 presence，不读取配置内容。
+- 导出内容经过 SafeExportText，不能包含真实密钥、内部状态、provider trace 或 raw id。
+- 本地 fallback 不冒充蓝心；官方能力未验证不冒充已成功。
 
-`RedactedLogEntry` is the only log type for provider activity. It has exactly these fields:
+## 报告问题
 
-```
-provider, status, latency_ms, validation, fallback_used, error_type
-```
-
-There is **structurally nowhere** to record:
-
-- AppID / AppKEY / Authorization headers,
-- prompts or the full course text,
-- vendor response bodies,
-- user-private data.
-
-Errors are a closed enum (`ProviderErrorType`) plus an optional numeric HTTP status. Provider
-exception handling deliberately drops `e.message` so a response body can't ride along.
-See a sample: [`proof/logs_redacted/sample_analysis_redacted.log`](proof/logs_redacted/sample_analysis_redacted.log).
-
-## .gitignore (enforced)
-
-`local.properties`, `config.local.json`, `secrets.properties`, `.env*`, `*.jks`, `*.keystore`,
-`keystore.properties`, `build/`, `.gradle/`, and packaged apps (`*.apk` / `*.aab`).
-
-## Automated checks
-
-- **Secrets scan** ([`scripts/secrets_scan/secrets_scan.sh`](scripts/secrets_scan/secrets_scan.sh),
-  PowerShell mirror for local) runs in CI on every push / PR. It fails the build if a forbidden file
-  is tracked or a secret-like field holds a non-placeholder value (length ≥ 10).
-- `ProviderConfigSafetyCheck.inspectExampleConfig()` asserts an example config contains only
-  placeholders (unit-tested), and reports findings by **field name**, never value.
-- CI never uploads the APK as an artifact.
-
-## Evidence integrity
-
-Beyond secrets: ClassMate refuses to present model conclusions that can't be traced to the source.
-A `KnowledgePoint` / `QuizQuestion` with no locatable `EvidenceSpan` fails `ResultValidator` and
-never reaches the UI (it triggers fallback instead).
-
-## Reporting
-
-Found a way to leak a secret, or a conclusion without evidence? Open an issue **without** including
-the secret itself — use redacted logs only. See the issue templates.
+如发现泄密风险或导出安全问题，提交 issue 时只使用脱敏截图/日志，不贴真实密钥或用户隐私内容。

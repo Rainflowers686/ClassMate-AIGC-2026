@@ -46,7 +46,12 @@ data class ProviderError(
     val model: String? = null,
     val maxTokens: Int? = null,
 ) {
-    /** Compact, log-safe code e.g. `BLUELM:PARAM_ERROR:400:1001`. */
+    /**
+     * Compact, log-safe code e.g. `BLUELM:PARAM_ERROR:400:1001` or `BLUELM:NETWORK:DNS`.
+     * The [networkSubtype] (DNS / TLS / CONNECT / WRITE / READ / SOCKET_TIMEOUT) is appended for
+     * transport failures so a bare `BLUELM:NETWORK` can be told apart from DNS vs. TLS vs. refused —
+     * this is what the analysis source report shows the user, so the failure must stay diagnosable.
+     */
     val shortCode: String
         get() = buildString {
             append(provider.name)
@@ -54,6 +59,7 @@ data class ProviderError(
             append(type.name)
             httpStatus?.let { append(':'); append(it) }
             vendorCode?.let { append(':'); append(it) }
+            networkSubtype?.takeIf { it.isNotBlank() && it != type.name }?.let { append(':'); append(it) }
         }
 
     companion object {

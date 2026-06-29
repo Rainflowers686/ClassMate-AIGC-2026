@@ -1,5 +1,6 @@
 package com.classmate.app.state
 
+import com.classmate.app.data.L3PersistenceRepository
 import com.classmate.app.data.InMemoryHistoryStore
 import com.classmate.app.l3.ClassroomAudioRecorder
 import com.classmate.app.l3.L3AsrStatus
@@ -47,6 +48,12 @@ class L3LearningPipelineAppTest {
         assertTrue(viewModel.ui.l3Pipeline.questions.size in 3..5)
         assertTrue(viewModel.ui.learningSnapshot.tasks.isNotEmpty())
         assertEquals(Screen.COURSE_DETAIL, viewModel.currentScreen)
+        val reviewItem = viewModel.ui.l3Pipeline.reviewQueue.first()
+        val reviewEvidenceId = viewModel.reviewEvidenceIdForKnowledgePoint(reviewItem.knowledgePointId)
+        assertNotNull(reviewEvidenceId)
+        viewModel.openEvidenceForKnowledgePoint(reviewItem.knowledgePointId)
+        assertEquals(Screen.EVIDENCE, viewModel.currentScreen)
+        assertEquals(reviewEvidenceId, viewModel.ui.selectedEvidenceId)
 
         val question = viewModel.ui.result!!.quizQuestions.first()
         val wrong = question.options.first { !it.isCorrect }.id
@@ -108,6 +115,17 @@ class L3LearningPipelineAppTest {
         assertTrue(viewModel.addManualPdfPageText(viewModel.ui.pdfPages.last().artifactId, viewModel.ui.pdfPages.last().pageNumber, "PDF page manual learning text", now + 30))
         assertEquals(PdfPageStatus.MANUAL_PAGE_TEXT_READY, viewModel.ui.pdfPages.last().status)
         assertTrue(viewModel.ui.courseText.contains("PDF page manual learning text"))
+        val pdfEvidence = viewModel.ui.l3Pipeline.evidence.first { it.sourceType.name == "DOCUMENT" }
+        assertTrue(pdfEvidence.pageHint.contains("page"))
+        assertTrue(pdfEvidence.snippet.contains("PDF page manual"))
+        viewModel.openEvidenceById(pdfEvidence.id)
+        assertEquals(Screen.EVIDENCE, viewModel.currentScreen)
+        assertEquals(pdfEvidence.id, viewModel.ui.selectedEvidenceId)
+        val storeFile = Files.createTempDirectory("cm-l3-pdf-store").resolve("classmate_l3_store.json").toFile()
+        L3PersistenceRepository(storeFile).saveSnapshot(viewModel.ui.l3Pipeline)
+        val restored = L3PersistenceRepository(storeFile).loadSnapshot()
+        assertTrue(restored.evidence.any { it.sourceType.name == "DOCUMENT" && it.pageHint.contains("page") })
+        assertTrue(restored.evidenceAssets.any { it.type.name == "DOCUMENT" && it.snippet.contains("PDF page manual") })
 
         assertFalse(viewModel.importSuperhubFile(byteArrayOf(1, 2), "lecture.m4a", "audio/mp4", now + 4))
         assertEquals(L3AsrStatus.ASR_NOT_CONFIGURED, viewModel.ui.asrLongJobs.last().status)
@@ -122,6 +140,10 @@ class L3LearningPipelineAppTest {
         assertTrue(viewModel.generateL3PipelineFromCurrentMaterial(now + 1))
 
         assertTrue(viewModel.ui.l3Pipeline.evidence.any { it.sourceType.name == "OCR_IMAGE" && it.text.contains("磁通量") })
+        assertTrue(viewModel.ui.l3Pipeline.evidenceAssets.any { it.type.name == "OCR_IMAGE" })
+        assertTrue(viewModel.ui.l3Pipeline.evidence.any { it.assetId != null })
+        assertTrue(viewModel.ui.l3Pipeline.evidence.any { it.imageRef.isNotBlank() && it.thumbnailRef.isNotBlank() })
+        assertTrue(viewModel.ui.l3Pipeline.evidenceAssets.any { it.snippet.contains("磁通量") })
         assertTrue(viewModel.ui.l3Pipeline.stepLogs.any { it.step == "OCR" })
     }
 
@@ -134,6 +156,9 @@ class L3LearningPipelineAppTest {
         viewModel.startPractice(com.classmate.core.practice.PracticeMode.QUICK_REVIEW)
         val item = viewModel.currentPracticeItem()!!
         val wrong = item.options.first { !it.correct }.id
+        viewModel.openEvidenceForKnowledgePoint(item.knowledgePointId)
+        assertEquals(Screen.EVIDENCE, viewModel.currentScreen)
+        viewModel.goBack()
 
         viewModel.selectPracticeAnswer(wrong)
         assertTrue(viewModel.submitPracticeAnswer(now + 100))
@@ -143,8 +168,48 @@ class L3LearningPipelineAppTest {
         assertTrue(viewModel.ui.l3Pipeline.masteryStats.any { it.state.name == "WEAK" })
         assertTrue(viewModel.ui.l3Pipeline.reviewQueue.any { it.masteryState.name == "WEAK" })
         val wrongRecord = viewModel.ui.l3Pipeline.wrongBook.single()
+        assertTrue(wrongRecord.mistakeReason.contains("错因分析"))
+        assertTrue(wrongRecord.remediationHint.contains("补救建议"))
+        assertTrue(wrongRecord.relatedKnowledgePointIds.contains(item.knowledgePointId))
+        assertTrue(viewModel.ui.l3Pipeline.learningDiagnosis.weakKnowledgePoints.any { it.knowledgePointId == item.knowledgePointId })
+        assertTrue(viewModel.ui.l3Pipeline.reviewQueue.first { it.knowledgePointId == item.knowledgePointId }.arrangementReason.isNotBlank())
         assertTrue(wrongRecord.evidenceIds.isNotEmpty())
         assertNotNull(viewModel.ui.l3Pipeline.evidence.firstOrNull { it.id in wrongRecord.evidenceIds })
+        viewModel.openEvidenceById(wrongRecord.evidenceIds.first())
+        assertEquals(Screen.EVIDENCE, viewModel.currentScreen)
+        assertEquals(wrongRecord.evidenceIds.first(), viewModel.ui.selectedEvidenceId)
+    }
+
+    @Test
+    fun wrongQuestionRetryUpdatesMasteryReviewQueueAndKeepsEvidenceRoute() {
+        val viewModel = vm()
+        viewModel.updateCourseTitle(L3DemoSeeds.lessonTitle)
+        viewModel.updateCourseText(L3DemoSeeds.lessonText)
+        assertTrue(viewModel.generateL3PipelineFromCurrentMaterial(now))
+        viewModel.startPractice(com.classmate.core.practice.PracticeMode.QUICK_REVIEW)
+        val first = viewModel.currentPracticeItem()!!
+        val wrong = first.options.first { !it.correct }.id
+        viewModel.selectPracticeAnswer(wrong)
+        assertTrue(viewModel.submitPracticeAnswer(now + 100))
+        val wrongRecord = viewModel.ui.l3Pipeline.wrongBook.single()
+
+        assertTrue(viewModel.retryWrongQuestion(wrongRecord.id, now + 200))
+        val retry = viewModel.currentPracticeItem()!!
+        val correct = retry.options.first { it.correct }.id
+        viewModel.selectPracticeAnswer(correct)
+        assertTrue(viewModel.submitPracticeAnswer(now + 300))
+
+        val updatedWrong = viewModel.ui.l3Pipeline.wrongBook.single { it.id == wrongRecord.id }
+        assertEquals(2, updatedWrong.retryCount)
+        val mastery = viewModel.ui.l3Pipeline.masteryStats.first { it.knowledgePointId == retry.knowledgePointId }
+        assertTrue(mastery.state.name == "REVIEWING" || mastery.state.name == "MASTERED")
+        val review = viewModel.ui.l3Pipeline.reviewQueue.first { it.knowledgePointId == retry.knowledgePointId }
+        assertTrue(review.priority <= 1)
+        assertTrue(review.arrangementReason.contains("重练"))
+        val evidenceId = viewModel.reviewEvidenceIdForKnowledgePoint(retry.knowledgePointId)
+        assertNotNull(evidenceId)
+        viewModel.openEvidenceById(evidenceId!!)
+        assertEquals(Screen.EVIDENCE, viewModel.currentScreen)
     }
 
     @Test
@@ -210,6 +275,15 @@ class L3LearningPipelineAppTest {
         assertEquals(L3AsrStatus.TRANSCRIPT_READY, viewModel.ui.asrLongStatus)
         assertTrue(viewModel.ui.l3Pipeline.transcriptSegments.isNotEmpty())
         assertTrue(viewModel.ui.l3Pipeline.evidence.isNotEmpty())
+        assertTrue(viewModel.ui.l3Pipeline.evidenceAssets.any { it.type.name == "AUDIO" })
+        assertTrue(viewModel.ui.l3Pipeline.evidenceAssets.any { it.audioRef.isNotBlank() && it.transcriptSegment.contains("电磁感应") })
+        assertTrue(viewModel.ui.l3Pipeline.evidence.any { it.audioRef.isNotBlank() && it.transcriptSegment.isNotBlank() })
+        val questionEvidenceId = viewModel.ui.l3Pipeline.questions.first().evidenceIds.first()
+        assertNotNull(viewModel.ui.l3Pipeline.evidence.firstOrNull { it.id == questionEvidenceId && it.audioRef.isNotBlank() })
+        val reviewEvidenceId = viewModel.reviewEvidenceIdForKnowledgePoint(viewModel.ui.l3Pipeline.reviewQueue.first().knowledgePointId)
+        assertNotNull(reviewEvidenceId)
+        viewModel.openEvidenceById(reviewEvidenceId!!)
+        assertEquals(Screen.EVIDENCE, viewModel.currentScreen)
         assertTrue(viewModel.ui.l3Pipeline.reviewQueue.isNotEmpty())
     }
 
@@ -220,13 +294,17 @@ class L3LearningPipelineAppTest {
         viewModel.updateTranscriptPaste("00:00 第一段讲法拉第定律。\n00:30 第二段讲磁通量变化。")
 
         assertTrue(viewModel.createManualTranscriptDraftFromPaste(now))
-        viewModel.saveTranscriptToTray()
+        assertTrue(viewModel.saveTranscriptToTrayAndGenerateLearningLoop(now + 1))
 
         assertEquals(L3AsrStatus.MANUAL_TRANSCRIPT_FALLBACK, viewModel.ui.asrLongStatus)
-        assertTrue(viewModel.generateL3PipelineFromCurrentMaterial(now + 1))
+        assertEquals(Screen.COURSE_DETAIL, viewModel.currentScreen)
         assertTrue(viewModel.ui.l3Pipeline.transcriptSegments.isNotEmpty())
         assertTrue(viewModel.ui.l3Pipeline.evidence.any { it.sourceType.name == "MANUAL_TRANSCRIPT" })
         assertTrue(viewModel.ui.l3Pipeline.transcriptSegments.all { it.fallbackGenerated })
+        val evidenceId = viewModel.reviewEvidenceIdForKnowledgePoint(viewModel.ui.l3Pipeline.reviewQueue.first().knowledgePointId)
+        assertNotNull(evidenceId)
+        viewModel.openEvidenceById(evidenceId!!)
+        assertEquals(Screen.EVIDENCE, viewModel.currentScreen)
     }
 
     @Test
@@ -248,7 +326,7 @@ class L3LearningPipelineAppTest {
             RecordingArtifactResult(success = true, fileName = "$sessionId.m4a", safeMessage = "fake recording started")
 
         override fun stop(): RecordingArtifactResult =
-            RecordingArtifactResult(success = true, fileName = null, safeMessage = "fake recording saved")
+            RecordingArtifactResult(success = true, fileName = "recording_fake.m4a", safeMessage = "fake recording saved", fileSizeBytes = 2048L)
     }
 
     private fun zip(vararg entries: Pair<String, String>): ByteArray {

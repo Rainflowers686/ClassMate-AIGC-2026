@@ -14,7 +14,7 @@ class SettingsThemeTextTest {
             "默认学习",
             "活力学习",
             "沉浸学习",
-            "强调色 / Accent Color",
+            "强调色",
             "高级自定义色彩",
             "高级颜色自定义",
             "Primary",
@@ -49,7 +49,7 @@ class SettingsThemeTextTest {
     fun settingsIaUsesSinglePageStateWithoutDuplicateLayerCards() {
         val source = source()
         listOf(
-            "private enum class SettingsPage",
+            "enum class SettingsPage",
             "SETTINGS_HOME",
             "GENERAL_SETTINGS",
             "APPEARANCE_THEME",

@@ -1,4 +1,12 @@
+> 状态：历史/参考材料，可能包含旧版本事实或阶段性问题。当前 1.14.2 / versionCode 115 状态请见 [FINAL_STATUS_1_14_2.md](FINAL_STATUS_1_14_2.md) 与 [DOCUMENT_INDEX.md](DOCUMENT_INDEX.md)。
+
 # P2 Integrated AI Learning Experience Acceptance Run
+
+## 中文摘要（当前真实状态）
+
+本文为 P2 AI 学习体验验收运行记录（历史）。最新口径：主学习链路（知识点 / 微测 / 错题 / 复习 / 诊断 / 证据 / Study Pack）已真机验证并多轮修复（云端 READ 波动、思考强度、自动本地基础整理、端侧权限、防息屏、Quiz 选项、CI smoke）。其余能力按主链标准对齐 L3-readiness，仍需真机抽测。实验性能力默认关闭。逐项状态见 `official_18_capability_l3_readiness.md`。不写所有能力已真机跑通。
+
+---
 
 > Current status note (2026-06-18): this file remains the historical P2 command-level acceptance record. Official provider smoke has since advanced beyond seam-only retrieval: OCR, QUERY_REWRITE, TEXT_SIMILARITY, and EMBEDDING have real network `PASS`. Query Rewrite's earlier blocked state was traced by Claude to a smoke request body schema mismatch and fixed with the official docId 2061 `prompts` schema; qwen3.5-plus rewrite, local safe rewrite, and direct retrieval fallback remain available.
 
@@ -128,8 +136,8 @@
 
 | Category | Result |
 | --- | --- |
-| Voice clone wording | PASS |
-| Specific teacher voice clone wording | PASS |
+| Voice-identity wording guard | PASS |
+| Specific teacher voice-identity wording guard | PASS |
 | Automatic lecture-listening overclaim | PASS |
 | Product-replacement overclaim against recording tools | PASS |
 | Multimodal/OCR replacement overclaim | PASS |

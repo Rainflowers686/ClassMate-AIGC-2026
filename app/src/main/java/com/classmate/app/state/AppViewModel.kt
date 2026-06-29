@@ -9,6 +9,8 @@ import androidx.lifecycle.viewModelScope
 import com.classmate.app.asr.AsrSession
 import com.classmate.app.asr.AsrSessionController
 import com.classmate.app.asr.AsrState
+import com.classmate.app.asr.SpeechRecognitionReadiness
+import com.classmate.app.ui.screens.settings.SettingsPage
 import com.classmate.app.asr.AsrTranscriptMapper
 import com.classmate.app.capture.CaptureGateway
 import com.classmate.app.capture.CaptureGatewayPort
@@ -16,6 +18,7 @@ import com.classmate.app.data.BlueLMHttpTransport
 import com.classmate.app.data.ExportActionStatus
 import com.classmate.app.data.ExportReceipt
 import com.classmate.app.data.ExportStore
+import com.classmate.app.data.EvidenceAssetStore
 import com.classmate.app.data.HistoryRecord
 import com.classmate.app.data.HistoryStore
 import com.classmate.app.data.InMemoryExportStore
@@ -24,10 +27,23 @@ import com.classmate.app.data.L3PersistenceRepository
 import com.classmate.app.data.LocalSemanticIndexRepository
 import com.classmate.app.data.ThemePreferenceRepository
 import com.classmate.app.exporting.ExportArtifact
+import com.classmate.app.audio.FlowAudioController
+import com.classmate.app.audio.NoOpFlowAudioController
+import com.classmate.app.ui.flow.AmbientSound
 import com.classmate.app.exporting.ExportCenter
 import com.classmate.app.exporting.ExportFileFormat
+import com.classmate.core.ai.PolishedStudyMaterial
+import com.classmate.core.ai.PolishedStudyPackInput
+import com.classmate.core.ai.PolishedStudyPackPromptBuilder
+import com.classmate.core.exporting.PolishedExportPlan
+import com.classmate.core.exporting.PolishedStudyPack
+import com.classmate.core.exporting.SafeExportText
 import com.classmate.core.audio.ConfigMissingTtsProvider
 import com.classmate.core.audio.CourseEssenceAudioExporter
+import com.classmate.core.evidence.EvidenceRelation
+import com.classmate.core.evidence.EvidenceRelationLevel
+import com.classmate.core.ocr.OcrTextPostProcessor
+import com.classmate.core.evidence.EvidenceOwnership
 import com.classmate.core.exporting.StudyReport
 import com.classmate.core.exporting.StudyReportBuilder
 import com.classmate.core.exporting.StudyReportRenderer
@@ -36,13 +52,19 @@ import com.classmate.app.importing.OcrImportAssembler
 import com.classmate.app.importing.OcrImportDraft
 import com.classmate.app.importing.OcrImportFileMeta
 import com.classmate.app.importing.OcrImportKind
+import com.classmate.app.importing.OcrImportStatus
 import com.classmate.app.importing.SelectedLocalFileMetadata
 import com.classmate.app.l3.ClassroomAudioRecorder
 import com.classmate.app.l3.ClassroomRecordingRecord
+import com.classmate.app.l3.DialectMode
+import com.classmate.app.l3.EvidenceAsset
+import com.classmate.app.l3.EvidenceAssetType
+import com.classmate.app.l3.QuizOptionIds
 import com.classmate.app.l3.ExamSession
 import com.classmate.app.l3.ExamStatus
 import com.classmate.app.l3.AsrLongJob
 import com.classmate.app.l3.AsrLongProductizationEngine
+import com.classmate.app.l3.AudioSessionEngine
 import com.classmate.app.l3.ExamReportEngine
 import com.classmate.app.l3.InputArtifactStatus
 import com.classmate.app.l3.InputFileKind
@@ -55,21 +77,31 @@ import com.classmate.app.l3.L3LearningPipeline
 import com.classmate.app.l3.L3PipelineSnapshot
 import com.classmate.app.l3.L3RecordingStatus
 import com.classmate.app.l3.L3SourceType
+import com.classmate.app.l3.LearningLoopInput
+import com.classmate.app.l3.LearningLoopInputKind
+import com.classmate.app.l3.LearningDiagnosisEngine
+import com.classmate.app.l3.LearningExportEngine
+import com.classmate.app.l3.LearningLoopCapabilityOrchestrator
 import com.classmate.app.l3.LocalTtsPlayer
 import com.classmate.app.l3.LocalSemanticIndexEngine
+import com.classmate.app.l3.DeviceReadinessEngine
+import com.classmate.app.l3.ExperimentalStudyAssetEngine
 import com.classmate.app.l3.NoOpClassroomAudioRecorder
 import com.classmate.app.l3.NoOpLocalTtsPlayer
 import com.classmate.app.l3.OfficialRuntimeGateway
 import com.classmate.app.l3.OfficialRuntimeGatewayFactory
 import com.classmate.app.l3.OfficialRuntimeIntegrator
 import com.classmate.app.l3.OfficialRuntimeStatus
+import com.classmate.app.l3.OfficialCapabilityRegistry
 import com.classmate.app.l3.PdfProcessingEngine
 import com.classmate.app.l3.PracticeGradingEngine
 import com.classmate.app.l3.PracticeAnswerState
 import com.classmate.app.l3.PracticeAnswerSubmission
 import com.classmate.app.l3.PracticeQuestionMode
 import com.classmate.app.l3.QuestionBankParser
+import com.classmate.app.l3.RecordingFileManager
 import com.classmate.app.l3.ReviewStatsEngine
+import com.classmate.app.l3.SafetyGuardEngine
 import com.classmate.app.l3.ToolInputType
 import com.classmate.app.l3.ToolOrchestratorProductizationEngine
 import com.classmate.app.l3.TranslationProductEngine
@@ -79,6 +111,8 @@ import com.classmate.app.l3.TtsPlaybackEngine
 import com.classmate.app.l3.TtsPlaybackProvider
 import com.classmate.app.l3.TtsPlaybackStatus
 import com.classmate.app.l3.TtsPlaybackSourceType
+import com.classmate.app.l3.TranscriptSegment
+import com.classmate.app.l3.TranscriptGlossaryExtractor
 import com.classmate.app.material.LessonMaterialAssembler
 import com.classmate.core.material.LessonContextHints
 import com.classmate.app.sample.SampleLessonLibrary
@@ -89,10 +123,15 @@ import com.classmate.core.learning.InMemoryLearningStore
 import com.classmate.core.learning.LearningSnapshot
 import com.classmate.core.learning.LearningStore
 import com.classmate.core.learning.PracticeHistoryRecord
+import com.classmate.core.practice.KnowledgePointSearch
 import com.classmate.core.practice.PracticeAttempt
 import com.classmate.core.practice.PracticeFeedbackEngine
 import com.classmate.core.practice.PracticeGenerationRequest
+import com.classmate.core.practice.PracticeItem
+import com.classmate.core.practice.PracticeItemType
+import com.classmate.core.practice.isAnswerableQuiz
 import com.classmate.core.practice.PracticeMode
+import com.classmate.core.practice.PracticeOption
 import com.classmate.core.practice.PracticeOutcome
 import com.classmate.core.practice.PracticeResult
 import com.classmate.core.practice.PracticeSession
@@ -127,6 +166,21 @@ import com.classmate.core.ask.LocalAskLessonEngine
 import com.classmate.core.ai.AiCapability
 import com.classmate.core.ai.AiCapabilityResult
 import com.classmate.core.ai.AiCapabilityRouter
+import com.classmate.core.ai.AiEnhancement
+import com.classmate.core.ai.AiEnhancementType
+import com.classmate.core.ai.EnhancementPoint
+import com.classmate.core.ai.EnhancementPromptBuilder
+import com.classmate.core.ai.LocalEnhancementTemplates
+import com.classmate.core.ai.RoutedEnhancementUseCase
+import com.classmate.core.ai.VariantQuizParser
+import com.classmate.core.analysis.CourseDomainDetector
+import com.classmate.core.glossary.DynamicGlossaryExtractor
+import com.classmate.core.glossary.GlossarySource
+import com.classmate.core.provider.AnalysisEstimateInput
+import com.classmate.core.provider.AnalysisIntensity
+import com.classmate.core.provider.AnalysisTimeEstimator
+import com.classmate.core.provider.BlueLmConfigDoctor
+import com.classmate.core.provider.BlueLmConfigState
 import com.classmate.core.ai.AiExecutionStatus
 import com.classmate.core.ai.AiExecutionSource
 import com.classmate.core.ai.AiRouteDecision
@@ -146,6 +200,7 @@ import com.classmate.core.ondevice.OnDeviceLlmDiagnostic
 import com.classmate.core.ondevice.OnDeviceLlmTaskProfile
 import com.classmate.core.ondevice.OnDevicePromptTemplate
 import com.classmate.core.provider.Credential
+import com.classmate.core.provider.HttpTimeouts
 import com.classmate.core.provider.LearnerProfile
 import com.classmate.core.provider.ProviderAskChatClient
 import com.classmate.core.analysis.AnalysisOutcome
@@ -177,6 +232,7 @@ import com.classmate.core.model.LearningState
 import com.classmate.core.model.QuizAttempt
 import com.classmate.core.model.QuizQuestion
 import com.classmate.core.model.SourceKind
+import com.classmate.core.prompt.Prompt
 import com.classmate.core.prompt.PromptBuilder
 import com.classmate.core.provider.AnalysisRequest
 import com.classmate.core.provider.BlueLMDiagnosticReport
@@ -195,7 +251,9 @@ import com.classmate.core.sample.SampleCourses
 import com.classmate.core.video.VideoRecommendationEngine
 import com.classmate.core.weakness.WeaknessHub
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
@@ -224,7 +282,11 @@ class AppViewModel(
     private val semanticIndexRepository: LocalSemanticIndexRepository = LocalSemanticIndexRepository.disabled(),
     // App-private L3 state. Stores study artifacts only: no credentials, keys, endpoints, or local config.
     private val l3PersistenceRepository: L3PersistenceRepository = L3PersistenceRepository.disabled(),
+    private val evidenceAssetStore: EvidenceAssetStore = EvidenceAssetStore.disabled(),
     private val localTtsPlayer: LocalTtsPlayer = NoOpLocalTtsPlayer(),
+    // Official TTS WebSocket provider (云端). Null until the composition root injects the OkHttp-backed one,
+    // so unit tests run with the system-TTS path only. Used config-gated, with a system-TTS fallback.
+    private val officialTtsProvider: com.classmate.app.asr.OfficialTtsProvider? = null,
     private val officialRuntimeGateway: OfficialRuntimeGateway = OfficialRuntimeGatewayFactory.production(),
     // On-device BlueLM 3B owner. Defaults to the honest missing-SDK bridge until the AAR is bundled.
     private val onDeviceController: OnDeviceLlmController = OnDeviceLlmController(),
@@ -232,6 +294,10 @@ class AppViewModel(
     // the user actually invokes those capture paths. Tests inject a fake gateway.
     private val captureGatewayProvider: () -> CaptureGatewayPort = { CaptureGateway() },
     private val classroomAudioRecorder: ClassroomAudioRecorder = NoOpClassroomAudioRecorder,
+    private val recordingFileManager: RecordingFileManager = RecordingFileManager.disabled(),
+    // P1-2: Flow background music. No-op by default (tests / no audio); the composition root injects the
+    // real AmbientSoundPlayer-backed controller so playback survives leaving the Flow page.
+    private val flowAudioController: FlowAudioController = NoOpFlowAudioController,
     // Stage 8D-2: optional override of the all-files-access signal (tests inject false/true). Used
     // ONLY to CLASSIFY an on-device availability failure (PERMISSION_MISSING vs files/init) — it
     // never blocks the crash-safe generate attempt. Production (null) combines the live permission
@@ -288,6 +354,10 @@ class AppViewModel(
             accentColor = initialThemePreference.accentColorPreset,
             customPalette = initialThemePreference.customPalette,
             typographyPreset = initialThemePreference.typographyPreset,
+            language = initialThemePreference.language,
+            enableExperimentalImageGeneration = initialThemePreference.enableExperimentalImageGeneration,
+            enableExperimentalVideoGeneration = initialThemePreference.enableExperimentalVideoGeneration,
+            enableExperimentalSimultaneousInterpretation = initialThemePreference.enableExperimentalSimultaneousInterpretation,
             providerConfigSummary = providerSummary(initialConfigSource),
             onDeviceDiagnostic = onDeviceController.diagnostic(),
             onDeviceModelPath = onDeviceController.diagnostic().modelDir,
@@ -305,6 +375,7 @@ class AppViewModel(
     fun selectTab(tab: Tab) {
         currentTab = tab
         resetTo(tab.root)
+        settingsPage = SettingsPage.SETTINGS_HOME // entering a tab root always starts the settings tree at home
     }
 
     init {
@@ -317,6 +388,7 @@ class AppViewModel(
             learningSnapshot = learningStore.snapshot(),
             l3Pipeline = persistedL3,
         )
+        recordingFileManager.cleanupOrphans(emptySet(), deleteUnknown = false)
     }
 
     private fun syncLearning(toast: String? = null) {
@@ -340,6 +412,15 @@ class AppViewModel(
             false
         }
 
+    /**
+     * TopBar back guard (P1-1): pop if there is a previous page, otherwise fall back to Home. A back button
+     * must NEVER strand the user on a rootless page or silently do nothing — when the stack is empty it
+     * returns to Home instead. (System back at the Home root still exits the app, which is expected.)
+     */
+    fun goBackOrHome() {
+        if (!goBack()) selectTab(Tab.HOME)
+    }
+
     fun resetTo(screen: Screen) {
         backStack.clear()
         backStack.add(screen)
@@ -348,6 +429,52 @@ class AppViewModel(
     private fun navigateReplacing(screen: Screen) {
         if (backStack.size > 1) backStack.removeAt(backStack.lastIndex)
         navigateTo(screen)
+    }
+
+    // --- unified system-back handling (settings sub-pages live in-page, not on the back stack) ---
+    var settingsPage: SettingsPage by mutableStateOf(SettingsPage.SETTINGS_HOME)
+        private set
+
+    fun openSettingsPage(page: SettingsPage) { settingsPage = page }
+    fun resetSettingsPage() { settingsPage = SettingsPage.SETTINGS_HOME }
+
+    private val onSettingsSubPage: Boolean
+        get() = currentScreen == Screen.SETTINGS && settingsPage != SettingsPage.SETTINGS_HOME
+
+    private val recordingActive: Boolean
+        get() = ui.currentRecording?.status == L3RecordingStatus.RECORDING
+
+    /** True when a system-back press has somewhere to go inside the app (so we must NOT exit the app). */
+    val canHandleSystemBack: Boolean
+        get() = recordingActive || onSettingsSubPage || canGoBack
+
+    /**
+     * Single entry point for BOTH the system back key/gesture AND the top-left back button, so the two
+     * never diverge. Order: protect an in-progress recording -> walk up the settings sub-page tree ->
+     * pop the app back stack. Returns true when handled in-app.
+     */
+    fun handleSystemBack(): Boolean {
+        if (recordingActive) { // never silently drop an in-progress recording/transcription
+            ui = ui.copy(showRecordingBackPrompt = true)
+            return true
+        }
+        if (onSettingsSubPage) {
+            settingsPage = settingsPage.parent ?: SettingsPage.SETTINGS_HOME
+            return true
+        }
+        return goBack()
+    }
+
+    fun dismissRecordingBackPrompt() { ui = ui.copy(showRecordingBackPrompt = false) }
+
+    fun stopRecordingFromBackPrompt() {
+        ui = ui.copy(showRecordingBackPrompt = false)
+        stopRecordingWithTranscription()
+    }
+
+    fun cancelRecordingFromBackPrompt() {
+        ui = ui.copy(showRecordingBackPrompt = false)
+        cancelRecordingWithTranscription()
     }
 
     // --- appearance ---
@@ -401,7 +528,216 @@ class AppViewModel(
         )
     }
     fun setDarkMode(dark: Boolean?) { ui = ui.copy(darkMode = dark) }
-    fun setLanguage(language: AppLanguage) { ui = ui.copy(language = language) }
+    fun setLanguage(language: AppLanguage) {
+        // Persist so the choice survives app restarts (P0-1: language was reverting to Chinese on relaunch).
+        themePreferenceRepository.saveLanguage(language)
+        ui = ui.copy(language = language)
+    }
+    fun setExperimentalImageGeneration(enabled: Boolean) {
+        val next = themePreferenceRepository.saveExperimentalImageGeneration(enabled)
+        ui = ui.copy(
+            enableExperimentalImageGeneration = next.enableExperimentalImageGeneration,
+            toast = if (enabled) "实验性学习图解入口已开启。" else "实验性学习图解入口已关闭。",
+        )
+    }
+    fun setExperimentalVideoGeneration(enabled: Boolean) {
+        val next = themePreferenceRepository.saveExperimentalVideoGeneration(enabled)
+        ui = ui.copy(
+            enableExperimentalVideoGeneration = next.enableExperimentalVideoGeneration,
+            toast = if (enabled) "实验性复习短视频入口已开启。" else "实验性复习短视频入口已关闭。",
+        )
+    }
+    fun setExperimentalSimultaneousInterpretation(enabled: Boolean) {
+        val next = themePreferenceRepository.saveExperimentalSimultaneousInterpretation(enabled)
+        ui = ui.copy(
+            enableExperimentalSimultaneousInterpretation = next.enableExperimentalSimultaneousInterpretation,
+            toast = if (enabled) "实验性双语课堂同声传译入口已开启。" else "实验性双语课堂同声传译入口已关闭。",
+        )
+    }
+    fun setAudioDialectMode(mode: DialectMode) {
+        ui = ui.copy(
+            audioDialectMode = mode,
+            toast = when (mode) {
+                DialectMode.AUTO -> "课堂转写模式：自动。"
+                DialectMode.STANDARD_MANDARIN -> "课堂转写模式：普通课堂。"
+                DialectMode.DIALECT_OR_ACCENT_ENHANCED -> "课堂转写模式：口音/方言增强。"
+                DialectMode.CLASSROOM_MIXED_SPEAKERS -> "课堂转写模式：多人课堂/混合口音。"
+            },
+        )
+    }
+
+    fun generateVisualStudyPrompt(now: Long = System.currentTimeMillis()): Boolean {
+        if (!ui.enableExperimentalImageGeneration) {
+            ui = ui.copy(toast = "请先在实验性功能中开启学习图解生成。")
+            return false
+        }
+        val asset = ExperimentalStudyAssetEngine.visualPrompt(ui.l3Pipeline, now)
+        if (asset == null) {
+            ui = ui.copy(toast = "当前缺少知识点或证据，无法生成学习图解提示词。")
+            return false
+        }
+        val next = refreshCapabilityMatrix(
+            ui.l3Pipeline.copy(visualStudyAssets = (ui.l3Pipeline.visualStudyAssets + asset).takeLast(20)),
+        )
+        ui = ui.copy(l3Pipeline = next, toast = "已生成学习图解提示词；图片生成待配置。")
+        persistL3(next)
+        return true
+    }
+
+    fun generateReviewVideoStoryboard(now: Long = System.currentTimeMillis()): Boolean {
+        if (!ui.enableExperimentalVideoGeneration) {
+            ui = ui.copy(toast = "请先在实验性功能中开启复习短视频生成。")
+            return false
+        }
+        val plan = ExperimentalStudyAssetEngine.reviewVideoPlan(ui.l3Pipeline, now)
+        if (plan == null) {
+            ui = ui.copy(toast = "当前缺少知识点或复习任务，无法生成短视频分镜。")
+            return false
+        }
+        val next = refreshCapabilityMatrix(
+            ui.l3Pipeline.copy(reviewVideoPlans = (ui.l3Pipeline.reviewVideoPlans + plan).takeLast(20)),
+        )
+        ui = ui.copy(l3Pipeline = next, toast = "已生成复习短视频分镜；视频生成待配置。")
+        persistL3(next)
+        return true
+    }
+
+    fun generateBilingualTranscriptDraft(now: Long = System.currentTimeMillis()): Boolean {
+        if (!ui.enableExperimentalSimultaneousInterpretation) {
+            ui = ui.copy(toast = "请先在实验性功能中开启双语课堂同声传译。")
+            return false
+        }
+        val segments = ExperimentalStudyAssetEngine.bilingualTranscript(ui.l3Pipeline, now)
+        if (segments.isEmpty()) {
+            ui = ui.copy(toast = "当前没有可用于双语转写的音频或转写证据。")
+            return false
+        }
+        val next = refreshCapabilityMatrix(
+            ui.l3Pipeline.copy(bilingualTranscriptSegments = (ui.l3Pipeline.bilingualTranscriptSegments + segments).takeLast(40)),
+        )
+        ui = ui.copy(l3Pipeline = next, toast = "已生成双语转写草稿；同声传译服务待配置。")
+        persistL3(next)
+        return true
+    }
+
+    fun generateAudioReviewScript(now: Long = System.currentTimeMillis()): Boolean {
+        val asset = ExperimentalStudyAssetEngine.audioReviewScript(ui.l3Pipeline, now)
+        if (asset == null) {
+            ui = ui.copy(toast = "当前缺少复习任务或知识点，无法生成听背脚本。")
+            return false
+        }
+        val next = refreshCapabilityMatrix(
+            ui.l3Pipeline.copy(audioReviewAssets = (ui.l3Pipeline.audioReviewAssets + asset).takeLast(20)),
+        )
+        ui = ui.copy(l3Pipeline = next, toast = "已生成听背文稿，可复制或分享复习；如需音频可点「生成听背音频」。")
+        persistL3(next)
+        return true
+    }
+
+    /**
+     * P0-2: synthesize the 听背文稿 into a REAL on-device audio file via the system TextToSpeech engine.
+     * Honest source label "系统 TTS 生成" (never 蓝心 TTS); 0-byte / failed output is deleted and the text
+     * script stays available. Re-generating replaces the previous file; course deletion cleans it up.
+     */
+    fun generateAudioReviewFile() {
+        val script = ui.l3Pipeline.audioReviewAssets.lastOrNull()?.script?.takeIf { it.isNotBlank() }
+            ?: run {
+                if (!generateAudioReviewScript()) return
+                ui.l3Pipeline.audioReviewAssets.lastOrNull()?.script.orEmpty()
+            }
+        if (script.isBlank()) {
+            ui = ui.copy(toast = "暂无可朗读的听背文稿。")
+            return
+        }
+        deleteTtsAudioFileOnly()
+        val now = System.currentTimeMillis()
+        val courseId = ui.session?.id ?: ui.result?.sessionId ?: "course"
+        val fileName = "tts_${courseId}_$now.wav"
+        ui = ui.copy(ttsAudio = TtsAudioUiState(running = true))
+        // Route: 官方 TTS WebSocket → 系统 Android TTS → 仅保留文稿. Each step is honestly labelled.
+        val officialConfig = officialTtsConfig()
+        val provider = officialTtsProvider
+        viewModelScope.launch {
+            if (provider != null && officialConfig != null) {
+                val official = withContext(Dispatchers.IO) {
+                    runCatching { provider.synthesizeToFile(officialConfig, script, fileName) }.getOrNull()
+                }
+                if (official != null && official.success && official.filePath.isNotBlank()) {
+                    ui = ui.copy(
+                        ttsAudio = TtsAudioUiState(
+                            filePath = official.filePath,
+                            fileName = fileName,
+                            sizeBytes = official.sizeBytes,
+                            sourceZh = "官方 TTS 生成",
+                        ),
+                    )
+                    return@launch
+                }
+            }
+            if (localTtsPlayer.canAttemptLocalPlayback()) {
+                localTtsPlayer.synthesizeToFile("tts_$now", script, fileName) { result ->
+                    viewModelScope.launch {
+                        ui = if (result.success && result.filePath.isNotBlank()) {
+                            ui.copy(
+                                ttsAudio = TtsAudioUiState(
+                                    filePath = result.filePath,
+                                    fileName = fileName,
+                                    sizeBytes = result.sizeBytes,
+                                    sourceZh = "系统 TTS 生成",
+                                ),
+                            )
+                        } else {
+                            ui.copy(ttsAudio = TtsAudioUiState(failed = true, message = "音频生成失败，已保留听背文稿。", sourceZh = "仅生成文稿"))
+                        }
+                    }
+                }
+            } else {
+                ui = ui.copy(ttsAudio = TtsAudioUiState(failed = true, message = "系统 TTS 不可用，已保留听背文稿。", sourceZh = "TTS 不可用"))
+            }
+        }
+    }
+
+    /** Build the official TTS WS config from the in-memory cloud credential. Null when no AppKey is configured. */
+    private fun officialTtsConfig(): com.classmate.core.official.ws.OfficialWsConfig? {
+        val appKey = officialCloudAppKeyOrNull() ?: return null
+        return com.classmate.core.official.ws.OfficialWsConfig(
+            baseUrl = com.classmate.core.official.ws.OfficialTtsWsProtocol.DEFAULT_URL,
+            appKey = appKey,
+            userId = stableOfficialUserId(),
+        )
+    }
+
+    /** Reads the BlueLM AppKey from the in-memory bundle. NEVER logged/exported (Credential.toString masks it). */
+    private fun officialCloudAppKeyOrNull(): String? {
+        val cred = configBundle.configOf(ProviderKind.BLUELM)?.credential as? Credential.BlueLm ?: return null
+        return cred.appKey.takeIf { it.isNotBlank() }
+    }
+
+    /** A stable, non-privacy 32-char id for the official `user_id` param, generated once and persisted. */
+    private fun stableOfficialUserId(): String {
+        themePreferenceRepository.load().officialUserId.takeIf { it.isNotBlank() }?.let { return it }
+        val generated = (java.util.UUID.randomUUID().toString() + java.util.UUID.randomUUID().toString())
+            .filter { it.isLetterOrDigit() }.lowercase().take(32)
+        themePreferenceRepository.saveOfficialUserId(generated)
+        return generated
+    }
+
+    fun deleteTtsAudio() {
+        deleteTtsAudioFileOnly()
+        ui = ui.copy(ttsAudio = TtsAudioUiState(), toast = "已删除听背音频。")
+    }
+
+    private fun deleteTtsAudioFileOnly() {
+        ui.ttsAudio.filePath.takeIf { it.isNotBlank() }?.let { path ->
+            runCatching { java.io.File(path).takeIf { it.exists() }?.delete() }
+        }
+    }
+
+    private fun refreshCapabilityMatrix(snapshot: L3PipelineSnapshot): L3PipelineSnapshot =
+        snapshot.copy(
+            officialCapabilityContributions = OfficialCapabilityRegistry.officialMatrix(snapshot, ui.providerConfigSummary),
+            qualityWarnings = LearningLoopCapabilityOrchestrator.qualityWarnings(snapshot),
+        )
 
     // --- provider config (single source of truth: configBundle) ---
 
@@ -562,6 +898,8 @@ class AppViewModel(
             providerConfigSummary = providerSummary("saved model config"),
             modelConfigMasked = modelConfigRepository.masked(),
             toast = when {
+                BlueLmConfigDoctor.classify(appId, appKey) == BlueLmConfigState.MASKED_KEY_INVALID ->
+                    "AppKey 看起来是掩码（***），请输入完整 AppKey 后再保存。"
                 !saved -> "保存失败，请重试。"
                 profile?.officialConfigured() == true -> "已保存蓝心大模型配置（仅本机，不写入仓库）。"
                 else -> "已保存配置；凭据仍为占位符。"
@@ -633,11 +971,17 @@ class AppViewModel(
 
     fun testAiConfigReadiness() {
         val masked = modelConfigRepository.masked()
+        // Config-STATE doctor: tell MISSING / INCOMPLETE / MASKED_KEY_INVALID / READY apart BEFORE any
+        // request, so the user sees CONFIG_REQUIRED rather than a misleading NETWORK error. This is a
+        // readiness check only — no network call here (the live probe is the debug BlueLM diagnostic).
+        val profile = modelConfigRepository.load()
+        val state = BlueLmConfigDoctor.classify(profile?.appId, profile?.appKey)
         ui = ui.copy(
             modelConfigMasked = masked,
-            toast = when {
-                masked?.credentialPresent == true -> "配置已保存：当前仅做 readiness 检查，未发送网络请求。"
-                else -> "尚未配置云端凭据。未配置时仍可继续端侧处理或手动编辑。"
+            toast = when (state) {
+                BlueLmConfigState.READY -> "配置就绪（READY）：当前仅做 readiness 检查，未发送网络请求。"
+                BlueLmConfigState.MASKED_KEY_INVALID -> state.labelZh
+                else -> "${state.labelZh}。未配置时仍可继续端侧处理或手动编辑。"
             },
         )
     }
@@ -884,10 +1228,37 @@ class AppViewModel(
     /** Open the image-draft editor. [origin] is the honest input label (图片学习输入 / 拍照学习输入). */
     fun beginImageDraft(origin: String? = null) {
         ui = ui.copy(
+            ocrImports = ui.ocrImports.filter { it.batchId.isBlank() },
             imageDraftActive = true, imageDraftRunning = false, imageDraftText = "",
             imageDraftManualMode = false, imageDraftMessage = null,
             imageDraftOrigin = origin, imageDraftMeta = null,
+            imageDraftImageRef = "", imageDraftThumbnailRef = "", imageDraftMimeType = "",
+            imageDraftBatchId = "", imageDraftBatchTotal = 0, imageDraftBatchProcessed = 0,
         )
+    }
+
+    fun beginImageOcrBatch(origin: String? = null, total: Int, now: Long = System.currentTimeMillis()): String {
+        val batchId = "ocr_batch_$now"
+        ui = ui.copy(
+            ocrImports = emptyList(),
+            imageDraftActive = true,
+            imageDraftRunning = total > 0,
+            imageDraftText = "",
+            imageDraftManualMode = false,
+            imageDraftMessage = if (total > 0) "正在识别 $total 张图片，请稍后检查草稿。" else "未选择图片。",
+            imageDraftOrigin = origin ?: "图片学习输入",
+            imageDraftMeta = "0/$total",
+            imageStudyDraft = null,
+            imageDraftSource = null,
+            imageDraftOcrError = null,
+            imageDraftImageRef = "",
+            imageDraftThumbnailRef = "",
+            imageDraftMimeType = "",
+            imageDraftBatchId = batchId,
+            imageDraftBatchTotal = total.coerceAtLeast(0),
+            imageDraftBatchProcessed = 0,
+        )
+        return batchId
     }
 
     /**
@@ -905,6 +1276,11 @@ class AppViewModel(
     ) {
         if (ui.imageDraftRunning) return // single in-flight multimodal task; repeat taps are no-ops
         maybePromptMissingCloudConfig("官方 OCR")
+        val storedImage = evidenceAssetStore.saveImage(
+            bytes = encodedImageBytes,
+            sourceLabel = ui.imageDraftOrigin ?: "图片学习输入",
+            mimeType = "image/jpeg",
+        )
         val meta = buildString {
             if (originalWidth > 0 && originalHeight > 0) append("原图 ${originalWidth}x$originalHeight → ")
             append("处理 ${image.width}x${image.height} · RGB ${image.bytes.size} 字节")
@@ -913,6 +1289,9 @@ class AppViewModel(
             imageDraftActive = true, imageDraftRunning = true, imageDraftManualMode = false,
             imageDraftMessage = null, imageDraftMeta = meta, imageStudyDraft = null,
             imageDraftSource = null, imageDraftOcrError = null,
+            imageDraftImageRef = storedImage.imageRef,
+            imageDraftThumbnailRef = storedImage.thumbnailRef,
+            imageDraftMimeType = storedImage.mimeType,
             aiProcessing = AiProcessingUiState(
                 visible = true,
                 title = "正在识别图片文字",
@@ -946,18 +1325,143 @@ class AppViewModel(
         }
     }
 
+    fun ingestMultiImageOcr(
+        image: RgbImage,
+        allFilesGranted: Boolean,
+        originalWidth: Int = 0,
+        originalHeight: Int = 0,
+        encodedImageBytes: ByteArray = image.bytes,
+        pageIndex: Int,
+        total: Int,
+        batchId: String = ui.imageDraftBatchId,
+    ) {
+        val activeBatch = batchId.ifBlank { beginImageOcrBatch(ui.imageDraftOrigin, total) }
+        val now = System.currentTimeMillis()
+        val origin = ui.imageDraftOrigin ?: "图片学习输入"
+        val dimensionLabel = if (originalWidth > 0 && originalHeight > 0) " · ${originalWidth}x$originalHeight" else ""
+        val storedImage = evidenceAssetStore.saveImage(
+            bytes = encodedImageBytes,
+            sourceLabel = "$origin 第${pageIndex}张$dimensionLabel",
+            mimeType = "image/jpeg",
+            now = now + pageIndex,
+        )
+        val draftId = "${activeBatch}_$pageIndex"
+        val pending = OcrImportDraft(
+            id = draftId,
+            kind = OcrImportKind.SLIDE_IMAGE,
+            fileMeta = OcrImportFileMeta(
+                fileName = storedImage.imageRef,
+                mimeType = storedImage.mimeType,
+                sizeBytes = encodedImageBytes.size.toLong(),
+                displayLabel = "图片$pageIndex$dimensionLabel",
+                pageIndex = pageIndex,
+            ),
+            pastedText = "",
+            status = OcrImportStatus.PENDING,
+            batchId = activeBatch,
+            pageIndex = pageIndex,
+            blockIndex = pageIndex,
+            createdAt = now,
+            updatedAt = now,
+        )
+        ui = ui.copy(
+            ocrImports = (ui.ocrImports.filterNot { it.id == draftId } + pending).sortedBy { it.pageIndex ?: Int.MAX_VALUE },
+            imageDraftActive = true,
+            imageDraftRunning = true,
+            imageDraftMessage = "正在识别第 $pageIndex / $total 张图片。",
+            imageDraftMeta = "${ui.imageDraftBatchProcessed}/$total",
+            imageDraftBatchId = activeBatch,
+            imageDraftBatchTotal = total,
+        )
+        viewModelScope.launch {
+            val onDevice = onDeviceController.describeImageToDraft(image, allFilesGranted)
+            val onDeviceText = (onDevice as? OnDeviceImageDraftResult.Draft)?.text.orEmpty()
+            val routed = withContext(Dispatchers.IO) {
+                runCatching {
+                    captureGateway.createImageStudyDraftRouted(
+                        imageBytes = encodedImageBytes,
+                        origin = "$origin 第${pageIndex}张",
+                        onDeviceDraftText = onDeviceText,
+                    )
+                }.getOrElse {
+                    imageFallbackResult(
+                        origin = "$origin 第${pageIndex}张",
+                        onDeviceText = onDeviceText,
+                        status = AiExecutionStatus.FAILED,
+                    )
+                }
+            }
+            val draft = routed.value
+            val rawText = draft?.initialEditableText().orEmpty().ifBlank { onDeviceText }
+            val clean = OcrTextPostProcessor.clean(rawText)
+            // P0-1: distinguish "OCR 未配置" from "识别为空" so the failure reason is honest, and ALWAYS
+            // leave the segment editable (the FAILED card now offers a manual-input field) so OCR being
+            // unavailable on this device never makes the image a dead end.
+            val unconfigured = draft?.ocrError == CaptureError.ConfigMissing ||
+                routed.status == AiExecutionStatus.CONFIG_MISSING
+            val completed = if (clean.text.isBlank()) {
+                pending.copy(
+                    status = OcrImportStatus.FAILED,
+                    errorReason = if (unconfigured) {
+                        "OCR 未配置，请在下方手动输入图片中的文字，或重拍更清晰的图片。"
+                    } else {
+                        "未识别到可用文字，请在下方手动输入，或重拍更清晰的图片。"
+                    },
+                    updatedAt = System.currentTimeMillis(),
+                )
+            } else {
+                pending.copy(
+                    pastedText = clean.text,
+                    status = OcrImportStatus.OK,
+                    errorReason = if (clean.needsReview) clean.reviewHint else "",
+                    updatedAt = System.currentTimeMillis(),
+                )
+            }
+            applyImageOcrBatchItem(completed, total)
+        }
+    }
+
+    internal fun applyImageOcrBatchItem(draft: OcrImportDraft, total: Int = ui.imageDraftBatchTotal) {
+        val imports = (ui.ocrImports.filterNot { it.id == draft.id } + draft)
+            .sortedBy { it.pageIndex ?: Int.MAX_VALUE }
+        val merged = OcrImportAssembler.mergeByOrder(imports)
+        val processed = imports.count { it.status != OcrImportStatus.PENDING }
+        val failedCount = merged.failedDrafts.size
+        val reviewCount = merged.okDrafts.count { it.errorReason.isNotBlank() }
+        val message = buildString {
+            append("已处理 $processed / ${total.coerceAtLeast(imports.size)} 张图片。")
+            if (failedCount > 0) append(" $failedCount 张需要手动补充。")
+            if (reviewCount > 0) append(" $reviewCount 张建议人工检查识别结果。")
+        }
+        ui = ui.copy(
+            ocrImports = imports,
+            imageDraftText = merged.text,
+            imageDraftRunning = processed < total.coerceAtLeast(imports.size),
+            imageDraftManualMode = merged.okDrafts.isEmpty(),
+            imageDraftMessage = message,
+            imageDraftMeta = "$processed/${total.coerceAtLeast(imports.size)}",
+            imageDraftBatchProcessed = processed,
+            imageDraftSource = if (merged.okDrafts.isNotEmpty()) AiExecutionSource.ON_DEVICE else AiExecutionSource.MANUAL,
+            aiProcessing = AiProcessingUiState.hidden(),
+        )
+    }
+
     /** Apply a draft result to UI state (separated for unit testing without a Main dispatcher). */
     internal fun applyImageDraftResult(result: OnDeviceImageDraftResult) {
         ui = when (result) {
-            is OnDeviceImageDraftResult.Draft -> ui.copy(
-                imageDraftActive = true,
-                imageDraftRunning = false,
-                imageDraftText = result.text.trim(),
-                imageDraftManualMode = false,
-                imageDraftSource = AiExecutionSource.ON_DEVICE,
-                aiProcessing = AiProcessingUiState.hidden(),
-                imageDraftMessage = "已由端侧蓝心生成图片学习文本草稿，请检查并编辑后确认。",
-            )
+            is OnDeviceImageDraftResult.Draft -> {
+                val cleaned = OcrTextPostProcessor.clean(result.text)
+                ui.copy(
+                    imageDraftActive = true,
+                    imageDraftRunning = false,
+                    imageDraftText = cleaned.text,
+                    imageDraftManualMode = false,
+                    imageDraftSource = AiExecutionSource.ON_DEVICE,
+                    aiProcessing = AiProcessingUiState.hidden(),
+                    imageDraftMessage = "已由端侧蓝心生成图片学习文本草稿，请检查并编辑后确认。" +
+                        if (cleaned.needsReview) " " + cleaned.reviewHint else "",
+                )
+            }
             is OnDeviceImageDraftResult.Unavailable -> ui.copy(
                 imageDraftActive = true,
                 imageDraftRunning = false,
@@ -979,14 +1483,16 @@ class AppViewModel(
             applyImageDraftResult(onDeviceResult ?: OnDeviceImageDraftResult.Unavailable("ROUTED_IMAGE_DRAFT_EMPTY"))
             return
         }
-        val text = draft.initialEditableText().trim()
+        val cleaned = OcrTextPostProcessor.clean(draft.initialEditableText().trim())
+        val text = cleaned.text
         val needsManualText = text.isBlank()
         ui = ui.copy(
             imageDraftActive = true,
             imageDraftRunning = false,
             imageDraftText = text,
             imageDraftManualMode = needsManualText,
-            imageDraftMessage = imageDraftStatusMessage(result.source, draft.ocrError),
+            imageDraftMessage = imageDraftStatusMessage(result.source, draft.ocrError) +
+                if (cleaned.needsReview) " " + OcrTextPostProcessor.REVIEW_HINT else "",
             imageStudyDraft = draft,
             imageDraftSource = result.source,
             imageDraftOcrError = draft.ocrError,
@@ -1033,11 +1539,11 @@ class AppViewModel(
     }
 
     private fun imageDraftStatusMessage(source: AiExecutionSource, ocrError: CaptureError?): String = when {
-        source == AiExecutionSource.CLOUD -> "官方 OCR 已生成可编辑文字；请确认后再生成知识地图。"
+        source == AiExecutionSource.CLOUD -> "官方 OCR 已生成可编辑文字；请检查识别结果，确认后再生成知识结构大纲。"
         source == AiExecutionSource.ON_DEVICE && ocrError == CaptureError.ConfigMissing ->
-            "官方 OCR 未配置时，可继续使用端侧蓝心草稿；请确认后再生成知识地图。"
-        source == AiExecutionSource.ON_DEVICE -> "官方 OCR 未成功，已保留端侧蓝心草稿；请确认后再生成知识地图。"
-        else -> "请手动补充图片中的学习内容；确认后再生成知识地图。"
+            "官方 OCR 未配置时，可继续使用端侧蓝心草稿；请检查识别结果，确认后再生成知识结构大纲。"
+        source == AiExecutionSource.ON_DEVICE -> "官方 OCR 未成功，已保留端侧蓝心草稿；请检查识别结果，确认后再生成知识结构大纲。"
+        else -> "请手动补充图片中的学习内容；确认后再生成知识结构大纲。"
     }
 
     fun updateImageDraftText(text: String) { ui = ui.copy(imageDraftText = text) }
@@ -1053,11 +1559,18 @@ class AppViewModel(
             return
         }
         val origin = ui.imageDraftOrigin ?: "图片学习输入"
-        val confirmed = ui.imageStudyDraft?.let { captureGateway.confirmImageDraft(it, text, ui.courseTitle.ifBlank { origin }) }
+        val draft = ui.imageStudyDraft
+        val confirmed = draft?.let { captureGateway.confirmImageDraft(it, text, ui.courseTitle.ifBlank { origin }) }
+        val now = System.currentTimeMillis()
+        val courseTitle = confirmed?.courseTitle?.takeIf { it.isNotBlank() } ?: ui.courseTitle.ifBlank { origin }
+        val courseText = confirmed?.courseText ?: text
+        val imageRef = ui.imageDraftImageRef.ifBlank { draft?.id?.let { "image_asset_$it" } ?: "image_asset_$now" }
+        val thumbnailRef = ui.imageDraftThumbnailRef.ifBlank { "thumbnail_$imageRef" }
+        val mimeType = ui.imageDraftMimeType.ifBlank { "image/jpeg" }
         ui = ui.copy(
-            courseTitle = confirmed?.courseTitle?.takeIf { it.isNotBlank() } ?: ui.courseTitle,
-            courseText = confirmed?.courseText ?: text,
-            importSourceType = ImportSourceType.PASTE_TEXT,
+            courseTitle = courseTitle,
+            courseText = courseText,
+            importSourceType = ImportSourceType.IMAGE_OCR,
             imageDraftActive = false,
             imageDraftRunning = false,
             imageDraftText = "",
@@ -1068,18 +1581,136 @@ class AppViewModel(
             imageStudyDraft = null,
             imageDraftSource = null,
             imageDraftOcrError = null,
+            imageDraftImageRef = "",
+            imageDraftThumbnailRef = "",
+            imageDraftMimeType = "",
+            imageDraftBatchId = "",
+            imageDraftBatchTotal = 0,
+            imageDraftBatchProcessed = 0,
             aiProcessing = AiProcessingUiState.hidden(),
-            toast = "已确认（$origin · 端侧多模态理解草稿），用户确认后进入学习资料，可生成知识时间线。",
         )
+        val input = currentLearningLoopInput(
+            now = now + 1,
+            text = courseText,
+            sourceType = L3SourceType.OCR_IMAGE,
+            title = courseTitle,
+            assets = listOf(
+                EvidenceAsset(
+                    id = "asset_image_$now",
+                    type = EvidenceAssetType.OCR_IMAGE,
+                    sourceType = L3SourceType.OCR_IMAGE,
+                    text = courseText,
+                    sourceLabel = origin,
+                    fileName = draft?.origin?.takeIf { it.isNotBlank() } ?: origin,
+                    fileExt = mimeType.substringAfterLast('/', "image"),
+                    mimeType = mimeType,
+                    localUri = imageRef,
+                    thumbnailRef = thumbnailRef,
+                    imageRef = imageRef,
+                    snippet = courseText.take(180),
+                    createdAt = now,
+                    status = "OCR_TEXT_CONFIRMED",
+                ),
+            ),
+            sourceLabel = origin,
+            providerProvenance = providerProvenanceFor(L3SourceType.OCR_IMAGE),
+        )
+        publishL3Snapshot(
+            l3Pipeline.buildFromLearningLoopInput(input, ui.providerConfigSummary, now + 1),
+            now + 1,
+            "已确认（$origin · 端侧多模态理解草稿），用户确认后进入学习资料，并已生成 L3 学习闭环。",
+        )
+    }
+
+    fun confirmImageOcrBatch(now: Long = System.currentTimeMillis()): Boolean {
+        val batchDrafts = ui.ocrImports.filter {
+            ui.imageDraftBatchId.isBlank() || it.batchId == ui.imageDraftBatchId
+        }
+        val merged = OcrImportAssembler.mergeByOrder(batchDrafts)
+        // For a real image batch, the per-image edited text (re-merged) is authoritative; the single merged
+        // field is only the fallback. For a single/non-batch draft, the editable field stays authoritative.
+        val text = if (batchDrafts.size > 1) {
+            merged.text.trim().ifBlank { ui.imageDraftText.trim() }
+        } else {
+            ui.imageDraftText.trim().ifBlank { merged.text.trim() }
+        }
+        if (merged.okDrafts.isEmpty() || text.isBlank()) {
+            ui = ui.copy(toast = "未识别到可用图片文字，请先手动补充或重新选择图片。")
+            return false
+        }
+        val origin = ui.imageDraftOrigin ?: "图片学习输入"
+        val title = ui.courseTitle.ifBlank { origin }
+        val assets = merged.okDrafts.map { draft ->
+            EvidenceAsset(
+                id = "asset_${draft.id}",
+                type = EvidenceAssetType.OCR_IMAGE,
+                sourceType = L3SourceType.OCR_IMAGE,
+                text = draft.pastedText,
+                sourceLabel = draft.fileMeta.safeDisplayLabel(),
+                fileName = draft.fileMeta.fileName,
+                fileExt = draft.fileMeta.fileName.substringAfterLast('.', "image"),
+                mimeType = draft.fileMeta.mimeType.orEmpty().ifBlank { "image/jpeg" },
+                localUri = draft.fileMeta.fileName,
+                thumbnailRef = draft.fileMeta.fileName,
+                imageRef = draft.fileMeta.fileName,
+                pageHint = draft.pageIndex?.let { "image $it" }.orEmpty(),
+                segmentHint = "image ${draft.pageIndex ?: 1}",
+                snippet = draft.pastedText.take(180),
+                createdAt = draft.createdAt,
+                status = "OCR_TEXT_CONFIRMED",
+            )
+        }
+        ui = ui.copy(
+            courseTitle = title,
+            courseText = text,
+            importSourceType = ImportSourceType.IMAGE_OCR,
+            ocrImports = emptyList(),
+            imageDraftActive = false,
+            imageDraftRunning = false,
+            imageDraftText = "",
+            imageDraftManualMode = false,
+            imageDraftMessage = null,
+            imageDraftOrigin = null,
+            imageDraftMeta = null,
+            imageStudyDraft = null,
+            imageDraftSource = null,
+            imageDraftOcrError = null,
+            imageDraftImageRef = "",
+            imageDraftThumbnailRef = "",
+            imageDraftMimeType = "",
+            imageDraftBatchId = "",
+            imageDraftBatchTotal = 0,
+            imageDraftBatchProcessed = 0,
+            aiProcessing = AiProcessingUiState.hidden(),
+        )
+        val input = currentLearningLoopInput(
+            now = now,
+            text = text,
+            sourceType = L3SourceType.OCR_IMAGE,
+            title = title,
+            assets = assets,
+            sourceLabel = origin,
+            providerProvenance = providerProvenanceFor(L3SourceType.OCR_IMAGE),
+        )
+        publishL3Snapshot(
+            l3Pipeline.buildFromLearningLoopInput(input, ui.providerConfigSummary, now),
+            now,
+            "已确认图片 OCR 批次，成功图片 ${merged.okDrafts.size} 张，失败 ${merged.failedDrafts.size} 张；已生成 L3 学习闭环。",
+        )
+        return true
     }
 
     /** Cancel the draft — nothing enters the course text or the knowledge base. */
     fun cancelImageDraft() {
+        val activeBatchId = ui.imageDraftBatchId
         ui = ui.copy(
+            ocrImports = if (activeBatchId.isBlank()) ui.ocrImports else ui.ocrImports.filterNot { it.batchId == activeBatchId },
             imageDraftActive = false, imageDraftRunning = false, imageDraftText = "",
             imageDraftManualMode = false, imageDraftMessage = null,
             imageDraftOrigin = null, imageDraftMeta = null,
             imageStudyDraft = null, imageDraftSource = null, imageDraftOcrError = null,
+            imageDraftImageRef = "", imageDraftThumbnailRef = "", imageDraftMimeType = "",
+            imageDraftBatchId = "", imageDraftBatchTotal = 0, imageDraftBatchProcessed = 0,
             aiProcessing = AiProcessingUiState.hidden(),
         )
     }
@@ -1124,7 +1755,8 @@ class AppViewModel(
         fileMetadata: SelectedLocalFileMetadata? = null,
         now: Long = System.currentTimeMillis(),
     ): Boolean {
-        val clean = pastedText.trim()
+        val cleanResult = OcrTextPostProcessor.clean(pastedText)
+        val clean = cleanResult.text.trim()
         if (clean.isBlank()) {
             ui = ui.copy(toast = "请先粘贴 OCR 识别文字。")
             return false
@@ -1142,6 +1774,8 @@ class AppViewModel(
                 pageIndex = ordinal,
             ),
             pastedText = clean,
+            status = OcrImportStatus.OK,
+            errorReason = if (cleanResult.needsReview) cleanResult.reviewHint else "",
             pageIndex = ordinal,
             blockIndex = ordinal,
             createdAt = now,
@@ -1149,15 +1783,35 @@ class AppViewModel(
         )
         ui = ui.copy(
             ocrImports = ui.ocrImports + draft,
-            toast = "已加入本节课资料：${OcrImportAssembler.sourceLabel(kind)}",
+            toast = if (cleanResult.needsReview) {
+                "已加入本节课资料，建议人工检查 OCR 识别结果。"
+            } else {
+                "已加入本节课资料：${OcrImportAssembler.sourceLabel(kind)}"
+            },
         )
         return true
     }
 
     fun updateOcrImportText(id: String, text: String, now: Long = System.currentTimeMillis()) {
+        val cleanResult = OcrTextPostProcessor.clean(text)
         ui = ui.copy(
             ocrImports = ui.ocrImports.map { draft ->
-                if (draft.id == id) draft.copy(pastedText = text, updatedAt = now) else draft
+                if (draft.id == id) {
+                    draft.copy(
+                        pastedText = cleanResult.text,
+                        status = if (cleanResult.text.isBlank()) OcrImportStatus.FAILED else OcrImportStatus.OK,
+                        errorReason = if (cleanResult.text.isBlank()) {
+                            "OCR 文本为空，请重新输入。"
+                        } else if (cleanResult.needsReview) {
+                            cleanResult.reviewHint
+                        } else {
+                            ""
+                        },
+                        updatedAt = now,
+                    )
+                } else {
+                    draft
+                }
             },
         )
     }
@@ -1238,7 +1892,7 @@ class AppViewModel(
                         importSourceType = if (artifact.kind == InputFileKind.MARKDOWN) ImportSourceType.MARKDOWN_FILE else ImportSourceType.TXT_FILE,
                         toast = artifact.message,
                     )
-                    true
+                    generateL3PipelineFromCurrentMaterial(now + 1)
                 }
             }
             else -> {
@@ -1277,7 +1931,34 @@ class AppViewModel(
             }.trim(),
             toast = "PDF page text added; it can now enter the L3 pipeline.",
         )
-        return true
+        val input = currentLearningLoopInput(
+            now = now + 1,
+            text = text,
+            sourceType = L3SourceType.DOCUMENT,
+            title = ui.courseTitle.ifBlank { "PDF page $pageNumber" },
+            assets = listOf(
+                EvidenceAsset(
+                    id = "asset_${updated.id}",
+                    type = EvidenceAssetType.DOCUMENT,
+                    sourceType = L3SourceType.DOCUMENT,
+                    text = text,
+                    sourceLabel = "PDF page $pageNumber",
+                    fileName = ui.inputArtifacts.firstOrNull { it.id == artifactId }?.fileName.orEmpty(),
+                    fileExt = "pdf",
+                    pageHint = "page $pageNumber",
+                    segmentHint = "manual page text",
+                    snippet = text.take(180),
+                    createdAt = now,
+                    status = updated.status.name,
+                ),
+            ),
+            sourceLabel = "PDF page $pageNumber",
+        )
+        return publishL3Snapshot(
+            l3Pipeline.buildFromLearningLoopInput(input, ui.providerConfigSummary, now + 1),
+            now + 1,
+            "PDF page text entered the learning loop.",
+        )
     }
 
     private fun createAsrLongJobForArtifact(artifactId: String, now: Long) {
@@ -1299,23 +1980,96 @@ class AppViewModel(
             ui = ui.copy(toast = "转写文本为空，无法回填课堂学习包。")
             return false
         }
-        val filled = AsrLongProductizationEngine.applyTranscript(job, transcriptText, "asr_source_$now", now)
+        val audioArtifact = ui.inputArtifacts.firstOrNull { it.id == job.audioArtifactId }
+        val glossary = TranscriptGlossaryExtractor.extract(
+            courseName = ui.courseTitle,
+            knowledgePoints = ui.l3Pipeline.knowledgePoints,
+            fileName = audioArtifact?.fileName ?: job.audioArtifactId,
+        )
+        val filled = AsrLongProductizationEngine.applyTranscript(
+            job = job,
+            transcript = transcriptText,
+            sourceId = "asr_source_$now",
+            now = now,
+            glossary = glossary,
+            dialectMode = ui.audioDialectMode,
+        )
+        val transcriptForLearning = filled.transcriptText.ifBlank { transcriptText.trim() }
         ui = ui.copy(
             asrLongJobs = ui.asrLongJobs.map { if (it.id == jobId) filled else it },
             asrLongStatus = L3AsrStatus.TRANSCRIPT_READY,
             courseTitle = ui.courseTitle.ifBlank { "课堂转写" },
             courseText = buildString {
                 if (ui.courseText.isNotBlank()) appendLine(ui.courseText.trim())
-                appendLine(transcriptText.trim())
+                appendLine(transcriptForLearning)
             }.trim(),
             toast = "ASR transcript filled; it can now enter the L3 learning package.",
         )
-        val snapshot = l3Pipeline.buildFromText(
-            title = ui.courseTitle.ifBlank { "课堂转写" },
-            text = transcriptText,
-            sourceType = L3SourceType.AUDIO_TRANSCRIPT,
-            providerSummary = ui.providerConfigSummary,
+        val sourceTitle = ui.courseTitle.ifBlank { "课堂转写" }
+        val segments = filled.transcriptSegments.ifEmpty {
+            listOf(
+                TranscriptSegment(
+                    segmentId = "seg_${job.id}_1",
+                    sourceId = "asr_source_$now",
+                    startMs = 0L,
+                    endMs = null,
+                    text = transcriptForLearning,
+                    sourceType = L3SourceType.AUDIO_TRANSCRIPT,
+                    fallbackGenerated = true,
+                    rawText = transcriptText.trim(),
+                    correctedText = transcriptForLearning,
+                    dialectMode = ui.audioDialectMode,
+                ),
+            )
+        }
+        val assets = segments.mapIndexed { index, segment ->
+            val segmentText = segment.correctedText.ifBlank { segment.text }
+            EvidenceAsset(
+                id = "asset_${job.id}_${segment.segmentId}",
+                type = EvidenceAssetType.AUDIO,
+                sourceType = L3SourceType.AUDIO_TRANSCRIPT,
+                text = segmentText,
+                sourceLabel = audioArtifact?.fileName ?: "ASR transcript",
+                fileName = audioArtifact?.fileName ?: job.audioArtifactId,
+                fileExt = (audioArtifact?.fileName ?: job.audioArtifactId).substringAfterLast('.', ""),
+                mimeType = ui.selectedImportFileMetadata?.mimeType.orEmpty(),
+                audioRef = audioArtifact?.id ?: job.audioArtifactId,
+                segmentHint = "segment ${index + 1}",
+                startMs = segment.startMs,
+                endMs = segment.endMs,
+                transcriptSegment = segmentText,
+                snippet = segmentText.take(180),
+                createdAt = now,
+                status = if (segment.lowConfidence) "TRANSCRIPT_READY_NEEDS_CONFIRMATION" else "TRANSCRIPT_READY",
+            )
+        }
+        val audioSessionArtifact = AudioSessionEngine.artifactFor(
+            id = job.audioArtifactId,
+            fileName = audioArtifact?.fileName ?: job.audioArtifactId,
+            audioRef = audioArtifact?.id ?: job.audioArtifactId,
+            durationMs = segments.lastOrNull()?.endMs ?: 1L,
+            createdAt = audioArtifact?.createdAt ?: now,
+            fileSizeBytes = audioArtifact?.sizeBytes ?: 0L,
+            mimeType = ui.selectedImportFileMetadata?.mimeType ?: "audio/mp4",
+            sourceLabel = audioArtifact?.fileName ?: "ASR transcript",
+        ).copy(
+            segmentCount = segments.size,
+            processingStatus = AudioSessionEngine.overallStatus(filled.chunks),
+        )
+        val input = currentLearningLoopInput(
             now = now + 1,
+            text = transcriptForLearning,
+            sourceType = L3SourceType.AUDIO_TRANSCRIPT,
+            title = sourceTitle,
+            assets = assets,
+            sourceLabel = audioArtifact?.fileName ?: "ASR transcript",
+            providerProvenance = providerProvenanceFor(L3SourceType.AUDIO_TRANSCRIPT),
+        )
+        val snapshot = l3Pipeline.buildFromLearningLoopInput(input, ui.providerConfigSummary, now + 1).copy(
+            asrJobs = listOf(filled),
+            audioArtifacts = listOf(audioSessionArtifact),
+            audioChunks = filled.chunks,
+            asrQualityEvaluations = listOfNotNull(filled.qualityEvaluation),
         )
         return publishL3Snapshot(snapshot, now + 1, "ASR transcript has entered the L3 learning package.")
     }
@@ -1407,9 +2161,28 @@ class AppViewModel(
             durationMs = (now - current.createdAt).coerceAtLeast(0L),
             status = if (artifact.success) L3RecordingStatus.SAVED else L3RecordingStatus.FAILED,
             artifactFileName = artifact.fileName ?: current.artifactFileName,
+            fileSizeBytes = artifact.fileSizeBytes,
             asrStatus = if (ui.providerConfigSummary.officialProviders.asrLongConfigured) L3AsrStatus.PENDING_ASR_CONFIG else L3AsrStatus.ASR_NOT_CONFIGURED,
             message = artifact.safeMessage,
         )
+        val usableAudioArtifact = artifact.success && recordingFileManager.isUsable(saved)
+        if (!usableAudioArtifact) {
+            if (artifact.success) recordingFileManager.deleteForRecords(listOf(saved))
+            val failedRecord = saved.copy(
+                status = L3RecordingStatus.FAILED,
+                fileSizeBytes = 0L,
+                message = if (artifact.success) "录音文件缺失或为空，已降级为手动转写。" else artifact.safeMessage,
+            )
+            // No real audio file landed on disk -> never fabricate an AUDIO artifact/evidence or ASR job.
+            // Keep the honest FAILED record and point the user to manual transcription.
+            ui = ui.copy(
+                currentRecording = null,
+                recordingRecords = ui.recordingRecords + failedRecord,
+                audioCaptureMessage = "录音未成功保存，请重试，或导入字幕/转写稿、粘贴课堂转写继续。",
+                toast = failedRecord.message,
+            )
+            return
+        }
         val audioArtifact = com.classmate.app.l3.InputArtifact(
             id = "audio_artifact_$now",
             fileName = saved.artifactFileName ?: "${saved.id}.m4a",
@@ -1430,6 +2203,81 @@ class AppViewModel(
         createAsrLongJobForArtifact(audioArtifact.id, now)
     }
 
+    fun cancelClassroomRecording(message: String = "录音已取消，未生成音频证据。") {
+        val current = ui.currentRecording
+        if (current == null || current.status != L3RecordingStatus.RECORDING) {
+            ui = ui.copy(toast = "当前没有正在进行的课堂录音。")
+            return
+        }
+        val artifact = classroomAudioRecorder.cancel()
+        val canceled = current.copy(
+            status = L3RecordingStatus.FAILED,
+            artifactFileName = artifact.fileName ?: current.artifactFileName,
+            fileSizeBytes = 0L,
+            message = message,
+        )
+        recordingFileManager.deleteForRecords(listOf(canceled))
+        ui = ui.copy(
+            currentRecording = null,
+            audioCaptureMessage = message,
+            toast = message,
+        )
+    }
+
+    /** Drop a recording record from state and remove the app-private audio file when present. */
+    fun removeRecordingRecord(recordId: String, message: String = "录音已删除。") {
+        ui.recordingRecords.firstOrNull { it.id == recordId }?.let { recordingFileManager.deleteForRecords(listOf(it)) }
+        ui = ui.copy(
+            recordingRecords = ui.recordingRecords.filterNot { it.id == recordId },
+            currentRecording = ui.currentRecording?.takeUnless { it.id == recordId },
+            toast = message,
+        )
+    }
+
+    // --- P0-1: inline "record + live transcribe" — recording file AND live speech-to-text together ---
+
+    /**
+     * Start classroom recording AND live speech-to-text in one action. The recording produces the AUDIO
+     * file; the live transcript (official ASR when configured, else the system SpeechRecognizer) shows
+     * partial/final text inline. Returns the [AsrState] so the screen knows whether the recognizer is
+     * listening or fell back (UNSUPPORTED / PERMISSION_REQUIRED) — the recording still proceeds either way.
+     */
+    fun startRecordingWithTranscription(
+        asrAvailable: Boolean,
+        permissionGranted: Boolean,
+        now: Long = System.currentTimeMillis(),
+    ): AsrState {
+        startClassroomRecording(now)
+        return asrBegin(asrAvailable, permissionGranted, now)
+    }
+
+    /**
+     * Stop both. The AUDIO evidence is kept ONLY when a real non-empty file landed on disk; the live
+     * transcript is committed as a SEPARATE text evidence (system speech recognition) only when something
+     * was actually recognized — a recording with no transcript never fabricates one.
+     */
+    fun stopRecordingWithTranscription(now: Long = System.currentTimeMillis()) {
+        val hadTranscript = ui.asrSession.segments.any { it.text.isNotBlank() }
+        // P0-2: when system speech recognition was unavailable, the recording still saved — say so honestly
+        // ("转写暂不可用"), never fabricate a transcript and never imply transcription succeeded.
+        val asrUnavailable = ui.asrSession.state in setOf(AsrState.UNSUPPORTED, AsrState.PERMISSION_REQUIRED, AsrState.ERROR)
+        stopAsr() // folds confirmed ASR segments into ui.transcripts (LIVE_ASR transcript evidence)
+        stopClassroomRecording(now) // AUDIO evidence only when a real file is present
+        ui = ui.copy(
+            audioCaptureMessage = when {
+                hadTranscript -> "录音已保存，实时转写已生成文本，可继续整理或生成学习闭环。"
+                asrUnavailable -> "录音已保存，转写暂不可用（当前设备未提供系统语音识别）。可稍后使用官方长语音转写，或手动粘贴转写文本。"
+                else -> ui.audioCaptureMessage
+            },
+        )
+    }
+
+    /** Cancel both: no AUDIO evidence, no transcript evidence, live text dropped. */
+    fun cancelRecordingWithTranscription() {
+        ui = ui.copy(asrSession = AsrSession())
+        cancelClassroomRecording("录音已取消，未生成音频或转写证据。")
+    }
+
     fun showImportPlaceholder(sourceType: ImportSourceType) {
         ui = ui.copy(toast = ImportHub.placeholderMessage(sourceType))
     }
@@ -1437,7 +2285,7 @@ class AppViewModel(
     private fun l3MaterialText(): String =
         buildString {
             if (ui.courseText.isNotBlank()) appendLine(ui.courseText.trim())
-            ui.ocrImports.filter { it.pastedText.isNotBlank() }.forEach { appendLine(it.pastedText.trim()) }
+            ui.ocrImports.filter { it.status == OcrImportStatus.OK && it.pastedText.isNotBlank() }.forEach { appendLine(it.pastedText.trim()) }
             ui.transcripts.forEach { transcript ->
                 transcript.segments.filter { it.text.isNotBlank() }.forEach { appendLine(it.text.trim()) }
             }
@@ -1451,24 +2299,200 @@ class AppViewModel(
                 L3SourceType.MANUAL_TRANSCRIPT
             }
         }
-        ui.ocrImports.any { it.pastedText.isNotBlank() } -> L3SourceType.OCR_IMAGE
+        ui.ocrImports.any { it.status == OcrImportStatus.OK && it.pastedText.isNotBlank() } -> L3SourceType.OCR_IMAGE
+        ui.importSourceType == ImportSourceType.IMAGE_OCR -> L3SourceType.OCR_IMAGE
+        ui.inputArtifacts.lastOrNull { it.extractedText.isNotBlank() }?.kind in setOf(
+            InputFileKind.TXT,
+            InputFileKind.MARKDOWN,
+            InputFileKind.DOCX,
+            InputFileKind.PPTX,
+            InputFileKind.PDF,
+        ) -> L3SourceType.DOCUMENT
         else -> L3SourceType.TEXT
     }
 
+    private fun currentLearningLoopInput(
+        now: Long,
+        text: String = l3MaterialText(),
+        sourceType: L3SourceType = currentL3SourceType(),
+        title: String = ui.courseTitle.ifBlank { "L3 learning material" },
+        assets: List<EvidenceAsset> = currentEvidenceAssets(now, text, sourceType),
+        sourceLabel: String = sourceLabelFor(sourceType),
+        providerProvenance: String = providerProvenanceFor(sourceType),
+    ): LearningLoopInput =
+        LearningLoopInput(
+            id = "loop_input_$now",
+            title = title,
+            kind = learningInputKind(sourceType),
+            sourceType = sourceType,
+            text = text,
+            evidenceAssets = assets,
+            sourceLabel = sourceLabel,
+            providerProvenance = providerProvenance,
+        )
+
+    private fun currentEvidenceAssets(now: Long, text: String, sourceType: L3SourceType): List<EvidenceAsset> {
+        val transcriptAssets = ui.transcripts.flatMap { transcript ->
+            transcript.segments.filter { it.text.isNotBlank() }.mapIndexed { index, segment ->
+                EvidenceAsset(
+                    id = "asset_${transcript.id}_${segment.id}",
+                    type = EvidenceAssetType.AUDIO,
+                    sourceType = if (transcript.sourceType == TranscriptSourceType.AUDIO_TRANSCRIPT || transcript.sourceType == TranscriptSourceType.LIVE_ASR) {
+                        L3SourceType.AUDIO_TRANSCRIPT
+                    } else {
+                        L3SourceType.MANUAL_TRANSCRIPT
+                    },
+                    text = segment.text,
+                    sourceLabel = transcript.displayLabel(),
+                    fileName = transcript.fileName.orEmpty(),
+                    fileExt = transcript.fileName.orEmpty().substringAfterLast('.', ""),
+                    mimeType = transcript.mimeType.orEmpty(),
+                    audioRef = transcript.fileName.orEmpty(),
+                    segmentHint = "segment ${index + 1}",
+                    startMs = segment.startMs,
+                    endMs = segment.endMs,
+                    transcriptSegment = segment.text,
+                    snippet = segment.text.take(180),
+                    createdAt = transcript.createdAt.takeIf { it > 0L } ?: now,
+                    status = if (transcript.sourceType == TranscriptSourceType.AUDIO_TRANSCRIPT || transcript.sourceType == TranscriptSourceType.LIVE_ASR) {
+                        "TRANSCRIPT_READY"
+                    } else {
+                        "MANUAL_TRANSCRIPT_FALLBACK"
+                    },
+                )
+            }
+        }
+        if (transcriptAssets.isNotEmpty()) return transcriptAssets
+
+        val ocrAssets = ui.ocrImports.filter { it.status == OcrImportStatus.OK && it.pastedText.isNotBlank() }.map { draft ->
+            EvidenceAsset(
+                id = "asset_${draft.id}",
+                type = EvidenceAssetType.OCR_IMAGE,
+                sourceType = L3SourceType.OCR_IMAGE,
+                text = draft.pastedText,
+                sourceLabel = draft.fileMeta.safeDisplayLabel(),
+                fileName = draft.fileMeta.fileName,
+                fileExt = draft.fileMeta.fileName.substringAfterLast('.', ""),
+                mimeType = draft.fileMeta.mimeType.orEmpty(),
+                imageRef = draft.fileMeta.fileName,
+                thumbnailRef = draft.fileMeta.safeSummary(),
+                pageHint = draft.pageIndex?.let { "page $it" }.orEmpty(),
+                snippet = draft.pastedText.take(180),
+                createdAt = draft.createdAt,
+                status = "OCR_TEXT_CONFIRMED",
+            )
+        }
+        if (ocrAssets.isNotEmpty()) return ocrAssets
+
+        val artifact = ui.inputArtifacts.lastOrNull {
+            it.extractedText.isNotBlank() || it.kind == InputFileKind.PDF || it.kind == InputFileKind.AUDIO
+        }
+        if (artifact != null) {
+            return listOf(
+                EvidenceAsset(
+                    id = "asset_${artifact.id}",
+                    type = when (artifact.kind) {
+                        InputFileKind.IMAGE -> EvidenceAssetType.OCR_IMAGE
+                        InputFileKind.AUDIO, InputFileKind.VIDEO -> EvidenceAssetType.AUDIO
+                        else -> EvidenceAssetType.DOCUMENT
+                    },
+                    sourceType = sourceType,
+                    text = artifact.extractedText.ifBlank { text.take(240) },
+                    sourceLabel = artifact.fileName,
+                    fileName = artifact.fileName,
+                    fileExt = artifact.fileName.substringAfterLast('.', ""),
+                    mimeType = ui.selectedImportFileMetadata?.mimeType.orEmpty(),
+                    localUri = artifact.id,
+                    imageRef = if (artifact.kind == InputFileKind.IMAGE) artifact.fileName else "",
+                    audioRef = if (artifact.kind == InputFileKind.AUDIO) artifact.fileName else "",
+                    pageHint = ui.pdfPages.lastOrNull { it.artifactId == artifact.id }?.pageNumber?.let { "page $it" }.orEmpty(),
+                    segmentHint = if (artifact.kind == InputFileKind.PPTX) "slide text" else artifact.status.name,
+                    transcriptSegment = if (artifact.kind == InputFileKind.AUDIO) artifact.extractedText.ifBlank { text.take(180) } else "",
+                    snippet = artifact.extractedText.ifBlank { text }.take(180),
+                    createdAt = artifact.createdAt,
+                    status = artifact.status.name,
+                ),
+            )
+        }
+
+        return listOf(
+            EvidenceAsset(
+                id = "asset_text_$now",
+                type = when (sourceType) {
+                    L3SourceType.OCR_IMAGE -> EvidenceAssetType.OCR_IMAGE
+                    L3SourceType.DOCUMENT -> EvidenceAssetType.DOCUMENT
+                    L3SourceType.AUDIO_TRANSCRIPT,
+                    L3SourceType.MANUAL_TRANSCRIPT,
+                    L3SourceType.RECORDING_ARTIFACT -> EvidenceAssetType.AUDIO
+                    L3SourceType.WEB -> EvidenceAssetType.WEB
+                    else -> EvidenceAssetType.TEXT
+                },
+                sourceType = sourceType,
+                text = text.take(240),
+                sourceLabel = sourceLabelFor(sourceType),
+                transcriptSegment = if (sourceType == L3SourceType.AUDIO_TRANSCRIPT || sourceType == L3SourceType.MANUAL_TRANSCRIPT) text.take(240) else "",
+                snippet = text.take(180),
+                createdAt = now,
+                status = "TEXT_READY",
+            ),
+        )
+    }
+
+    private fun learningInputKind(sourceType: L3SourceType): LearningLoopInputKind = when (sourceType) {
+        L3SourceType.OCR_IMAGE -> LearningLoopInputKind.OCR_IMAGE
+        L3SourceType.DOCUMENT -> LearningLoopInputKind.DOCUMENT
+        L3SourceType.AUDIO_TRANSCRIPT -> LearningLoopInputKind.AUDIO_TRANSCRIPT
+        L3SourceType.MANUAL_TRANSCRIPT -> LearningLoopInputKind.MANUAL_TRANSCRIPT
+        L3SourceType.QUESTION_BANK -> LearningLoopInputKind.QUESTION_BANK
+        L3SourceType.WEB -> LearningLoopInputKind.WEB
+        L3SourceType.RECORDING_ARTIFACT -> LearningLoopInputKind.AUDIO_TRANSCRIPT
+        L3SourceType.TEXT -> if (ui.importSourceType == ImportSourceType.MARKDOWN_FILE) LearningLoopInputKind.MARKDOWN else LearningLoopInputKind.TEXT
+    }
+
+    private fun sourceLabelFor(sourceType: L3SourceType): String = when (sourceType) {
+        L3SourceType.TEXT -> "pasted text"
+        L3SourceType.OCR_IMAGE -> "OCR image"
+        L3SourceType.DOCUMENT -> "document"
+        L3SourceType.AUDIO_TRANSCRIPT -> "audio transcript"
+        L3SourceType.MANUAL_TRANSCRIPT -> "manual transcript"
+        L3SourceType.RECORDING_ARTIFACT -> "recording artifact"
+        L3SourceType.QUESTION_BANK -> "question bank"
+        L3SourceType.WEB -> "web source"
+    }
+
+    private fun providerProvenanceFor(sourceType: L3SourceType): String = when (sourceType) {
+        L3SourceType.OCR_IMAGE -> "OCR:${ui.providerConfigSummary.officialProviders.ocrConfigured}"
+        L3SourceType.AUDIO_TRANSCRIPT, L3SourceType.MANUAL_TRANSCRIPT, L3SourceType.RECORDING_ARTIFACT -> "ASR:${ui.asrLongStatus.name}"
+        L3SourceType.DOCUMENT -> ui.inputArtifacts.lastOrNull()?.status?.name.orEmpty()
+        else -> ""
+    }
+
     private fun publishL3Snapshot(snapshot: L3PipelineSnapshot, now: Long, toast: String): Boolean {
+        val publishSnapshot = snapshot.lessonSource?.let { source ->
+            if (snapshot.evidenceAssets.isNotEmpty()) {
+                snapshot
+            } else {
+                l3Pipeline.attachEvidenceAssets(
+                    snapshot = snapshot,
+                    assets = currentEvidenceAssets(now, source.rawText, source.type),
+                    sourceLabel = sourceLabelFor(source.type),
+                    providerProvenance = providerProvenanceFor(source.type),
+                )
+            }
+        } ?: snapshot
         val inputType = when {
-            snapshot.lessonSource?.type == L3SourceType.OCR_IMAGE -> ToolInputType.IMAGE
-            snapshot.lessonSource?.type == L3SourceType.QUESTION_BANK -> ToolInputType.QUESTION_BANK
+            publishSnapshot.lessonSource?.type == L3SourceType.OCR_IMAGE -> ToolInputType.IMAGE
+            publishSnapshot.lessonSource?.type == L3SourceType.QUESTION_BANK -> ToolInputType.QUESTION_BANK
             ui.pdfPages.isNotEmpty() -> ToolInputType.PDF
-            ui.asrLongJobs.isNotEmpty() || snapshot.transcriptSegments.isNotEmpty() -> ToolInputType.AUDIO
+            ui.asrLongJobs.isNotEmpty() || publishSnapshot.transcriptSegments.isNotEmpty() -> ToolInputType.AUDIO
             else -> ToolInputType.TEXT
         }
-        val toolPlan = L3OfficialToolSeams.orchestrate("L3 learning package", snapshot, ui.providerConfigSummary, now)
+        val toolPlan = L3OfficialToolSeams.orchestrate("L3 learning package", publishSnapshot, ui.providerConfigSummary, now)
         val toolSteps = toolPlan.stepRecords.ifEmpty {
-            ToolOrchestratorProductizationEngine.stepRecords(inputType, snapshot, ui.providerConfigSummary, now)
+            ToolOrchestratorProductizationEngine.stepRecords(inputType, publishSnapshot, ui.providerConfigSummary, now)
         }
-        val localSemanticRecords = LocalSemanticIndexEngine.records(snapshot, ui.providerConfigSummary, now)
-        val baseSnapshot = snapshot.copy(
+        val localSemanticRecords = LocalSemanticIndexEngine.records(publishSnapshot, ui.providerConfigSummary, now)
+        val baseSnapshot = publishSnapshot.copy(
             inputArtifacts = ui.inputArtifacts,
             inputReports = ui.importReports,
             pdfDocuments = ui.pdfDocuments,
@@ -1479,7 +2503,7 @@ class AppViewModel(
             semanticIndexRecords = localSemanticRecords,
             translationResults = ui.l3TranslationResults,
             ttsPlaybackStates = listOfNotNull(ui.l3TtsPlaybackState),
-            reviewDailyStats = ReviewStatsEngine.daily(snapshot, now),
+            reviewDailyStats = ReviewStatsEngine.daily(publishSnapshot, now),
         )
         val runtimeSnapshot = OfficialRuntimeIntegrator.enrich(
             snapshot = baseSnapshot,
@@ -1495,14 +2519,39 @@ class AppViewModel(
         val searchQuery = runtimeSnapshot.semanticSearchResults.firstOrNull()?.query
             ?: runtimeSnapshot.knowledgePoints.firstOrNull()?.title
             ?: runtimeSnapshot.summary
-        val enrichedSnapshot = runtimeSnapshot.copy(
+        val enrichedBase = runtimeSnapshot.copy(
             semanticIndexRecords = reloadedSemanticRecords,
             semanticSearchResults = if (searchQuery.isBlank()) emptyList() else listOf(LocalSemanticIndexEngine.search(reloadedSemanticRecords, searchQuery)),
             reviewDailyStats = ReviewStatsEngine.daily(runtimeSnapshot, now),
         )
+        val guardedBase = enrichedBase.copy(
+            safetyGuardResults = SafetyGuardEngine.results(enrichedBase, now),
+            deviceReadinessResults = DeviceReadinessEngine.results(ui.providerConfigSummary, now),
+        )
+        val plan = LearningLoopCapabilityOrchestrator.plan(
+            inputKind = learningInputKind(guardedBase.lessonSource?.type ?: L3SourceType.TEXT),
+            sourceType = guardedBase.lessonSource?.type ?: L3SourceType.TEXT,
+            snapshot = guardedBase,
+            summary = ui.providerConfigSummary,
+            now = now,
+            dialectMode = ui.audioDialectMode,
+            enableExperimentalImageGeneration = ui.enableExperimentalImageGeneration,
+            enableExperimentalVideoGeneration = ui.enableExperimentalVideoGeneration,
+            enableExperimentalSimultaneousInterpretation = ui.enableExperimentalSimultaneousInterpretation,
+        )
+        val withCapabilityLayer = guardedBase.copy(
+            capabilityPlans = (guardedBase.capabilityPlans + plan).takeLast(5),
+            officialCapabilityContributions = OfficialCapabilityRegistry.officialMatrix(guardedBase, ui.providerConfigSummary),
+            qualityWarnings = LearningLoopCapabilityOrchestrator.qualityWarnings(guardedBase),
+        )
+        val enrichedSnapshot = withCapabilityLayer.copy(
+            learningDiagnosis = LearningDiagnosisEngine.build(withCapabilityLayer, now),
+        )
         val artifacts = l3Pipeline.toCourseArtifacts(enrichedSnapshot, now)
         if (artifacts == null) {
-            ui = ui.copy(l3Pipeline = enrichedSnapshot, toast = "L3 资料不足，未生成完整闭环。")
+            // P0-4: honest "insufficient material" — never a silent no-quiz; the user is told to add material
+            // or edit the OCR text rather than left wondering why there are no 微测.
+            ui = ui.copy(l3Pipeline = enrichedSnapshot, toast = "资料不足，暂不能生成微测，请补充资料或手动编辑 OCR 文本后重试。")
             persistL3(enrichedSnapshot)
             return false
         }
@@ -1542,7 +2591,9 @@ class AppViewModel(
         )
         persistHistory(updatedHistory)
         persistL3(enrichedSnapshot)
-        navigateTo(Screen.COURSE_DETAIL)
+        // Replace the loading screen so system back from the course never returns to the analyze/loading
+        // screen (P0-1). From any other entry, just push the course.
+        if (currentScreen == Screen.ANALYZE) navigateReplacing(Screen.COURSE_DETAIL) else navigateTo(Screen.COURSE_DETAIL)
         return true
     }
 
@@ -1718,12 +2769,13 @@ class AppViewModel(
      */
     fun asrBegin(available: Boolean, permissionGranted: Boolean, now: Long = System.currentTimeMillis()): AsrState {
         val next = AsrSessionController.begin(ui.asrSession, available, permissionGranted, now)
+        // Honest, actionable next-step wording from the testable readiness helper.
+        val readiness = SpeechRecognitionReadiness(recordAudioGranted = permissionGranted, recognizerAvailable = available)
         ui = ui.copy(
             asrSession = next,
             toast = when (next.state) {
-                AsrState.UNSUPPORTED -> "本设备不支持系统语音识别，请使用手动转写或导入字幕。"
-                AsrState.PERMISSION_REQUIRED -> "未授权麦克风，仍可手动记录或导入转写稿。"
-                AsrState.LISTENING -> "实时转写实验已开始（使用系统语音识别，不保存原始音频）。"
+                AsrState.UNSUPPORTED, AsrState.PERMISSION_REQUIRED -> readiness.userGuidance()
+                AsrState.LISTENING -> "实时转写已开始（系统语音识别，不保存原始音频）。"
                 else -> ui.toast
             },
         )
@@ -1809,7 +2861,7 @@ class AppViewModel(
         val hasManualSession = ui.liveTranscript != null
         if (hasManualSession) endLiveClass() // flushes the pending draft, ends the session, fills courseText
         val hasTranscript = ui.transcripts.any { t -> t.segments.any { it.text.isNotBlank() } }
-        val hasContent = ui.courseText.isNotBlank() || hasTranscript || ui.ocrImports.any { it.pastedText.isNotBlank() }
+        val hasContent = ui.courseText.isNotBlank() || hasTranscript || ui.ocrImports.any { it.status == OcrImportStatus.OK && it.pastedText.isNotBlank() }
         if (!hasContent) {
             ui = ui.copy(toast = "还没有任何课堂片段或转写，无法生成时间线。")
             return
@@ -1954,6 +3006,18 @@ class AppViewModel(
     }
 
     /** Parse the pasted/loaded transcript text into an editable [TranscriptDraft]; warnings, no crash. */
+    /** P0-3: feed a video's REAL embedded subtitle track (from VideoSubtitleExtractor) through the parser. */
+    fun importVideoEmbeddedSubtitle(rawSubtitle: String, now: Long = System.currentTimeMillis()): Boolean {
+        if (rawSubtitle.isBlank()) {
+            ui = ui.copy(toast = "未检测到可提取的内嵌字幕，请导入字幕文件或粘贴转写文本。")
+            return false
+        }
+        ui = ui.copy(transcriptPasteDraft = rawSubtitle, transcriptSourceType = TranscriptParser.autoDetect(rawSubtitle))
+        val ok = parseTranscript(now)
+        if (ok) ui = ui.copy(toast = "已从视频内嵌字幕轨提取并解析字幕，可编辑确认。")
+        return ok
+    }
+
     fun parseTranscript(now: Long = System.currentTimeMillis()): Boolean {
         val raw = ui.transcriptPasteDraft
         if (raw.isBlank()) {
@@ -2032,12 +3096,12 @@ class AppViewModel(
         updateDraftSegments { segs -> segs + TranscriptSegmentDraft(id = "seg_new_$now", text = "") }
 
     /** Commit the working draft into the material tray; it then fuses into analysis like any source. */
-    fun saveTranscriptToTray() {
-        val draft = ui.transcriptDraft ?: return
+    fun saveTranscriptToTray(): Boolean {
+        val draft = ui.transcriptDraft ?: return false
         val usable = draft.copy(segments = draft.segments.filter { it.text.isNotBlank() })
         if (usable.segments.isEmpty()) {
             ui = ui.copy(toast = "转写稿为空，未加入资料篮。")
-            return
+            return false
         }
         val others = ui.transcripts.filterNot { it.id == usable.id }
         ui = ui.copy(
@@ -2053,6 +3117,14 @@ class AppViewModel(
             },
             toast = "已加入资料篮：${com.classmate.core.transcript.TranscriptLabels.of(usable.sourceType)} · ${usable.segments.size} 段",
         )
+        return true
+    }
+
+    fun saveTranscriptToTrayAndGenerateLearningLoop(now: Long = System.currentTimeMillis()): Boolean {
+        if (!saveTranscriptToTray()) return false
+        val generated = generateL3PipelineFromCurrentMaterial(now + 1)
+        if (generated) navigateTo(Screen.COURSE_DETAIL)
+        return generated
     }
 
     fun removeTranscript(id: String) {
@@ -2069,9 +3141,12 @@ class AppViewModel(
         clock.trim().takeIf { it.isNotBlank() }?.let { com.classmate.core.transcript.TranscriptClock.parseMs(it) }
 
     // --- analysis ---
+    // The in-flight analysis coroutine, so a long cloud wait can be cancelled to switch to local rule.
+    private var analysisJob: Job? = null
+
     fun startAnalysis() {
         val text = ui.courseText
-        val hasOcrText = ui.ocrImports.any { it.pastedText.isNotBlank() }
+        val hasOcrText = ui.ocrImports.any { it.status == OcrImportStatus.OK && it.pastedText.isNotBlank() }
         val hasTranscript = ui.transcripts.any { t -> t.segments.any { it.text.isNotBlank() } }
         if (text.isBlank() && !hasOcrText && !hasTranscript) {
             ui = ui.copy(toast = "请先粘贴课堂文本，或加入 OCR / 转写稿资料。")
@@ -2098,11 +3173,28 @@ class AppViewModel(
                 now = now,
             )
         }
-        val glossaryHint = LessonContextHints.glossaryHint(
-            subject = ui.selectedSubject,
-            terms = CourseGlossary.termsFor(ui.selectedSubject).map { it.term },
+        // Detect the course domain from the ACTUAL material (not just the picker default) so the prompt
+        // hint carries the right vocabulary — mechanical content no longer gets 大学物理 terms — and build
+        // a dynamic glossary for ANY subject, merged with the selected built-in starter pack.
+        val bodyText = bundle.plainText()
+        val domainResult = CourseDomainDetector.detect(
+            title = title,
+            manualCourseName = ui.selectedSubject,
+            documentText = bodyText,
         )
-        val analyzerText = listOf(glossaryHint, bundle.plainText()).filter { it.isNotBlank() }.joinToString("\n\n")
+        val dynamicTerms = DynamicGlossaryExtractor.extract(
+            domain = domainResult.displayName,
+            sources = listOf(GlossarySource("import_material", bodyText)),
+            seedTerms = CourseDomainDetector.seedTermsFor(domainResult.domain),
+            max = LessonContextHints.MAX_TERMS,
+        ).map { it.term }
+        val builtinTerms = CourseGlossary.termsFor(ui.selectedSubject).map { it.term }
+        val hintSubject = if (!domainResult.requiresUserConfirmation) domainResult.displayName else ui.selectedSubject
+        val glossaryHint = LessonContextHints.glossaryHint(
+            subject = hintSubject,
+            terms = (dynamicTerms + builtinTerms).distinct(),
+        )
+        val analyzerText = listOf(glossaryHint, bodyText).filter { it.isNotBlank() }.joinToString("\n\n")
         val materialSummary = LessonMaterialAssembler.summarize(bundle)
 
         val session = if (isSample) {
@@ -2117,11 +3209,39 @@ class AppViewModel(
             )
         }
 
+        val intensity = ui.analysisIntensity
+        // Content-aware time estimate (P0-4): scales with text length, image / OCR count and cloud-vs-local
+        // — replaces the old fixed "60～90 秒" hint. Computed from the ACTUAL assembled material.
+        val analysisEstimate = AnalysisTimeEstimator.estimate(
+            AnalysisEstimateInput(
+                chineseChars = bodyText.count { it.code in 0x4E00..0x9FFF },
+                englishWords = Regex("[A-Za-z]+").findAll(bodyText).count(),
+                imageCount = ui.ocrImports.count { it.status == OcrImportStatus.OK },
+                ocrBatches = if (ui.ocrImports.any { it.status == OcrImportStatus.OK }) 1 else 0,
+                usesCloudModel = hasConfiguredCloudModel(),
+                hasAudioOrSubtitle = hasTranscript,
+                localFallback = !hasConfiguredCloudModel(),
+                intensity = intensity,
+            ),
+        )
+        // Honest long-text record: the FULL original stays as Evidence (session segments); this only
+        // documents the prompt view. analyzedLength >= originalLength because nothing is truncated.
+        val longTextInfo = LongTextAnalysisInfo(
+            originalLength = bodyText.length,
+            analyzedLength = analyzerText.length,
+            chunkCount = session.segments.size,
+            strategy = if (session.segments.size > 1) "按段落切分（原文完整保留为证据）" else "整篇分析",
+        )
+
         ui = ui.copy(
             session = session,
             lastMaterialSummary = materialSummary,
             analysisStatus = AnalysisStatus.RUNNING,
             analysisStageIndex = 0,
+            analysisElapsedMs = 0L,
+            analysisSlowNotice = false,
+            analysisEstimateText = analysisEstimate.displayText,
+            longTextInfo = longTextInfo,
             result = null,
             reviewPlan = null,
             answers = emptyMap(),
@@ -2129,36 +3249,78 @@ class AppViewModel(
             currentQuestionIndex = 0,
             feedbackEvents = emptyList(),
             analysisError = null,
+            detectedDomainLabel = domainResult.displayName,
+            detectedDomainConfidence = domainResult.confidence,
+            detectedDomainNeedsConfirm = domainResult.requiresUserConfirmation,
         )
         navigateTo(Screen.ANALYZE)
 
-        viewModelScope.launch {
-            // The real pipeline runs off the main thread. For the bundled sample we show the
-            // curated, evidence-bound analysis (clearly labelled demo data); for pasted text we
-            // run the resolver, which falls back to the local heuristic when BlueLM is absent.
-            val cloudOutcome: AnalysisOutcome = withContext(Dispatchers.Default) {
-                if (isSample) {
-                    AnalysisOutcome.Success(
-                        result = SampleCourses.seriesAnalysis(now),
-                        report = com.classmate.core.validation.ValidationReport.PASS,
-                        logs = listOf(RedactedLogEntry("BLUELM", "OK", 0, "PASS", false, null)),
+        analysisJob = viewModelScope.launch {
+            // Live elapsed-time ticker — the analyze page must never look frozen during a slow cloud
+            // READ. It also flips the "深度分析耗时较长" notice once past the intensity threshold.
+            val started = System.currentTimeMillis()
+            val ticker = launch {
+                while (isActive) {
+                    delay(1_000)
+                    val elapsed = System.currentTimeMillis() - started
+                    ui = ui.copy(
+                        analysisElapsedMs = elapsed,
+                        analysisSlowNotice = ui.analysisSlowNotice || elapsed >= intensity.slowNoticeThresholdMs,
                     )
-                } else {
-                    analyzer().analyze(AnalysisRequest(session))
                 }
             }
+            // The real pipeline runs off the main thread. For the bundled sample we show the
+            // curated, evidence-bound analysis (clearly labelled demo data); for pasted text we
+            // run the resolver, which falls back to the local heuristic when BlueLM is absent. The
+            // intensity drives the cloud profile, read timeout, retry budget, and KP/quiz count.
+            val cloudOutcome: AnalysisOutcome = try {
+                withContext(Dispatchers.Default) {
+                    if (isSample) {
+                        AnalysisOutcome.Success(
+                            result = SampleCourses.seriesAnalysis(now),
+                            report = com.classmate.core.validation.ValidationReport.PASS,
+                            logs = listOf(RedactedLogEntry("BLUELM", "OK", 0, "PASS", false, null)),
+                        )
+                    } else {
+                        analyzer().analyze(
+                            AnalysisRequest(
+                                session = session,
+                                maxKnowledgePoints = intensity.maxKnowledgePoints,
+                                questionsPerKnowledgePoint = intensity.questionsPerKnowledgePoint,
+                                intensity = intensity,
+                            ),
+                        )
+                    }
+                }
+            } finally {
+                ticker.cancel()
+            }
+            val totalElapsedMs = System.currentTimeMillis() - started
+            val cloudSucceededSlowly = !isSample &&
+                cloudOutcome is AnalysisOutcome.Success &&
+                totalElapsedMs >= intensity.slowNoticeThresholdMs
             // Cloud success → use it. Cloud failed (or cloud-only chain produced nothing) → try the
             // on-device BlueLM 3B structured-analysis seam, which must pass the SAME validators to land.
             val cloudStatus = if (isSample) "OK" else (cloudOutcome as? AnalysisOutcome.Failure)?.lastError?.shortCode ?: "OK"
             val onDeviceAttempted = cloudOutcome !is AnalysisOutcome.Success
             val fallback = if (cloudOutcome is AnalysisOutcome.Success) null
             else onDeviceAnalysisFallback(session, cloudOutcome as AnalysisOutcome.Failure)
-            val outcome = fallback?.first ?: cloudOutcome
             val onDeviceReason = fallback?.second
             val onDeviceDiag = fallback?.third
-            // P0: the unified AiCapabilityRouter is the single authority for the CourseAnalysis route
-            // decision (CLOUD → ON_DEVICE → SAFE_PLACEHOLDER). It drives the user-visible source label;
-            // the validated outcome above is produced exactly as before (validators never relaxed).
+            val baseOutcome = fallback?.first ?: cloudOutcome
+            // Task 1 — terminal fallback: cloud + on-device both failed but we HAVE usable input → generate
+            // a REAL local baseline (本地基础整理) instead of dropping to an empty 安全占位. 安全占位 is reserved
+            // for empty input / safety-blocked / local-also-failed / hard error.
+            val hasUsableInput = !isSample && session.segments.any { it.text.isNotBlank() }
+            val localFallback = if (baseOutcome is AnalysisOutcome.Failure && hasUsableInput) {
+                withContext(Dispatchers.Default) { runLocalRuleAnalysis(session) } as? AnalysisOutcome.Success
+            } else {
+                null
+            }
+            val outcome: AnalysisOutcome = localFallback ?: baseOutcome
+            val usedLocalRule = localFallback != null
+            // The unified AiCapabilityRouter is the authority for the cloud→on-device decision; when both
+            // fail and local-rule produced a usable result the final source is 本地基础整理 (not 安全占位).
             val analysisRoute = CourseAnalysisRouting.decide(
                 cloudSucceeded = cloudOutcome is AnalysisOutcome.Success,
                 cloudStatusCode = cloudStatus,
@@ -2169,7 +3331,7 @@ class AppViewModel(
                 cloudStatus = cloudStatus,
                 onDeviceAttempted = onDeviceAttempted,
                 onDeviceReason = onDeviceReason,
-                finalSource = CourseAnalysisRouting.finalSourceZh(analysisRoute.source),
+                finalSource = if (usedLocalRule) "本地基础整理" else CourseAnalysisRouting.finalSourceZh(analysisRoute.source),
             )
 
             // Staged reveal for product feel — these are the real conceptual phases.
@@ -2180,7 +3342,6 @@ class AppViewModel(
 
             when (outcome) {
                 is AnalysisOutcome.Success -> {
-                    val learning = LearningState.seed(outcome.result.sessionId, outcome.result.knowledgePoints, now)
                     val l3Snapshot = l3Pipeline.buildFromAnalysis(
                         session = session,
                         result = outcome.result,
@@ -2188,36 +3349,28 @@ class AppViewModel(
                         providerSummary = ui.providerConfigSummary,
                         now = now,
                     )
-                    val updatedHistory = (listOf(buildHistoryRecord(session, outcome, now)) + ui.history).take(MAX_HISTORY)
-                    // Cross-course review tasks: one per kept knowledge point (idempotent per session).
-                    val provider = outcome.result.provenance.provider
-                    learningStore.addTasksFromAnalysis(
-                        result = outcome.result,
-                        courseTitle = session.title.ifBlank { "未命名课程" },
-                        sourceProvider = provider.name,
-                        sourceProfile = ui.providerConfigSummary.profileLabel,
-                        sourceModel = configBundle.configOf(provider)?.model.orEmpty(),
-                    )
+                    publishL3Snapshot(l3Snapshot, now, "BlueLM analysis entered the unified L3 learning loop.")
                     ui = ui.copy(
-                        analysisStatus = AnalysisStatus.SUCCESS,
-                        result = outcome.result,
-                        learningState = learning,
                         logs = outcome.logs,
-                        history = updatedHistory,
-                        learningSnapshot = learningStore.snapshot(),
-                        l3Pipeline = l3Snapshot,
                         analysisSourceReport = sourceReport,
+                        lastAnalysisLatencyMs = totalElapsedMs,
+                        analysisSlowNotice = cloudSucceededSlowly,
                         onDeviceAnalysisReason = onDeviceReason ?: ui.onDeviceAnalysisReason,
                         onDeviceAnalysisDiagnostic = onDeviceDiag ?: ui.onDeviceAnalysisDiagnostic,
+                        toast = when {
+                            usedLocalRule && onDeviceReason == "PERMISSION_MISSING" ->
+                                "端侧模型需要模型目录权限；已先用本地基础整理，不影响继续学习。"
+                            usedLocalRule -> "已使用本地基础整理生成可用学习结果，云端可稍后重试。"
+                            cloudSucceededSlowly -> "云端深度分析耗时较长（${totalElapsedMs / 1000}s），但已完成。"
+                            else -> ui.toast
+                        },
                     )
-                    persistHistory(updatedHistory)
-                    navigateReplacing(Screen.COURSE_DETAIL)
                 }
 
                 is AnalysisOutcome.Failure -> {
-                    // Both cloud 云端蓝心 and on-device 端侧蓝心 failed/were rejected by validators →
-                    // safety placeholder. We do NOT persist a fake CourseAnalysis or invent knowledge points.
-                    // The message is STRUCTURED so an on-device failure is never hidden behind the cloud code.
+                    // True last resort: cloud + on-device failed AND local-rule could not produce a usable
+                    // result (or input was empty / safety-blocked / sample). Only here do we land on 安全占位.
+                    // We never persist a fake CourseAnalysis or invent knowledge points.
                     ui = ui.copy(
                         analysisStatus = AnalysisStatus.FAILED,
                         logs = outcome.logs,
@@ -2228,6 +3381,7 @@ class AppViewModel(
                             append("云端蓝心：").append(sourceReport.cloudStatus)
                             append("\n端侧蓝心：").append(if (sourceReport.onDeviceAttempted) "已尝试" else "未尝试")
                             append("\n端侧结果：").append(AnalysisSourceReport.onDeviceReasonZh(sourceReport.onDeviceReason))
+                            append("\n本地基础整理：").append(if (hasUsableInput) "已尝试但未生成可用结果" else "无可用输入")
                             append("\n最终结果：安全占位（不生成假知识点，可重试或返回手动整理资料）")
                         },
                     )
@@ -2284,14 +3438,236 @@ class AppViewModel(
         startAnalysis()
     }
 
+    /** Set the thinking strength (快速/标准/深度). Affects timeout, prompt budget, quiz count, retries. */
+    fun setAnalysisIntensity(intensity: AnalysisIntensity) {
+        if (ui.analysisIntensity != intensity) ui = ui.copy(analysisIntensity = intensity)
+    }
+
+    /** Waiting-screen action: stop waiting on the cloud and produce a local baseline now. */
+    fun switchToLocalRuleNow() {
+        analysisJob?.cancel()
+        generateWithLocalRuleAnalysis()
+    }
+
+    /** Waiting/failure action: cancel the current run, drop to 快速, and retry the cloud chain. */
+    fun retryFast() {
+        analysisJob?.cancel()
+        setAnalysisIntensity(AnalysisIntensity.FAST)
+        retryAnalysis()
+    }
+
+    /** Jump to Settings · 能力中心 so the user can grant model-dir access / re-check the on-device model. */
+    fun goToOnDeviceSettings() {
+        selectTab(Tab.SETTINGS)
+    }
+
+    /**
+     * Synchronous local-rule analysis (no cloud/AI). LOCAL_ONLY resolver → the deterministic
+     * LocalFallbackProvider, run through the SAME validators. Returns a real, usable [AnalysisOutcome]
+     * so a permission-blocked / offline device is never stuck at an empty placeholder. Test seam.
+     */
+    internal fun runLocalRuleAnalysis(session: CourseSession): AnalysisOutcome {
+        val localBundle = ProviderConfigBundle.forProfile(
+            profile = LearnerProfile.LOCAL_ONLY,
+            configs = configBundle.configs,
+            policy = configBundle.policy,
+        )
+        return CourseAnalyzer(ProviderResolver(localBundle, promptBuilder, transport, blueLmSigner))
+            .analyze(AnalysisRequest(session, intensity = ui.analysisIntensity))
+    }
+
+    /**
+     * Explicit user choice from the failure screen: generate a baseline learning result LOCALLY, with no
+     * cloud / AI call. It runs the deterministic [com.classmate.core.provider.LocalFallbackProvider] through
+     * the SAME validators and pipeline, and is labelled honestly ("本地基础整理") — never dressed up as cloud.
+     * This is why an offline / permission-blocked device is not stuck at an empty safety placeholder.
+     */
+    fun generateWithLocalRuleAnalysis() {
+        val session = ui.session
+        if (session == null) {
+            ui = ui.copy(toast = "没有可整理的课程内容，请先返回导入。")
+            return
+        }
+        val now = System.currentTimeMillis()
+        ui = ui.copy(analysisStatus = AnalysisStatus.RUNNING, analysisStageIndex = 0, analysisError = null)
+        analysisJob = viewModelScope.launch {
+            val outcome = withContext(Dispatchers.Default) { runLocalRuleAnalysis(session) }
+            for (stage in 1..TOTAL_STAGES) {
+                ui = ui.copy(analysisStageIndex = stage)
+                delay(STAGE_DELAY_MS)
+            }
+            when (outcome) {
+                is AnalysisOutcome.Success -> {
+                    val l3Snapshot = l3Pipeline.buildFromAnalysis(
+                        session = session,
+                        result = outcome.result,
+                        sourceType = currentL3SourceType(),
+                        providerSummary = ui.providerConfigSummary,
+                        now = now,
+                    )
+                    publishL3Snapshot(l3Snapshot, now, "已用本地基础整理生成学习结果（未调用大模型）。")
+                    ui = ui.copy(
+                        logs = outcome.logs,
+                        analysisSourceReport = AnalysisSourceReport(
+                            cloudStatus = "LOCAL_RULE",
+                            onDeviceAttempted = false,
+                            onDeviceReason = null,
+                            finalSource = "本地基础整理",
+                        ),
+                        toast = "已用本地基础整理生成学习结果（未调用大模型，可稍后用云端深度分析覆盖）。",
+                    )
+                }
+                is AnalysisOutcome.Failure -> {
+                    ui = ui.copy(
+                        analysisStatus = AnalysisStatus.FAILED,
+                        toast = "本地基础整理未能生成结果，可返回手动整理资料。",
+                    )
+                }
+            }
+        }
+    }
+
     // --- knowledge / evidence ---
     fun openEvidence(knowledgePointId: String) {
-        ui = ui.copy(selectedKnowledgePointId = knowledgePointId)
+        ui = ui.copy(selectedKnowledgePointId = knowledgePointId, selectedEvidenceId = null)
         ui.result?.sessionId?.let { sessionId ->
             learningStore.recordTracebackOpen(sessionId, knowledgePointId)
             ui = ui.copy(learningSnapshot = learningStore.snapshot())
         }
         navigateTo(Screen.EVIDENCE)
+    }
+
+    fun openEvidenceById(evidenceId: String) {
+        if (evidenceId.isBlank() || evidenceOwnershipLevel(evidenceId) == EvidenceRelationLevel.MISSING) {
+            ui = ui.copy(toast = "该内容暂无可回溯证据。")
+            return
+        }
+        ui = ui.copy(selectedEvidenceId = evidenceId, selectedKnowledgePointId = null)
+        navigateTo(Screen.EVIDENCE)
+    }
+
+    fun openEvidenceForQuestion(questionId: String) {
+        val evidenceId = ui.l3Pipeline.questions.firstOrNull { it.id == questionId }
+            ?.evidenceIds
+            ?.firstOrNull()
+        openEvidenceById(evidenceId.orEmpty())
+    }
+
+    /**
+     * P0-2: resolve the evidence behind a quiz question so the practice screen can show its image / OCR /
+     * source WHILE answering. Returns null when the question has no resolvable evidence. No raw ids leak —
+     * only a local image file path + quote + source label.
+     */
+    fun practiceQuestionEvidence(quizId: String?): PracticeEvidenceContext? {
+        val qId = quizId?.takeIf { it.isNotBlank() } ?: return null
+        val evidenceId = ui.l3Pipeline.questions.firstOrNull { it.id == qId }?.evidenceIds?.firstOrNull()
+            ?: return null
+        val evidence = ui.l3Pipeline.evidence.firstOrNull { it.id == evidenceId } ?: return null
+        val asset = evidence.assetId?.let { id -> ui.l3Pipeline.evidenceAssets.firstOrNull { it.id == id } }
+        val imagePath = evidence.thumbnailRef.ifBlank { evidence.imageRef }
+            .ifBlank { asset?.thumbnailRef.orEmpty() }
+            .ifBlank { asset?.imageRef.orEmpty() }
+        val quote = evidence.text.ifBlank { asset?.text.orEmpty() }
+        val isImage = evidence.sourceType == L3SourceType.OCR_IMAGE || imagePath.isNotBlank()
+        if (quote.isBlank() && imagePath.isBlank()) return null
+        return PracticeEvidenceContext(
+            evidenceId = evidenceId,
+            quote = quote,
+            imagePath = imagePath,
+            sourceLabel = evidence.sourceLabel.ifBlank { asset?.sourceLabel.orEmpty() },
+            isImage = isImage,
+        )
+    }
+
+    fun reviewEvidenceIdForKnowledgePoint(knowledgePointId: String): String? =
+        ui.l3Pipeline.knowledgePoints.firstOrNull { it.id == knowledgePointId }
+            ?.sourceEvidenceIds
+            ?.firstOrNull()
+            ?: ui.l3Pipeline.questions.firstOrNull { it.knowledgePointId == knowledgePointId }
+                ?.evidenceIds
+                ?.firstOrNull()
+
+    fun openEvidenceForKnowledgePoint(knowledgePointId: String) {
+        openEvidenceById(reviewEvidenceIdForKnowledgePoint(knowledgePointId).orEmpty())
+    }
+
+    fun openEvidenceForReviewTask(task: ReviewTask) {
+        openEvidenceForKnowledgePoint(task.knowledgePointId)
+    }
+
+    /**
+     * True only when [evidenceId] resolves to evidence that has a retraceable excerpt — not merely a
+     * dangling id. UI must gate "查看证据" on this so a mis-bound or empty evidence never claims to be
+     * traceable; when it's false the surface shows an honest "暂无可回溯证据" instead.
+     */
+    /** The real, user-facing excerpt for an evidence id within the CURRENT pipeline (blank if none). */
+    fun evidenceExcerptFor(evidenceId: String?): String {
+        if (evidenceId.isNullOrBlank()) return ""
+        if (evidenceOwnershipLevel(evidenceId) == EvidenceRelationLevel.MISSING) return ""
+        val evidence = ui.l3Pipeline.evidence.firstOrNull { it.id == evidenceId } ?: return ""
+        val asset = evidence.assetId?.let { id -> ui.l3Pipeline.evidenceAssets.firstOrNull { it.id == id } }
+        return evidence.text
+            .ifBlank { evidence.snippet }
+            .ifBlank { evidence.transcriptSegment }
+            .ifBlank { asset?.text.orEmpty() }
+    }
+
+    fun hasRetraceableEvidence(evidenceId: String?): Boolean = evidenceExcerptFor(evidenceId).isNotBlank()
+
+    /**
+     * Whether the bound evidence actually relates to the thing it supports. MISSING when there is no
+     * retraceable excerpt; WEAK when the excerpt shares no keywords with [context] (likely mis-bound);
+     * STRONG otherwise. Surfaces use this to show "查看证据" vs "证据待核对" vs "暂无可回溯证据".
+     */
+    fun evidenceRelationLevel(evidenceId: String?, context: String): EvidenceRelationLevel {
+        val excerpt = evidenceExcerptFor(evidenceId)
+        if (excerpt.isBlank()) return EvidenceRelationLevel.MISSING
+        val ownership = evidenceOwnershipLevel(evidenceId)
+        if (ownership == EvidenceRelationLevel.WEAK) return EvidenceRelationLevel.WEAK
+        return EvidenceRelation.assess(excerpt, context)
+    }
+
+    private fun evidenceOwnershipLevel(
+        evidenceId: String?,
+        expectedLessonId: String? = null,
+        expectedSourceLessonId: String? = null,
+    ): EvidenceRelationLevel =
+        EvidenceOwnership.assess(evidenceOwnershipSnapshot(), evidenceId, expectedLessonId, expectedSourceLessonId)
+
+    private fun evidenceOwnershipSnapshot(snapshot: L3PipelineSnapshot = ui.l3Pipeline): EvidenceOwnership.Snapshot {
+        val lesson = snapshot.lessonSource
+        val sourceKind = ui.session?.sourceKind
+        return EvidenceOwnership.Snapshot(
+            snapshotId = lesson?.id.orEmpty(),
+            lessonSourceId = lesson?.id.orEmpty(),
+            lessonTitle = lesson?.title.orEmpty(),
+            lessonSourceType = lesson?.type?.name.orEmpty(),
+            isSampleCourse = sourceKind == SourceKind.SAMPLE || lesson?.status.equals("SAMPLE", ignoreCase = true),
+            evidence = snapshot.evidence.map {
+                EvidenceOwnership.EvidenceRecord(
+                    id = it.id,
+                    sourceId = it.sourceId,
+                    sourceType = it.sourceType.name,
+                    assetId = it.assetId,
+                    sourceLabel = it.sourceLabel,
+                    fileName = it.fileName,
+                    imageRef = it.imageRef,
+                    audioRef = it.audioRef,
+                    excerpt = it.text.ifBlank { it.snippet }.ifBlank { it.transcriptSegment },
+                )
+            },
+            assets = snapshot.evidenceAssets.map {
+                EvidenceOwnership.AssetRecord(
+                    id = it.id,
+                    sourceType = it.sourceType.name,
+                    sourceLabel = it.sourceLabel,
+                    fileName = it.fileName,
+                    imageRef = it.imageRef,
+                    audioRef = it.audioRef,
+                    createdAt = it.createdAt,
+                )
+            },
+        )
     }
 
     // --- quiz ---
@@ -2331,6 +3707,7 @@ class AppViewModel(
             )
             ui = ui.copy(learningSnapshot = learningStore.snapshot())
         }
+        persistL3(updatedL3)
     }
 
     fun goToQuestion(index: Int) { ui = ui.copy(currentQuestionIndex = index) }
@@ -2347,11 +3724,22 @@ class AppViewModel(
             createdAtEpochMs = now,
         )
         val updated = ui.learningState?.let { LearningStateUpdater().applyFeedback(it, event) }
+        // P0-3: a "this is inaccurate / evidence is wrong" feedback produces a VISIBLE effect — the target
+        // knowledge point gets a 需复核 marker on the timeline, and a flagged question leaves random practice.
+        val inaccurate = type == FeedbackType.NOT_ACCURATE || type == FeedbackType.EVIDENCE_WRONG || type == FeedbackType.MISSING_KEY_POINT
+        val flaggedKpId = when (targetKind) {
+            FeedbackTargetKind.KNOWLEDGE_POINT -> targetId
+            FeedbackTargetKind.QUIZ_QUESTION -> ui.result?.quizQuestions?.firstOrNull { it.id == targetId }?.testedKnowledgePointIds?.firstOrNull()
+            else -> null
+        }?.takeIf { inaccurate }
+        val flaggedQId = targetId.takeIf { inaccurate && targetKind == FeedbackTargetKind.QUIZ_QUESTION }
         ui = ui.copy(
             feedbackEvents = ui.feedbackEvents + event,
             learningState = updated ?: ui.learningState,
             reviewPlan = null,
-            toast = "已记录反馈：${type.displayZh}",
+            flaggedKnowledgePointIds = if (flaggedKpId != null) ui.flaggedKnowledgePointIds + flaggedKpId else ui.flaggedKnowledgePointIds,
+            flaggedQuestionIds = if (flaggedQId != null) ui.flaggedQuestionIds + flaggedQId else ui.flaggedQuestionIds,
+            toast = if (inaccurate) "已加入待复核，复习计划已更新。" else "已记录反馈：${type.displayZh}",
         )
         // Mirror into the cross-course review queue (when the feedback maps to a known kp).
         val sessionId = ui.result?.sessionId
@@ -2429,7 +3817,7 @@ class AppViewModel(
             aiProcessing = AiProcessingUiState(
                 visible = true,
                 title = "正在提炼课堂精华",
-                steps = listOf("整理课程资料", "整理知识地图", "汇总练习与薄弱点", "生成学习报告草稿", "等待选择导出格式"),
+                steps = listOf("整理课程资料", "整理知识结构", "汇总练习与薄弱点", "生成学习报告草稿", "等待选择导出格式"),
                 activeStep = 3,
                 source = source,
                 fallbackMessage = "云端或端侧不可用时，使用本地模板整理；DOCX/PDF 失败时可改导出 HTML 或 Text。",
@@ -2461,6 +3849,201 @@ class AppViewModel(
             return null
         }
         return buildReportArtifact(session, result, ui.reviewPlan, ui.learningState, format)
+    }
+
+    fun buildLearningStudyPackArtifact(format: ExportFileFormat): ExportArtifact? {
+        val snapshot = ui.l3Pipeline
+        val title = snapshot.lessonSource?.title ?: ui.session?.title ?: ui.history.firstOrNull()?.session?.title
+        if (snapshot.lessonSource == null && snapshot.knowledgePoints.isEmpty() && snapshot.questions.isEmpty()) {
+            ui = ui.copy(toast = "暂无完整学习包，已导出空态学习文档。")
+        }
+        val markdown = LearningExportEngine.buildStudyPackMarkdown(snapshot)
+        return ExportCenter.artifactFromMarkdown(
+            courseTitle = title ?: "ClassMate study pack",
+            markdown = markdown,
+            format = format,
+        )
+    }
+
+    /** P0-3: export the AI-organized study material (CourseDetail's 'AI 复习材料' result) into the export
+     *  chain. The source label is carried into the document; SafeExportText strips any ids/debug tokens. */
+    fun buildAiStudyMaterialArtifact(format: ExportFileFormat): ExportArtifact? {
+        val state = ui.studyPackEnhancement
+        if (!state.hasResult) {
+            ui = ui.copy(toast = "请先生成 AI 整理版材料，再导出。")
+            return null
+        }
+        val title = ui.session?.title?.ifBlank { "未命名课程" } ?: "ClassMate AI 整理版"
+        val formLabel = if (state.type == AiEnhancementType.EXAM_CRAM_SHEET) "考前速记版" else "讲义版"
+        val markdown = buildString {
+            append("# 《$title》· AI $formLabel\n\n")
+            append("> 来源：${state.sourceZh}\n\n")
+            append(SafeExportText.redact(state.text))
+        }
+        return ExportCenter.artifactFromMarkdown(courseTitle = "$title-AI-$formLabel", markdown = markdown, format = format)
+    }
+
+    // ---- P0-1/P0-2: user-initiated AI 精修导出 / 导出资料升级 ----
+    // A deliberate LONG task (NOT the 30s secondary-enhancement path): cloud 蓝心 deep pass (reusing the
+    // user's analysis intensity timeout, 120–240s) → on-device → honest local organize. The default fast
+    // export stays untouched/instant; a failure never overwrites it. PDF/HTML/Word all render from the
+    // SAME PolishedStudyPack.
+    private var polishExportJob: Job? = null
+
+    /** True when there is real course material to upgrade (drives the 精修 entry's visibility). */
+    fun hasPolishableMaterial(): Boolean {
+        val s = ui.l3Pipeline
+        return s.knowledgePoints.isNotEmpty() || s.summary.isNotBlank()
+    }
+
+    private fun polishedExportInput(): PolishedStudyPackInput? {
+        val snapshot = ui.l3Pipeline
+        val title = snapshot.lessonSource?.title?.ifBlank { null }
+            ?: ui.session?.title ?: ui.history.firstOrNull()?.session?.title ?: return null
+        val evidenceById = snapshot.evidence.associateBy { it.id }
+        val materials = snapshot.knowledgePoints.map { kp ->
+            val quote = kp.sourceEvidenceIds
+                .firstNotNullOfOrNull { id -> evidenceById[id]?.text?.takeIf { it.isNotBlank() } }
+                .orEmpty()
+            PolishedStudyMaterial(kp.title, kp.explanation, quote)
+        }
+        if (materials.isEmpty() && snapshot.summary.isBlank()) return null
+        val sources = snapshot.evidence.mapNotNull { it.sourceLabel.ifBlank { null } }.distinct().take(4)
+        val hasImage = snapshot.evidence.any { it.imageRef.isNotBlank() } ||
+            snapshot.evidenceAssets.any { it.imageRef.isNotBlank() }
+        val lowConf = snapshot.qualityWarnings.map { it.message } +
+            snapshot.asrJobs.flatMap { j -> j.transcriptSegments.filter { it.lowConfidence }.map { "低置信转写：${it.text.take(60)}" } }
+        return PolishedStudyPackInput(
+            courseTitle = title,
+            sourceSummary = sources.joinToString("、").ifBlank { "课堂资料" },
+            knowledgePoints = materials,
+            quizStems = snapshot.questions.map { it.stem },
+            weakPoints = snapshot.learningDiagnosis.weakKnowledgePoints.map { it.title },
+            lowConfidenceNotes = lowConf,
+            hasImageMaterial = hasImage,
+        )
+    }
+
+    /** The honest local organize used when no cloud/on-device model is available (labelled 本地整理版). */
+    private fun localPolishedMarkdown(): String = LearningExportEngine.buildStudyPackMarkdown(ui.l3Pipeline)
+
+    /** Start the polished export. Shows staged progress + a >30s slow notice; cancelable; never blocks the
+     *  fast default export and never overwrites it on failure. */
+    fun startPolishedExport() {
+        val input = polishedExportInput() ?: run {
+            ui = ui.copy(toast = "暂无可精修的课程资料，请先生成学习包。")
+            return
+        }
+        maybePromptMissingCloudConfig("AI 精修导出")
+        polishExportJob?.cancel()
+        val startedAt = System.currentTimeMillis()
+        ui = ui.copy(
+            polishedExport = PolishedExportUiState(
+                status = PolishedExportStatus.RUNNING,
+                stageIndex = 0,
+                startedAtMs = startedAt,
+                message = "正在准备课程资料……",
+                pack = ui.polishedExport.pack, // keep any previous polished version until the new one is ready
+            ),
+        )
+        val bundle = configBundle
+        val tx = transport
+        val timeouts = PolishedExportPlan.timeouts(ui.analysisIntensity)
+        val prompt = PolishedStudyPackPromptBuilder.build(input)
+        val title = input.courseTitle
+        val generatedLabel = formatExportTime(startedAt)
+        polishExportJob = viewModelScope.launch {
+            ui = ui.copy(polishedExport = ui.polishedExport.copy(stageIndex = 1, message = "正在调用蓝心深度整理，可能需要更久……"))
+            val slowJob = launch {
+                delay(30_000)
+                if (isActive && ui.polishedExport.running) {
+                    ui = ui.copy(polishedExport = ui.polishedExport.copy(slowNotice = true, message = "蓝心正在深度整理，可继续等待或改用普通导出。"))
+                }
+            }
+            val (markdown, source) = withContext(Dispatchers.IO) {
+                val cloud = runCatching { ProviderAskChatClient(bundle, tx, timeouts = timeouts).chat(prompt, null) }.getOrNull()
+                if (cloud != null && cloud.text.isNotBlank()) return@withContext cloud.text to AiExecutionSource.CLOUD
+                val device = runCatching { onDeviceController.askSeam().chat(prompt, null) }.getOrNull()
+                if (device != null && device.text.isNotBlank()) return@withContext device.text to AiExecutionSource.ON_DEVICE
+                "" to AiExecutionSource.SAFE_PLACEHOLDER
+            }
+            slowJob.cancel()
+            ui = ui.copy(polishedExport = ui.polishedExport.copy(stageIndex = 3, message = "正在生成复习资料……"))
+            val resolved = if (markdown.isNotBlank()) markdown else localPolishedMarkdown()
+            val sourceZh = PolishedExportPlan.sourceLabel(source)
+            val pack = PolishedStudyPack(
+                courseTitle = title,
+                sourceLabel = sourceZh,
+                generatedAtLabel = generatedLabel,
+                markdown = SafeExportText.redact(resolved),
+            )
+            val ok = !pack.isBlank
+            ui = ui.copy(
+                polishedExport = PolishedExportUiState(
+                    status = if (ok) PolishedExportStatus.READY else PolishedExportStatus.FAILED,
+                    stageIndex = PolishedExportUiState.POLISH_STAGES.size,
+                    startedAtMs = startedAt,
+                    sourceZh = sourceZh,
+                    message = when {
+                        !ok -> "精修生成失败，请重试，或继续使用普通导出。"
+                        source == AiExecutionSource.SAFE_PLACEHOLDER -> "未使用云端蓝心，已用本地整理版，可重试获取蓝心精修版。"
+                        else -> "精修学习包已生成（$sourceZh），可选择 PDF / HTML / Word 等格式导出。"
+                    },
+                    pack = if (ok) pack else ui.polishedExport.pack,
+                ),
+                toast = if (ok) "精修学习包已生成（$sourceZh）。" else "精修生成失败，请重试或使用普通导出。",
+            )
+        }
+    }
+
+    /** Cancel an in-flight polished pass. Keeps any previously-generated polished version; never touches the
+     *  fast default export. */
+    fun cancelPolishedExport() {
+        polishExportJob?.cancel()
+        polishExportJob = null
+        val prev = ui.polishedExport
+        ui = ui.copy(
+            polishedExport = if (prev.pack != null) {
+                prev.copy(status = PolishedExportStatus.READY, slowNotice = false, message = "已取消重新精修，仍可导出上一版（${prev.sourceZh}）。")
+            } else {
+                PolishedExportUiState()
+            },
+            toast = "已取消精修，可继续使用普通导出。",
+        )
+    }
+
+    /** Build an export artifact from the polished pack (PDF/HTML/Word all share the SAME content). */
+    fun buildPolishedArtifact(format: ExportFileFormat): ExportArtifact? {
+        val pack = ui.polishedExport.pack ?: run {
+            ui = ui.copy(toast = "请先点击「AI 精修导出」生成精修版。")
+            return null
+        }
+        return ExportCenter.artifactFromPolishedPack(pack, format)
+    }
+
+    private fun formatExportTime(epochMs: Long): String =
+        java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US).format(java.util.Date(epochMs))
+
+    // ---- P1-2: Flow background music (lifecycle owned here, survives leaving the Flow page) ----
+    fun flowMusicPlay(sound: AmbientSound) {
+        flowAudioController.play(sound, ui.flowMusic.volume)
+        ui = ui.copy(flowMusic = ui.flowMusic.copy(status = FlowMusicStatus.PLAYING, sceneId = sound.id, soundName = sound.displayName))
+    }
+
+    fun flowMusicPause() {
+        flowAudioController.pause()
+        ui = ui.copy(flowMusic = ui.flowMusic.copy(status = FlowMusicStatus.PAUSED))
+    }
+
+    fun flowMusicStop() {
+        flowAudioController.stop()
+        ui = ui.copy(flowMusic = ui.flowMusic.copy(status = FlowMusicStatus.STOPPED))
+    }
+
+    fun flowMusicSetVolume(volume: Float) {
+        val v = volume.coerceIn(0f, 1f)
+        flowAudioController.setVolume(v)
+        ui = ui.copy(flowMusic = ui.flowMusic.copy(volume = v))
     }
 
     fun buildHistoryReportArtifact(record: HistoryRecord, format: ExportFileFormat): ExportArtifact =
@@ -2745,6 +4328,16 @@ class AppViewModel(
         navigateTo(Screen.COURSE_DETAIL)
     }
 
+    fun openLatestKnowledgeFromHome() {
+        val record = ui.history.firstOrNull()
+        if (record == null) {
+            ui = ui.copy(toast = "暂无知识点，请先导入课堂资料。")
+            selectTab(Tab.IMPORT)
+            return
+        }
+        openHistoryTimeline(record)
+    }
+
     fun recordsForCourse(courseKey: String): List<HistoryRecord> =
         ui.history.filter { CourseLibraryBuilder.normalizeCourseName(it.title).lowercase() == courseKey }
             .sortedByDescending { it.createdAtEpochMs }
@@ -2753,6 +4346,20 @@ class AppViewModel(
         ui.learningSnapshot.tasks.filter { CourseLibraryBuilder.normalizeCourseName(it.courseTitle).lowercase() == courseKey }
 
     fun weaknessItems() = WeaknessHub.fromSnapshot(ui.learningSnapshot)
+
+    /**
+     * P1-3: honest browser-search options for a knowledge point. Gated on confidence — a point the user
+     * flagged 需复核 or one with no evidence returns [KnowledgePointSearch.Result.NeedsReview] so the UI shows
+     * a "先完善资料" hint instead of a search button. Never an in-app API search.
+     */
+    fun knowledgePointSearch(knowledgePointId: String): KnowledgePointSearch.Result {
+        val result = ui.result ?: return KnowledgePointSearch.Result.NeedsReview
+        val kp = result.knowledgePoints.firstOrNull { it.id == knowledgePointId }
+            ?: return KnowledgePointSearch.Result.NeedsReview
+        val course = ui.session?.title ?: ui.history.firstOrNull()?.session?.title ?: ""
+        val highConfidence = knowledgePointId !in ui.flaggedKnowledgePointIds && kp.evidence.isNotEmpty()
+        return KnowledgePointSearch.forKnowledgePoint(course, kp.title, highConfidence)
+    }
 
     // --- adaptive practice (Stage 7C): in-app drill that writes back through ReviewEngine rules ---
 
@@ -2769,25 +4376,365 @@ class AppViewModel(
         startPracticeInternal(mode, PracticeQuestionMode.EXAM)
     }
 
+    // ---- Adaptive AI Learning Layer: real second-pass enhancements at high-value nodes ----
+    // Routes Cloud (云端蓝心 via the SAME ProviderAskChatClient the analyzer/Ask use) → On-device (端侧蓝心)
+    // → real local template, off the main thread. Every result carries an honest source label; the local
+    // path is genuine grounded Chinese, never presented as 蓝心.
+    private val enhancementUseCase = RoutedEnhancementUseCase()
+
+    private fun enhancementSourceZh(source: AiExecutionSource): String = when (source) {
+        AiExecutionSource.CLOUD -> "蓝心整理版"
+        AiExecutionSource.ON_DEVICE -> "端侧模型草稿"
+        else -> "本地整理版"
+    }
+
+    private suspend fun routeEnhancement(
+        type: AiEnhancementType,
+        prompt: Prompt,
+        localTemplate: () -> String,
+    ): AiCapabilityResult<AiEnhancement> {
+        val bundle = configBundle
+        val tx = transport
+        return withContext(Dispatchers.IO) {
+            enhancementUseCase.enhance(
+                type = type,
+                cloud = {
+                    val reply = runCatching { ProviderAskChatClient(bundle, tx, timeouts = HttpTimeouts.BLUE_LM_DIAGNOSTIC).chat(prompt, null) }.getOrNull()
+                    if (reply != null && reply.text.isNotBlank()) StageOutcome.Produced(reply.text)
+                    else StageOutcome.Unavailable(AiExecutionStatus.CONFIG_MISSING)
+                },
+                onDevice = {
+                    val reply = runCatching { onDeviceController.askSeam().chat(prompt, null) }.getOrNull()
+                    if (reply != null && reply.text.isNotBlank()) StageOutcome.Produced(reply.text)
+                    else StageOutcome.Unavailable(AiExecutionStatus.UNSUPPORTED_MODALITY)
+                },
+                localTemplate = localTemplate,
+            )
+        }
+    }
+
+    private fun enhancementResultState(type: AiEnhancementType, result: AiCapabilityResult<AiEnhancement>): EnhancementUiState {
+        val text = result.value?.text.orEmpty()
+        return EnhancementUiState(
+            type = type,
+            running = false,
+            text = text,
+            sourceZh = if (text.isBlank()) "AI 整理失败，已保留基础版" else enhancementSourceZh(result.source),
+            failed = text.isBlank(),
+        )
+    }
+
+    /** P0-1: generate an AI-organized, review/print-ready study material for the CURRENT course. */
+    fun generateStudyPackEnhancement(form: AiEnhancementType = AiEnhancementType.EXPORT_HANDOUT) {
+        val result = ui.result
+        val session = ui.session
+        if (result == null || session == null) {
+            ui = ui.copy(toast = "请先生成学习包，再整理 AI 复习材料。")
+            return
+        }
+        maybePromptMissingCloudConfig("学习材料 AI 整理")
+        val courseTitle = session.title.ifBlank { "未命名课程" }
+        val points = result.knowledgePoints.map {
+            EnhancementPoint(it.title, it.summary, it.evidence.firstOrNull()?.quote.orEmpty())
+        }
+        val prompt = when (form) {
+            AiEnhancementType.EXAM_CRAM_SHEET -> EnhancementPromptBuilder.examCramSheet(courseTitle, points)
+            else -> EnhancementPromptBuilder.studyPackHandout(courseTitle, points)
+        }
+        val local: () -> String = {
+            when (form) {
+                AiEnhancementType.EXAM_CRAM_SHEET -> LocalEnhancementTemplates.examCramSheet(courseTitle, points)
+                else -> LocalEnhancementTemplates.studyPackHandout(courseTitle, points)
+            }
+        }
+        ui = ui.copy(studyPackEnhancement = EnhancementUiState(type = form, running = true))
+        viewModelScope.launch {
+            val routed = routeEnhancement(form, prompt, local)
+            ui = ui.copy(studyPackEnhancement = enhancementResultState(form, routed))
+        }
+    }
+
+    fun clearStudyPackEnhancement() { ui = ui.copy(studyPackEnhancement = EnhancementUiState.idle()) }
+
+    /** P0-2: after a practice/quiz attempt, generate targeted feedback grounded in THIS attempt. */
+    fun generateQuizFeedbackEnhancement() {
+        val session = ui.practiceSession
+        val attempts = ui.practiceAttempts
+        if (session == null || attempts.isEmpty()) {
+            ui = ui.copy(toast = "完成一组练习后，再生成 AI 学习反馈。")
+            return
+        }
+        val total = attempts.size
+        val correct = attempts.count { it.outcome == PracticeOutcome.CORRECT || it.outcome == PracticeOutcome.MASTERED }
+        val wrongSummaries = attempts.filter { it.outcome == PracticeOutcome.WRONG }.mapNotNull { att ->
+            val item = session.items.firstOrNull { it.id == att.itemId } ?: return@mapNotNull null
+            val correctText = item.options.firstOrNull { it.correct }?.text.orEmpty()
+            "${item.question} / 正确答案：$correctText / 知识点：${item.knowledgePointTitle}"
+        }
+        val weakTitles = ui.l3Pipeline.learningDiagnosis.weakKnowledgePoints.map { it.title }.ifEmpty {
+            attempts.filter { it.outcome == PracticeOutcome.WRONG }
+                .mapNotNull { att -> session.items.firstOrNull { it.id == att.itemId }?.knowledgePointTitle }
+                .distinct()
+        }
+        val type = AiEnhancementType.POST_QUIZ_FEEDBACK
+        val prompt = EnhancementPromptBuilder.quizFeedback(total, correct, wrongSummaries, weakTitles)
+        val local: () -> String = { LocalEnhancementTemplates.postQuizFeedback(total, correct, weakTitles) }
+        ui = ui.copy(quizFeedbackEnhancement = EnhancementUiState(type = type, running = true))
+        viewModelScope.launch {
+            val routed = routeEnhancement(type, prompt, local)
+            ui = ui.copy(quizFeedbackEnhancement = enhancementResultState(type, routed))
+        }
+    }
+
+    fun clearQuizFeedbackEnhancement() { ui = ui.copy(quizFeedbackEnhancement = EnhancementUiState.idle()) }
+
+    /** P0-1: explain how the CURRENTLY-open evidence supports its knowledge point; hedge weak links. */
+    fun generateEvidenceExplanation() {
+        val evidenceId = ui.selectedEvidenceId ?: run {
+            ui = ui.copy(toast = "请先打开一条证据。")
+            return
+        }
+        val evidence = ui.l3Pipeline.evidence.firstOrNull { it.id == evidenceId } ?: run {
+            ui = ui.copy(toast = "这条证据已不可用。")
+            return
+        }
+        val asset = evidence.assetId?.let { id -> ui.l3Pipeline.evidenceAssets.firstOrNull { it.id == id } }
+        val excerpt = evidence.text.ifBlank { asset?.text.orEmpty() }
+        if (excerpt.isBlank()) {
+            ui = ui.copy(toast = "这条证据暂无可解释的原文片段。")
+            return
+        }
+        val kpTitle = ui.l3Pipeline.knowledgePoints.firstOrNull { evidenceId in it.sourceEvidenceIds }?.title.orEmpty()
+        val questionStem = ui.l3Pipeline.questions.firstOrNull { evidenceId in it.evidenceIds }?.stem
+        val boundContext = (
+            ui.l3Pipeline.knowledgePoints.filter { evidenceId in it.sourceEvidenceIds }.joinToString(" ") { it.title } + " " +
+                ui.l3Pipeline.questions.filter { evidenceId in it.evidenceIds }.joinToString(" ") { it.stem }
+            ).trim()
+        val weak = boundContext.isNotBlank() && evidenceRelationLevel(evidenceId, boundContext) == EvidenceRelationLevel.WEAK
+        val type = AiEnhancementType.EVIDENCE_EXPLANATION
+        val prompt = EnhancementPromptBuilder.evidenceExplanation(kpTitle.ifBlank { "本条证据" }, excerpt, questionStem, weak)
+        val local: () -> String = { LocalEnhancementTemplates.evidenceExplanation(kpTitle.ifBlank { "本条证据" }, excerpt, weak) }
+        ui = ui.copy(evidenceEnhancement = EnhancementUiState(type = type, running = true))
+        viewModelScope.launch {
+            val routed = routeEnhancement(type, prompt, local)
+            ui = ui.copy(evidenceEnhancement = enhancementResultState(type, routed))
+        }
+    }
+
+    fun clearEvidenceEnhancement() { ui = ui.copy(evidenceEnhancement = EnhancementUiState.idle()) }
+
+    /** P0-2: AI remediation plan for the top weak knowledge point. Pairs with the gated 薄弱点专项 practice
+     *  (startPractice(WEAKNESS_DRILL)) which only admits answerable questions. */
+    fun generateWeaknessRemediation() {
+        val weak = ui.l3Pipeline.learningDiagnosis.weakKnowledgePoints.firstOrNull() ?: run {
+            ui = ui.copy(toast = "暂无薄弱知识点，继续练习后再生成加练方案。")
+            return
+        }
+        val type = AiEnhancementType.WEAKNESS_VARIANTS
+        val prompt = EnhancementPromptBuilder.weaknessRemediation(weak.title, weak.reason, weak.wrongCount)
+        val local: () -> String = { LocalEnhancementTemplates.weaknessRemediation(weak.title, weak.wrongCount) }
+        ui = ui.copy(weaknessEnhancement = EnhancementUiState(type = type, running = true))
+        viewModelScope.launch {
+            val routed = routeEnhancement(type, prompt, local)
+            ui = ui.copy(weaknessEnhancement = enhancementResultState(type, routed))
+        }
+    }
+
+    fun clearWeaknessRemediation() { ui = ui.copy(weaknessEnhancement = EnhancementUiState.idle()) }
+
+    /**
+     * P0-4: ask BlueLM (云端蓝心) / on-device for BRAND-NEW variant questions for the top weak knowledge
+     * point, parse the strict JSON, keep only answerable questions, and enter practice. Cloud → on-device
+     * → local (existing course questions for this KP, labelled 本地基础变式). Empty → no practice + error.
+     */
+    fun generateWeakPointVariants() {
+        val result = ui.result ?: run { ui = ui.copy(toast = "请先打开一门已分析的课程。"); return }
+        val weak = ui.l3Pipeline.learningDiagnosis.weakKnowledgePoints.firstOrNull() ?: run {
+            ui = ui.copy(toast = "暂无薄弱知识点，继续练习后再生成变式题。")
+            return
+        }
+        val courseId = ui.session?.id ?: result.sessionId
+        val courseTitle = ui.session?.title?.ifBlank { weak.title } ?: weak.title
+        val kpId = weak.knowledgePointId
+        val wrongStems = ui.l3Pipeline.wrongBook
+            .filter { it.knowledgePointId == kpId }
+            .mapNotNull { wb -> ui.l3Pipeline.questions.firstOrNull { it.id == wb.questionId }?.stem }
+            .take(3)
+        val evidenceQuotes = weak.evidenceIds
+            .mapNotNull { id -> ui.l3Pipeline.evidence.firstOrNull { it.id == id }?.text?.takeIf { it.isNotBlank() } }
+            .take(3)
+        val kpResolver: (String) -> String = { title ->
+            result.knowledgePoints.firstOrNull { it.title == title }?.id ?: kpId
+        }
+        val prompt = EnhancementPromptBuilder.weakPointVariants(weak.title, weak.reason, wrongStems, evidenceQuotes)
+        val bundle = configBundle
+        val tx = transport
+        val now = System.currentTimeMillis()
+        val idPrefix = "var_${courseId}_$now"
+        ui = ui.copy(weakVariantStatus = EnhancementUiState(type = AiEnhancementType.WEAKNESS_VARIANTS, running = true))
+        viewModelScope.launch {
+            val (items, source) = withContext(Dispatchers.IO) {
+                val cloud = runCatching { ProviderAskChatClient(bundle, tx, timeouts = HttpTimeouts.BLUE_LM_DIAGNOSTIC).chat(prompt, null) }.getOrNull()
+                val cloudItems = cloud?.text?.let { VariantQuizParser.parse(it, AiExecutionSource.CLOUD, idPrefix, kpResolver) }.orEmpty()
+                if (cloudItems.isNotEmpty()) return@withContext cloudItems to AiExecutionSource.CLOUD
+                val device = runCatching { onDeviceController.askSeam().chat(prompt, null) }.getOrNull()
+                val deviceItems = device?.text?.let { VariantQuizParser.parse(it, AiExecutionSource.ON_DEVICE, idPrefix, kpResolver) }.orEmpty()
+                if (deviceItems.isNotEmpty()) return@withContext deviceItems to AiExecutionSource.ON_DEVICE
+                // Honest local fallback: reuse THIS course's existing questions for the weak KP (no fabrication).
+                existingQuestionsAsVariants(kpId, idPrefix) to AiExecutionSource.SAFE_PLACEHOLDER
+            }
+            if (items.isEmpty()) {
+                ui = ui.copy(
+                    weakVariantStatus = EnhancementUiState(
+                        type = AiEnhancementType.WEAKNESS_VARIANTS,
+                        running = false,
+                        failed = true,
+                        sourceZh = "暂无可用变式题",
+                    ),
+                )
+                return@launch
+            }
+            val sourceZh = when (source) {
+                AiExecutionSource.CLOUD -> "蓝心生成变式题"
+                AiExecutionSource.ON_DEVICE -> "端侧模型草稿"
+                else -> "本地基础变式"
+            }
+            val session = PracticeSession(
+                id = "variant_$now",
+                courseSessionId = courseId,
+                courseTitle = courseTitle,
+                mode = PracticeMode.WEAKNESS_DRILL,
+                items = items,
+                createdAt = now,
+                source = source,
+                routeReason = "weak-point variants · $sourceZh",
+            )
+            ui = ui.copy(
+                weakVariantStatus = EnhancementUiState.idle(),
+                practiceSession = session,
+                practiceIndex = 0,
+                practiceAttempts = emptyList(),
+                practiceResult = null,
+                practiceSelectedAnswers = emptyMap(),
+                practiceSubmittedAnswers = emptyMap(),
+                practiceQuestionMode = PracticeQuestionMode.REAL_QUIZ,
+                practiceStartedAt = now,
+                practiceRevealed = false,
+                toast = "已生成 ${items.size} 道变式题（$sourceZh）。",
+            )
+            navigateTo(Screen.PRACTICE)
+        }
+    }
+
+    /** Local fallback for variants: this course's existing answerable questions for the weak KP. */
+    private fun existingQuestionsAsVariants(knowledgePointId: String, idPrefix: String): List<PracticeItem> {
+        val kp = ui.result?.knowledgePoints?.firstOrNull { it.id == knowledgePointId }
+        return ui.l3Pipeline.questions
+            .filter { it.knowledgePointId == knowledgePointId }
+            .mapIndexed { index, q ->
+                val quizOptions = q.options.mapIndexed { i, text ->
+                    com.classmate.core.model.QuizOption(id = ('A' + i).toString(), text = text, isCorrect = false)
+                }
+                val correctIds = com.classmate.core.model.QuizAnswerNormalizer
+                    .resolveCorrectIds(quizOptions, q.correctAnswer).toSet()
+                PracticeItem(
+                    id = "${idPrefix}_local_$index",
+                    type = PracticeItemType.QUIZ_RETRY,
+                    knowledgePointId = knowledgePointId,
+                    knowledgePointTitle = kp?.title.orEmpty(),
+                    question = q.stem,
+                    answer = q.explanation.ifBlank { kp?.summary.orEmpty() },
+                    options = quizOptions.map { PracticeOption(it.id, it.text, it.id in correctIds) },
+                    source = AiExecutionSource.SAFE_PLACEHOLDER,
+                )
+            }
+            .filter { it.isAnswerableQuiz() }
+    }
+
+    fun clearWeakVariantStatus() { ui = ui.copy(weakVariantStatus = EnhancementUiState.idle()) }
+
     fun startRandomQuiz(questionCount: Int = 5, now: Long = System.currentTimeMillis()) {
         startPracticeInternal(PracticeMode.QUICK_REVIEW, PracticeQuestionMode.REAL_QUIZ)
         val session = ui.practiceSession ?: return
-        val picked = session.items
-            .filter { it.options.isNotEmpty() }
-            .shuffled(Random(now))
-            .take(questionCount.coerceIn(1, 10))
-            .ifEmpty { session.items.filter { it.options.isNotEmpty() }.take(questionCount.coerceIn(1, 10)) }
-        if (picked.isNotEmpty()) {
+        // Only questions that actually have a correct answer may enter the random quiz (shared gate).
+        val answerable = session.items.filter { it.isAnswerableQuiz() && it.quizId !in ui.flaggedQuestionIds }
+        if (answerable.isEmpty()) {
             ui = ui.copy(
-                practiceSession = session.copy(items = picked, routeReason = "random quiz from current lesson/question bank"),
-                practiceIndex = 0,
-                practiceSelectedAnswers = emptyMap(),
-                practiceSubmittedAnswers = emptyMap(),
-                practiceAttempts = emptyList(),
-                practiceResult = null,
-                toast = "已生成 ${picked.size} 题随机小测。",
+                practiceSession = session.copy(items = emptyList()),
+                toast = "暂时没有带正确答案的题目，请先生成微测题或重新分析课程。",
             )
+            return
         }
+        val picked = answerable.shuffled(Random(now)).take(questionCount.coerceIn(1, 10))
+        ui = ui.copy(
+            practiceSession = session.copy(items = picked, routeReason = "random quiz from current lesson/question bank"),
+            practiceIndex = 0,
+            practiceSelectedAnswers = emptyMap(),
+            practiceSubmittedAnswers = emptyMap(),
+            practiceAttempts = emptyList(),
+            practiceResult = null,
+            toast = "已生成 ${picked.size} 题随机小测。",
+        )
+    }
+
+    fun retryWrongQuestion(wrongRecordId: String, now: Long = System.currentTimeMillis()): Boolean {
+        val wrong = ui.l3Pipeline.wrongBook.firstOrNull { it.id == wrongRecordId } ?: run {
+            ui = ui.copy(toast = "没有找到这条错题记录。")
+            return false
+        }
+        val question = ui.l3Pipeline.questions.firstOrNull { it.id == wrong.questionId } ?: run {
+            ui = ui.copy(toast = "错题原题已不可用，先回到课程重新生成练习。")
+            return false
+        }
+        val source = ui.l3Pipeline.lessonSource
+        val courseSessionId = ui.session?.id ?: source?.id ?: question.lessonId
+        val courseTitle = ui.session?.title ?: source?.title ?: "错题重练"
+        val kpTitle = ui.l3Pipeline.knowledgePoints.firstOrNull { it.id == question.knowledgePointId }?.title
+            ?: question.knowledgePointId
+        val item = PracticeItem(
+            id = "retry_${wrong.id}_$now",
+            type = PracticeItemType.QUIZ_RETRY,
+            knowledgePointId = question.knowledgePointId,
+            knowledgePointTitle = kpTitle,
+            taskId = wrong.id,
+            question = question.stem,
+            answer = question.explanation,
+            evidenceQuote = ui.l3Pipeline.evidence.firstOrNull { it.id in wrong.evidenceIds }?.text,
+            quizId = question.id,
+            options = question.options.mapIndexed { index, option ->
+                // Position-based id (A/B/C/D): unique, so a single-choice tap selects exactly one option.
+                PracticeOption(
+                    id = QuizOptionIds.letterId(index),
+                    text = QuizOptionIds.cleanText(option),
+                    correct = QuizOptionIds.isAnswer(index, option, question.correctAnswer),
+                )
+            },
+            whyThisQuestionMatters = wrong.mistakeReason.ifBlank { "这道错题会影响关联知识点掌握度。" },
+        )
+        ui = ui.copy(
+            practiceSession = PracticeSession(
+                id = "wrong_retry_$now",
+                courseSessionId = courseSessionId,
+                courseTitle = courseTitle,
+                mode = PracticeMode.WRONG_ANSWER_RETRY,
+                items = listOf(item),
+                createdAt = now,
+                source = AiExecutionSource.SAFE_PLACEHOLDER,
+                routeReason = "single wrong question retry from WrongBook",
+            ),
+            practiceIndex = 0,
+            practiceAttempts = emptyList(),
+            practiceResult = null,
+            practiceStartedAt = now,
+            practiceRevealed = false,
+            practiceQuestionMode = PracticeQuestionMode.REAL_QUIZ,
+            practiceSelectedAnswers = emptyMap(),
+            practiceSubmittedAnswers = emptyMap(),
+            examSession = null,
+            toast = "已进入这道错题的重练。",
+        )
+        navigateTo(Screen.PRACTICE)
+        return true
     }
 
     private fun startPracticeInternal(mode: PracticeMode, questionMode: PracticeQuestionMode) {
@@ -2839,8 +4786,11 @@ class AppViewModel(
         )
         val generatedPractice = generated.value?.session ?: PracticeSessionEngine.build(r, ui.learningSnapshot, mode, now, courseTitle = s.title)
         val practice = when (questionMode) {
+            // Graded quizzes (real quiz / exam) only keep questions that actually have a correct answer
+            // — see PracticeItem.isAnswerableQuiz(). Self-assessment cards have no graded answer.
             PracticeQuestionMode.REAL_QUIZ, PracticeQuestionMode.EXAM -> {
-                val quizItems = generatedPractice.items.filter { it.options.isNotEmpty() }
+                // P0-3: flagged-as-wrong questions are excluded from graded practice.
+                val quizItems = generatedPractice.items.filter { it.isAnswerableQuiz() && it.quizId !in ui.flaggedQuestionIds }
                 generatedPractice.copy(items = quizItems)
             }
             PracticeQuestionMode.SELF_ASSESSMENT -> generatedPractice
@@ -3322,16 +5272,134 @@ class AppViewModel(
         )
     }
 
-    fun deleteHistory(id: String) {
-        val updated = ui.history.filterNot { it.id == id }
-        ui = ui.copy(history = updated)
+    fun deleteCourse(courseKey: String): Boolean {
+        val records = recordsForCourse(courseKey)
+        if (records.isEmpty()) {
+            ui = ui.copy(toast = "课程不存在或已删除。")
+            return false
+        }
+        return deleteHistoryRecords(records, "已删除课程及相关学习记录。")
+    }
+
+    fun deleteHistory(id: String): Boolean {
+        val record = ui.history.firstOrNull { it.id == id }
+        if (record == null) {
+            ui = ui.copy(toast = "课程不存在或已删除。")
+            return false
+        }
+        return deleteHistoryRecords(listOf(record), "已删除该历史记录及相关复习数据。")
+    }
+
+    fun deleteCurrentCourse(): Boolean {
+        val activeId = ui.session?.id
+        val record = activeId?.let { id -> ui.history.firstOrNull { it.session.id == id } }
+        if (record != null) return deleteHistory(record.id)
+        if (ui.session == null && ui.l3Pipeline.lessonSource == null) {
+            ui = ui.copy(toast = "当前没有可删除的课程。")
+            return false
+        }
+        ui = ui.copy(
+            selectedCourseKey = null,
+            session = null,
+            result = null,
+            l3Pipeline = L3PipelineSnapshot.Empty,
+            learningState = null,
+            reviewPlan = null,
+            answers = emptyMap(),
+            revealedQuestionIds = emptySet(),
+            selectedKnowledgePointId = null,
+            selectedEvidenceId = null,
+            toast = "已删除当前未保存课程。",
+        )
+        l3PersistenceRepository.saveSnapshot(L3PipelineSnapshot.Empty)
+        selectTab(Tab.HISTORY)
+        return true
+    }
+
+    private fun deleteHistoryRecords(records: List<HistoryRecord>, successToast: String): Boolean {
+        if (records.isEmpty()) return false
+        val recordIds = records.map { it.id }.toSet()
+        val sessionIds = records.map { it.session.id }.toSet()
+        val courseTitles = records.map { it.title }.toSet()
+        val courseKeys = courseTitles.map { CourseLibraryBuilder.normalizeCourseName(it).lowercase() }.toSet()
+        val updated = ui.history.filterNot { it.id in recordIds }
+        val activeDeleted = ui.session?.id in sessionIds || ui.selectedCourseKey in courseKeys
+        val recordingRecordsToDelete = ui.recordingRecords.filter { it.belongsToDeletedCourse(sessionIds, courseKeys) }
+
+        val privateEvidenceRefs = if (activeDeleted) ui.l3Pipeline.privateEvidenceRefs() else emptySet()
+        val evidenceCleanup = evidenceAssetStore.deleteRefs(privateEvidenceRefs)
+        val evidenceSessionCleanup = sessionIds
+            .map { evidenceAssetStore.deleteForSession(it) }
+            .firstOrNull { !it.success }
+        val exportCleanup = exportStore.deleteForCourse(courseTitles, sessionIds)
+        val recordingCleanup = recordingFileManager.deleteForRecords(recordingRecordsToDelete)
+        val persistenceCleanupOk = l3PersistenceRepository.clearIfMatches(sessionIds, courseTitles)
+
+        if (!evidenceCleanup.success || evidenceSessionCleanup != null || !exportCleanup.success || !recordingCleanup.success || !persistenceCleanupOk) {
+            ui = ui.copy(toast = "删除课程失败，已保留现有学习记录，请稍后重试。")
+            return false
+        }
+
+        learningStore.deleteCourseSessions(sessionIds)
+        val nextL3 = if (activeDeleted) L3PipelineSnapshot.Empty else ui.l3Pipeline
+        if (activeDeleted) l3PersistenceRepository.saveSnapshot(nextL3)
+        ui = ui.copy(
+            history = updated,
+            learningSnapshot = learningStore.snapshot(),
+            selectedCourseKey = if (activeDeleted) null else ui.selectedCourseKey,
+            session = if (activeDeleted) null else ui.session,
+            result = if (activeDeleted) null else ui.result,
+            l3Pipeline = nextL3,
+            learningState = if (activeDeleted) null else ui.learningState,
+            reviewPlan = if (activeDeleted) null else ui.reviewPlan,
+            answers = if (activeDeleted) emptyMap() else ui.answers,
+            revealedQuestionIds = if (activeDeleted) emptySet() else ui.revealedQuestionIds,
+            selectedKnowledgePointId = if (activeDeleted) null else ui.selectedKnowledgePointId,
+            selectedEvidenceId = if (activeDeleted) null else ui.selectedEvidenceId,
+            inputArtifacts = if (activeDeleted) emptyList() else ui.inputArtifacts,
+            importReports = if (activeDeleted) emptyList() else ui.importReports,
+            pdfDocuments = if (activeDeleted) emptyList() else ui.pdfDocuments,
+            pdfPages = if (activeDeleted) emptyList() else ui.pdfPages,
+            asrLongJobs = if (activeDeleted) emptyList() else ui.asrLongJobs,
+            recordingRecords = ui.recordingRecords.filterNot { it in recordingRecordsToDelete },
+            currentRecording = ui.currentRecording?.takeUnless { current -> recordingRecordsToDelete.any { it.id == current.id } },
+            toast = successToast,
+        )
         persistHistory(updated)
+        if (activeDeleted) {
+            // P0-2: clean the current course's generated TTS audio file so it doesn't orphan on disk.
+            deleteTtsAudioFileOnly()
+            ui = ui.copy(ttsAudio = TtsAudioUiState())
+        }
+        if (activeDeleted && currentScreen == Screen.COURSE_DETAIL) selectTab(Tab.HISTORY)
+        return true
+    }
+
+    private fun L3PipelineSnapshot.privateEvidenceRefs(): Set<String> =
+        buildSet {
+            evidenceAssets.forEach { asset ->
+                listOf(asset.localUri, asset.thumbnailRef, asset.imageRef, asset.audioRef)
+                    .filterTo(this) { it.isNotBlank() }
+            }
+            evidence.forEach { ev ->
+                listOf(ev.localUri, ev.thumbnailRef, ev.imageRef, ev.audioRef)
+                    .filterTo(this) { it.isNotBlank() }
+            }
+        }
+
+    private fun ClassroomRecordingRecord.belongsToDeletedCourse(sessionIds: Set<String>, courseKeys: Set<String>): Boolean {
+        val titleKey = CourseLibraryBuilder.normalizeCourseName(title).lowercase()
+        if (titleKey in courseKeys) return true
+        val haystack = listOf(id, artifactFileName.orEmpty(), artifactPath.orEmpty()).joinToString(" ").lowercase()
+        return sessionIds.any { it.isNotBlank() && haystack.contains(it.lowercase()) }
     }
 
     /** Official SDK requirement: release native resources when the owner is destroyed. */
     override fun onCleared() {
         runCatching { localTtsPlayer.release() }
         runCatching { onDeviceController.release() }
+        // P1-2: release the Flow background-music player so playback never outlives the app.
+        runCatching { flowAudioController.release() }
         super.onCleared()
     }
 

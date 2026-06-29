@@ -1,5 +1,6 @@
 package com.classmate.app.exporting
 
+import com.classmate.core.exporting.PolishedStudyPack
 import com.classmate.core.exporting.SafeExportText
 import com.classmate.core.exporting.StudyReport
 import com.classmate.core.exporting.StudyReportDocxRenderer
@@ -55,40 +56,50 @@ object ExportCenter {
     ): ExportArtifact {
         val safeTitle = SafeExportText.redact(courseTitle.ifBlank { "未命名课程" })
         val safeMarkdown = SafeExportText.redact(markdown)
+        return renderMarkdownArtifact(safeTitle, safeMarkdown, format, format.fileLabel(), createdAt)
+    }
+
+    /**
+     * P0-1/P0-2: render a user-initiated AI 精修学习包. EVERY format (PDF / HTML / Word / Markdown / Text)
+     * comes from the SAME [PolishedStudyPack.headedMarkdown], so the polished Word can never be a different
+     * version from the polished PDF. The file name carries "polished" + the course title for clarity.
+     */
+    fun artifactFromPolishedPack(
+        pack: PolishedStudyPack,
+        format: ExportFileFormat,
+        createdAt: Long = System.currentTimeMillis(),
+    ): ExportArtifact {
+        val safeTitle = SafeExportText.redact(pack.courseTitle.ifBlank { "未命名课程" })
+        val safeMarkdown = SafeExportText.redact(pack.headedMarkdown())
+        return renderMarkdownArtifact(safeTitle, safeMarkdown, format, "精修学习包-polished", createdAt)
+    }
+
+    /** Shared markdown-to-format renderer: HTML is structured (not a <pre> dump) and DOCX is a real package. */
+    private fun renderMarkdownArtifact(
+        safeTitle: String,
+        safeMarkdown: String,
+        format: ExportFileFormat,
+        fileLabel: String,
+        createdAt: Long,
+    ): ExportArtifact {
         val body = when (format) {
             ExportFileFormat.MARKDOWN -> safeMarkdown
-            ExportFileFormat.HTML -> htmlPage(safeTitle, safeMarkdown, "ClassMate 学习报告")
+            ExportFileFormat.HTML -> markdownToStyledHtml(safeTitle, safeMarkdown, "ClassMate 学习报告")
             ExportFileFormat.TEXT -> markdownToPlain(safeMarkdown)
             ExportFileFormat.PDF -> markdownToPlain(safeMarkdown)
             ExportFileFormat.DOCX -> markdownToPlain(safeMarkdown)
             ExportFileFormat.MINDMAP_MARKDOWN -> safeMarkdown
             ExportFileFormat.MINDMAP_HTML -> mindMapHtml(safeTitle, safeMarkdown)
-            ExportFileFormat.WORD_COMPAT_HTML -> htmlPage(safeTitle, safeMarkdown, "Word 兼容 HTML，可用 Word/WPS 打开，不是真 .docx")
+            ExportFileFormat.WORD_COMPAT_HTML -> markdownToStyledHtml(safeTitle, safeMarkdown, "Word 兼容 HTML，可用 Word/WPS 打开，不是真 .docx")
             ExportFileFormat.SLIDES_HTML -> slidesHtml(safeTitle, safeMarkdown)
             ExportFileFormat.COURSE_ESSENCE_SCRIPT_TEXT -> markdownToPlain(safeMarkdown)
         }
         val bytes = when (format) {
             ExportFileFormat.PDF -> PdfExportRenderer.render(safeTitle, body)
-            ExportFileFormat.DOCX -> StudyReportDocxRenderer.render(
-                StudyReport(
-                    courseTitle = safeTitle,
-                    generatedAtLabel = "",
-                    providerLabel = "本地模板整理",
-                    sourceSummaryLine = null,
-                    transcriptSummaryLine = null,
-                    sourceTypeLabels = emptyList(),
-                    overview = listOf(body),
-                    reviewTopics = emptyList(),
-                    knowledgePoints = emptyList(),
-                    quizzes = emptyList(),
-                    needPractice = emptyList(),
-                    review = com.classmate.core.exporting.StudyReviewBuckets(emptyList(), emptyList(), emptyList(), emptyList(), 0),
-                    askItems = emptyList(),
-                ),
-            )
+            ExportFileFormat.DOCX -> StudyReportDocxRenderer.renderMarkdownDocument(safeTitle, safeMarkdown)
             else -> body.toByteArray(Charsets.UTF_8)
         }
-        val fileName = ExportFileNameSanitizer.safe("ClassMate-$safeTitle-${format.fileLabel()}", format.extension)
+        val fileName = ExportFileNameSanitizer.safe("ClassMate-$safeTitle-$fileLabel", format.extension)
         return ExportArtifact(
             displayName = format.displayName,
             fileName = fileName,
@@ -106,8 +117,8 @@ object ExportCenter {
         ExportFileFormat.TEXT -> "学习报告"
         ExportFileFormat.PDF -> "学习报告"
         ExportFileFormat.DOCX -> "学习报告"
-        ExportFileFormat.MINDMAP_MARKDOWN -> "思维导图"
-        ExportFileFormat.MINDMAP_HTML -> "思维导图"
+        ExportFileFormat.MINDMAP_MARKDOWN -> "知识结构大纲"
+        ExportFileFormat.MINDMAP_HTML -> "知识结构大纲"
         ExportFileFormat.WORD_COMPAT_HTML -> "Word兼容报告"
         ExportFileFormat.SLIDES_HTML -> "演示幻灯片"
         ExportFileFormat.COURSE_ESSENCE_SCRIPT_TEXT -> "课程精华音频脚本"
@@ -121,10 +132,48 @@ object ExportCenter {
         </head><body><h1>${escapeHtml(title)}</h1><p class="note">${escapeHtml(note)}</p><pre>${escapeHtml(markdown)}</pre></body></html>
         """.trimIndent()
 
+    /** A print-friendly HTML that renders markdown structure (headings / bullets) instead of a raw <pre> dump. */
+    private fun markdownToStyledHtml(title: String, markdown: String, note: String): String {
+        val content = StringBuilder()
+        var inList = false
+        fun closeList() { if (inList) { content.append("</ul>"); inList = false } }
+        markdown.lineSequence().forEach { rawLine ->
+            val line = rawLine.trim()
+            when {
+                line.isEmpty() -> closeList()
+                line.startsWith("### ") -> { closeList(); content.append("<h3>").append(inline(line.removePrefix("### "))).append("</h3>") }
+                line.startsWith("## ") -> { closeList(); content.append("<h2>").append(inline(line.removePrefix("## "))).append("</h2>") }
+                line.startsWith("# ") -> { closeList(); content.append("<h1>").append(inline(line.removePrefix("# "))).append("</h1>") }
+                line.startsWith("- ") || line.startsWith("* ") -> {
+                    if (!inList) { content.append("<ul>"); inList = true }
+                    content.append("<li>").append(inline(line.drop(2))).append("</li>")
+                }
+                line.startsWith("> ") -> { closeList(); content.append("<blockquote>").append(inline(line.drop(2))).append("</blockquote>") }
+                else -> { closeList(); content.append("<p>").append(inline(line)).append("</p>") }
+            }
+        }
+        closeList()
+        return """
+        <!doctype html>
+        <html lang="zh-CN"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
+        <style>
+        @page { size: A4; margin: 18mm; }
+        body{font-family:"Noto Sans CJK SC","Microsoft YaHei",system-ui,sans-serif;line-height:1.7;color:#1f2933;max-width:820px;margin:auto;padding:24px;}
+        h1{font-size:24px;margin:0 0 10px;} h2{font-size:19px;margin:24px 0 10px;border-left:4px solid #2563eb;padding-left:10px;} h3{font-size:16px;margin:16px 0 6px;}
+        ul{margin:6px 0 12px 22px;} li{margin:3px 0;} p{margin:8px 0;} blockquote{margin:8px 0;padding:6px 12px;border-left:3px solid #cbd5e1;color:#52616b;}
+        .note{color:#52616b;background:#f3f6f8;padding:10px 12px;border-radius:8px;font-size:13px;}
+        </style></head><body><p class="note">${escapeHtml(note)}</p>$content</body></html>
+        """.trimIndent()
+    }
+
+    /** Minimal inline markdown: escape, then de-emphasize ** and ` so they don't show as literals. */
+    private fun inline(value: String): String =
+        escapeHtml(value).replace("**", "").replace("`", "")
+
     private fun mindMapHtml(title: String, markdown: String): String =
         """
         <!doctype html>
-        <html><head><meta charset="utf-8"><title>${escapeHtml(title)} 思维导图</title>
+        <html><head><meta charset="utf-8"><title>${escapeHtml(title)} 知识结构大纲</title>
         <style>body{font-family:system-ui,sans-serif;padding:24px;background:#f7fafc;} .root{font-size:24px;font-weight:700;margin-bottom:16px;} pre{white-space:pre-wrap;background:white;border:1px solid #d8e0e8;border-radius:10px;padding:16px;}</style>
         </head><body><div class="root">${escapeHtml(title)}</div><pre>${escapeHtml(markdown)}</pre></body></html>
         """.trimIndent()

@@ -223,6 +223,124 @@ class BlueLMProviderTest {
         assertFalse(provider.isAvailable())
     }
 
+    @Test
+    fun slowReadIsRetriedWithBackoffThenSucceeds() {
+        var calls = 0
+        val sleeps = mutableListOf<Long>()
+        val provider = BlueLMProvider(
+            config = fakeBlueLmConfig(),
+            promptBuilder = PromptBuilder(),
+            transport = object : HttpTransport {
+                override fun postJson(url: String, headers: Map<String, String>, body: String, timeoutMs: Long): TransportResponse =
+                    error("BlueLMProvider must use the profiled transport call")
+
+                override fun postJson(url: String, headers: Map<String, String>, body: String, profile: HttpRequestProfile, timeouts: HttpTimeouts): TransportResponse {
+                    calls++
+                    if (calls == 1) throw TransportDiagnosticException(BlueLMDiagnosticStage.READ, BlueLMDiagnosticSubtype.IO)
+                    return TransportResponse(200, """{"choices":[{"message":{"content":"{\"knowledgePoints\":[],\"quizQuestions\":[]}"}}]}""")
+                }
+            },
+            requestIdFactory = { "req-read" },
+            sleeper = { sleeps += it },
+        )
+
+        val result = provider.generate(AnalysisRequest(SampleCourses.seriesSession(), intensity = AnalysisIntensity.STANDARD))
+
+        assertTrue(result is ProviderResult.Success)
+        assertEquals(2, calls) // STANDARD allows 1 READ retry
+        assertEquals(listOf(1_000L), sleeps) // exponential backoff, first step 1s
+    }
+
+    @Test
+    fun slowReadRetriesAreBoundedThenReturnDiagnosableFailure() {
+        var calls = 0
+        val provider = BlueLMProvider(
+            config = fakeBlueLmConfig(),
+            promptBuilder = PromptBuilder(),
+            transport = object : HttpTransport {
+                override fun postJson(url: String, headers: Map<String, String>, body: String, timeoutMs: Long): TransportResponse =
+                    error("BlueLMProvider must use the profiled transport call")
+
+                override fun postJson(url: String, headers: Map<String, String>, body: String, profile: HttpRequestProfile, timeouts: HttpTimeouts): TransportResponse {
+                    calls++
+                    throw TransportDiagnosticException(BlueLMDiagnosticStage.READ, BlueLMDiagnosticSubtype.IO)
+                }
+            },
+            requestIdFactory = { "req-read-fail" },
+            sleeper = {},
+        )
+
+        val result = provider.generate(AnalysisRequest(SampleCourses.seriesSession(), intensity = AnalysisIntensity.DEEP))
+
+        assertTrue(result is ProviderResult.Failure)
+        result as ProviderResult.Failure
+        assertEquals(3, calls) // DEEP allows 2 READ retries → 3 attempts total
+        assertEquals("BLUELM:NETWORK:READ", result.error.shortCode)
+    }
+
+    @Test
+    fun non2xxIsNotRetriedEvenWhenIntensityAllowsReadRetries() {
+        var calls = 0
+        val provider = BlueLMProvider(
+            config = fakeBlueLmConfig(),
+            promptBuilder = PromptBuilder(),
+            transport = HttpTransport { _, _, _, _ -> calls++; TransportResponse(503, "busy") },
+            requestIdFactory = { "req-503" },
+            sleeper = {},
+        )
+
+        val result = provider.generate(AnalysisRequest(SampleCourses.seriesSession(), intensity = AnalysisIntensity.DEEP))
+
+        assertTrue(result is ProviderResult.Failure)
+        assertEquals(1, calls) // HTTP_NON_2XX is not a transient READ wobble → no retry
+    }
+
+    @Test
+    fun degradedRetryRequestIsShorterThanTheFirstAttempt() {
+        val bodies = mutableListOf<String>()
+        val provider = BlueLMProvider(
+            config = fakeBlueLmConfig(),
+            promptBuilder = PromptBuilder(),
+            transport = object : HttpTransport {
+                override fun postJson(url: String, headers: Map<String, String>, body: String, timeoutMs: Long): TransportResponse =
+                    error("BlueLMProvider must use the profiled transport call")
+
+                override fun postJson(url: String, headers: Map<String, String>, body: String, profile: HttpRequestProfile, timeouts: HttpTimeouts): TransportResponse {
+                    bodies += body
+                    if (bodies.size == 1) throw TransportDiagnosticException(BlueLMDiagnosticStage.READ, BlueLMDiagnosticSubtype.IO)
+                    return TransportResponse(200, """{"choices":[{"message":{"content":"{\"knowledgePoints\":[],\"quizQuestions\":[]}"}}]}""")
+                }
+            },
+            requestIdFactory = { "req-degrade" },
+            sleeper = {},
+        )
+
+        provider.generate(AnalysisRequest(SampleCourses.seriesSession(), intensity = AnalysisIntensity.STANDARD))
+
+        assertEquals(2, bodies.size)
+        fun maxTokensOf(body: String): Int = Regex("\"max_tokens\":\\s*(\\d+)").find(body)!!.groupValues[1].toInt()
+        assertTrue("degraded retry must request fewer output tokens", maxTokensOf(bodies[1]) < maxTokensOf(bodies[0]))
+    }
+
+    @Test
+    fun intensityDrivesTheHttpReadTimeout() {
+        var captured: HttpTimeouts? = null
+        val transport = object : HttpTransport {
+            override fun postJson(url: String, headers: Map<String, String>, body: String, timeoutMs: Long): TransportResponse =
+                error("BlueLMProvider must use the profiled transport call")
+
+            override fun postJson(url: String, headers: Map<String, String>, body: String, profile: HttpRequestProfile, timeouts: HttpTimeouts): TransportResponse {
+                captured = timeouts
+                return TransportResponse(200, """{"choices":[{"message":{"content":"{\"knowledgePoints\":[],\"quizQuestions\":[]}"}}]}""")
+            }
+        }
+        val provider = BlueLMProvider(config = fakeBlueLmConfig(), promptBuilder = PromptBuilder(), transport = transport, requestIdFactory = { "req-fast" })
+
+        provider.generate(AnalysisRequest(SampleCourses.seriesSession(), intensity = AnalysisIntensity.FAST))
+
+        assertEquals(45_000L, captured?.readTimeoutMs)
+    }
+
     private fun fakeBlueLmConfig(requestIdQueryName: String = "request_id") = ProviderConfig(
         kind = ProviderKind.BLUELM,
         enabled = true,

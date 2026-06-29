@@ -47,16 +47,22 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.classmate.app.data.EvidenceAssetStore
 import com.classmate.app.data.FileHistoryStore
 import com.classmate.app.data.FileExportStore
 import com.classmate.app.data.FileSnapshotIo
 import com.classmate.app.data.L3PersistenceRepository
 import com.classmate.app.data.LocalSemanticIndexRepository
 import com.classmate.app.data.ThemePreferenceRepository
+import com.classmate.app.audio.AndroidFlowAudioController
 import com.classmate.app.l3.AndroidClassroomAudioRecorder
 import com.classmate.app.l3.AndroidLocalTtsPlayer
+import com.classmate.app.capture.CaptureGateway
+import com.classmate.app.l3.OfficialRuntimeGatewayFactory
+import com.classmate.app.l3.RecordingFileManager
 import com.classmate.app.navigation.ClassMateNavHost
 import com.classmate.app.ondevice.OnDeviceLlmController
+import com.classmate.app.platform.CaptureConfigLoader
 import com.classmate.app.platform.ModelConfigRepository
 import com.classmate.app.state.AppViewModel
 import com.classmate.app.state.Screen
@@ -77,6 +83,10 @@ fun ClassMateApp() {
         factory = viewModelFactory {
             initializer {
                 val exportDir = context.getExternalFilesDir("exports") ?: File(context.filesDir, "exports")
+                // Single credential file shared by the model config, capture (OCR/ASR) and the official
+                // runtime gateway: on a real device config.local.json is effectively absent, so the
+                // Settings-saved AppID/AppKey here is the one source the cloud capabilities read.
+                val modelConfigFile = File(context.filesDir, "classmate_model_config.json")
                 AppViewModel(
                     historyStore = FileHistoryStore(File(context.filesDir, "classmate_history.json")),
                     learningStore = LearningStore(FileSnapshotIo(File(context.filesDir, "classmate_learning_state.json"))),
@@ -84,12 +94,26 @@ fun ClassMateApp() {
                     // Persist the official-model config to app-private storage (survives restart;
                     // never committed — see .gitignore). On-device BlueLM 3B uses the honest
                     // missing-SDK bridge until app/libs/llm-sdk-release.aar is bundled.
-                    modelConfigRepository = ModelConfigRepository(File(context.filesDir, "classmate_model_config.json")),
+                    modelConfigRepository = ModelConfigRepository(modelConfigFile),
+                    // Capture + official runtime read the SAME Settings credential (model-config file)
+                    // as a fallback to config.local.json, so OCR/ASR aren't stuck "未配置" on device.
+                    captureGatewayProvider = { CaptureGateway(configLoader = CaptureConfigLoader(modelConfigFile = modelConfigFile)) },
+                    officialRuntimeGateway = OfficialRuntimeGatewayFactory.production(
+                        configLoader = CaptureConfigLoader(modelConfigFile = modelConfigFile),
+                    ),
                     themePreferenceRepository = ThemePreferenceRepository(File(context.filesDir, "classmate_theme_preferences.json")),
                     semanticIndexRepository = LocalSemanticIndexRepository(File(context.filesDir, "classmate_semantic_index.json")),
                     l3PersistenceRepository = L3PersistenceRepository(File(context.filesDir, "classmate_l3_store.json")),
+                    evidenceAssetStore = EvidenceAssetStore(File(context.filesDir, "classmate_evidence_assets")),
                     classroomAudioRecorder = AndroidClassroomAudioRecorder(File(context.filesDir, "classmate_recordings")),
+                    recordingFileManager = RecordingFileManager(File(context.filesDir, "classmate_recordings")),
                     localTtsPlayer = AndroidLocalTtsPlayer(context),
+                    // P1-2: Flow background music owned at VM level — survives leaving the Flow page,
+                    // released only on pause/stop or when the VM is cleared.
+                    flowAudioController = AndroidFlowAudioController(context),
+                    // Official TTS WebSocket (config-gated); writes WAV into the same classmate_tts dir as the
+                    // system TTS so course-deletion cleanup and play/share/delete all keep working.
+                    officialTtsProvider = com.classmate.app.asr.OfficialTtsProvider(File(context.filesDir, "classmate_tts")),
                     // Real reflection bridge: drives the vivo on-device SDK when app/libs/llm-sdk-release.aar
                     // is bundled, and honestly reports SDK_MISSING (no crash) when it is absent.
                     onDeviceController = OnDeviceLlmController.real(),

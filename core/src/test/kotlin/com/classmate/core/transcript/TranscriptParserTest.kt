@@ -104,6 +104,32 @@ class TranscriptParserTest {
     }
 
     @Test
+    fun vttWithBomHeaderAndNoteParsesCueOnly() {
+        val vtt = "\uFEFFWEBVTT\n\nNOTE this is an editor note\nit should be skipped\n\n00:00:02.000 --> 00:00:03.000\nTeacher: useful cue"
+
+        val result = TranscriptParser.parseVtt(vtt)
+
+        assertEquals(1, result.segments.size)
+        assertEquals(2_000L, result.segments.single().startMs)
+        assertTrue(result.segments.single().text.contains("useful cue"))
+    }
+
+    @Test
+    fun autoDetectHandlesBomWebVttAndPlainText() {
+        assertEquals(TranscriptSourceType.VTT_FILE, TranscriptParser.autoDetect("\uFEFFWEBVTT\n\n00:00:01.000 --> 00:00:02.000\ntext"))
+        assertEquals(TranscriptSourceType.SRT_FILE, TranscriptParser.autoDetect("1\n00:00:01,000 --> 00:00:02,000\ntext"))
+        assertEquals(TranscriptSourceType.PASTED_TRANSCRIPT, TranscriptParser.autoDetect("plain transcript line"))
+    }
+
+    @Test
+    fun emptyVideoSubtitleDoesNotCreateTranscriptSegments() {
+        val result = TranscriptParser.parse("", TranscriptSourceType.VIDEO_SUBTITLE)
+
+        assertTrue(result.segments.isEmpty())
+        assertTrue(result.warnings.isNotEmpty())
+    }
+
+    @Test
     fun emptyInputReturnsWarning() {
         val result = TranscriptParser.parseSrt("   \n  ")
         assertTrue(result.segments.isEmpty())

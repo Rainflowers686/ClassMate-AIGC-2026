@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
+import com.classmate.app.ui.i18n.appStrings
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -17,10 +18,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import com.classmate.app.state.PolishedExportStatus
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -35,75 +38,147 @@ import com.classmate.app.ui.design.Dimens
 @Composable
 fun ExportCenterCard(
     viewModel: AppViewModel,
-    title: String = "导出中心",
-    description: String = "先生成学习报告草稿，再选择 PDF、Word、HTML、Markdown、Text 或课程精华音频脚本。",
+    title: String? = null,
+    description: String? = null,
     buildArtifact: (ExportFileFormat) -> ExportArtifact?,
 ) {
     val context = LocalContext.current
+    val s = appStrings(viewModel.ui.language)
     var selectedFormat by remember { mutableStateOf(ExportFileFormat.PDF) }
     var pendingSave by remember { mutableStateOf<ExportArtifact?>(null) }
     var draftReady by remember { mutableStateOf(viewModel.ui.exportDraftReady) }
+    // P0-1/P0-2: AI 精修导出 — a separate, user-initiated long task. When a polished version becomes ready
+    // the format buttons default to it, but the user can switch back to the normal version at any time.
+    val polished = viewModel.ui.polishedExport
+    var usePolished by remember { mutableStateOf(false) }
+    LaunchedEffect(polished.ready) { if (polished.ready) usePolished = true }
     val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val artifact = pendingSave
         pendingSave = null
         if (artifact == null) return@rememberLauncherForActivityResult
         val uri = result.data?.data
         if (result.resultCode != Activity.RESULT_OK || uri == null) {
-            viewModel.recordExportAction(artifact, ExportActionStatus.CANCELED, "已取消保存。")
+            viewModel.recordExportAction(artifact, ExportActionStatus.CANCELED, s.exportSaveCanceled)
             return@rememberLauncherForActivityResult
         }
         try {
             ExportIntentFactory.writeToUri(context, uri, artifact)
-            viewModel.recordExportAction(artifact, ExportActionStatus.SAVED_AS, "已保存到你选择的位置。")
+            viewModel.recordExportAction(artifact, ExportActionStatus.SAVED_AS, s.exportSavedToChosenLocation)
         } catch (_: Exception) {
             viewModel.recordExportAction(
                 artifact,
                 ExportActionStatus.FAILED,
-                "保存失败。可重试、换成 HTML/Text，或使用系统分享。",
+                s.exportSaveFailedFallback,
             )
         }
     }
 
     fun artifactOrNotify(): ExportArtifact? {
+        if (usePolished && polished.ready) {
+            return try {
+                viewModel.buildPolishedArtifact(selectedFormat)
+            } catch (_: Exception) {
+                viewModel.toast(s.exportFormatFailed(selectedFormat.displayName)); null
+            }
+        }
         if (!draftReady) {
-            viewModel.toast("请先生成学习报告草稿，再选择导出格式。")
+            viewModel.toast(s.exportNeedDraftToast)
             return null
         }
         return try {
             buildArtifact(selectedFormat)
         } catch (_: Exception) {
-            viewModel.toast("${selectedFormat.displayName} 生成失败，可换成 HTML 或 Text 兜底。")
+            viewModel.toast(s.exportFormatFailed(selectedFormat.displayName))
             null
         }
     }
 
     ClassMateCard {
-        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Text(title ?: s.exportCenterTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            HelpHint(title = s.helpExportTitle, points = s.helpExportPoints, dismiss = s.helpDismiss)
+        }
         Spacer(Modifier.height(Dimens.s))
-        Text(description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(Dimens.s))
-        Text(
-            "DOCX 是真实 Word 文档，适合继续编辑；PDF 适合打印；HTML 适合浏览器学习；课程精华音频脚本可在 TTS 未配置时先导出文本。",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Text(description ?: s.exportCenterDescription, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(Dimens.s))
         PrimaryButton(
-            text = if (draftReady) "重新生成学习报告草稿" else "生成学习报告草稿",
+            text = if (draftReady) s.exportRegenerateDraft else s.exportGenerateDraft,
             onClick = { draftReady = viewModel.prepareRefinedExportDraft() || draftReady },
             modifier = Modifier.fillMaxWidth(),
         )
         viewModel.ui.exportDraftMessage?.let {
             Spacer(Modifier.height(Dimens.xs))
             Text(
-                "${viewModel.ui.exportDraftSource ?: "本地模板整理"} · $it",
+                "${viewModel.ui.exportDraftSource ?: s.exportDraftSourceFallback} · $it",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
 
+        // ---- P0-1/P0-2: 导出资料升级 / AI 精修导出 (separate long task; normal export above stays usable) ----
+        if (viewModel.hasPolishableMaterial()) {
+            Spacer(Modifier.height(Dimens.m))
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text(s.exportPolishTitle, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                when {
+                    polished.running -> StatusChip(s.exportPolishRunningChip, tone = ChipTone.INFO)
+                    polished.ready -> StatusChip(s.exportPolishReady(polished.sourceZh), tone = ChipTone.SUCCESS)
+                    polished.status == PolishedExportStatus.FAILED -> StatusChip(s.exportPolishFailedChip, tone = ChipTone.WARNING)
+                    else -> {}
+                }
+            }
+            Spacer(Modifier.height(Dimens.xs))
+            Text(s.exportPolishDescription, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(Dimens.s))
+            when {
+                polished.running -> ProminentLoadingCard(
+                    title = s.exportPolishTitle,
+                    statusText = "${polished.stageIndex.coerceAtMost(polished.stageCount)}/${polished.stageCount} · ${polished.message}",
+                    longWaitNote = if (polished.slowNotice) s.exportPolishSlowNote else null,
+                    onCancel = { viewModel.cancelPolishedExport() },
+                    cancelText = s.exportPolishCancel,
+                    language = viewModel.ui.language,
+                )
+                polished.status == PolishedExportStatus.FAILED -> ProminentErrorCard(
+                    whatHappened = s.exportPolishFailedChip,
+                    possibleCause = polished.message,
+                    nextStep = s.exportPolishDescription,
+                    retryText = s.exportPolishRetry,
+                    onRetry = { viewModel.startPolishedExport() },
+                    secondaryText = s.exportPolishUseNormal,
+                    onSecondary = { usePolished = false },
+                    language = viewModel.ui.language,
+                )
+                polished.ready -> ActionButtonRow(
+                    primaryText = s.exportPolishRetry,
+                    onPrimary = { viewModel.startPolishedExport() },
+                    secondaryText = if (usePolished) s.exportPolishVersionNormal else s.exportPolishVersionPolished,
+                    onSecondary = { usePolished = !usePolished },
+                )
+                else -> PrimaryButton(
+                    text = s.exportPolishStart,
+                    onClick = { viewModel.startPolishedExport() },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            polished.message.takeIf { it.isNotBlank() && !polished.running }?.let {
+                Spacer(Modifier.height(Dimens.xs))
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+
         Spacer(Modifier.height(Dimens.s))
-        Text("选择导出格式", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Text(s.exportChooseFormat, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            if (polished.ready) {
+                // Which version the format buttons export — the user can switch back to the normal version.
+                StatusChip(
+                    if (usePolished) s.exportPolishVersionPolished else s.exportPolishVersionNormal,
+                    tone = if (usePolished) ChipTone.SUCCESS else ChipTone.NEUTRAL,
+                    modifier = Modifier.clickable { usePolished = !usePolished },
+                )
+            }
+        }
         Spacer(Modifier.height(Dimens.xs))
         Row(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -113,7 +188,7 @@ fun ExportCenterCard(
                 FormatChip(
                     text = format.displayName,
                     selected = selectedFormat == format,
-                    enabled = draftReady,
+                    enabled = draftReady || (usePolished && polished.ready),
                     onClick = { selectedFormat = format },
                 )
             }
@@ -127,7 +202,7 @@ fun ExportCenterCard(
         Spacer(Modifier.height(Dimens.s))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
             PrimaryButton(
-                text = "保存到文件…",
+                text = s.exportSaveFile,
                 onClick = {
                     val artifact = artifactOrNotify() ?: return@PrimaryButton
                     pendingSave = artifact
@@ -136,12 +211,12 @@ fun ExportCenterCard(
                 modifier = Modifier.weight(1f),
             )
             SecondaryButton(
-                text = "保存到下载目录",
+                text = s.exportSaveDownloads,
                 onClick = {
                     val artifact = artifactOrNotify() ?: return@SecondaryButton
                     when (val result = DownloadsExporter.saveToDownloads(context, artifact)) {
                         is DownloadsExporter.Result.Saved ->
-                            viewModel.recordExportAction(artifact, ExportActionStatus.SAVED_DOWNLOADS, "已保存到下载目录 / Downloads。")
+                            viewModel.recordExportAction(artifact, ExportActionStatus.SAVED_DOWNLOADS, s.exportSavedDownloads)
                         is DownloadsExporter.Result.Unsupported ->
                             viewModel.recordExportAction(artifact, ExportActionStatus.FAILED, result.reason)
                         is DownloadsExporter.Result.Failed ->
@@ -154,41 +229,67 @@ fun ExportCenterCard(
         Spacer(Modifier.height(Dimens.s))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
             SecondaryButton(
-                text = "分享…",
+                text = s.exportShare,
                 onClick = {
                     val artifact = artifactOrNotify() ?: return@SecondaryButton
                     try {
                         context.startActivity(ExportIntentFactory.createShareChooser(context, artifact))
-                        viewModel.recordExportAction(artifact, ExportActionStatus.SHARED, "已打开系统分享面板。")
+                        viewModel.recordExportAction(artifact, ExportActionStatus.SHARED, s.exportShareOpened)
                     } catch (_: ActivityNotFoundException) {
-                        viewModel.recordExportAction(artifact, ExportActionStatus.FAILED, "没有可用的分享应用。")
+                        viewModel.recordExportAction(artifact, ExportActionStatus.FAILED, s.exportNoShareApp)
                     } catch (_: Exception) {
-                        viewModel.recordExportAction(artifact, ExportActionStatus.FAILED, "分享失败，请重试或改用保存。")
+                        viewModel.recordExportAction(artifact, ExportActionStatus.FAILED, s.exportShareFailed)
                     }
                 },
                 modifier = Modifier.weight(1f),
             )
             SecondaryButton(
-                text = "内部备份",
+                text = s.exportInternalBackup,
                 onClick = {
                     val artifact = artifactOrNotify() ?: return@SecondaryButton
                     try {
                         ExportIntentFactory.writeInternalBackup(context, artifact)
-                        viewModel.recordExportAction(artifact, ExportActionStatus.INTERNAL_ONLY, "已写入应用内部备份；建议优先使用保存或分享。")
+                        viewModel.recordExportAction(artifact, ExportActionStatus.INTERNAL_ONLY, s.exportInternalBackupSaved)
                     } catch (_: Exception) {
-                        viewModel.recordExportAction(artifact, ExportActionStatus.FAILED, "内部备份失败，可改导出 HTML/Text。")
+                        viewModel.recordExportAction(artifact, ExportActionStatus.FAILED, s.exportInternalBackupFailed)
                     }
                 },
                 modifier = Modifier.weight(1f),
             )
         }
-        viewModel.ui.lastExportReceipt?.let {
+        viewModel.ui.lastExportReceipt?.let { receipt ->
             Spacer(Modifier.height(Dimens.s))
-            Text(
-                "最近导出：${it.fileName} · ${it.format.ifBlank { selectedFormat.displayName }} · ${it.message.ifBlank { it.pathSummary }}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            if (receipt.lastAction == ExportActionStatus.FAILED) {
+                // P0-6: export failures are prominent, not a quiet line — with a real retry on the current draft.
+                ProminentErrorCard(
+                    whatHappened = s.exportFailedTitle,
+                    possibleCause = receipt.message.ifBlank { s.exportFailedCauseFallback },
+                    nextStep = s.exportFailedNextStep,
+                    retryText = s.exportRetrySave,
+                    onRetry = {
+                        val artifact = artifactOrNotify()
+                        if (artifact != null) {
+                            when (val r = DownloadsExporter.saveToDownloads(context, artifact)) {
+                                is DownloadsExporter.Result.Saved ->
+                                    viewModel.recordExportAction(artifact, ExportActionStatus.SAVED_DOWNLOADS, s.exportSavedDownloads)
+                                is DownloadsExporter.Result.Unsupported ->
+                                    viewModel.recordExportAction(artifact, ExportActionStatus.FAILED, r.reason)
+                                is DownloadsExporter.Result.Failed ->
+                                    viewModel.recordExportAction(artifact, ExportActionStatus.FAILED, r.reason)
+                            }
+                        }
+                    },
+                    secondaryText = s.exportSwitchHtml,
+                    onSecondary = { selectedFormat = ExportFileFormat.HTML; viewModel.toast(s.exportSwitchHtmlToast) },
+                    language = viewModel.ui.language,
+                )
+            } else {
+                Text(
+                    s.exportLatestReceipt(receipt.fileName, receipt.format.ifBlank { selectedFormat.displayName }, receipt.message.ifBlank { receipt.pathSummary }),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 

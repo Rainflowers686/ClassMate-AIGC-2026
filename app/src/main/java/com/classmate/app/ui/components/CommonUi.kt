@@ -29,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -214,6 +215,115 @@ fun SecondaryButton(
             Spacer(Modifier.width(8.dp))
         }
         ClassMateSingleLineText(text, style = MaterialTheme.typography.labelLarge)
+    }
+}
+
+/**
+ * Tertiary / ghost button: lowest visual weight, for quiet actions like "稍后" / "返回手动整理".
+ * Same height + radius + single-line text as the others so the system stays consistent.
+ */
+@Composable
+fun TertiaryButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    leadingIcon: ImageVector? = null,
+) {
+    val tokens = ClassMateTheme.colors
+    TextButton(
+        onClick = onClick,
+        modifier = modifier.height(52.dp).defaultMinSize(minHeight = 52.dp),
+        enabled = enabled,
+        shape = RoundedCornerShape(ClassMateTheme.shapes.buttonRadius),
+        colors = ButtonDefaults.textButtonColors(
+            contentColor = tokens.textSecondary,
+            disabledContentColor = tokens.textSecondary.copy(alpha = 0.5f),
+        ),
+    ) {
+        if (leadingIcon != null) {
+            Icon(leadingIcon, contentDescription = null, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
+        }
+        ClassMateSingleLineText(text, style = MaterialTheme.typography.labelLarge)
+    }
+}
+
+/**
+ * Destructive button: careful, NOT a screaming red — uses the muted errorContainer so it reads as
+ * "be careful" rather than "primary action". For "清除配置" / "删除记录".
+ */
+@Composable
+fun DestructiveButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    leadingIcon: ImageVector? = null,
+) {
+    val tokens = ClassMateTheme.colors
+    Button(
+        onClick = onClick,
+        modifier = modifier.height(52.dp).defaultMinSize(minHeight = 52.dp),
+        enabled = enabled,
+        shape = RoundedCornerShape(ClassMateTheme.shapes.buttonRadius),
+        elevation = ButtonDefaults.buttonElevation(
+            defaultElevation = 0.dp,
+            pressedElevation = 0.dp,
+            disabledElevation = 0.dp,
+        ),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+            contentColor = MaterialTheme.colorScheme.onErrorContainer,
+            disabledContainerColor = tokens.surfaceVariant,
+            disabledContentColor = tokens.textSecondary,
+        ),
+    ) {
+        if (leadingIcon != null) {
+            Icon(leadingIcon, contentDescription = null, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
+        }
+        ClassMateSingleLineText(text, style = MaterialTheme.typography.labelLarge)
+    }
+}
+
+/**
+ * Experimental-feature entry: secondary weight + a small warning-tinted badge so it never looks like a
+ * primary action. [badge] text is caller-supplied so it can be localized.
+ */
+@Composable
+fun ExperimentalButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    badge: String = "实验",
+) {
+    val tokens = ClassMateTheme.colors
+    val warn = ClassMateTheme.extended.warning
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier.height(52.dp).defaultMinSize(minHeight = 52.dp),
+        enabled = enabled,
+        shape = RoundedCornerShape(ClassMateTheme.shapes.buttonRadius),
+        border = BorderStroke(1.dp, warn.copy(alpha = 0.5f)),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = warn.copy(alpha = 0.06f),
+            contentColor = warn,
+            disabledContainerColor = tokens.surfaceVariant,
+            disabledContentColor = tokens.textSecondary,
+        ),
+    ) {
+        ClassMateSingleLineText(text, style = MaterialTheme.typography.labelLarge)
+        Spacer(Modifier.width(8.dp))
+        Surface(shape = RoundedCornerShape(50), color = warn.copy(alpha = 0.16f)) {
+            Text(
+                badge,
+                style = MaterialTheme.typography.labelSmall,
+                color = warn,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+            )
+        }
     }
 }
 

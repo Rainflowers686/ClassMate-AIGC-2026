@@ -1,155 +1,92 @@
-# ClassMate
+# ClassMate 1.14.2
 
-> v1.8 status freeze (2026-06-20): v1.7 fixed the production official retrieval runtime injection point. `AppViewModel` now builds the L3 official runtime through `OfficialRuntimeGatewayFactory.production()`, which injects Vivo Query Rewrite, Embedding, and Text Similarity adapters when runtime config is present. Real `OFFICIAL_RUNTIME_USED` still requires demo/cloud-device validation; missing config or runtime failure falls back locally and must not block study output. No live provider network smoke is run as part of this status freeze.
+> 面向 AIGC 全国计算机大赛的证据绑定学习闭环 Android App。
 
-ClassMate 是面向 vivo AIGC 创新赛应用赛道的课堂学习助手。它不是普通录音总结工具，而是把课堂资料整理成可追溯、可练习、可复习、可导出的学习闭环。
-
-当前稳定基线：
-
-- `main`：当前稳定基线。
-- `feature/product-review-compatible`：长期实验分支，用于产品化、兼容性和竞赛材料迭代。
-- 当前同步基线 commit：`a4c38cc`。
-- Stage 10 product UI 来源 commit：`d374db9`。
-
-当前 provider smoke / L3 readiness（2026-06-18）：
-
-- 官方 product-facing provider smoke 已有 4 项真实通过：OCR、QUERY_REWRITE、TEXT_SIMILARITY、EMBEDDING。
-- Query Rewrite 此前 blocked 的根因是 smoke harness 请求体 schema 错误；官方 docId 2061 要求 `prompts` schema，Claude 专项修复后真实 network smoke 已 `PASS`。
-- OCR 是当前 app-level 官方产品路径：图片/拍照/OCR 文本进入 LessonSource/Evidence，仍受配置控制并保留 fallback。
-- Query Rewrite：v1.7 后 production gateway 已注入 `VivoQueryRewriteProvider -> VivoQueryRewriteLearningProvider`，App pipeline 具备 official-first path；真实 `OFFICIAL_RUNTIME_USED` 仍需 demo/cloud-device 配置验证，失败时回退 local query planning。
-- Embedding：v1.7 后 production gateway 已注入 `VivoEmbeddingProvider -> VivoEmbeddingLearningProvider`，支持 `officialVector` 与 `vectorSource=OFFICIAL`；真实官方向量写入仍需 demo/cloud-device 验证，失败时回退 local lexical vector。
-- Text Similarity：v1.7 后 production gateway 已注入 `VivoTextSimilarityProvider -> VivoTextSimilarityLearningProvider`，evidence matching / similar question / ranking 具备 official-first path；真实官方 rerank 仍需 demo/cloud-device 验证，失败时回退 local similarity。
-- Translation、official TTS、Function Calling 仍按 seam-only / local fallback / not configured 处理。
-- ASR Long：core `VivoAsrProvider` 1739 create/upload/run/progress/result 合约存在；app demo 状态是 recording artifact + ASR job seam + manual transcript fallback，官方上传/轮询/结果回填需单独非敏感音频验证。
-- 下一主线不是继续加功能，而是 App-level L3 云真机/真机学习闭环验证。
-
-## 核心闭环
-
-主学习链路：
+ClassMate 把真实课堂资料变成可复习、可练习、可回溯、可导出的学习资产。它不是通用聊天 App，也不是单一 OCR、转写或刷题工具；主线是：
 
 ```text
-资料输入 -> 蓝心理解 -> 证据校验 -> 知识地图 -> Ask / Practice / Review / Export
+资料输入 -> 知识结构 -> 证据绑定 -> 微测 -> 反馈 -> 复习闭环 -> AI 精修导出
 ```
 
-ClassMate 的核心原则是“模型只生成学习草稿，本地负责证据定位、校验和学习状态更新”。只有通过解析和校验的结果才进入知识地图、微测、复习任务和导出报告。
+当前候选版本：
 
-## AI 路径
+| 项 | 状态 |
+| --- | --- |
+| 版本 | `1.14.2 / versionCode 115` |
+| 最新核心提交 | `7473fb1 fix(product): repair final real-device import and quiz blockers` |
+| 分支 | `feature/audio-official-loop-hardening-v1` |
+| 定位 | 多模态课堂学习闭环 App |
+| 演示状态 | 核心链路最终候选版；官方网络能力仍需真实 AppKey 与真机验证 |
 
-当前 AI 路径是：
+## 当前可演示主链路
 
-```text
-云端蓝心 -> 端侧蓝心 -> 安全占位
-```
+1. 导入课堂资料：文本、Markdown、图片、拍照、TXT/MD、多文件、PDF 页文本、录音或转写。
+2. 生成知识结构：课程主题、知识点、重点解释、易错点。
+3. 绑定证据：文本、图片、文档、音频转写都作为 EvidenceAsset 回溯。
+4. 做微测：题目来自本节课资料；无可用题时有本地兜底题，不出现空页面。
+5. 学习反馈：答题后进入错题、薄弱点、已复习/需复核状态和复习计划。
+6. 外部学习入口：B 站/浏览器搜索是 Intent 搜索入口，不是 API 推荐算法。
+7. 导出：普通导出始终可用；AI 精修导出由用户主动触发，失败不覆盖普通版。
 
-- 云端蓝心：官方 BlueLM / qwen3.5-plus 文本模型路径，用于主课程分析和问答。
-- 端侧蓝心：vivo 端侧 BlueLM 3B，用于弱网、本地能力和多模态学习草稿。
-- 安全占位：最终兜底状态，只说明模型不可用或结果未通过校验，不伪造智能分析结果。
+## 官方能力真实状态
 
-安全口径：
+ClassMate 使用官方能力时坚持“能用则用，失败不阻断，状态不夸大”。
 
-- 不把 LocalRule 当成用户可见的智能能力展示。
-- 不把 DeepSeek 或 Compatible Demo 当成复赛主路径。
-- 不声称多模态替代 OCR。
-- 不声称自动 OCR 已完成。
-- 录音不会被描述为已具备自动转写闭环。
-- 不把安全占位包装成模型成功。
+| 能力 | 当前状态 | fallback |
+| --- | --- | --- |
+| 蓝心大模型 HTTP | 已接入学习分析、精修导出、反馈增强；需配置验证真实网络 | 端侧模型或本地规则 |
+| 官方长语音转写 1739 HTTP | 任务流代码接入；需 AppKey 与真机验证 | 系统 ASR、录音保存、手动转写 |
+| 官方实时 ASR WebSocket | 协议底座接入；流式真机体验待验证 | 系统 SpeechRecognizer、录音保存 |
+| 官方 TTS WebSocket | 已按官方 WebSocket 协议代码接入；不是“缺协议不能做” | 系统 TTS、听背文稿 |
+| 系统 ASR/TTS | 已接入；依赖设备服务 | 手动转写 / 文稿 |
+| 端侧 3B | optional fallback；依赖机型、模型文件和权限 | 云端或本地规则 |
+| 文本向量/相似度/查询改写 | 官方 runtime/fallback 结构存在；真实 official used 需配置验证 | 本地 lexical / similarity |
+| 外部搜索 | 浏览器 Intent | 无 API 伪装 |
 
-## 端侧 BlueLM 状态
+完整矩阵见 [docs/current/OFFICIAL_CAPABILITY_MATRIX_1_14_2.md](docs/current/OFFICIAL_CAPABILITY_MATRIX_1_14_2.md)。
+旧版 18 项能力横向自检仍保留为兼容入口：[docs/current/official_18_capability_l3_readiness.md](docs/current/official_18_capability_l3_readiness.md)。该文档与当前 README 的共同口径是：官方配置缺失时回到本地基础整理；图片生成、视频生成、同声传译等实验性入口默认关闭，不影响主学习闭环。
 
-当前端侧能力已接入到学习链路：
+## 重要边界
 
-- 官方模型目录：`/sdcard/1225/1.7.0.4_1225_mtk9500`
-- 文本生成诊断。
-- 多模态 `callVit` 诊断。
-- 真实图片诊断不落库。
-- 图片/拍照生成可编辑学习草稿。
-- 用户确认草稿后进入 `CourseAnalysis`，仍需要 JSON parse 与 validators 通过才落库。
+- 不声称官方 ASR/TTS 已 100% 真机跑通；真实网络成功依赖 AppKey、权限、设备和接口状态。
+- 不把端侧模型说成所有手机可用；它是 optional fallback。
+- 不把浏览器搜索包装成推荐 API。
+- 不把本地 fallback 冒充蓝心结果。
+- 导出内容经过 SafeExportText 清理，不包含密钥、内部状态、provider trace 或 raw id。
 
-端侧 SDK 通过 reflection bridge 调用，不应在生产代码中直接 `import com.vivo.llmsdk`。
+## 构建与验证
 
-## 输入与学习功能
-
-当前能力包括：
-
-- 文本、Markdown、TXT、SRT/VTT/TXT 转写稿导入。
-- 手动 OCR / PPT / 板书 / PDF 资料流。
-- Live Companion 与实验模式入口。
-- Knowledge Timeline、证据链、Ask This Lesson、Quiz、Practice、Review、Weakness Hub。
-- Course Library / Course Detail。
-- Export Center：Markdown、HTML、TXT、PDF、MindMap、Word 兼容 HTML、Slides HTML。
-
-未完成或需诚实标注的能力：
-
-- 不做第三方平台视频爬取。
-- vivo OCR provider 已完成真实 provider smoke；App-level 图片/拍照闭环仍需 L3 真机验证。
-- vivo ASR provider 仍属于后置或单独验证方向。
-- 多模态图片理解不等于完整 OCR 替代。
-- 声纹身份识别、底噪处理、云同步和团队协作暂缓。
-
-## 当前 UI 基线
-
-Stage 10 product UI 是当前界面基线，已从早期堆叠式页面重构为更产品化的学习界面。
-
-已知状态：
-
-- 当前 UI 可以作为 baseline 继续测试和演示。
-- 视觉高级感仍需截图和真机主观验收。
-- 后续可能交给 DeepSeek 严格按 `docs/design_refs/*.html` 做 HTML-to-Compose 落地。
-- Ask / Practice / Quiz / Review / Export 等页面仍可能继续做分层和质感优化。
-
-## 本地文件与密钥
-
-本地可能存在但绝不入仓：
-
-- `config.local.json`：本机调试配置。只能本地使用，不读取、不提交、不截图、不发给 AI。
-- `app/libs/llm-sdk-release.aar`：vivo 端侧 SDK AAR，本地存在但被 `.gitignore` 忽略。
-- APK / AAB / build outputs / `.gradle` / keystore / `.env*`。
-
-密钥规则：
-
-- 真实 AppID / AppKEY / API key 不进 Git。
-- 不写入 README、docs、Issues、日志、截图、导出报告、测试快照。
-- 不记录 `Authorization`、`Bearer`、prompt、messages、vendor response body、`reasoning_content`。
-
-## 权限说明
-
-当前 Manifest 包含以下能力相关权限：
-
-- `INTERNET`：云端 BlueLM 调用与网络诊断。
-- `CAMERA`：拍照导入学习资料和多模态图片草稿。
-- `READ_MEDIA_IMAGES` / `READ_MEDIA_VIDEO` / `READ_MEDIA_AUDIO`：本地图片、视频、音频和转写稿资料入口。
-- `RECORD_AUDIO`：Live ASR 实验模式。
-- `MODIFY_AUDIO_SETTINGS`：本地 TTS / ASR 音频体验的音频路由调整；不请求蓝牙设备权限。
-- `MANAGE_EXTERNAL_STORAGE` / `WRITE_EXTERNAL_STORAGE`：模型目录 `/sdcard/1225`、用户选择本地学习资料和旧 Android 兼容相关能力。App 不上传用户文件，不扫描无关目录。
-
-这些权限需要在 release / privacy audit 中逐项复核。若某项不再必要，应在正式提交前移除或降级。
-
-## 开发验证
-
-常用本地验证命令：
+在仓库根目录运行：
 
 ```powershell
-.\gradlew.bat :core:test
-.\gradlew.bat :app:testDebugUnitTest
-.\gradlew.bat :app:assembleDebug
-scripts\secrets_scan\secrets_scan.ps1
-bash scripts/secrets_scan/secrets_scan.sh
-git diff --check
+.\gradlew.bat :core:test --no-daemon
+.\gradlew.bat :app:testDebugUnitTest --no-daemon
+.\gradlew.bat :app:assembleDebug --no-daemon
+powershell -ExecutionPolicy Bypass -File scripts\qa\current_preflight.ps1
+powershell -ExecutionPolicy Bypass -File scripts\qa\cloud_device_precheck.ps1
 ```
 
-敏感文件追踪检查：
+打包候选 APK：
 
 ```powershell
-git ls-files config.local.json app/libs/llm-sdk-release.aar "*.apk" "*.aab" ".codex_work/*" ".vscode/*"
+cd "D:\Edge Download\AIGC\ClassMate"
+git pull
+.\gradlew.bat clean :app:assembleDebug --no-daemon
+$commit = git rev-parse --short HEAD
+Copy-Item "app\build\outputs\apk\debug\app-debug.apk" "ClassMate-debug-v1.14.2-$commit.apk"
+explorer .
 ```
 
-该命令应无输出。
+不要提交 `config.local.json`、AAR、APK、AAB、字体、密钥或 OfficialDemos。
 
 ## 文档入口
 
-- 当前基线：`docs/current/stage10_baseline.md`
-- 仓库治理：`docs/current/repo_governance.md`
-- 文档导航：`docs/INDEX.md`
-- 端侧与 proof 历史材料：`docs/competition/`、`docs/testing/`、`docs/architecture/`
-
-旧 Stage 文档保留作历史记录，但不一定代表当前事实。以后面向评委、队友和新开发者时，应优先引用 `docs/current/` 与 README。
+- 当前总索引：[docs/current/DOCUMENT_INDEX.md](docs/current/DOCUMENT_INDEX.md)
+- 最终状态报告：[docs/current/FINAL_STATUS_1_14_2.md](docs/current/FINAL_STATUS_1_14_2.md)
+- 官方能力矩阵：[docs/current/OFFICIAL_CAPABILITY_MATRIX_1_14_2.md](docs/current/OFFICIAL_CAPABILITY_MATRIX_1_14_2.md)
+- 真机问题修复矩阵：[docs/current/REAL_DEVICE_FIX_MATRIX_1_14_2.md](docs/current/REAL_DEVICE_FIX_MATRIX_1_14_2.md)
+- 真机测试手册：[docs/current/REAL_DEVICE_TEST_MANUAL_1_14_2.md](docs/current/REAL_DEVICE_TEST_MANUAL_1_14_2.md)
+- 演示脚本：[docs/current/DEMO_SCRIPT_1_14_2.md](docs/current/DEMO_SCRIPT_1_14_2.md)
+- 答辩叙事：[docs/current/DEFENSE_NARRATIVE.md](docs/current/DEFENSE_NARRATIVE.md)
+- 构建发布：[docs/current/BUILD_AND_RELEASE.md](docs/current/BUILD_AND_RELEASE.md)
+- 安全与密钥：[docs/current/PRIVACY_SECURITY_AND_SECRETS.md](docs/current/PRIVACY_SECURITY_AND_SECRETS.md)

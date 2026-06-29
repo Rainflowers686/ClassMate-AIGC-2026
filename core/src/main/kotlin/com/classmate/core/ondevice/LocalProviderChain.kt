@@ -30,6 +30,17 @@ enum class ProviderPathNode(val shortLabel: String, val displayZh: String) {
             "ONDEVICE_BLUELM", "ONDEVICEBLUELM", "ON_DEVICE_BLUELM" -> ON_DEVICE_BLUELM.displayZh
             else -> LOCAL_RULE.displayZh
         }
+
+        /**
+         * Label for a SAVED learning record (which always carries real content). The non-cloud /
+         * non-on-device case is the local-rule result, shown to users as the friendly "本地整理" rather
+         * than the jargon "安全占位" — "安全占位" stays reserved for the truly-empty terminal in diagnostics.
+         */
+        fun recordLabelZh(providerName: String?): String = when (providerName?.trim()?.uppercase()) {
+            "BLUELM", "OFFICIALBLUELM", "OFFICIAL_BLUELM" -> BLUELM.displayZh
+            "ONDEVICE_BLUELM", "ONDEVICEBLUELM", "ON_DEVICE_BLUELM" -> ON_DEVICE_BLUELM.displayZh
+            else -> "本地整理"
+        }
     }
 }
 

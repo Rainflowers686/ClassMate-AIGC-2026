@@ -56,7 +56,7 @@ object AmbientSoundCatalog {
             id = "ocean",
             displayName = "海浪",
             sceneName = "海边复盘",
-            description = "平稳海浪循环，适合长时间回看知识地图。",
+            description = "平稳海浪循环，适合长时间回看知识结构。",
             fileName = "flow_ocean_loop.mp3",
             rawResId = R.raw.flow_ocean_loop,
             sourceSite = SOURCE_SITE,

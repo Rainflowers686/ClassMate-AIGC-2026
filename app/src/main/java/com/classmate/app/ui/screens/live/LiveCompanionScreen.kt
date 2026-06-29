@@ -14,7 +14,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -29,8 +31,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.classmate.app.asr.AndroidSpeechRecognizerClient
@@ -38,8 +42,8 @@ import com.classmate.app.asr.AsrEventListener
 import com.classmate.app.asr.AsrState
 import com.classmate.app.state.AppViewModel
 import com.classmate.app.state.Screen
-import com.classmate.app.ui.flow.AmbientSoundPlayer
 import com.classmate.app.ui.flow.FlowBreathingTimer
+import com.classmate.app.ui.flow.FocusDurations
 import com.classmate.app.ui.flow.FlowCompColors
 import com.classmate.app.ui.flow.FlowCompPanel
 import com.classmate.app.ui.flow.FlowCompSectionLabel
@@ -82,21 +86,26 @@ fun LiveCompanionScreen(viewModel: AppViewModel) {
     LaunchedEffect(running) {
         while (running) { nowTick = System.currentTimeMillis(); delay(1000) }
     }
-    var selectedScene by remember { mutableStateOf(flowCompSceneOf("rain").id) }
+    // P1-2: background-music playback is owned by the ViewModel, so leaving this page does NOT stop it.
+    // The page restores its visual scene from whatever is currently playing.
+    val flowMusic = ui.flowMusic
+    var selectedScene by remember { mutableStateOf(flowCompSceneOf(flowMusic.sceneId).id) }
     var scenePickerOpen by remember { mutableStateOf(false) }
     var jotOpen by remember { mutableStateOf(false) }
     var asrOpen by remember { mutableStateOf(false) }
     val scene = flowCompSceneOf(selectedScene)
     val accent = scene.accent
-    var ambientPlaying by remember { mutableStateOf(false) }
-    var ambientVolume by remember { mutableStateOf(0.45f) }
+    val ambientPlaying = flowMusic.playing
+    val ambientVolume = flowMusic.volume
 
     val context = LocalContext.current
-    val ambientPlayer = remember { AmbientSoundPlayer(context) }
-    DisposableEffect(ambientPlayer) { onDispose { ambientPlayer.release() } }
-    LaunchedEffect(selectedScene, ambientPlaying, ambientVolume) {
-        if (ambientPlaying) ambientPlayer.play(scene.sound, ambientVolume) else ambientPlayer.pause()
-        ambientPlayer.setVolume(ambientVolume)
+    fun toggleAmbient() {
+        if (ambientPlaying) viewModel.flowMusicPause() else viewModel.flowMusicPlay(scene.sound)
+    }
+    fun selectScene(id: String) {
+        selectedScene = id
+        // If music is already playing, switch the loop to the newly chosen scene; otherwise just preview-select.
+        if (viewModel.ui.flowMusic.playing) viewModel.flowMusicPlay(flowCompSceneOf(id).sound)
     }
 
     // --- experimental system ASR wiring (no raw audio saved, no upload, no background recording) ---
@@ -125,9 +134,12 @@ fun LiveCompanionScreen(viewModel: AppViewModel) {
         }
     }
 
+    var focusTargetMin by remember { mutableStateOf(FocusDurations.DEFAULT_MIN) }
+    var customMinText by remember { mutableStateOf("") }
+    var customMinError by remember { mutableStateOf(false) }
     val elapsedMs = session?.elapsedMs(nowTick) ?: 0L
     val minutes = (elapsedMs / 60000L).toInt()
-    val progress = (elapsedMs.toFloat() / (FOCUS_TARGET_MIN * 60_000f)).coerceIn(0f, 1f)
+    val progress = (elapsedMs.toFloat() / (focusTargetMin * 60_000f)).coerceIn(0f, 1f)
     val cachedCount = ui.result?.knowledgePoints?.size ?: session?.segments?.size ?: 0
     val course = ui.liveTitleDraft.ifBlank { ui.session?.title?.ifBlank { "心流学习" } ?: "心流学习" }
 
@@ -165,7 +177,7 @@ fun LiveCompanionScreen(viewModel: AppViewModel) {
                         Spacer(Modifier.height(4.dp))
                         FlowCompSectionLabel("声音场景")
                         Text("选择一个内置背景音，循环播放；不联网、不录音。", style = MaterialTheme.typography.bodySmall, color = FlowCompColors.textSecondary)
-                        FlowScenePicker(selectedId = selectedScene, modifier = Modifier.flowCompEnter()) { selectedScene = it }
+                        FlowScenePicker(selectedId = selectedScene, modifier = Modifier.flowCompEnter()) { selectScene(it) }
                         Text(FlowCompanionCopy.AUDIO_DISCLAIMER, style = MaterialTheme.typography.labelSmall, color = FlowCompColors.textMuted)
                         FlowMiniPlayer(sceneName = scene.name, soundName = scene.sound.displayName, playing = ambientPlaying, volume = ambientVolume, minutes = minutes, accent = accent)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -174,27 +186,77 @@ fun LiveCompanionScreen(viewModel: AppViewModel) {
                                 filled = true,
                                 accent = accent,
                                 modifier = Modifier.weight(1f),
-                                onClick = { ambientPlaying = !ambientPlaying },
+                                onClick = { toggleAmbient() },
                             )
                             FlowPillButton("停止", filled = false, accent = accent, modifier = Modifier.weight(1f), onClick = {
-                                ambientPlaying = false
-                                ambientPlayer.stop()
+                                viewModel.flowMusicStop()
                             })
                         }
                         Text("背景音量", style = MaterialTheme.typography.labelSmall, color = FlowCompColors.textMuted)
-                        Slider(value = ambientVolume, onValueChange = { ambientVolume = it.coerceIn(0f, 1f) })
-                        FlowPillButton("完成", filled = true, accent = accent, onClick = { scenePickerOpen = false })
+                        Slider(value = ambientVolume, onValueChange = { viewModel.flowMusicSetVolume(it) })
+                        // Full-width bottom main button — large tap target, not stranded in the corner.
+                        FlowPillButton("完成设置", filled = true, accent = accent, modifier = Modifier.fillMaxWidth(), onClick = { scenePickerOpen = false })
                     } else {
                         Spacer(Modifier.height(8.dp))
                         Column(Modifier.fillMaxWidth(), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
                             FlowBreathingTimer(
                                 modifier = Modifier.flowCompEnter(),
                                 elapsedLabel = formatElapsed(elapsedMs),
-                                sublabel = "本次专注 · 目标 $FOCUS_TARGET_MIN 分钟",
+                                sublabel = "本次专注 · 目标 $focusTargetMin 分钟",
                                 progress = progress,
                                 running = running,
                                 accent = accent,
                             )
+                            Spacer(Modifier.height(10.dp))
+                            // Pick the focus length (P1-2): was a fixed 75-minute target users couldn't change.
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                FocusDurations.presets.forEach { m ->
+                                    FlowPillButton(
+                                        FocusDurations.label(m),
+                                        filled = m == focusTargetMin,
+                                        accent = accent,
+                                        onClick = { focusTargetMin = m; customMinText = "" },
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            // Custom focus length (F0-9): any whole number of minutes in 1..180.
+                            Row(
+                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                OutlinedTextField(
+                                    value = customMinText,
+                                    onValueChange = { customMinText = it.filter(Char::isDigit).take(3); customMinError = false },
+                                    label = { Text("自定义分钟") },
+                                    singleLine = true,
+                                    isError = customMinError,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    modifier = Modifier.width(150.dp),
+                                )
+                                FlowPillButton(
+                                    "设为目标",
+                                    filled = false,
+                                    accent = accent,
+                                    onClick = {
+                                        val parsed = FocusDurations.parseCustom(customMinText)
+                                        if (parsed == null) {
+                                            customMinError = true
+                                        } else {
+                                            focusTargetMin = parsed
+                                            customMinError = false
+                                        }
+                                    },
+                                )
+                            }
+                            if (customMinError) {
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    FocusDurations.customHint,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFFFF8A80),
+                                )
+                            }
                         }
                         Spacer(Modifier.height(4.dp))
                         FlowControlCluster(
@@ -232,10 +294,12 @@ fun LiveCompanionScreen(viewModel: AppViewModel) {
                                     modifier = Modifier.fillMaxWidth(),
                                 )
                                 Spacer(Modifier.height(10.dp))
+                                // Full-width button under the input — not stranded narrow/left (P1).
                                 FlowPillButton(
                                     "追加片段",
                                     filled = true,
                                     accent = accent,
+                                    modifier = Modifier.fillMaxWidth(),
                                     onClick = { viewModel.appendLiveSegment() },
                                 )
                             }

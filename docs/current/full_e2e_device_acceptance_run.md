@@ -1,3 +1,5 @@
+> 状态：历史/参考材料，可能包含旧版本事实或阶段性问题。当前 1.14.2 / versionCode 115 状态请见 [FINAL_STATUS_1_14_2.md](FINAL_STATUS_1_14_2.md) 与 [DOCUMENT_INDEX.md](DOCUMENT_INDEX.md)。
+
 # Full P0-P2 End-to-End Device Acceptance Run
 
 > Current status note (2026-06-18): this document remains the historical record that device execution was not performed at that time. Since then, official provider smoke has advanced: OCR, QUERY_REWRITE, TEXT_SIMILARITY, and EMBEDDING are real network `PASS`. Query Rewrite's earlier blocked state was traced by Claude to a smoke request body schema mismatch and fixed with the official docId 2061 `prompts` schema. The next mainline is App-level L3 cloud-device end-to-end validation.

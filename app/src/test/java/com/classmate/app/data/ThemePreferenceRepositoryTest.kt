@@ -1,5 +1,6 @@
 package com.classmate.app.data
 
+import com.classmate.app.ui.i18n.AppLanguage
 import com.classmate.app.ui.theme.AccentColorPreset
 import com.classmate.app.ui.theme.CustomPalette
 import com.classmate.app.ui.theme.ThemePreset
@@ -58,6 +59,28 @@ class ThemePreferenceRepositoryTest {
         assertEquals(AccentColorPreset.OCEAN, reset.accentColorPreset)
         assertEquals(false, reset.customPalette.enabled)
         assertEquals(TypographyPreset.SYSTEM_DEFAULT, reset.typographyPreset)
+    }
+
+    @Test
+    fun languagePersistsAcrossRepositoryInstances() {
+        // P0-1: language used to reset to Chinese on restart because it was never persisted.
+        val file = tempFile()
+        assertEquals(AppLanguage.ZH, ThemePreferenceRepository(file).load().language)
+
+        ThemePreferenceRepository(file).saveLanguage(AppLanguage.EN)
+        assertEquals(AppLanguage.EN, ThemePreferenceRepository(file).load().language)
+
+        ThemePreferenceRepository(file).saveLanguage(AppLanguage.SYSTEM)
+        assertEquals(AppLanguage.SYSTEM, ThemePreferenceRepository(file).load().language)
+    }
+
+    @Test
+    fun officialUserIdPersistsAcrossRepositoryInstances() {
+        // The stable non-privacy user_id sent to official TTS/ASR must survive restarts (generated once).
+        val file = tempFile()
+        assertEquals("", ThemePreferenceRepository(file).load().officialUserId)
+        ThemePreferenceRepository(file).saveOfficialUserId("abc123def456")
+        assertEquals("abc123def456", ThemePreferenceRepository(file).load().officialUserId)
     }
 
     @Test

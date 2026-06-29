@@ -1,4 +1,12 @@
+> 状态：历史/参考材料，可能包含旧版本事实或阶段性问题。当前 1.14.2 / versionCode 115 状态请见 [FINAL_STATUS_1_14_2.md](FINAL_STATUS_1_14_2.md) 与 [DOCUMENT_INDEX.md](DOCUMENT_INDEX.md)。
+
 # Claude v3 Review Handoff
+
+## 中文摘要（当前真实状态）
+
+本文为历史红队 / 交接记录。最新真实状态以 `official_18_capability_l3_readiness.md` 与 README 中文段为准：主链路已真机验证；18 能力完成 L3-readiness 对齐；仅大模型 / 通用 OCR 已用于学习闭环，其余为本地兜底 / 接缝 / 需配置 / 实验性；实验性能力默认关闭；部分能力仍需真机抽测；GitHub Actions 已绿。本项目不宣称所有能力已在真机完整验证。文中如有更早表述，以最新中文文档为准。
+
+---
 
 Date: 2026-06-20
 
@@ -13,7 +21,7 @@ Date: 2026-06-20
 - L3 learning pipeline, real Practice, Review/Wrong Book/Mastery, Input Superhub, persistence, and diagnostics are installed.
 - OCR has smoke PASS and an app-level official path for image/photo/OCR text into LessonSource/Evidence, gated by config.
 - Query Rewrite, Embedding, and Text Similarity have smoke PASS and v1.7 official-first production adapter injection. Live `OFFICIAL_RUNTIME_USED` still requires demo/cloud-device validation.
-- ASR Long has core Vivo 1739 contract present; app live upload/poll/result validation is pending. Demo route is recording artifact + ASR job seam + manual transcript fallback.
+- ASR Long has core eivo 1739 contract present; app live upload/poll/result validation is pending. Demo route is recording artifact + ASR job seam + manual transcript fallback.
 - Translation and official TTS remain not configured/seam unless future validation proves otherwise. Android local TTS fallback is available.
 - Function Calling is local orchestrator active; official Function Calling is not claimed complete.
 - Edge model fallback strategy is wired, but device availability depends on `/sdcard/1225` and permissions.
@@ -22,15 +30,15 @@ Date: 2026-06-20
 
 | Capability | Runtime claim allowed now | What Claude should challenge |
 | --- | --- | --- |
-| OCR | COMPLETE / CONFIG_GATED | Verify fallback and provenance; do not require network smoke in review. |
-| Query Rewrite | OFFICIAL_RUNTIME_READY / VALIDATION_PENDING | Verify factory injection and no overclaim of runtime used before device validation. |
-| Embedding | OFFICIAL_RUNTIME_READY / VALIDATION_PENDING | Verify `officialVector` support and local fallback persistence. |
-| Text Similarity | OFFICIAL_RUNTIME_READY / VALIDATION_PENDING | Verify score provenance and local fallback. |
-| ASR Long | CORE_CONTRACT_PRESENT / APP_VALIDATION_PENDING | Verify no automatic transcription claim. |
-| Translation | SEAM_ONLY / NOT_CONFIGURED | Verify no fake translated text. |
-| Official TTS | OFFICIAL_NOT_CONFIGURED / LOCAL_TTS_AVAILABLE | Verify no official TTS or voice clone claim. |
-| Function Calling | LOCAL_ORCHESTRATOR_ACTIVE / OFFICIAL_NOT_CONFIGURED | Verify local vs official wording. |
-| Edge model | DEVICE_VALIDATION_PENDING | Verify `/sdcard/1225` dependency is not generalized to all devices. |
+| OCR | COMPLETE / CONFIG_GATED | eerify fallback and provenance; do not require network smoke in review. |
+| Query Rewrite | OFFICIAL_RUNTIME_READY / eALIDATION_PENDING | eerify factory injection and no overclaim of runtime used before device validation. |
+| Embedding | OFFICIAL_RUNTIME_READY / eALIDATION_PENDING | eerify `officialeector` support and local fallback persistence. |
+| Text Similarity | OFFICIAL_RUNTIME_READY / eALIDATION_PENDING | eerify score provenance and local fallback. |
+| ASR Long | CORE_CONTRACT_PRESENT / APP_eALIDATION_PENDING | eerify no automatic transcription claim. |
+| Translation | SEAM_ONLY / NOT_CONFIGURED | eerify no fake translated text. |
+| Official TTS | OFFICIAL_NOT_CONFIGURED / LOCAL_TTS_AVAILABLE | Verify local TTS fallback wording and no voice-identity product claim. |
+| Function Calling | LOCAL_ORCHESTRATOR_ACTIeE / OFFICIAL_NOT_CONFIGURED | eerify local vs official wording. |
+| Edge model | DEeICE_eALIDATION_PENDING | eerify `/sdcard/1225` dependency is not generalized to all devices. |
 
 ## Review Questions For Claude
 

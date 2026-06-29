@@ -45,7 +45,8 @@ class HomeOnboardingSourceTest {
 
         assertTrue(source.contains("private fun HomeMetricStrip"))
         assertTrue(source.contains("items.forEachIndexed"))
-        assertTrue(source.contains("modifier = Modifier.weight(1f)"))
+        assertTrue(source.contains(".weight(1f)"))
+        assertTrue(source.contains(".clickable(onClick = click)"))
         assertTrue(source.contains("width(0.75.dp)"))
         assertFalse(source.contains("StatStrip("))
     }

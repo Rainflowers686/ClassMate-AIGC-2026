@@ -7,6 +7,7 @@ import com.classmate.app.glossary.CourseGlossary
 import com.classmate.app.importing.OcrImportDraft
 import com.classmate.app.importing.SelectedLocalFileMetadata
 import com.classmate.app.l3.ClassroomRecordingRecord
+import com.classmate.app.l3.DialectMode
 import com.classmate.app.l3.ExamSession
 import com.classmate.app.l3.AsrLongJob
 import com.classmate.app.l3.InputArtifact
@@ -30,6 +31,7 @@ import com.classmate.app.material.MaterialSourceSummary
 import com.classmate.app.platform.MaskedModelProfile
 import com.classmate.core.importing.ImportSourceType
 import com.classmate.core.learning.LearningSnapshot
+import com.classmate.core.provider.AnalysisIntensity
 import com.classmate.core.ondevice.OnDeviceLlmDiagnostic
 import com.classmate.app.platform.ProviderConfigSummary
 import com.classmate.app.ui.i18n.AppLanguage
@@ -89,11 +91,41 @@ data class ClassMateUiState(
     val customPalette: CustomPalette = CustomPalette.Default,
     val typographyPreset: TypographyPreset = TypographyPreset.Default,
     val darkMode: Boolean? = null, // null = follow system
+    val enableExperimentalImageGeneration: Boolean = false,
+    val enableExperimentalVideoGeneration: Boolean = false,
+    val enableExperimentalSimultaneousInterpretation: Boolean = false,
+    val audioDialectMode: DialectMode = DialectMode.AUTO,
 
     // import inputs
     val courseTitle: String = "",
     val courseText: String = "",
     val selectedSubject: String = CourseGlossary.DEFAULT_SUBJECT,
+    // Advisory result of on-device CourseDomainDetector (set after analysis). The picker above stays the
+    // authoritative choice — this only tells the user what was auto-detected and whether to confirm.
+    val detectedDomainLabel: String? = null,
+    val detectedDomainConfidence: Double = 0.0,
+    val detectedDomainNeedsConfirm: Boolean = false,
+    // Thinking strength (快速/标准/深度) and live analysis progress so the analyze page is never a frozen spinner.
+    val analysisIntensity: AnalysisIntensity = AnalysisIntensity.Default,
+    val analysisElapsedMs: Long = 0L,
+    val analysisSlowNotice: Boolean = false,
+    // Content-aware time estimate shown while analysis runs (P0-4) — never a fixed "60～90 秒".
+    val analysisEstimateText: String = "",
+    // Adaptive AI Learning Layer surfaces — a real second model pass at high-value learning nodes.
+    val studyPackEnhancement: EnhancementUiState = EnhancementUiState.idle(),
+    val quizFeedbackEnhancement: EnhancementUiState = EnhancementUiState.idle(),
+    val evidenceEnhancement: EnhancementUiState = EnhancementUiState.idle(),
+    val weaknessEnhancement: EnhancementUiState = EnhancementUiState.idle(),
+    val weakVariantStatus: EnhancementUiState = EnhancementUiState.idle(),
+    val ttsAudio: TtsAudioUiState = TtsAudioUiState(),
+    // P1-2: Flow background music. Lives at VM level so leaving the Flow page does not stop playback.
+    val flowMusic: FlowMusicUiState = FlowMusicUiState(),
+    // P0-3 visible feedback closure: knowledge points / questions the user flagged as inaccurate. Drives a
+    // "需复核" chip on the timeline and excludes flagged questions from random practice.
+    val flaggedKnowledgePointIds: Set<String> = emptySet(),
+    val flaggedQuestionIds: Set<String> = emptySet(),
+    val lastAnalysisLatencyMs: Long = 0L,
+    val longTextInfo: LongTextAnalysisInfo? = null,
     val selectedImportFileMetadata: SelectedLocalFileMetadata? = null,
     val ocrImports: List<OcrImportDraft> = emptyList(),
     val importSourceType: ImportSourceType = ImportSourceType.PASTE_TEXT,
@@ -108,6 +140,8 @@ data class ClassMateUiState(
     val asrLongJobs: List<AsrLongJob> = emptyList(),
     val currentRecording: ClassroomRecordingRecord? = null,
     val recordingRecords: List<ClassroomRecordingRecord> = emptyList(),
+    // System-back protection while a recording/transcription is in progress (don't silently exit).
+    val showRecordingBackPrompt: Boolean = false,
     val asrLongStatus: L3AsrStatus = L3AsrStatus.PENDING_ASR_CONFIG,
 
     // transcript / subtitle intake (Stage 5B)
@@ -190,6 +224,12 @@ data class ClassMateUiState(
     val imageStudyDraft: ImageStudyDraft? = null,
     val imageDraftSource: AiExecutionSource? = null,
     val imageDraftOcrError: CaptureError? = null,
+    val imageDraftImageRef: String = "",
+    val imageDraftThumbnailRef: String = "",
+    val imageDraftMimeType: String = "",
+    val imageDraftBatchId: String = "",
+    val imageDraftBatchTotal: Int = 0,
+    val imageDraftBatchProcessed: Int = 0,
     val audioCaptureRunning: Boolean = false,
     val audioCaptureProgress: Int = 0,
     val audioCaptureMessage: String? = null,
@@ -218,6 +258,8 @@ data class ClassMateUiState(
     val feedbackEvents: List<FeedbackEvent> = emptyList(),
     val reviewPlan: ReviewPlan? = null,
     val lastExportReceipt: ExportReceipt? = null,
+    // P0-1/P0-2: user-initiated AI 精修导出 (separate from the fast default export).
+    val polishedExport: PolishedExportUiState = PolishedExportUiState(),
     val exportDraftReady: Boolean = false,
     val exportDraftMessage: String? = null,
     val exportDraftSource: String? = null,
@@ -234,10 +276,25 @@ data class ClassMateUiState(
 
     // navigation context
     val selectedKnowledgePointId: String? = null,
+    val selectedEvidenceId: String? = null,
     val settingsDeepLink: SettingsDeepLink = SettingsDeepLink.NONE,
 
     // transient
     val toast: String? = null,
 ) {
     val answeredCount: Int get() = revealedQuestionIds.size
+}
+
+/**
+ * Honest record of how a long input was shaped for the model. The full original text is ALWAYS kept as
+ * Evidence; this only documents the prompt-budget view (what was sent), never a silent truncation of
+ * the user's source. Shown on the analyze/course UI so long-text handling is transparent.
+ */
+data class LongTextAnalysisInfo(
+    val originalLength: Int,
+    val analyzedLength: Int,
+    val chunkCount: Int,
+    val strategy: String,
+) {
+    val wasShaped: Boolean get() = analyzedLength < originalLength || chunkCount > 1
 }

@@ -1,6 +1,16 @@
+> 状态：历史/参考材料，可能包含旧版本事实或阶段性问题。当前 1.14.2 / versionCode 115 状态请见 [FINAL_STATUS_1_14_2.md](FINAL_STATUS_1_14_2.md) 与 [DOCUMENT_INDEX.md](DOCUMENT_INDEX.md)。
+
 # ASR Long Productization Report
 
 Date: 2026-06-20
+
+## ClassMate 当前实现映射（1.14.2 / versionCode 115）
+
+- 官方长语音转写 1739 HTTP：任务流代码路径存在，真实 upload/poll/result 仍需 AppKey 和真机验证。
+- 官方实时 ASR WebSocket：协议底座已接入；流式体验需目标设备验证。
+- 系统 ASR：Android SpeechRecognizer fallback 已接入，设备无语音服务时会提示手动转写。
+- 录音 fallback：即使官方/系统 ASR 不可用，录音文件仍保存，用户可粘贴或编辑转写进入学习闭环。
+- 本文件下方保留 2026-06-20 阶段状态。若与当前状态冲突，以本节和 [OFFICIAL_CAPABILITY_MATRIX_1_14_2.md](OFFICIAL_CAPABILITY_MATRIX_1_14_2.md) 为准。
 
 ## Current Status
 

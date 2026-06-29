@@ -3,6 +3,7 @@ package com.classmate.core.parser
 import com.classmate.core.evidence.EvidenceResolver
 import com.classmate.core.model.AnalysisProvenance
 import com.classmate.core.model.CourseAnalysisResult
+import com.classmate.core.model.QuizAnswerNormalizer
 import com.classmate.core.model.CourseSession
 import com.classmate.core.model.Difficulty
 import com.classmate.core.model.Ids
@@ -66,7 +67,7 @@ class AnalysisJsonParser(
         wire.quizQuestions.forEachIndexed { index, w ->
             if (w.stem.isBlank() || w.options.isEmpty()) return@forEachIndexed
             val qid = Ids.question(index + 1)
-            val options = w.options.mapIndexed { oi, o ->
+            val rawOptions = w.options.mapIndexed { oi, o ->
                 QuizOption(
                     id = Ids.option('A' + oi),
                     text = o.text.trim(),
@@ -74,6 +75,9 @@ class AnalysisJsonParser(
                     rationale = o.rationale.trim(),
                 )
             }
+            // Recover the correct option from a separate answer field when no per-option flag was set
+            // (root fix for true/false where the model returns e.g. {"answer":"错误"}).
+            val options = QuizAnswerNormalizer.withResolvedCorrect(rawOptions, w.correctAnswer)
             val testedIds = w.testedKnowledgePoints.mapNotNull { ref ->
                 val r = ref.trim()
                 titleToId[r] ?: r.takeIf { titleToId.containsValue(it) }

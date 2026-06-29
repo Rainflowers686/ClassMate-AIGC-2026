@@ -32,7 +32,7 @@ fun FeedbackScreen(viewModel: AppViewModel) {
     val ui = viewModel.ui
     var note by remember { mutableStateOf("") }
 
-    ClassMateScaffold(title = "反馈", onBack = { viewModel.goBack() }) { padding ->
+    ClassMateScaffold(title = "反馈", onBack = { viewModel.goBackOrHome() }) { padding ->
         Column(
             Modifier
                 .padding(padding)

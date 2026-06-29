@@ -1,3 +1,5 @@
+> 状态：历史/参考材料，可能包含旧版本事实或阶段性问题。当前 1.14.2 / versionCode 115 状态请见 [FINAL_STATUS_1_14_2.md](FINAL_STATUS_1_14_2.md) 与 [DOCUMENT_INDEX.md](DOCUMENT_INDEX.md)。
+
 # Project Current Status v1.8
 
 Date: 2026-06-20
@@ -21,7 +23,7 @@ This is the status-freeze document after Official Retrieval Runtime Injection v1
 | Text Similarity | PASS | OFFICIAL_RUNTIME_READY / VALIDATION_PENDING | Production gateway injects Vivo Text Similarity adapter for ranking/evidence/similar-question paths; local similarity fallback remains. |
 | ASR Long | not live-validated in app | CORE_CONTRACT_PRESENT / APP_UPLOAD_POLL_RESULT_VALIDATION_PENDING | Core `VivoAsrProvider` 1739 contract exists. Demo remains recording artifact + ASR job seam + manual transcript fallback until non-sensitive audio validation. |
 | Translation | not product-smoked in app | SEAM_ONLY / NOT_CONFIGURED | Product records and derived artifact path exist; official network path must not be claimed complete. |
-| Official TTS | not product-smoked in app | LOCAL_TTS_AVAILABLE / OFFICIAL_NOT_CONFIGURED | Android local TTS fallback is the current product path. No voice cloning. |
+| Official TTS | not product-smoked in app | LOCAL_TTS_AVAILABLE / OFFICIAL_NOT_CONFIGURED | Android local TTS fallback is the current product path. Voice identity features are not part of the ClassMate learning loop. |
 | Function Calling | not product-smoked in app | LOCAL_ORCHESTRATOR_ACTIVE / OFFICIAL_NOT_CONFIGURED | Local ToolOrchestrator is active; official Function Calling remains future unless configured and validated. |
 | Edge model | device dependent | FALLBACK_STRATEGY_READY / DEVICE_VALIDATION_PENDING | Fallback strategy is wired; real availability depends on `/sdcard/1225` and permissions. |
 

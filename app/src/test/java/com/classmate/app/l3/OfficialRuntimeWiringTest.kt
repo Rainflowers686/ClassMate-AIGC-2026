@@ -1,7 +1,10 @@
 package com.classmate.app.l3
 
+import com.classmate.app.platform.CaptureConfigLoader
 import com.classmate.app.platform.OfficialProviderConfigSummary
 import com.classmate.app.platform.ProviderConfigSummary
+import com.classmate.core.capture.CaptureHttpResponse
+import com.classmate.core.capture.CaptureTransport
 import com.classmate.core.ai.AiExecutionSource
 import com.classmate.core.audio.FakeTtsProvider
 import com.classmate.core.retrieval.EmbeddingResult
@@ -20,6 +23,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
+import java.nio.file.Files
 
 class OfficialRuntimeWiringTest {
     private val now = 1_700_000_000_000L
@@ -148,4 +153,132 @@ class OfficialRuntimeWiringTest {
         assertTrue(enriched.evidence.all { it.sourceType == L3SourceType.OCR_IMAGE && it.providerProvenance == "OFFICIAL_RUNTIME_USED" })
         assertTrue(enriched.diagnostics.any { it.capability == "OCR" && it.status == "OFFICIAL_RUNTIME_USED" })
     }
+
+    @Test
+    fun productionFactoryInjectsVivoRetrievalAdaptersIntoMainPipeline() {
+        val configFile = fakeCaptureConfigFile()
+        val transport = RoutingCaptureTransport()
+        val gateway = OfficialRuntimeGatewayFactory.production(
+            configLoader = CaptureConfigLoader(configFile),
+            transport = transport,
+        )
+        val base = L3LearningPipeline().buildFromText(
+            title = L3DemoSeeds.lessonTitle,
+            text = L3DemoSeeds.lessonText,
+            sourceType = L3SourceType.TEXT,
+            providerSummary = allOfficialConfigured,
+            now = now,
+        )
+
+        val enriched = OfficialRuntimeIntegrator.enrich(
+            snapshot = base,
+            summary = allOfficialConfigured,
+            gateway = gateway,
+            inputType = ToolInputType.TEXT,
+            now = now + 4,
+            localTtsAvailable = true,
+            edgeModelAvailable = false,
+        )
+
+        assertTrue(enriched.stepLogs.any { it.step == "QUERY_REWRITE" && it.status == "QUERY_REWRITE_OFFICIAL_USED" })
+        assertTrue(enriched.semanticIndexRecords.all { it.vectorSource == "OFFICIAL" && it.officialVector.isNotEmpty() })
+        assertTrue(enriched.similarityMatches.all { it.scoreSource == "OFFICIAL" })
+        assertTrue(enriched.diagnostics.first { it.capability == "QUERY_REWRITE" }.message.contains("official_adapter_injected=true"))
+        assertTrue(enriched.diagnostics.first { it.capability == "QUERY_REWRITE" }.message.contains("official_runtime_attempted=true"))
+        assertTrue(transport.bodies.any { it.contains("\"prompts\"") && !it.contains("\"query\"") })
+        assertTrue(transport.urls.any { it.contains("query-rewrite-api") })
+        assertTrue(transport.urls.any { it.contains("embedding-model-api") })
+        assertTrue(transport.urls.any { it.contains("similarity-model-api") })
+    }
+
+    @Test
+    fun productionFactoryMissingConfigFallsBackWithAdapterInjectedProvenance() {
+        val gateway = OfficialRuntimeGatewayFactory.production(
+            configLoader = CaptureConfigLoader(File("does-not-exist-official-runtime-test.json")),
+            transport = RoutingCaptureTransport(),
+        )
+        val base = L3LearningPipeline().buildFromText(
+            title = L3DemoSeeds.lessonTitle,
+            text = L3DemoSeeds.lessonText,
+            sourceType = L3SourceType.TEXT,
+            providerSummary = allOfficialConfigured,
+            now = now,
+        )
+
+        val enriched = OfficialRuntimeIntegrator.enrich(
+            snapshot = base,
+            summary = allOfficialConfigured,
+            gateway = gateway,
+            inputType = ToolInputType.TEXT,
+            now = now + 5,
+            localTtsAvailable = true,
+            edgeModelAvailable = false,
+        )
+
+        val rewrite = enriched.diagnostics.first { it.capability == "QUERY_REWRITE" }
+        assertEquals("OFFICIAL_RUNTIME_NOT_CONFIGURED", rewrite.status)
+        assertTrue(rewrite.message.contains("official_adapter_injected=true"))
+        assertTrue(rewrite.message.contains("official_runtime_attempted=true"))
+        assertTrue(rewrite.message.contains("OFFICIAL_QUERY_REWRITE_CONFIG_MISSING_AT_RUNTIME"))
+        assertTrue(enriched.semanticIndexRecords.all { it.vectorSource == "LOCAL_FALLBACK" })
+        assertTrue(enriched.semanticIndexRecords.any { it.embeddingStatus.contains("OFFICIAL_ADAPTER_INJECTED") })
+        assertTrue(enriched.similarityMatches.all { it.scoreSource == "LOCAL_FALLBACK" })
+    }
+
+    @Test
+    fun appViewModelDefaultUsesOfficialRuntimeFactoryNotNoArgGateway() {
+        val source = firstExisting(
+            "src/main/java/com/classmate/app/state/AppViewModel.kt",
+            "app/src/main/java/com/classmate/app/state/AppViewModel.kt",
+        ).readText()
+
+        assertTrue(source.contains("OfficialRuntimeGatewayFactory.production()"))
+        assertFalse(source.contains("officialRuntimeGateway: OfficialRuntimeGateway = ProviderBackedOfficialRuntimeGateway()"))
+    }
+
+    private fun fakeCaptureConfigFile(): File =
+        Files.createTempFile("cm-official-runtime", ".json").toFile().apply {
+            writeText(
+                """
+                {
+                  "vivoCapture": {
+                    "appId": "fake-app-id",
+                    "appKey": "fake-app-key",
+                    "baseUrl": "https://api-ai.vivo.com.cn"
+                  }
+                }
+                """.trimIndent(),
+            )
+        }
+
+    private class RoutingCaptureTransport : CaptureTransport {
+        val urls = mutableListOf<String>()
+        val bodies = mutableListOf<String>()
+
+        override fun postForm(url: String, headers: Map<String, String>, form: Map<String, String>, timeoutMs: Long): CaptureHttpResponse =
+            CaptureHttpResponse(200, "{}")
+
+        override fun postJson(url: String, headers: Map<String, String>, body: String, timeoutMs: Long): CaptureHttpResponse {
+            urls += url
+            bodies += body
+            return when {
+                url.contains("query-rewrite-api") -> CaptureHttpResponse(200, """{"code":0,"data":{"query":"official rewritten query"}}""")
+                url.contains("embedding-model-api") -> CaptureHttpResponse(200, """{"code":0,"data":[[0.3,0.7,0.2]]}""")
+                url.contains("similarity-model-api") -> CaptureHttpResponse(200, """{"code":0,"data":{"scores":[0.88]}}""")
+                else -> CaptureHttpResponse(200, "{}")
+            }
+        }
+
+        override fun postMultipart(
+            url: String,
+            headers: Map<String, String>,
+            fileField: String,
+            fileBytes: ByteArray,
+            fileName: String,
+            timeoutMs: Long,
+        ): CaptureHttpResponse = CaptureHttpResponse(200, "{}")
+    }
+
+    private fun firstExisting(vararg paths: String): File =
+        paths.map(::File).first { it.exists() }
 }

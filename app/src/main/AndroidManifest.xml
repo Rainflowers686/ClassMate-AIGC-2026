@@ -56,6 +56,19 @@
          taps "开始实时转写"; no raw audio is saved or uploaded, and there is no background recording. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
+    <!-- Android 11+ (API 30+) package visibility. Without this, SpeechRecognizer.isRecognitionAvailable()
+         returns false even when the device DOES have a system recognizer, so live transcription wrongly
+         reports "本机语音识别不可用". This declares the speech-recognition service/intents we resolve;
+         it adds NO permission. -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
+    </queries>
+
     <!-- ============ Review notifications ============ -->
     <!-- Android 13+ runtime permission for review reminders / study-task reminders. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />

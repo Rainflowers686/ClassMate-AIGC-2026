@@ -1,3 +1,5 @@
+> 状态：历史/参考材料，可能包含旧版本事实或阶段性问题。当前 1.14.2 / versionCode 115 状态请见 [FINAL_STATUS_1_14_2.md](FINAL_STATUS_1_14_2.md) 与 [DOCUMENT_INDEX.md](DOCUMENT_INDEX.md)。
+
 # Official Runtime Wiring v1.6
 
 Date: 2026-06-20
@@ -5,6 +7,8 @@ Date: 2026-06-20
 Superseded note: v1.6 introduced the runtime gateway and integrator, but Claude v2 later found that production `AppViewModel` still defaulted to a no-argument ConfigMissing-only retrieval gateway. v1.7 fixes that with `OfficialRuntimeGatewayFactory.production()`. Keep this file as v1.6 history; use `docs/current/official_runtime_injection_v1_7.md` and `docs/current/project_current_status_v1_8.md` for current retrieval status.
 
 No AppKey, Authorization value, full endpoint URL, request body, or local `config.local.json` content is recorded here.
+
+> v1.7 current-status note: v1.6 established gateway plumbing, but production `AppViewModel` still defaulted to ConfigMissing retrieval providers. v1.7 fixes that production injection gap with `OfficialRuntimeGatewayFactory.production()`, which injects the existing Vivo Query Rewrite / Embedding / Text Similarity adapters. This v1.6 report remains useful as the gateway design record.
 
 ## Scope
 

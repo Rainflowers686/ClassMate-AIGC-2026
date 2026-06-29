@@ -1,8 +1,10 @@
+> 状态：历史/参考材料，可能包含旧版本事实或阶段性问题。当前 1.14.2 / versionCode 115 状态请见 [FINAL_STATUS_1_14_2.md](FINAL_STATUS_1_14_2.md) 与 [DOCUMENT_INDEX.md](DOCUMENT_INDEX.md)。
+
 # Red-team P0 Fix v1.5
 
 Date: 2026-06-20
 
-> Superseded current-status note: v1.6 adds an official runtime gateway in the L3 publish path for Query Rewrite, Embedding, and Text Similarity. v1.5's local/seam wording remains the historical red-team correction; current status is runtime-gateway-wired with local fallback unless an injected app adapter succeeds.
+> Superseded current-status note: v1.7 adds production official retrieval adapter injection through `OfficialRuntimeGatewayFactory.production()` for Query Rewrite, Embedding, and Text Similarity. v1.5's local/seam wording remains the historical red-team correction; current status is production-adapter-injected with local fallback unless the official runtime succeeds with real config.
 
 ## Scope
 

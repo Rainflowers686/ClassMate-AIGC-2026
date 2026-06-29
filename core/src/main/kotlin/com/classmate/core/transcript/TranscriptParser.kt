@@ -30,7 +30,7 @@ object TranscriptParser {
 
     /** Best-effort source-type guess for a pasted blob (the UI still lets the user override it). */
     fun autoDetect(text: String): TranscriptSourceType {
-        val head = text.trimStart()
+        val head = text.trimStart('\uFEFF').trimStart()
         return when {
             head.startsWith("WEBVTT") -> TranscriptSourceType.VTT_FILE
             text.contains("-->") -> TranscriptSourceType.SRT_FILE
@@ -40,7 +40,7 @@ object TranscriptParser {
 
     /** SRT / VTT cue blocks: `idx\n start --> end\n text...`, blank-line separated. */
     private fun parseCues(raw: String, sourceType: TranscriptSourceType): TranscriptParseResult {
-        val normalized = raw.replace("\r\n", "\n").replace("\r", "\n").trim()
+        val normalized = raw.replace("\r\n", "\n").replace("\r", "\n").trimStart('\uFEFF').trim()
         if (normalized.isBlank()) {
             return TranscriptParseResult(sourceType, emptyList(), listOf("转写/字幕内容为空。"))
         }
@@ -87,7 +87,7 @@ object TranscriptParser {
 
     /** Plain transcript: each non-blank line is a segment; an optional leading clock becomes startMs. */
     private fun parseTxt(raw: String, sourceType: TranscriptSourceType): TranscriptParseResult {
-        val normalized = raw.replace("\r\n", "\n").replace("\r", "\n")
+        val normalized = raw.replace("\r\n", "\n").replace("\r", "\n").trimStart('\uFEFF')
         if (normalized.isBlank()) {
             return TranscriptParseResult(sourceType, emptyList(), listOf("转写内容为空。"))
         }

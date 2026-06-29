@@ -54,7 +54,7 @@ class ContentExporterTest {
         assertTrue(doc.content.contains("Knowledge timeline"))
         assertTrue(doc.content.contains("Micro quiz"))
         assertTrue(doc.content.contains("Review plan"))
-        assertTrue(doc.content.contains("思维导图"))
+        assertTrue(doc.content.contains("知识结构大纲"))
         assertTrue(doc.content.contains("Video recommendations"))
     }
 

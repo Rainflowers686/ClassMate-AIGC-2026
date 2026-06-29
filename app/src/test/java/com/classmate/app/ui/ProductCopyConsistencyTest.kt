@@ -94,15 +94,24 @@ class ProductCopyConsistencyTest {
         listOf("文本粘贴", "图片学习输入", "拍照学习输入", "官方 OCR 按配置启用").forEach {
             assertTrue("missing import entry: $it", import.contains(it))
         }
-        listOf("官方 ASR 按配置启用", "粘贴 SRT / VTT / TXT", "TranscriptDraft").forEach {
+        listOf("粘贴 SRT / VTT / TXT", "TranscriptDraft").forEach {
             assertTrue("missing transcript entry: $it", transcript.contains(it))
         }
-        listOf("知识时间线", "问这节课", "专项练习", "复习计划", "导出中心").forEach {
-            assertTrue("missing course entry: $it", course.contains(it) || export.contains(it))
+        // The ASR-config status note moved into the transcript help pack (i18n) — still present, just relocated.
+        val strings = read("src/main/java/com/classmate/app/ui/i18n/Strings.kt")
+        assertTrue("ASR config note present on screen or in help", transcript.contains("官方 ASR 按配置启用") || strings.contains("官方 ASR 按配置启用"))
+        // Real-device #10/#17/#18: course page consolidates entries into the timeline + review hubs and
+        // drops "问这节课" + duplicate quiz buttons.
+        listOf("知识点时间线", "复习计划", "导出").forEach {
+            assertTrue("missing course entry: $it", course.contains(it))
         }
-        listOf("建议追问", "加入复习").forEach {
-            assertTrue("missing Ask entry: $it", knowledge.contains(it))
+        assertFalse("问这节课 removed from course page", course.contains("问这节课"))
+        listOf("导出中心").forEach {
+            assertTrue("missing export entry: $it", course.contains(it) || export.contains(it) || strings.contains(it))
         }
+        // The 微测/练习 entries live in the timeline (开始微测) and review (各类练习) hubs.
+        assertTrue("review hub keeps practice entries", review.contains("专项练习") || review.contains("薄弱点专项"))
+        assertFalse("问这节课 removed from knowledge page", knowledge.contains("问这节课"))
         listOf("答案 / 解释", "证据", "下一步建议").forEach {
             assertTrue("missing practice feedback text: $it", practice.contains(it))
         }
@@ -110,12 +119,12 @@ class ProductCopyConsistencyTest {
             assertTrue("missing review text: $it", review.contains(it))
         }
         listOf("PDF", "DOCX", "HTML", "Markdown", "Text", "课程精华音频脚本").forEach {
-            assertTrue("missing export format text: $it", export.contains(it) || settings.contains(it))
+            assertTrue("missing export format text: $it", export.contains(it) || settings.contains(it) || strings.contains(it))
         }
         listOf("TTS", "Function", "smoke", "docId", "Product-facing").forEach {
             assertTrue("missing official provider readiness copy: $it", settings.contains(it))
         }
-        listOf("通用设置", "外观与主题", "AI 模型配置", "学习与导出", "开发者设置").forEach {
+        listOf("通用设置", "外观与主题", "AI 模型配置", "导出设置", "开发者设置").forEach {
             assertTrue("missing settings entrance: $it", settings.contains(it))
         }
         listOf("沉浸背景音", "内置", "授权循环背景音").forEach {

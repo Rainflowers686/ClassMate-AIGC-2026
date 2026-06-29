@@ -33,7 +33,10 @@ class AsrLiveFlowTest {
         val viewModel = vm()
         val state = viewModel.asrBegin(available = true, permissionGranted = false)
         assertEquals(AsrState.PERMISSION_REQUIRED, state)
-        assertTrue(viewModel.ui.toast.orEmpty().contains("仍可手动"))
+        // Honest, actionable guidance: ask for the recording permission and offer a manual fallback.
+        val toast = viewModel.ui.toast.orEmpty()
+        assertTrue(toast.contains("录音权限"))
+        assertTrue(toast.contains("手动"))
     }
 
     @Test

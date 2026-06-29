@@ -1,3 +1,5 @@
+> 状态：历史/参考材料，可能包含旧版本事实或阶段性问题。当前 1.14.2 / versionCode 115 状态请见 [FINAL_STATUS_1_14_2.md](FINAL_STATUS_1_14_2.md) 与 [DOCUMENT_INDEX.md](DOCUMENT_INDEX.md)。
+
 # P1 Learning Loop and Export Acceptance Run
 
 ## Run Metadata
@@ -167,4 +169,3 @@ Run a device smoke pass focused on Export Center:
 3. Export Markdown/Text, HTML, PDF, DOCX, and audio script.
 4. Open DOCX in Word/WPS-compatible app.
 5. Confirm exported files do not contain credentials, raw prompts, vendor body, or reasoning content.
-

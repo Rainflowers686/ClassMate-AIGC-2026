@@ -64,7 +64,7 @@ class ExportCenterTest {
 
         assertTrue(md.bytes.decodeToString().contains(session.title))
         assertTrue(md.bytes.decodeToString().contains(result.knowledgePoints.first().title))
-        assertTrue(html.bytes.decodeToString().contains("思维导图"))
+        assertTrue(html.bytes.decodeToString().contains("知识结构大纲"))
     }
 
     @Test
@@ -92,4 +92,3 @@ class ExportCenterTest {
         assertFalse(artifact.containsSensitiveContent)
     }
 }
-

@@ -51,6 +51,15 @@ data class PracticeItem(
     val correctOptionIds: List<String> get() = options.filter { it.correct }.map { it.id }
 }
 
+/**
+ * A practice item is a usable *graded* quiz question only when it has at least two options AND a
+ * resolved correct answer (at least one option flagged correct). Items without a correct answer must
+ * never enter a graded quiz (random quiz / exam / micro-quiz) — otherwise the learner can never be
+ * marked right and "随机小测无正确答案" appears. Every graded-quiz entry point shares this single gate.
+ */
+fun PracticeItem.isAnswerableQuiz(): Boolean =
+    options.size >= 2 && correctOptionIds.isNotEmpty()
+
 /** One answered item (the learner's self-report). */
 data class PracticeAttempt(
     val itemId: String,

@@ -1,6 +1,7 @@
 package com.classmate.app.ui.screens.quiz
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,10 +14,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.ui.draw.clip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -42,24 +45,29 @@ import com.classmate.app.ui.theme.ClassMateTheme
 import com.classmate.core.model.FeedbackTargetKind
 import com.classmate.core.model.FeedbackType
 import com.classmate.core.model.QuizOption
+import com.classmate.core.model.QuizQuality
 import com.classmate.core.model.QuizQuestion
+import com.classmate.app.ui.i18n.Strings
+import com.classmate.app.ui.i18n.appStrings
 
 @Composable
 fun QuizScreen(viewModel: AppViewModel) {
     val ui = viewModel.ui
+    val s = appStrings(ui.language)
     val result = ui.result
     val session = ui.session
+    // Only complete, answerable questions reach the user: every option gets a why-right/why-wrong line
+    // and every question an explanation; questions with no correct option / too few options are dropped.
+    val questions = result?.let { QuizQuality.repairAndFilter(it.quizQuestions) }.orEmpty()
 
-    if (result == null || session == null || result.quizQuestions.isEmpty()) {
-        ClassMateScaffold(title = "微测", onBack = { viewModel.goBack() }) { padding ->
+    if (result == null || session == null || questions.isEmpty()) {
+        ClassMateScaffold(title = s.quizLabel, onBack = { viewModel.goBackOrHome() }) { padding ->
             Box(Modifier.padding(padding).fillMaxWidth().padding(Dimens.screen)) {
-                Text("还没有微测题。", style = MaterialTheme.typography.bodyMedium)
+                Text(s.quizEmpty, style = MaterialTheme.typography.bodyMedium)
             }
         }
         return
     }
-
-    val questions = result.quizQuestions
     val index = ui.currentQuestionIndex.coerceIn(0, questions.lastIndex)
     val question = questions[index]
     val revealed = question.id in ui.revealedQuestionIds
@@ -67,8 +75,8 @@ fun QuizScreen(viewModel: AppViewModel) {
     val isLast = index == questions.lastIndex
 
     ClassMateScaffold(
-        title = "微测 ${index + 1} / ${questions.size}",
-        onBack = { viewModel.goBack() },
+        title = s.quizTitle(index + 1, questions.size),
+        onBack = { viewModel.goBackOrHome() },
         bottomBar = {
             Surface(color = MaterialTheme.colorScheme.background) {
                 Row(
@@ -76,20 +84,20 @@ fun QuizScreen(viewModel: AppViewModel) {
                     horizontalArrangement = Arrangement.spacedBy(Dimens.m),
                 ) {
                     SecondaryButton(
-                        text = "上一题",
+                        text = s.quizPrev,
                         onClick = { viewModel.goToQuestion(index - 1) },
                         enabled = index > 0,
                         modifier = Modifier.weight(1f),
                     )
                     if (isLast) {
                         PrimaryButton(
-                            text = "去复习计划",
+                            text = s.quizToReview,
                             onClick = { viewModel.ensureReviewPlan(); viewModel.navigateTo(Screen.REVIEW) },
                             modifier = Modifier.weight(1f),
                         )
                     } else {
                         PrimaryButton(
-                            text = "下一题",
+                            text = s.quizNext,
                             onClick = { viewModel.goToQuestion(index + 1) },
                             modifier = Modifier.weight(1f),
                         )
@@ -125,31 +133,40 @@ fun QuizScreen(viewModel: AppViewModel) {
                     option = option,
                     revealed = revealed,
                     selected = selectedOptionId == option.id,
+                    strings = s,
                     onClick = { viewModel.answer(question, option.id) },
                 )
             }
 
             if (revealed) {
-                AnswerExplanation(viewModel, question, session)
+                AnswerExplanation(viewModel, question, session, s)
             }
         }
     }
 }
 
 @Composable
-private fun OptionRow(option: QuizOption, revealed: Boolean, selected: Boolean, onClick: () -> Unit) {
+private fun OptionRow(option: QuizOption, revealed: Boolean, selected: Boolean, strings: Strings, onClick: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     val ext = ClassMateTheme.extended
+    // Distinct states: neutral / selected (pre-reveal) / correct / your-wrong. Each has a colour AND a
+    // label/icon cue, so state never relies on colour alone.
+    val accent = when {
+        revealed && option.isCorrect -> ext.success
+        revealed && selected -> cs.error
+        selected -> cs.primary
+        else -> cs.onSurfaceVariant
+    }
     val borderColor = when {
-        !revealed -> cs.outlineVariant
-        option.isCorrect -> ext.success
-        selected -> cs.error
+        revealed && option.isCorrect -> ext.success
+        revealed && selected -> cs.error
+        selected -> cs.primary
         else -> cs.outlineVariant
     }
     val container = when {
-        !revealed -> cs.surface
-        option.isCorrect -> ext.success.copy(alpha = 0.12f)
-        selected -> cs.errorContainer.copy(alpha = 0.5f)
+        revealed && option.isCorrect -> ext.success.copy(alpha = 0.12f)
+        revealed && selected -> cs.errorContainer.copy(alpha = 0.5f)
+        selected -> cs.primary.copy(alpha = 0.08f)
         else -> cs.surface
     }
     Surface(
@@ -158,17 +175,32 @@ private fun OptionRow(option: QuizOption, revealed: Boolean, selected: Boolean, 
             .then(if (!revealed) Modifier.clickable { onClick() } else Modifier),
         shape = MaterialTheme.shapes.medium,
         color = container,
-        border = BorderStroke(1.dp, borderColor),
+        border = BorderStroke(if (selected || (revealed && option.isCorrect)) 1.5.dp else 1.dp, borderColor),
     ) {
         Column(Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                // A / B / C / D label badge — also a non-colour cue for which option this is.
+                Box(
+                    Modifier.size(28.dp).clip(CircleShape).background(accent.copy(alpha = 0.14f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(option.id, style = MaterialTheme.typography.labelLarge, color = accent, fontWeight = FontWeight.SemiBold)
+                }
+                Spacer(Modifier.width(Dimens.m))
                 Text(option.text, style = MaterialTheme.typography.bodyLarge, color = cs.onSurface, modifier = Modifier.weight(1f))
-                if (revealed && option.isCorrect) {
-                    Spacer(Modifier.width(Dimens.s))
-                    Icon(Icons.Filled.Check, contentDescription = "正确", tint = ext.success, modifier = Modifier.size(20.dp))
-                } else if (revealed && selected) {
-                    Spacer(Modifier.width(Dimens.s))
-                    Icon(Icons.Filled.Close, contentDescription = "你的选择", tint = cs.error, modifier = Modifier.size(20.dp))
+                when {
+                    revealed && option.isCorrect -> {
+                        Spacer(Modifier.width(Dimens.s))
+                        Icon(Icons.Filled.Check, contentDescription = strings.quizCorrect, tint = ext.success, modifier = Modifier.size(20.dp))
+                    }
+                    revealed && selected -> {
+                        Spacer(Modifier.width(Dimens.s))
+                        Icon(Icons.Filled.Close, contentDescription = strings.quizYourChoice, tint = cs.error, modifier = Modifier.size(20.dp))
+                    }
+                    !revealed && selected -> {
+                        Spacer(Modifier.width(Dimens.s))
+                        Icon(Icons.Filled.Check, contentDescription = strings.quizSelected, tint = cs.primary, modifier = Modifier.size(20.dp))
+                    }
                 }
             }
             if (revealed && option.rationale.isNotBlank()) {
@@ -180,17 +212,17 @@ private fun OptionRow(option: QuizOption, revealed: Boolean, selected: Boolean, 
 }
 
 @Composable
-private fun AnswerExplanation(viewModel: AppViewModel, question: QuizQuestion, session: com.classmate.core.model.CourseSession) {
+private fun AnswerExplanation(viewModel: AppViewModel, question: QuizQuestion, session: com.classmate.core.model.CourseSession, s: Strings) {
     val result = viewModel.ui.result
     QuietCard {
-        Text("讲解", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(s.quizExplanation, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.s))
         Text(question.explanation, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
 
         val testedTitles = question.testedKnowledgePointIds.mapNotNull { id -> result?.knowledgePoint(id)?.title }
         if (testedTitles.isNotEmpty()) {
             Spacer(Modifier.height(Dimens.m))
-            Text("考查知识点", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            Text(s.quizTestedKp, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.height(Dimens.s))
             Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
                 testedTitles.forEach { title ->
@@ -202,18 +234,18 @@ private fun AnswerExplanation(viewModel: AppViewModel, question: QuizQuestion, s
         question.evidence.firstOrNull()?.let { span ->
             val segIndex = session.segment(span.sourceSegmentId)?.index
             Spacer(Modifier.height(Dimens.m))
-            EvidenceBlock(quote = span.quote, segmentLabel = if (segIndex != null) "第 $segIndex 段" else "原文")
+            EvidenceBlock(quote = span.quote, segmentLabel = if (segIndex != null) s.quizSegmentLabel(segIndex) else s.quizSourceLabel)
         }
 
         Spacer(Modifier.height(Dimens.m))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Dimens.m)) {
             SecondaryButton(
-                text = "太难",
+                text = s.quizTooHard,
                 onClick = { viewModel.submitFeedback(FeedbackType.TOO_HARD, FeedbackTargetKind.QUIZ_QUESTION, question.id) },
                 modifier = Modifier.weight(1f),
             )
             SecondaryButton(
-                text = "需要多练",
+                text = s.quizNeedMore,
                 onClick = { viewModel.submitFeedback(FeedbackType.NEED_MORE_EXAMPLES, FeedbackTargetKind.QUIZ_QUESTION, question.id) },
                 modifier = Modifier.weight(1f),
             )

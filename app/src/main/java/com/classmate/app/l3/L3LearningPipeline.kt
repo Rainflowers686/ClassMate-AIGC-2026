@@ -12,6 +12,7 @@ import com.classmate.core.model.KnowledgePoint
 import com.classmate.core.model.ProviderKind
 import com.classmate.core.model.QuestionType
 import com.classmate.core.model.QuizOption
+import com.classmate.core.model.QuizQuality
 import com.classmate.core.model.QuizQuestion
 import com.classmate.core.model.SourceKind
 import kotlin.math.abs
@@ -22,6 +23,101 @@ data class L3CourseArtifacts(
 )
 
 class L3LearningPipeline {
+
+    fun buildFromLearningLoopInput(
+        input: LearningLoopInput,
+        providerSummary: ProviderConfigSummary,
+        now: Long,
+    ): L3PipelineSnapshot {
+        val base = buildFromText(
+            title = input.title,
+            text = input.text,
+            sourceType = input.sourceType,
+            providerSummary = providerSummary,
+            now = now,
+        )
+        return attachEvidenceAssets(
+            snapshot = base,
+            assets = input.evidenceAssets,
+            sourceLabel = input.sourceLabel,
+            providerProvenance = input.providerProvenance,
+        )
+    }
+
+    fun buildFromLearningLoopInput(
+        title: String,
+        text: String,
+        sourceType: L3SourceType,
+        providerSummary: ProviderConfigSummary,
+        now: Long,
+    ): L3PipelineSnapshot =
+        buildFromLearningLoopInput(
+            input = LearningLoopInput(
+                id = "loop_input_$now",
+                title = title,
+                kind = when (sourceType) {
+                    L3SourceType.OCR_IMAGE -> LearningLoopInputKind.OCR_IMAGE
+                    L3SourceType.DOCUMENT -> LearningLoopInputKind.DOCUMENT
+                    L3SourceType.AUDIO_TRANSCRIPT -> LearningLoopInputKind.AUDIO_TRANSCRIPT
+                    L3SourceType.MANUAL_TRANSCRIPT -> LearningLoopInputKind.MANUAL_TRANSCRIPT
+                    L3SourceType.QUESTION_BANK -> LearningLoopInputKind.QUESTION_BANK
+                    L3SourceType.WEB -> LearningLoopInputKind.WEB
+                    L3SourceType.RECORDING_ARTIFACT -> LearningLoopInputKind.AUDIO_TRANSCRIPT
+                    L3SourceType.TEXT -> LearningLoopInputKind.TEXT
+                },
+                sourceType = sourceType,
+                text = text,
+            ),
+            providerSummary = providerSummary,
+            now = now,
+        )
+
+    fun attachEvidenceAssets(
+        snapshot: L3PipelineSnapshot,
+        assets: List<EvidenceAsset>,
+        sourceLabel: String = "",
+        providerProvenance: String = "",
+    ): L3PipelineSnapshot {
+        if (assets.isEmpty()) return snapshot
+        val fallback = assets.first()
+        val evidence = snapshot.evidence.mapIndexed { index, ev ->
+            val asset = assets.getOrNull(index) ?: fallback
+            ev.copy(
+                assetId = asset.id,
+                sourceLabel = asset.sourceLabel.ifBlank { sourceLabel },
+                fileName = asset.fileName,
+                fileExt = asset.fileExt,
+                mimeType = asset.mimeType,
+                localUri = asset.localUri,
+                thumbnailRef = asset.thumbnailRef,
+                imageRef = asset.imageRef,
+                audioRef = asset.audioRef,
+                pageHint = asset.pageHint,
+                segmentHint = asset.segmentHint,
+                transcriptSegment = asset.transcriptSegment,
+                snippet = asset.snippet.ifBlank { asset.text.take(180) },
+                segmentStartMs = ev.segmentStartMs ?: asset.startMs,
+                segmentEndMs = ev.segmentEndMs ?: asset.endMs,
+                providerProvenance = ev.providerProvenance.ifBlank { providerProvenance },
+            )
+        }
+        val transcriptSegments = if (snapshot.transcriptSegments.isEmpty()) {
+            snapshot.transcriptSegments
+        } else {
+            snapshot.transcriptSegments.mapIndexed { index, segment ->
+                val asset = assets.getOrNull(index) ?: fallback
+                segment.copy(
+                    startMs = segment.startMs ?: asset.startMs,
+                    endMs = segment.endMs ?: asset.endMs,
+                )
+            }
+        }
+        return snapshot.copy(
+            evidence = evidence,
+            transcriptSegments = transcriptSegments,
+            evidenceAssets = (snapshot.evidenceAssets + assets).distinctBy { it.id },
+        )
+    }
 
     fun buildFromText(
         title: String,
@@ -204,7 +300,17 @@ class L3LearningPipeline {
                 masteryState = L3MasteryState.LEARNING,
             )
         }
-        val questions = result.quizQuestions.mapIndexed { index, question ->
+        val repaired = QuizQuality.repairAndFilter(result.quizQuestions).mapIndexed { index, question ->
+            // Carry the per-option "why right / why wrong + how to fix" reasoning into the L3 question so it
+            // reaches the Study Pack export and the WrongBook (both read this explanation), not just the quiz UI.
+            val optionExplanations = question.options
+                .filter { it.rationale.isNotBlank() }
+                .joinToString("；") { "${it.id}：${it.rationale}" }
+            val fullExplanation = listOf(question.explanation, optionExplanations.takeIf { it.isNotBlank() }?.let { "选项解析：$it" })
+                .filterNotNull()
+                .filter { it.isNotBlank() }
+                .joinToString(" ")
+                .ifBlank { question.explanation }
             L3GeneratedQuestion(
                 id = question.id,
                 lessonId = session.id,
@@ -212,12 +318,15 @@ class L3LearningPipeline {
                 stem = question.stem,
                 options = question.options.map { "${it.id}. ${it.text}" },
                 correctAnswer = question.correctOptionIds.joinToString(","),
-                explanation = question.explanation,
+                explanation = fullExplanation,
                 evidenceIds = question.evidence.mapIndexed { evIndex, _ -> evidence.getOrNull(evIndex)?.id }.filterNotNull()
                     .ifEmpty { knowledge.getOrNull(index % knowledge.size.coerceAtLeast(1))?.sourceEvidenceIds.orEmpty() },
                 difficulty = question.difficulty,
             )
         }
+        // P0-4: when the model returns no usable quiz but the course HAS knowledge points, synthesize a few
+        // basic answerable questions locally so a real course is never left with zero 微测 (silent no-quiz).
+        val questions = repaired.ifEmpty { localBasicQuestions(session.id, knowledge, now) }
         return assembleSnapshot(
             source = source,
             transcriptSegments = emptyList(),
@@ -266,9 +375,21 @@ class L3LearningPipeline {
             mode = mode,
         )
         val wrongBook = if (correct) {
-            snapshot.wrongBook
+            snapshot.wrongBook.map { wrong ->
+                if (wrong.questionId == questionId) {
+                    wrong.copy(
+                        retryCount = wrong.retryCount + 1,
+                        remediationHint = wrong.remediationHint.ifBlank {
+                            "重练已答对：继续按复习计划回看证据，避免同类题复发。"
+                        },
+                    )
+                } else {
+                    wrong
+                }
+            }
         } else {
             val previous = snapshot.wrongBook.firstOrNull { it.questionId == questionId }
+            val evidenceText = snapshot.evidence.firstOrNull { it.id in question.evidenceIds }?.text.orEmpty()
             snapshot.wrongBook.filterNot { it.questionId == questionId } + WrongQuestionRecord(
                 id = previous?.id ?: "wrong_${now}_${snapshot.wrongBook.size + 1}",
                 questionId = question.id,
@@ -279,6 +400,9 @@ class L3LearningPipeline {
                 evidenceIds = question.evidenceIds,
                 createdAt = previous?.createdAt ?: now,
                 retryCount = (previous?.retryCount ?: 0) + 1,
+                mistakeReason = WrongAnswerInsightEngine.mistakeReason(question, userAnswer, correctAnswers.joinToString(",")),
+                remediationHint = WrongAnswerInsightEngine.remediationHint(question, evidenceText),
+                relatedKnowledgePointIds = listOf(question.knowledgePointId).filter { it.isNotBlank() },
             )
         }
         val mastery = snapshot.masteryStats.map { stat ->
@@ -312,11 +436,40 @@ class L3LearningPipeline {
                     masteryState = nextState,
                     dueAt = NextReviewPolicy.nextReviewAt(nextState, now),
                     priority = NextReviewPolicy.priority(nextState),
+                    evidenceId = item.evidenceId ?: question.evidenceIds.firstOrNull(),
+                    arrangementReason = if (correct) {
+                        "重练答对，降低为间隔复习，继续保持。"
+                    } else {
+                        "答错后自动加入今日复习，优先回看证据并重练。"
+                    },
+                    recommendedActions = if (correct) {
+                        listOf("看证据", "再测一次", "复述知识点")
+                    } else {
+                        listOf("看证据", "重练错题", "再测一次", "复述知识点")
+                    },
                 )
             } else {
                 item
             }
         }
+            .let { items ->
+                if (items.any { it.knowledgePointId == question.knowledgePointId } || correct) {
+                    items
+                } else {
+                    items + ReviewQueueItem(
+                        id = "rq_retry_${now}_${items.size + 1}",
+                        knowledgePointId = question.knowledgePointId,
+                        dueAt = now,
+                        masteryState = L3MasteryState.WEAK,
+                        sourceLessonId = question.lessonId,
+                        priority = NextReviewPolicy.priority(L3MasteryState.WEAK),
+                        source = "WRONG_ANSWER",
+                        arrangementReason = "答错后补入今日复习队列，先看证据再重练。",
+                        evidenceId = question.evidenceIds.firstOrNull(),
+                        recommendedActions = listOf("看证据", "重练错题", "再测一次", "复述知识点"),
+                    )
+                }
+            }
         val knowledge = snapshot.knowledgePoints.map { kp ->
             if (kp.id == question.knowledgePointId) kp.copy(masteryState = if (correct) L3MasteryState.REVIEWING else L3MasteryState.WEAK) else kp
         }
@@ -337,10 +490,13 @@ class L3LearningPipeline {
             now = now,
             index = snapshot.masteryHistory.size + 1,
         )
-        return updated.copy(
+        val withHistory = updated.copy(
             masteryHistory = history,
             reviewDailyStats = ReviewStatsEngine.daily(updated, now),
             masteryTrendStats = MasteryTrendEngine.trend(history, updated, now),
+        )
+        return withHistory.copy(
+            learningDiagnosis = LearningDiagnosisEngine.build(withHistory, now),
         )
     }
 
@@ -379,13 +535,14 @@ class L3LearningPipeline {
                 id = question.id,
                 type = if (index % 2 == 0) QuestionType.CONCEPT_UNDERSTANDING else QuestionType.APPLICATION,
                 stem = question.stem,
-                options = question.options.map { option ->
-                    val id = option.substringBefore(".").trim().take(1).ifBlank { "A" }
+                options = question.options.mapIndexed { optionIndex, option ->
+                    // Position-based id (A/B/C/D) so single-choice selection highlights exactly one option.
+                    val correct = QuizOptionIds.isAnswer(optionIndex, option, question.correctAnswer)
                     QuizOption(
-                        id = id,
-                        text = option.substringAfter(". ", option),
-                        isCorrect = id in correctAnswerIds(question.correctAnswer),
-                        rationale = if (id in correctAnswerIds(question.correctAnswer)) question.explanation else "请回到来源证据核对。",
+                        id = QuizOptionIds.letterId(optionIndex),
+                        text = QuizOptionIds.cleanText(option),
+                        isCorrect = correct,
+                        rationale = if (correct) question.explanation else "请回到来源证据核对。",
                     )
                 },
                 testedKnowledgePointIds = listOf(question.knowledgePointId).filter { it.isNotBlank() },
@@ -423,6 +580,7 @@ class L3LearningPipeline {
         questionBank: L3QuestionBank?,
         providerSummary: ProviderConfigSummary,
         now: Long,
+        evidenceAssets: List<EvidenceAsset> = emptyList(),
     ): L3PipelineSnapshot {
         val queue = knowledge.mapIndexed { index, kp ->
             ReviewQueueItem(
@@ -433,6 +591,9 @@ class L3LearningPipeline {
                 sourceLessonId = source.id,
                 priority = NextReviewPolicy.priority(kp.masteryState),
                 source = "L3_PIPELINE",
+                arrangementReason = "新知识点进入 20 分钟复习计划，先看证据再做微测。",
+                evidenceId = kp.sourceEvidenceIds.firstOrNull(),
+                recommendedActions = listOf("看证据", "再测一次", "复述知识点"),
             )
         }
         val mastery = knowledge.map {
@@ -463,6 +624,7 @@ class L3LearningPipeline {
             reviewFocus = reviewFocus,
             actionItems = actionItems,
             evidence = evidence,
+            evidenceAssets = evidenceAssets,
             knowledgePoints = knowledge,
             questions = questions,
             reviewQueue = queue,
@@ -490,6 +652,7 @@ class L3LearningPipeline {
             semanticSearchResults = if (searchQuery.isBlank()) emptyList() else listOf(LocalSemanticIndexEngine.search(semanticRecords, searchQuery)),
             toolStepRecords = withPlan.toolOrchestrationPlan?.stepRecords.orEmpty(),
             masteryTrendStats = MasteryTrendEngine.trend(withPlan.masteryHistory, withPlan, now),
+            learningDiagnosis = LearningDiagnosisEngine.build(withPlan, now),
         )
     }
 
@@ -626,11 +789,6 @@ class L3LearningPipeline {
         }
     }
 
-    private fun correctAnswerIds(answer: String): Set<String> =
-        answer.split(",", ";", "|", "、", " ")
-            .map { it.trim().take(1).uppercase() }
-            .filter { it.isNotBlank() }
-            .toSet()
 
     private fun paragraphChunks(text: String): List<String> =
         text.split(Regex("""\n{2,}|(?<=[。！？.!?])\s+"""))
@@ -646,6 +804,33 @@ class L3LearningPipeline {
         val first = clean.split(" ").firstOrNull { it.length >= 2 } ?: "知识点 ${index + 1}"
         return first.take(18)
     }
+
+    /**
+     * P0-4: basic, answerable quiz built locally from the knowledge points — the fallback used when the
+     * model returns no usable quiz for a course that DOES have material. Each question has a stem, four
+     * options (A = the knowledge point's own explanation, correct), an explanation, and is bound to the
+     * knowledge point and its evidence. Only points that actually carry evidence are turned into questions,
+     * so insufficient material yields an empty list (the UI then shows "资料不足", never a fake question).
+     */
+    private fun localBasicQuestions(lessonId: String, knowledge: List<L3KnowledgePoint>, now: Long): List<L3GeneratedQuestion> =
+        knowledge.filter { it.sourceEvidenceIds.isNotEmpty() }.take(3).mapIndexed { index, kp ->
+            L3GeneratedQuestion(
+                id = "q_${now}_lf${index + 1}",
+                lessonId = lessonId,
+                knowledgePointId = kp.id,
+                stem = "关于“${kp.title}”，下面哪一项最符合课堂材料？",
+                options = listOf(
+                    "A. ${kp.explanation.ifBlank { "回到来源证据核对“${kp.title}”的关键表述" }}",
+                    "B. 与本节课无关的背景信息",
+                    "C. 只需要背诵术语，不需要回到证据",
+                    "D. 该说法无法从课堂材料中得到支持",
+                ),
+                correctAnswer = "A",
+                explanation = "A 直接对应该知识点的来源证据；复习时先读证据，再用自己的话解释。",
+                evidenceIds = listOf(kp.sourceEvidenceIds.first()),
+                difficulty = Difficulty.MEDIUM,
+            )
+        }
 
     private fun spanFor(session: CourseSession, quoteHint: String, fallbackSegmentId: String): EvidenceSpan {
         val cleanHint = quoteHint.trim().take(60)

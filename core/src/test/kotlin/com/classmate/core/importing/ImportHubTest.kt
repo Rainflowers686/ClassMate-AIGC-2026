@@ -1,5 +1,6 @@
 package com.classmate.core.importing
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -18,17 +19,26 @@ class ImportHubTest {
 
     @Test
     fun placeholderSourcesDoNotCreateDraftsAndUseHonestCopy() {
-        listOf(
-            ImportSourceType.AUDIO_FILE,
-            ImportSourceType.VIDEO_FILE,
-            ImportSourceType.IMAGE_OCR,
-            ImportSourceType.NETWORK_VIDEO_LINK,
-        ).forEach { source ->
+        val expected = mapOf(
+            ImportSourceType.AUDIO_FILE to ImportCapabilityStatus.NEEDS_CONFIG,
+            ImportSourceType.VIDEO_FILE to ImportCapabilityStatus.UNSUPPORTED,
+            ImportSourceType.IMAGE_OCR to ImportCapabilityStatus.NEEDS_CONFIG,
+            ImportSourceType.NETWORK_VIDEO_LINK to ImportCapabilityStatus.UNSUPPORTED,
+        )
+        expected.forEach { (source, status) ->
             val result = ImportHub.validateText("Lesson", "content", source)
             assertFalse(result.accepted)
             assertTrue(result.draft == null)
-            assertTrue(result.message.contains("not connected", ignoreCase = true) || result.message.contains("No platform scraping"))
-            assertTrue(result.message.contains("paste", ignoreCase = true))
+            assertEquals(status, ImportHub.capabilities.first { it.sourceType == source }.status)
+            assertTrue(result.message.contains("粘贴") || result.message.contains("不解析") || result.message.contains("不抓取") || result.message.contains("手动"))
         }
+    }
+
+    @Test
+    fun everyImportCapabilityHasExplicitStatus() {
+        assertEquals(ImportCapabilityStatus.AVAILABLE, ImportHub.capabilities.first { it.sourceType == ImportSourceType.PASTE_TEXT }.status)
+        assertEquals(ImportCapabilityStatus.AVAILABLE, ImportHub.capabilities.first { it.sourceType == ImportSourceType.TXT_FILE }.status)
+        assertEquals(ImportCapabilityStatus.AVAILABLE, ImportHub.capabilities.first { it.sourceType == ImportSourceType.MARKDOWN_FILE }.status)
+        assertTrue(ImportHub.capabilities.all { it.label.isNotBlank() && it.message.isNotBlank() })
     }
 }

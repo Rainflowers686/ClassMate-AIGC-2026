@@ -20,12 +20,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.classmate.app.practice.PracticeSearchLauncher
 import com.classmate.app.state.AppViewModel
 import com.classmate.app.state.Screen
 import com.classmate.app.ui.components.ChipTone
 import com.classmate.app.ui.components.ClassMateScaffold
+import com.classmate.app.ui.i18n.appStrings
 import com.classmate.app.ui.product.QuietCard
 import com.classmate.app.ui.components.DifficultyBadge
 import com.classmate.app.ui.components.StatusChip
@@ -36,23 +39,26 @@ import com.classmate.app.ui.components.PrimaryButton
 import com.classmate.app.ui.components.ProvenanceChip
 import com.classmate.app.ui.components.SecondaryButton
 import com.classmate.app.ui.design.Dimens
+import com.classmate.app.ui.i18n.Strings
 import com.classmate.core.model.KnowledgePoint
+import com.classmate.core.practice.KnowledgePointSearch
 
 @Composable
 fun KnowledgeTimelineScreen(viewModel: AppViewModel) {
     val ui = viewModel.ui
+    val s = appStrings(ui.language)
     val result = ui.result
     val session = ui.session
 
     ClassMateScaffold(
-        title = "Knowledge Timeline",
-        onBack = { viewModel.goBack() },
+        title = s.knowledgeTitle,
+        onBack = { viewModel.goBackOrHome() },
         bottomBar = {
             if (result != null) {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     Column(Modifier.fillMaxWidth().padding(horizontal = Dimens.screen, vertical = Dimens.m)) {
                         PrimaryButton(
-                            text = "Start quiz (${result.quizQuestions.size})",
+                            text = s.knowledgeStartQuiz(result.quizQuestions.size),
                             onClick = { viewModel.navigateTo(Screen.QUIZ) },
                             modifier = Modifier.fillMaxWidth(),
                             enabled = result.quizQuestions.isNotEmpty(),
@@ -60,12 +66,12 @@ fun KnowledgeTimelineScreen(viewModel: AppViewModel) {
                         Spacer(Modifier.height(Dimens.s))
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Dimens.m)) {
                             SecondaryButton(
-                                text = "Review plan",
+                                text = s.knowledgeReviewPlan,
                                 onClick = { viewModel.ensureReviewPlan(); viewModel.navigateTo(Screen.REVIEW) },
                                 modifier = Modifier.weight(1f),
                             )
                             SecondaryButton(
-                                text = "Feedback",
+                                text = s.knowledgeFeedback,
                                 onClick = { viewModel.navigateTo(Screen.FEEDBACK) },
                                 modifier = Modifier.weight(1f),
                             )
@@ -77,7 +83,7 @@ fun KnowledgeTimelineScreen(viewModel: AppViewModel) {
     ) { padding ->
         if (result == null || session == null) {
             Box(Modifier.padding(padding).fillMaxWidth().padding(Dimens.screen)) {
-                Text("No analysis result yet.", style = MaterialTheme.typography.bodyMedium)
+                Text(s.knowledgeNoResult, style = MaterialTheme.typography.bodyMedium)
             }
             return@ClassMateScaffold
         }
@@ -91,116 +97,42 @@ fun KnowledgeTimelineScreen(viewModel: AppViewModel) {
             verticalArrangement = Arrangement.spacedBy(Dimens.cardGap),
         ) {
             QuietCard {
-                Text(session.title.ifBlank { "Untitled Course" }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                Text(session.title.ifBlank { s.untitledCourse }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(Dimens.s))
                 ProvenanceChip(result.provenance)
                 Spacer(Modifier.height(Dimens.m))
                 Row(horizontalArrangement = Arrangement.spacedBy(Dimens.xl)) {
-                    Stat("${result.knowledgePoints.size}", "KP")
-                    Stat("${result.quizQuestions.size}", "Quiz")
-                    Stat("${session.segments.size}", "Segments")
+                    Stat("${result.knowledgePoints.size}", s.knowledgeStatKp)
+                    Stat("${result.quizQuestions.size}", s.knowledgeStatQuiz)
+                    Stat("${session.segments.size}", s.knowledgeStatSegments)
                 }
             }
 
             ExportCenterCard(
                 viewModel = viewModel,
-                title = "导出当前课程报告",
-                description = "把当前 Timeline、证据链、微测、复习计划、Ask 记录和资料来源摘要导出为可保存或可分享文件。",
                 buildArtifact = viewModel::buildCurrentReportArtifact,
             )
 
-            AskThisLessonCard(viewModel, session)
+            // Real-device #10/#17: the ask-this-lesson Q&A box is no longer surfaced; the timeline leads
+            // with knowledge points, evidence and 微测.
 
+            val context = LocalContext.current
             result.knowledgePoints.forEachIndexed { index, kp ->
+                val segIndex = session.segments.firstOrNull { it.id == kp.sourceSegmentId }?.index
                 KnowledgePointCard(
                     number = index + 1,
                     kp = kp,
-                    segmentLabel = segmentLabel(session.segments.firstOrNull { it.id == kp.sourceSegmentId }?.index),
+                    flagged = kp.id in ui.flaggedKnowledgePointIds,
+                    segmentLabel = if (segIndex != null) s.quizSegmentLabel(segIndex) else s.quizSourceLabel,
+                    openEvidenceLabel = s.knowledgeOpenEvidence,
                     onOpenEvidence = { viewModel.openEvidence(kp.id) },
+                    strings = s,
+                    search = viewModel.knowledgePointSearch(kp.id),
+                    onOpenSearch = { link ->
+                        if (!PracticeSearchLauncher.open(context, link)) viewModel.toast("未找到浏览器，请稍后再试。")
+                    },
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun AskThisLessonCard(viewModel: AppViewModel, session: com.classmate.core.model.CourseSession) {
-    val ui = viewModel.ui
-    val cs = MaterialTheme.colorScheme
-    QuietCard {
-        Text("问这节课", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(Dimens.s))
-        Text(
-            "回答只依据本节课的知识点与原文证据；没有依据时会标注「未找到依据」，不会编造。",
-            style = MaterialTheme.typography.bodySmall,
-            color = cs.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(Dimens.s))
-        OutlinedTextField(
-            value = ui.askLessonQuestion,
-            onValueChange = viewModel::updateAskLessonQuestion,
-            label = { Text("输入你的问题") },
-            minLines = 2,
-            maxLines = 4,
-            enabled = !ui.askLessonPending,
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.medium,
-        )
-        Spacer(Modifier.height(Dimens.s))
-        PrimaryButton(
-            text = if (ui.askLessonPending) "正在查找本节课证据…" else "提问",
-            onClick = { viewModel.askThisLesson() },
-            enabled = ui.askLessonQuestion.isNotBlank() && !ui.askLessonPending,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        ui.askLessonAnswers.withIndex().toList().takeLast(3).reversed().forEach { indexedAnswer ->
-            val answerIndex = indexedAnswer.index
-            val answer = indexedAnswer.value
-            Spacer(Modifier.height(Dimens.m))
-            Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
-                val (label, tone) = when (answer.groundedness) {
-                    "grounded" -> "有证据" to ChipTone.SUCCESS
-                    "partial" -> "部分依据" to ChipTone.WARNING
-                    "not_found" -> "未找到依据" to ChipTone.NEUTRAL
-                    else -> "出错" to ChipTone.WARNING
-                }
-                StatusChip(label, tone = tone)
-                // Honest answer source: 云端蓝心 / 端侧蓝心 / 安全占位 (never raw provider id, never LocalRule).
-                StatusChip(
-                    com.classmate.core.ondevice.ProviderPathNode.sourceLabelZh(answer.providerName),
-                    tone = if (answer.fallbackUsed) ChipTone.NEUTRAL else ChipTone.INFO,
-                )
-            }
-            Spacer(Modifier.height(Dimens.xs))
-            Text(answer.answer, style = MaterialTheme.typography.bodyMedium, color = cs.onSurface)
-            if (answer.relatedKnowledgePointTitles.isNotEmpty()) {
-                Spacer(Modifier.height(Dimens.xxs))
-                Text("相关知识点：${answer.relatedKnowledgePointTitles.joinToString("、")}", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
-            }
-            answer.evidenceRefs.take(3).forEach { ref ->
-                Spacer(Modifier.height(Dimens.xxs))
-                val sourceLabel = sourceLabelForSegment(ref.segmentId?.let { session.segment(it) }?.text)
-                Text(
-                    "证据${sourceLabel?.let { " · $it" }.orEmpty()}：「${ref.quote}」${ref.knowledgePointTitle?.let { " — $it" } ?: ""}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = cs.onSurfaceVariant,
-                )
-            }
-            if (answer.suggestedFollowUps.isNotEmpty()) {
-                Spacer(Modifier.height(Dimens.s))
-                Text("建议追问", style = MaterialTheme.typography.labelLarge, color = cs.onSurfaceVariant)
-                answer.suggestedFollowUps.take(4).forEach { followUp ->
-                    Spacer(Modifier.height(Dimens.xxs))
-                    Text("• $followUp", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
-                }
-            }
-            Spacer(Modifier.height(Dimens.s))
-            SecondaryButton(
-                text = "加入复习",
-                onClick = { viewModel.addAskAnswerToReview(answerIndex) },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = answer.relatedKnowledgePointTitles.isNotEmpty() || answer.evidenceRefs.isNotEmpty(),
-            )
         }
     }
 }
@@ -214,7 +146,17 @@ private fun Stat(value: String, label: String) {
 }
 
 @Composable
-private fun KnowledgePointCard(number: Int, kp: KnowledgePoint, segmentLabel: String, onOpenEvidence: () -> Unit) {
+private fun KnowledgePointCard(
+    number: Int,
+    kp: KnowledgePoint,
+    flagged: Boolean,
+    segmentLabel: String,
+    openEvidenceLabel: String,
+    onOpenEvidence: () -> Unit,
+    strings: Strings,
+    search: KnowledgePointSearch.Result,
+    onOpenSearch: (com.classmate.core.practice.PracticeSearchLink) -> Unit,
+) {
     QuietCard(onClick = onOpenEvidence) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
@@ -224,6 +166,8 @@ private fun KnowledgePointCard(number: Int, kp: KnowledgePoint, segmentLabel: St
             }
             Spacer(Modifier.width(Dimens.m))
             Text(kp.title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            // P0-3: a visible marker after the user flags this point as inaccurate.
+            if (flagged) StatusChip("需复核", tone = ChipTone.WARNING)
         }
         Spacer(Modifier.height(Dimens.s))
         Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
@@ -237,17 +181,39 @@ private fun KnowledgePointCard(number: Int, kp: KnowledgePoint, segmentLabel: St
             EvidenceBlock(quote = span.quote, segmentLabel = segmentLabel)
         }
         Spacer(Modifier.height(Dimens.s))
-        Text("Open evidence", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        Text(openEvidenceLabel, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+
+        // P1-3: honest browser-search entry. High-confidence points get real browser links; a 需复核 /
+        // low-confidence point shows a "先完善资料" hint instead of a misleading search button.
+        Spacer(Modifier.height(Dimens.m))
+        when (search) {
+            is KnowledgePointSearch.Result.Available -> {
+                Text(strings.knowledgeSearchTitle, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(Dimens.xs))
+                Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+                    search.links.take(2).forEach { link ->
+                        SecondaryButton(
+                            text = strings.knowledgeSearchOpen(link.sourceName),
+                            onClick = { onOpenSearch(link) },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+                Spacer(Modifier.height(Dimens.xs))
+                Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+                    search.links.drop(2).take(2).forEach { link ->
+                        SecondaryButton(
+                            text = strings.knowledgeSearchOpen(link.sourceName),
+                            onClick = { onOpenSearch(link) },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+                Spacer(Modifier.height(Dimens.xs))
+                Text(strings.knowledgeSearchHint, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            KnowledgePointSearch.Result.NeedsReview ->
+                Text(strings.knowledgeSearchNeedsReview, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
-}
-
-private fun segmentLabel(index: Int?): String = if (index != null) "Segment $index" else "Original text"
-
-private fun sourceLabelForSegment(text: String?): String? = when {
-    text == null -> null
-    text.contains("[课件 OCR") -> "课件 OCR"
-    text.contains("[板书 OCR") -> "板书 OCR"
-    text.contains("[讲义 OCR") -> "讲义 OCR"
-    text.contains("[PDF OCR") -> "PDF OCR"
-    else -> null
 }

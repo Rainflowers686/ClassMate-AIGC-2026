@@ -153,14 +153,22 @@ class ModelConfigRepository(private val file: File?) {
     }
 
     fun saveOfficial(baseUrl: String, model: String, appId: String, appKey: String): Boolean {
+        // Never persist a UI-masked value (e.g. "ab***yz") as a real credential — it would overwrite a
+        // working AppKey with a mask and turn cloud calls into auth/garbage failures. Reject the save.
+        if (ProviderConfigSafetyCheck.isMaskedSecret(appKey) || ProviderConfigSafetyCheck.isMaskedSecret(appId)) {
+            return false
+        }
         val current = load()
+        // The AppKey field is never pre-filled (it is secret), so a blank value on save means "unchanged",
+        // NOT "clear it". Preserve the stored credential instead of wiping a working AppKey — clearing is
+        // only ever done explicitly via deleteOfficial(). Same guard for a blank AppID.
         return save(
             ModelApiProfile(
                 label = ModelApiProfile.DEFAULT_LABEL,
                 baseUrl = baseUrl.trim().ifBlank { ModelApiProfile.DEFAULT_BASE_URL },
                 model = model.trim().ifBlank { ModelApiProfile.DEFAULT_MODEL },
-                appId = appId.trim(),
-                appKey = appKey.trim(),
+                appId = appId.trim().ifBlank { current?.appId.orEmpty() },
+                appKey = appKey.trim().ifBlank { current?.appKey.orEmpty() },
                 mode = AiModelProviderMode.OFFICIAL_BLUELM,
                 customApiKey = current?.customApiKey.orEmpty(),
                 customAdvancedJson = current?.customAdvancedJson.orEmpty(),

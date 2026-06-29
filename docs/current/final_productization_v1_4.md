@@ -1,3 +1,5 @@
+> 状态：历史/参考材料，可能包含旧版本事实或阶段性问题。当前 1.14.2 / versionCode 115 状态请见 [FINAL_STATUS_1_14_2.md](FINAL_STATUS_1_14_2.md) 与 [DOCUMENT_INDEX.md](DOCUMENT_INDEX.md)。
+
 # Final Productization v1.4
 
 Date: 2026-06-20
@@ -39,11 +41,12 @@ Task 4 finishes the remaining L3 productization work before Claude global red-te
 - DOCX/XLSX/PPTX extraction now requires quality guard status before demo use.
 - L3 wrong book, review queue, mastery history, attempts, lesson source/evidence/questions, and exam reports are persisted to app-private storage.
 
-## v1.6 Runtime Wiring Update
+## v1.6 / v1.7 Runtime Wiring Update
 
 - `OfficialRuntimeGateway` now sits in the L3 publish path for Query Rewrite, Embedding, Text Similarity, Translation, TTS, Function Calling, ASR Long status, OCR provenance, and Edge fallback.
-- Query Rewrite / Embedding / Text Similarity can be marked `OFFICIAL_RUNTIME_USED` only when an injected app runtime adapter returns success; otherwise diagnostics stay app-wiring-pending, not-configured, or local fallback.
-- The v1.6 work still did not run provider network smoke and still does not claim unvalidated live official runtime success.
+- v1.7 fixes the production default-binding gap: Query Rewrite / Embedding / Text Similarity now use `OfficialRuntimeGatewayFactory.production()` so the Vivo retrieval adapters are injected by default.
+- Query Rewrite / Embedding / Text Similarity can be marked `OFFICIAL_RUNTIME_USED` only when the injected runtime adapter returns success; otherwise diagnostics stay not-configured, failed, or local fallback.
+- The v1.6/v1.7 work still did not run provider network smoke and still does not claim unvalidated live official runtime success.
 
 ## Protected Areas
 

@@ -17,12 +17,22 @@ data class ImportDraft(
     val fileName: String? = null,
 )
 
+enum class ImportCapabilityStatus {
+    AVAILABLE,
+    NEEDS_PERMISSION,
+    NEEDS_CONFIG,
+    UNSUPPORTED,
+    EXPERIMENTAL,
+}
+
 data class ImportCapability(
     val sourceType: ImportSourceType,
-    val available: Boolean,
+    val status: ImportCapabilityStatus,
     val label: String,
     val message: String,
-)
+) {
+    val available: Boolean get() = status == ImportCapabilityStatus.AVAILABLE
+}
 
 data class ImportValidationResult(
     val accepted: Boolean,
@@ -32,13 +42,13 @@ data class ImportValidationResult(
 
 object ImportHub {
     val capabilities: List<ImportCapability> = listOf(
-        ImportCapability(ImportSourceType.PASTE_TEXT, true, "Paste classroom text", "Available now."),
-        ImportCapability(ImportSourceType.TXT_FILE, true, "Import .txt", "Available now; file text becomes classroom text."),
-        ImportCapability(ImportSourceType.MARKDOWN_FILE, true, "Import .md", "Available now; markdown text becomes classroom text."),
-        ImportCapability(ImportSourceType.AUDIO_FILE, false, "Import audio", "Not connected yet: paste transcript text first. Later vivo long-speech ASR can plug in here."),
-        ImportCapability(ImportSourceType.VIDEO_FILE, false, "Import video", "Not connected yet: paste subtitles or transcript text first. No video parsing in this build."),
-        ImportCapability(ImportSourceType.IMAGE_OCR, false, "Image / OCR", "Not connected yet: paste recognized text first. Later vivo general OCR can plug in here."),
-        ImportCapability(ImportSourceType.NETWORK_VIDEO_LINK, false, "Network video link", "No platform scraping. Paste classroom text or subtitles first; later compliant whitelist search can plug in here."),
+        ImportCapability(ImportSourceType.PASTE_TEXT, ImportCapabilityStatus.AVAILABLE, "粘贴课堂文本", "可直接进入学习闭环。"),
+        ImportCapability(ImportSourceType.TXT_FILE, ImportCapabilityStatus.AVAILABLE, "导入 .txt", "可读取本地文本并进入学习闭环。"),
+        ImportCapability(ImportSourceType.MARKDOWN_FILE, ImportCapabilityStatus.AVAILABLE, "导入 .md", "可读取 Markdown 文本并进入学习闭环。"),
+        ImportCapability(ImportSourceType.AUDIO_FILE, ImportCapabilityStatus.NEEDS_CONFIG, "导入音频", "需要 ASR 配置；未配置时请粘贴转写文本。"),
+        ImportCapability(ImportSourceType.VIDEO_FILE, ImportCapabilityStatus.UNSUPPORTED, "导入视频", "不解析视频内嵌字幕；请手动粘贴转写或导入 SRT/VTT 字幕。"),
+        ImportCapability(ImportSourceType.IMAGE_OCR, ImportCapabilityStatus.NEEDS_CONFIG, "图片 OCR", "按配置启用官方 OCR；未配置时可手动确认图片文字。"),
+        ImportCapability(ImportSourceType.NETWORK_VIDEO_LINK, ImportCapabilityStatus.UNSUPPORTED, "网络视频链接", "不抓取第三方平台内容；请提供有权使用的课堂文本或字幕。"),
     )
 
     fun validateText(title: String, text: String, sourceType: ImportSourceType, fileName: String? = null): ImportValidationResult {
@@ -46,14 +56,14 @@ object ImportHub {
             return ImportValidationResult(false, placeholderMessage(sourceType))
         }
         val clean = text.trim()
-        if (clean.isBlank()) return ImportValidationResult(false, "No classroom text found.")
+        if (clean.isBlank()) return ImportValidationResult(false, "未找到可导入的课堂文本。")
         return ImportValidationResult(
             accepted = true,
-            message = "Import draft accepted.",
+            message = "已加入导入草稿。",
             draft = ImportDraft(title = title.trim(), text = clean, sourceType = sourceType, fileName = fileName),
         )
     }
 
     fun placeholderMessage(sourceType: ImportSourceType): String =
-        capabilities.firstOrNull { it.sourceType == sourceType }?.message ?: "This import source is not connected yet."
+        capabilities.firstOrNull { it.sourceType == sourceType }?.message ?: "该导入方式暂未接入学习闭环。"
 }

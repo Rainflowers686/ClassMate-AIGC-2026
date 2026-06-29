@@ -22,6 +22,9 @@ class ProviderAskChatClient(
     private val bundle: ProviderConfigBundle,
     private val transport: HttpTransport = NoNetworkTransport,
     private val requestIdFactory: () -> String = { "cm_ask_" + UUID.randomUUID() },
+    // Read timeout for the chat call. Defaults to the analysis timeout; secondary AI enhancements pass a
+    // shorter one so a slow/hung BlueLM call falls back to the local template quickly (P0-1, no long spinner).
+    private val timeouts: HttpTimeouts = HttpTimeouts.BLUE_LM_ANALYSIS,
 ) : AskChatSeam {
 
     override fun chat(prompt: Prompt, repairHint: String?): AskChatResult? {
@@ -60,7 +63,7 @@ class ProviderAskChatClient(
             val name = URLEncoder.encode(config.requestIdQueryName, StandardCharsets.UTF_8.name())
             val id = URLEncoder.encode(requestIdFactory(), StandardCharsets.UTF_8.name())
             val url = config.baseUrl.trimEnd('/') + "/chat/completions?$name=$id"
-            val response = transport.postJson(url, headers, body, HttpRequestProfile.ANALYSIS, HttpTimeouts.BLUE_LM_ANALYSIS)
+            val response = transport.postJson(url, headers, body, HttpRequestProfile.ANALYSIS, timeouts)
             if (response.status !in 200..299) return null
             VivoOpenAIChatResponseReader.extractAssistantText(response.body)
                 ?.takeIf { it.isNotBlank() }

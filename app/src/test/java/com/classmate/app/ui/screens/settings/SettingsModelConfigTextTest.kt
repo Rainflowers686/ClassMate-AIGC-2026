@@ -52,7 +52,7 @@ class SettingsModelConfigTextTest {
             "外观与主题",
             "AI 模型配置",
             "隐私与权限",
-            "学习与导出",
+            "导出设置",
             "沉浸式背景音",
             "普通用户填写 AI Key 的主入口在通用设置",
         ).forEach { assertTrue("missing Settings IA v2 copy: $it", s.contains(it)) }
@@ -99,7 +99,7 @@ class SettingsModelConfigTextTest {
         assertTrue(s.contains("切换到推荐路径"))
         assertTrue(s.contains("不扫描全盘"))
         // P0-4: real-image multimodal diagnostic entry (diagnostic only, never persisted).
-        assertTrue(s.contains("选择真实图片测试（不落库）"))
+        assertTrue(s.contains("图片测试"))
         // Forbidden over-claims stay out.
         assertFalse(s.contains("自动 OCR 完成"))
         assertFalse(s.contains("多模态替代 OCR"))

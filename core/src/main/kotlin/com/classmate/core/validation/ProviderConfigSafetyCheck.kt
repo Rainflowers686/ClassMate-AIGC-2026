@@ -28,8 +28,19 @@ object ProviderConfigSafetyCheck {
     fun isPlaceholder(value: String): Boolean =
         value.isBlank() || value.startsWith("YOUR_") || placeholderTokens.any { value.contains(it, ignoreCase = true) }
 
+    /**
+     * A value that is clearly a UI-masked rendering of a secret (e.g. `ab***yz`, `••••`, `…1234`),
+     * NOT a real key. Saving such a value back would corrupt the credential and turn a working
+     * AppKey into an auth/garbage failure, so callers must reject it before persisting.
+     */
+    fun isMaskedSecret(value: String): Boolean {
+        val v = value.trim()
+        if (v.isEmpty()) return false
+        return v.contains("***") || v.contains("•") || v.contains("…")
+    }
+
     fun isRealSecret(value: String): Boolean =
-        value.isNotBlank() && !isPlaceholder(value) && value.trim().length >= 6
+        value.isNotBlank() && !isPlaceholder(value) && !isMaskedSecret(value) && value.trim().length >= 6
 
     data class SafetyResult(val isExampleSafe: Boolean, val findings: List<String>)
 

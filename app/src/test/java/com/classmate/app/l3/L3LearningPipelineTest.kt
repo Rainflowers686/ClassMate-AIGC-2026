@@ -53,6 +53,44 @@ class L3LearningPipelineTest {
     }
 
     @Test
+    fun learningLoopInputKeepsOcrAssetMetadataOnEvidence() {
+        val input = LearningLoopInput(
+            id = "input_ocr",
+            title = "Board photo",
+            kind = LearningLoopInputKind.OCR_IMAGE,
+            sourceType = L3SourceType.OCR_IMAGE,
+            text = "Faraday law says changing magnetic flux induces voltage.",
+            evidenceAssets = listOf(
+                EvidenceAsset(
+                    id = "asset_image_1",
+                    type = EvidenceAssetType.OCR_IMAGE,
+                    sourceType = L3SourceType.OCR_IMAGE,
+                    text = "Faraday law says changing magnetic flux induces voltage.",
+                    sourceLabel = "blackboard photo",
+                    fileName = "board.jpg",
+                    mimeType = "image/jpeg",
+                    imageRef = "board.jpg",
+                    thumbnailRef = "board thumbnail",
+                    snippet = "Faraday law says changing magnetic flux induces voltage.",
+                    status = "OCR_TEXT_CONFIRMED",
+                ),
+            ),
+            sourceLabel = "blackboard photo",
+            providerProvenance = "OCR:true",
+        )
+
+        val snapshot = L3LearningPipeline().buildFromLearningLoopInput(input, providerSummary, now)
+
+        assertEquals(1, snapshot.evidenceAssets.size)
+        assertEquals(EvidenceAssetType.OCR_IMAGE, snapshot.evidenceAssets.single().type)
+        assertTrue(snapshot.evidence.isNotEmpty())
+        assertTrue(snapshot.evidence.all { it.assetId == "asset_image_1" })
+        assertTrue(snapshot.evidence.any { it.sourceType == L3SourceType.OCR_IMAGE && it.imageRef == "board.jpg" })
+        assertTrue(snapshot.evidence.any { it.thumbnailRef == "board thumbnail" && it.snippet.contains("Faraday") })
+        assertTrue(snapshot.questions.all { it.evidenceIds.isNotEmpty() })
+    }
+
+    @Test
     fun wrongAnswerUpdatesWrongBookReviewQueueAndMastery() {
         val pipeline = L3LearningPipeline()
         val snapshot = pipeline.buildFromText(L3DemoSeeds.lessonTitle, L3DemoSeeds.lessonText, L3SourceType.TEXT, providerSummary, now)
@@ -68,6 +106,34 @@ class L3LearningPipelineTest {
         assertEquals(3, updated.reviewQueue.first { it.knowledgePointId == question.knowledgePointId }.priority)
         assertTrue(updated.masteryHistory.any { it.eventType == MasteryHistoryEventType.ANSWER_WRONG })
         assertEquals(1, updated.masteryTrendStats.dailyWrongCount)
+        assertTrue(updated.wrongBook.single().mistakeReason.contains("错因分析"))
+        assertTrue(updated.wrongBook.single().remediationHint.contains("补救建议"))
+        assertTrue(updated.wrongBook.single().relatedKnowledgePointIds.contains(question.knowledgePointId))
+        assertTrue(updated.reviewQueue.first { it.knowledgePointId == question.knowledgePointId }.arrangementReason.contains("答错"))
+        assertEquals(question.evidenceIds.first(), updated.reviewQueue.first { it.knowledgePointId == question.knowledgePointId }.evidenceId)
+        assertTrue(updated.learningDiagnosis.weakKnowledgePoints.any { it.knowledgePointId == question.knowledgePointId })
+        assertTrue(updated.learningDiagnosis.nextStudyTasks.isNotEmpty())
+    }
+
+    @Test
+    fun diagnosisAndReviewPlanDegradeWhenEvidenceIsMissing() {
+        val pipeline = L3LearningPipeline()
+        val snapshot = pipeline.buildFromText(L3DemoSeeds.lessonTitle, L3DemoSeeds.lessonText, L3SourceType.TEXT, providerSummary, now)
+            .let { base ->
+                base.copy(
+                    evidence = emptyList(),
+                    knowledgePoints = base.knowledgePoints.map { it.copy(sourceEvidenceIds = emptyList()) },
+                    questions = base.questions.map { it.copy(evidenceIds = emptyList()) },
+                    reviewQueue = base.reviewQueue.map { it.copy(evidenceId = null) },
+                )
+            }
+        val updated = pipeline.submitAnswer(snapshot, snapshot.questions.first().id, "B", now + 2)
+
+        assertEquals(1, updated.wrongBook.size)
+        assertTrue(updated.wrongBook.single().evidenceIds.isEmpty())
+        assertTrue(updated.wrongBook.single().remediationHint.isNotBlank())
+        assertTrue(updated.learningDiagnosis.weakKnowledgePoints.isNotEmpty())
+        assertTrue(updated.learningDiagnosis.weakKnowledgePoints.first().evidenceIds.isEmpty())
     }
 
     @Test

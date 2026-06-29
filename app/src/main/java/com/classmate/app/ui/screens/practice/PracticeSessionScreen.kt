@@ -1,6 +1,8 @@
 package com.classmate.app.ui.screens.practice
 
+import android.graphics.BitmapFactory
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -16,8 +18,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import com.classmate.app.state.PracticeEvidenceContext
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import com.classmate.app.ui.components.EnhancementPanel
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -92,6 +101,17 @@ fun PracticeSessionScreen(viewModel: AppViewModel) {
                 Spacer(Modifier.height(Dimens.xs))
                 Text(item.question, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
 
+                // P0-2: a "根据图片" question must show its source WHILE answering — image thumbnail, OCR text,
+                // or an honest "图片证据暂不可用，已保留 OCR 文本" fallback. Tapping opens the full evidence.
+                viewModel.practiceQuestionEvidence(item.quizId)?.let { ctx ->
+                    Spacer(Modifier.height(Dimens.s))
+                    PracticeEvidenceContextCard(ctx) {
+                        val quizId = item.quizId
+                        if (quizId != null) viewModel.openEvidenceForQuestion(quizId)
+                        else viewModel.openEvidenceForKnowledgePoint(item.knowledgePointId)
+                    }
+                }
+
                 if (ui.practiceQuestionMode != PracticeQuestionMode.SELF_ASSESSMENT && item.options.isNotEmpty()) {
                     Spacer(Modifier.height(Dimens.s))
                     item.options.forEach { opt ->
@@ -113,7 +133,16 @@ fun PracticeSessionScreen(viewModel: AppViewModel) {
                             modifier = Modifier.fillMaxWidth(),
                         )
                     } else {
-                        PracticeAnswerReview(item = item, selectedAnswers = submitted.selectedAnswers, correct = submitted.correct)
+                        PracticeAnswerReview(viewModel = viewModel, item = item, selectedAnswers = submitted.selectedAnswers, correct = submitted.correct)
+                        Spacer(Modifier.height(Dimens.xs))
+                        SecondaryButton(
+                            text = "查看来源证据",
+                            onClick = {
+                                val quizId = item.quizId
+                                if (quizId != null) viewModel.openEvidenceForQuestion(quizId) else viewModel.openEvidenceForKnowledgePoint(item.knowledgePointId)
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                     }
                 } else {
                     if (ui.practiceRevealed) {
@@ -122,6 +151,12 @@ fun PracticeSessionScreen(viewModel: AppViewModel) {
                         item.evidenceQuote?.takeIf { it.isNotBlank() }?.let {
                             Spacer(Modifier.height(Dimens.xxs))
                             Text("证据：「$it」", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.height(Dimens.xs))
+                            SecondaryButton(
+                                text = "查看来源证据",
+                                onClick = { viewModel.openEvidenceForKnowledgePoint(item.knowledgePointId) },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
                         }
                     }
                     SelfAssessmentCard(viewModel = viewModel, itemRevealed = ui.practiceRevealed, itemType = item.type)
@@ -191,7 +226,7 @@ private fun PracticeOptionRow(
 }
 
 @Composable
-private fun PracticeAnswerReview(item: com.classmate.core.practice.PracticeItem, selectedAnswers: List<String>, correct: Boolean) {
+private fun PracticeAnswerReview(viewModel: AppViewModel, item: com.classmate.core.practice.PracticeItem, selectedAnswers: List<String>, correct: Boolean) {
     val cs = MaterialTheme.colorScheme
     Surface(
         shape = MaterialTheme.shapes.medium,
@@ -202,7 +237,21 @@ private fun PracticeAnswerReview(item: com.classmate.core.practice.PracticeItem,
             Text(if (correct) "回答正确" else "回答错误", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Text("你的答案：${selectedAnswers.joinToString(", ")}", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
             Text("正确答案：${item.correctOptionIds.joinToString(", ")}", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+            Text("本题考点：${item.knowledgePointTitle}", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
             Text("解析：${item.answer.ifBlank { "暂无解析" }}", style = MaterialTheme.typography.bodyMedium, color = cs.onSurface)
+            item.options.forEach { option ->
+                val note = when {
+                    option.correct -> "正确项：与来源证据和知识点一致。"
+                    option.id in selectedAnswers -> "你选择了这个干扰项：请回到证据核对题干限定。"
+                    else -> "错误项：与本课证据不一致。"
+                }
+                Text("${option.id}. $note", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+            }
+            if (!correct) {
+                Text("错题状态：已加入错题本，关联知识点会进入今日复习队列。", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+            } else {
+                Text("掌握状态：已记录正确作答，掌握度会随连续答对提升。", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+            }
             Text("来源证据：${item.evidenceQuote?.takeIf { it.isNotBlank() } ?: "暂无证据"}", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
         }
     }
@@ -213,7 +262,7 @@ private fun SelfAssessmentCard(viewModel: AppViewModel, itemRevealed: Boolean, i
     if (!itemRevealed) {
         Spacer(Modifier.height(Dimens.s))
         SecondaryButton(
-            text = if (itemType == PracticeItemType.QUIZ_RETRY) "查看答案" else "查看答案 / 证据",
+            text = if (itemType == PracticeItemType.QUIZ_RETRY) "查看答案" else "查看证据",
             onClick = { viewModel.revealPracticeAnswer() },
             modifier = Modifier.fillMaxWidth(),
         )
@@ -259,28 +308,19 @@ private fun PracticeSummary(viewModel: AppViewModel, session: PracticeSession) {
         Text("下一步建议：${result.nextSuggestion}", style = MaterialTheme.typography.bodyMedium)
     }
 
-    // Phase D: on-device BlueLM explanation / next-step. Safety placeholder when unavailable — never
-    // a fabricated rule explanation.
-    QuietCard {
-        Text("下一步建议（端侧蓝心）", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(Dimens.s))
-        Text(
-            "由端侧 BlueLM 3B 生成错题解释与练习方向；端侧不可用时仅显示安全占位，不伪造解释。",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        viewModel.ui.onDevicePracticeSuggestion?.let { suggestion ->
-            Spacer(Modifier.height(Dimens.s))
-            Text(suggestion, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
-        }
-        Spacer(Modifier.height(Dimens.s))
-        PrimaryButton(
-            text = if (viewModel.ui.onDevicePracticeSuggestionRunning) "生成中…" else "生成端侧下一步建议",
-            onClick = { viewModel.generateOnDevicePracticeSuggestion() },
-            enabled = !viewModel.ui.onDevicePracticeSuggestionRunning,
-            modifier = Modifier.fillMaxWidth(),
-        )
-    }
+    // P0-2: targeted AI feedback for THIS attempt — wrong reasons, weak points, next step. Routes cloud
+    // BlueLM (云端蓝心) → on-device (端侧蓝心) → honest local template, each labelled with its source.
+    val clipboard = LocalClipboardManager.current
+    EnhancementPanel(
+        state = viewModel.ui.quizFeedbackEnhancement,
+        idleTitle = "AI 学习反馈",
+        idleHint = "根据本次作答、错题和薄弱知识点，生成针对性反馈与下一步复习建议。",
+        triggerText = "生成 AI 学习反馈",
+        runningTitle = "正在生成 AI 学习反馈",
+        onGenerate = { viewModel.generateQuizFeedbackEnhancement() },
+        onCopy = { text -> clipboard.setText(AnnotatedString(text)); viewModel.toast("已复制学习反馈。") },
+        onDismiss = { viewModel.clearQuizFeedbackEnhancement() },
+    )
 
     if (result.needPracticeItems.isNotEmpty()) {
         QuietCard {
@@ -305,4 +345,48 @@ private fun PracticeSummary(viewModel: AppViewModel, session: PracticeSession) {
     }
 
     PrimaryButton(text = "完成练习", onClick = { viewModel.exitPractice() }, modifier = Modifier.fillMaxWidth())
+}
+
+/** P0-2: shows a quiz question's source evidence while answering — image thumbnail, OCR text, or an honest
+ *  "image unavailable, OCR kept" note — and opens the full evidence on tap. Never shows raw ids. */
+@Composable
+private fun PracticeEvidenceContextCard(context: PracticeEvidenceContext, onOpenEvidence: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    QuietCard(onClick = onOpenEvidence) {
+        val title = if (context.isImage) "图片证据" else "来源证据"
+        Text(
+            if (context.sourceLabel.isNotBlank()) "$title · ${context.sourceLabel}" else title,
+            style = MaterialTheme.typography.labelLarge,
+            color = cs.primary,
+        )
+        if (context.hasImage) {
+            val bitmap = remember(context.imagePath) {
+                runCatching { BitmapFactory.decodeFile(context.imagePath) }.getOrNull()
+            }
+            Spacer(Modifier.height(Dimens.s))
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = "题目图片证据",
+                    modifier = Modifier.fillMaxWidth().height(160.dp),
+                    contentScale = ContentScale.Fit,
+                )
+            } else {
+                Text(
+                    "图片证据暂不可用，已保留 OCR 文本。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = cs.error,
+                )
+            }
+        }
+        if (context.quote.isNotBlank()) {
+            Spacer(Modifier.height(Dimens.s))
+            Text("「${context.quote}」", style = MaterialTheme.typography.bodyMedium, color = cs.onSurface)
+        } else if (context.isImage && context.imagePath.isBlank()) {
+            Spacer(Modifier.height(Dimens.xs))
+            Text("图片证据暂不可用，但题目仍可作答。", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+        }
+        Spacer(Modifier.height(Dimens.xs))
+        Text("点击查看完整证据", style = MaterialTheme.typography.labelMedium, color = cs.primary)
+    }
 }

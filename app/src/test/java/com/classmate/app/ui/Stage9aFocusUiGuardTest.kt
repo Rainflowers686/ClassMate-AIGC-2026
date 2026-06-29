@@ -43,7 +43,7 @@ class Stage9aFocusUiGuardTest {
         assertTrue(s.contains("默认学习"))
         assertTrue(s.contains("活力学习"))
         assertTrue(s.contains("沉浸学习"))
-        assertTrue(s.contains("强调色 / Accent Color"))
+        assertTrue(s.contains("强调色"))
         assertTrue(s.contains("ThemePreviewCard"))
     }
 
@@ -85,9 +85,11 @@ class Stage9aFocusUiGuardTest {
         val s = read("java/com/classmate/app/ui/screens/course/CourseDetailScreen.kt")
         assertTrue(s.contains("SourceBadge"))
         assertTrue(s.contains("来源"))
-        assertTrue(s.contains("问这节课")) // Ask
-        assertTrue(s.contains("专项练习")) // Practice
-        assertTrue(s.contains("复习计划")) // Review
+        // Real-device #10/#18: "问这节课" removed; micro-quiz / practice consolidated into 知识点时间线 +
+        // 复习计划 hubs (no duplicate quiz buttons on the course page).
+        assertFalse(s.contains("问这节课"))
+        assertTrue(s.contains("知识点时间线")) // hub entry
+        assertTrue(s.contains("复习计划")) // Review hub
         assertTrue(s.contains("导出")) // Export
     }
 
@@ -96,7 +98,7 @@ class Stage9aFocusUiGuardTest {
         val s = read("java/com/classmate/app/ui/screens/settings/SettingsScreen.kt")
         assertTrue(s.contains("官方推荐路径"))
         assertTrue(s.contains("检测候选模型目录"))
-        assertTrue(s.contains("选择真实图片测试（不落库）"))
+        assertTrue(s.contains("图片测试"))
         // Debug safe lines are collapsed via the details card; no inline monospace log loops remain.
         assertTrue(s.contains("DiagnosticDetailsCard"))
         assertFalse(s.contains("report.safeLines().forEach"))

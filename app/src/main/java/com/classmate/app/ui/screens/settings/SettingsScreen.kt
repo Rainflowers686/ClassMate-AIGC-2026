@@ -52,6 +52,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -124,16 +125,26 @@ import com.classmate.app.ui.i18n.appStrings
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 
-private enum class SettingsPage(val title: String, val subtitle: String) {
+enum class SettingsPage(val title: String, val subtitle: String) {
     SETTINGS_HOME("设置", "日常设置与诊断入口分开管理"),
-    GENERAL_SETTINGS("通用设置", "外观、AI 模型、隐私、学习导出和背景音"),
+    GENERAL_SETTINGS("通用设置", "外观、AI 模型、隐私、导出设置和背景音"),
     APPEARANCE_THEME("外观与主题", "默认学习、活力学习、沉浸学习与强调色"),
     ADVANCED_COLOR_CUSTOMIZATION("高级颜色自定义", "自定义 ClassMate 的主色、次色和辅助色"),
     AI_MODEL_CONFIG("AI 模型配置", "蓝心大模型与自有模型配置，保存后持续可用"),
     PRIVACY_PERMISSIONS("隐私与权限", "本地数据、导入权限和用户确认说明"),
-    LEARNING_EXPORT("学习与导出", "练习、复习和导出默认项"),
+    LEARNING_EXPORT("导出设置", "学习包、复习报告和导出格式"),
     AMBIENT_SOUND("沉浸式背景音", "授权循环背景音、音量和播放说明"),
-    DEVELOPER_SETTINGS("开发者设置", "诊断、smoke、端侧状态与脱敏日志"),
+    EXPERIMENTAL_FEATURES("实验性功能", "学习图解、复习短视频和双语课堂入口"),
+    DEVELOPER_SETTINGS("开发者设置", "诊断、smoke、端侧状态与脱敏日志");
+
+    /** Parent page for in-settings back navigation (system back goes up this tree, not out of the app). */
+    val parent: SettingsPage?
+        get() = when (this) {
+            SETTINGS_HOME -> null
+            GENERAL_SETTINGS, DEVELOPER_SETTINGS -> SETTINGS_HOME
+            APPEARANCE_THEME, AI_MODEL_CONFIG, PRIVACY_PERMISSIONS, LEARNING_EXPORT, AMBIENT_SOUND, EXPERIMENTAL_FEATURES -> GENERAL_SETTINGS
+            ADVANCED_COLOR_CUSTOMIZATION -> APPEARANCE_THEME
+        }
 }
 
 private enum class SettingsEntryIcon {
@@ -143,6 +154,7 @@ private enum class SettingsEntryIcon {
     PRIVACY_PERMISSIONS,
     LEARNING_EXPORT,
     AMBIENT_SOUND,
+    EXPERIMENTAL_FEATURES,
     GENERAL_SETTINGS,
     DEVELOPER_SETTINGS,
 }
@@ -154,6 +166,7 @@ private fun SettingsEntryIcon.imageVector(): ImageVector = when (this) {
     SettingsEntryIcon.PRIVACY_PERMISSIONS -> Icons.Filled.CheckCircle
     SettingsEntryIcon.LEARNING_EXPORT -> Icons.Filled.DateRange
     SettingsEntryIcon.AMBIENT_SOUND -> Icons.Filled.Add
+    SettingsEntryIcon.EXPERIMENTAL_FEATURES -> Icons.Filled.Star
     SettingsEntryIcon.GENERAL_SETTINGS -> Icons.Filled.Settings
     SettingsEntryIcon.DEVELOPER_SETTINGS -> Icons.Filled.Edit
 }
@@ -164,11 +177,14 @@ fun SettingsScreen(viewModel: AppViewModel) {
     val s = appStrings(ui.language)
     var showDebug by remember { mutableStateOf(false) }
     var showLogs by remember { mutableStateOf(false) }
-    var page by remember { mutableStateOf(SettingsPage.SETTINGS_HOME) }
+    // The settings sub-page lives in the ViewModel (viewModel.settingsPage) so the Android system back
+    // key / gesture can walk up the settings tree instead of exiting the app. Reads use that state;
+    // writes go through openSettingsPage.
+    val page = viewModel.settingsPage
 
     LaunchedEffect(ui.settingsDeepLink) {
         if (ui.settingsDeepLink == SettingsDeepLink.AI_MODEL_CONFIG_BLUELM) {
-            page = SettingsPage.AI_MODEL_CONFIG
+            viewModel.openSettingsPage(SettingsPage.AI_MODEL_CONFIG)
             viewModel.consumeSettingsDeepLink()
         }
     }
@@ -193,64 +209,70 @@ fun SettingsScreen(viewModel: AppViewModel) {
                     )
                     SettingsHomeStatusCards(viewModel)
                     SettingsHomeCard(
-                        onGeneral = { page = SettingsPage.GENERAL_SETTINGS },
-                        onDeveloper = { page = SettingsPage.DEVELOPER_SETTINGS },
+                        onGeneral = { viewModel.openSettingsPage(SettingsPage.GENERAL_SETTINGS) },
+                        onDeveloper = { viewModel.openSettingsPage(SettingsPage.DEVELOPER_SETTINGS) },
                     )
                 }
 
                 SettingsPage.GENERAL_SETTINGS -> {
-                    SettingsPageHeader(page = page, onBack = { page = SettingsPage.SETTINGS_HOME })
+                    SettingsPageHeader(page = page, onBack = { viewModel.openSettingsPage(SettingsPage.SETTINGS_HOME) })
                     GeneralSettingsListCard(
-                        onAppearance = { page = SettingsPage.APPEARANCE_THEME },
-                        onAiModel = { page = SettingsPage.AI_MODEL_CONFIG },
-                        onPrivacy = { page = SettingsPage.PRIVACY_PERMISSIONS },
-                        onLearningExport = { page = SettingsPage.LEARNING_EXPORT },
-                        onAmbientAudio = { page = SettingsPage.AMBIENT_SOUND },
+                        onAppearance = { viewModel.openSettingsPage(SettingsPage.APPEARANCE_THEME) },
+                        onAiModel = { viewModel.openSettingsPage(SettingsPage.AI_MODEL_CONFIG) },
+                        onPrivacy = { viewModel.openSettingsPage(SettingsPage.PRIVACY_PERMISSIONS) },
+                        onLearningExport = { viewModel.openSettingsPage(SettingsPage.LEARNING_EXPORT) },
+                        onAmbientAudio = { viewModel.openSettingsPage(SettingsPage.AMBIENT_SOUND) },
+                        onExperimentalFeatures = { viewModel.openSettingsPage(SettingsPage.EXPERIMENTAL_FEATURES) },
                     )
                 }
 
                 SettingsPage.APPEARANCE_THEME -> {
-                    SettingsPageHeader(page = page, onBack = { page = SettingsPage.GENERAL_SETTINGS })
+                    SettingsPageHeader(page = page, onBack = { viewModel.openSettingsPage(SettingsPage.GENERAL_SETTINGS) })
                     AppearanceAndThemeSettingsCard(
                         viewModel = viewModel,
-                        onAdvancedColors = { page = SettingsPage.ADVANCED_COLOR_CUSTOMIZATION },
+                        onAdvancedColors = { viewModel.openSettingsPage(SettingsPage.ADVANCED_COLOR_CUSTOMIZATION) },
                     )
                 }
 
                 SettingsPage.ADVANCED_COLOR_CUSTOMIZATION -> {
-                    SettingsPageHeader(page = page, onBack = { page = SettingsPage.APPEARANCE_THEME })
+                    SettingsPageHeader(page = page, onBack = { viewModel.openSettingsPage(SettingsPage.APPEARANCE_THEME) })
                     AdvancedColorCustomizationPage(
                         viewModel = viewModel,
-                        onBack = { page = SettingsPage.APPEARANCE_THEME },
+                        onBack = { viewModel.openSettingsPage(SettingsPage.APPEARANCE_THEME) },
                     )
                 }
 
                 SettingsPage.AI_MODEL_CONFIG -> {
-                    SettingsPageHeader(page = page, onBack = { page = SettingsPage.GENERAL_SETTINGS })
+                    SettingsPageHeader(page = page, onBack = { viewModel.openSettingsPage(SettingsPage.GENERAL_SETTINGS) })
                     AiModelConfigurationPage(viewModel)
                     ModelAccessNotesCard()
                     OfficialProviderReadinessCard(includeDevLab = false)
                 }
 
                 SettingsPage.PRIVACY_PERMISSIONS -> {
-                    SettingsPageHeader(page = page, onBack = { page = SettingsPage.GENERAL_SETTINGS })
+                    SettingsPageHeader(page = page, onBack = { viewModel.openSettingsPage(SettingsPage.GENERAL_SETTINGS) })
                     PrivacyAndPermissionsSettingsCard()
                     PermissionCenterCard(viewModel)
                 }
 
                 SettingsPage.LEARNING_EXPORT -> {
-                    SettingsPageHeader(page = page, onBack = { page = SettingsPage.GENERAL_SETTINGS })
+                    SettingsPageHeader(page = page, onBack = { viewModel.openSettingsPage(SettingsPage.GENERAL_SETTINGS) })
                     LearningExportSettingsCard(viewModel)
                     LearningExportDocxPolicyCard(viewModel)
                 }
 
                 SettingsPage.AMBIENT_SOUND -> {
-                    SettingsPageHeader(page = page, onBack = { page = SettingsPage.GENERAL_SETTINGS })
+                    SettingsPageHeader(page = page, onBack = { viewModel.openSettingsPage(SettingsPage.GENERAL_SETTINGS) })
                     BackgroundAudioPolicyCard()
                 }
 
+                SettingsPage.EXPERIMENTAL_FEATURES -> {
+                    SettingsPageHeader(page = page, onBack = { viewModel.openSettingsPage(SettingsPage.GENERAL_SETTINGS) })
+                    ExperimentalFeaturesSettingsCard(viewModel)
+                }
+
                 SettingsPage.DEVELOPER_SETTINGS -> {
-                    SettingsPageHeader(page = page, onBack = { page = SettingsPage.SETTINGS_HOME })
+                    SettingsPageHeader(page = page, onBack = { viewModel.openSettingsPage(SettingsPage.SETTINGS_HOME) })
                     DeveloperSettingsHomeCard(viewModel)
                     OnDeviceDiagnosticCard(viewModel)
                     OnDeviceMultimodalDiagnosticCard(viewModel)
@@ -415,7 +437,7 @@ private fun SettingsHomeCard(
     onDeveloper: () -> Unit,
 ) {
     SettingsGroupedListCard {
-        SettingsEntryRow("通用设置", "外观、AI 模型配置、隐私权限、学习导出与沉浸背景音", SettingsEntryIcon.GENERAL_SETTINGS, onGeneral, emphasized = true, grouped = true)
+        SettingsEntryRow("通用设置", "外观、AI 模型配置、隐私权限、导出设置与沉浸背景音", SettingsEntryIcon.GENERAL_SETTINGS, onGeneral, emphasized = true, grouped = true)
         SettingsEntryRow("开发者设置", "Provider 诊断、smoke dry-run、端侧状态与脱敏日志", SettingsEntryIcon.DEVELOPER_SETTINGS, onDeveloper, grouped = true)
     }
 }
@@ -427,13 +449,15 @@ private fun GeneralSettingsListCard(
     onPrivacy: () -> Unit,
     onLearningExport: () -> Unit,
     onAmbientAudio: () -> Unit,
+    onExperimentalFeatures: () -> Unit,
 ) {
     SettingsGroupedListCard {
         SettingsEntryRow("外观与主题", "默认学习、活力学习、沉浸学习、强调色和阅读密度", SettingsEntryIcon.APPEARANCE_THEME, onAppearance, grouped = true)
         SettingsEntryRow("AI 模型配置", "蓝心大模型与自有模型配置，保存后持续可用", SettingsEntryIcon.AI_MODEL_CONFIG, onAiModel, grouped = true)
         SettingsEntryRow("隐私与权限", "本地数据、用户确认、导入内容和相机 / 文件 / 音频权限", SettingsEntryIcon.PRIVACY_PERMISSIONS, onPrivacy, grouped = true)
-        SettingsEntryRow("学习与导出", "练习、复习和 PDF / DOCX / HTML / Markdown / Text / 音频脚本", SettingsEntryIcon.LEARNING_EXPORT, onLearningExport, grouped = true)
+        SettingsEntryRow("导出设置", "学习包、复习报告、PDF / Word / HTML / Markdown", SettingsEntryIcon.LEARNING_EXPORT, onLearningExport, grouped = true)
         SettingsEntryRow("沉浸式背景音", "6 种授权循环背景音、音量和播放说明", SettingsEntryIcon.AMBIENT_SOUND, onAmbientAudio, grouped = true)
+        SettingsEntryRow("实验性功能", "学习图解、复习短视频和双语课堂同声传译入口", SettingsEntryIcon.EXPERIMENTAL_FEATURES, onExperimentalFeatures, grouped = true)
     }
 }
 
@@ -452,6 +476,58 @@ private fun SettingsGroupedListCard(content: @Composable ColumnScope.() -> Unit)
             verticalArrangement = Arrangement.spacedBy(3.dp),
             content = content,
         )
+    }
+}
+
+@Composable
+private fun ExperimentalFeaturesSettingsCard(viewModel: AppViewModel) {
+    val ui = viewModel.ui
+    ClassMateCard {
+        Text("实验性功能", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(Dimens.xs))
+        ClassMateTwoLineDescription("默认关闭；开启后才会在学习页面显示相关入口，主学习闭环仍按稳定路径运行。")
+        Spacer(Modifier.height(Dimens.s))
+        ExperimentalFeatureToggleRow(
+            title = "实验性：学习图解生成",
+            description = "根据知识点生成概念图提示词；图片生成服务未配置时只保留提示词。",
+            checked = ui.enableExperimentalImageGeneration,
+            onCheckedChange = viewModel::setExperimentalImageGeneration,
+        )
+        ExperimentalFeatureToggleRow(
+            title = "实验性：复习短视频生成",
+            description = "根据错题和复习任务生成短视频脚本/分镜；不伪装真实视频生成。",
+            checked = ui.enableExperimentalVideoGeneration,
+            onCheckedChange = viewModel::setExperimentalVideoGeneration,
+        )
+        ExperimentalFeatureToggleRow(
+            title = "实验性：双语课堂同声传译",
+            description = "用于英文授课和双语课堂；当前优先保留双语转写草稿和翻译证据。",
+            checked = ui.enableExperimentalSimultaneousInterpretation,
+            onCheckedChange = viewModel::setExperimentalSimultaneousInterpretation,
+        )
+    }
+}
+
+@Composable
+private fun ExperimentalFeatureToggleRow(
+    title: String,
+    description: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = Dimens.xs),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Dimens.s),
+    ) {
+        Column(Modifier.weight(1f)) {
+            ClassMateSingleLineText(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(Dimens.xxs))
+            ClassMateTwoLineDescription(description)
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 
@@ -555,7 +631,7 @@ private fun AppearanceAndThemeSettingsCard(
         Text("外观与主题", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.xs))
         ClassMateTwoLineDescription(
-            "选择适合当前学习节奏的界面氛围。主题决定背景、卡片层级和圆角；强调色 / Accent Color 只影响按钮、选中态和重点状态。",
+            "选择适合当前学习节奏的界面氛围。主题决定背景、卡片层级和圆角；强调色只影响按钮、选中态和重点状态。",
         )
         Spacer(Modifier.height(Dimens.s))
         Text(s.settingsLanguage, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
@@ -587,7 +663,7 @@ private fun AppearanceAndThemeSettingsCard(
             )
         }
         Spacer(Modifier.height(Dimens.m))
-        Text("强调色 / Accent Color", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text("强调色", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.xs))
         ClassMateTwoLineDescription("强调色会跟随三套主题调整亮度和可读性，不会覆盖每套主题自己的 surface 层级。")
         Spacer(Modifier.height(Dimens.s))
@@ -1439,7 +1515,7 @@ private fun LearningExportSettingsCard(viewModel: AppViewModel) {
     val audio = viewModel.ui.courseEssenceAudioResult
     val safety = viewModel.ui.textSafetyResult
     ClassMateCard {
-        Text("学习与导出", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text("导出设置", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.xs))
         Text("默认保留用户确认、证据校验和脱敏导出。练习、复习、报告和课程精华脚本都来自本节课证据。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(Dimens.s))
@@ -1453,7 +1529,7 @@ private fun LearningExportSettingsCard(viewModel: AppViewModel) {
         ProviderStatusRow("翻译辅助学习", "面向 evidence / knowledge point 的双语注记")
         Spacer(Modifier.height(Dimens.s))
         SecondaryButton(
-            text = "生成课程精华音频脚本",
+            text = "生成听背脚本",
             onClick = { viewModel.generateCourseEssenceAudioScript() },
             modifier = Modifier.fillMaxWidth(),
         )
@@ -1482,7 +1558,7 @@ private fun LearningExportDocxPolicyCard(viewModel: AppViewModel) {
         ProviderStatusRow("边界", "不会模拟具体人物声音；背景音后续使用授权循环音频素材")
         Spacer(Modifier.height(Dimens.s))
         SecondaryButton(
-            text = "生成学习报告草稿",
+            text = "生成报告草稿",
             onClick = { viewModel.prepareRefinedExportDraft() },
             modifier = Modifier.fillMaxWidth(),
         )
@@ -1639,6 +1715,33 @@ private fun OnDeviceDiagnosticCard(viewModel: AppViewModel) {
         diag?.errorCode?.let { ProviderStatusRow("错误码", it) }
         ProviderStatusRow("安全占位", if (diag?.fallbackAvailable != false) "就绪（模型全部不可用时）" else "不可用")
 
+        // System speech-recognition readiness — helps diagnose "本机语音识别不可用" (permission / service / locale).
+        run {
+            val asrReadiness = com.classmate.app.asr.SpeechRecognitionReadiness(
+                recordAudioGranted = androidx.core.content.ContextCompat.checkSelfPermission(
+                    context, android.Manifest.permission.RECORD_AUDIO,
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED,
+                recognizerAvailable = android.speech.SpeechRecognizer.isRecognitionAvailable(context),
+                locale = java.util.Locale.getDefault().toLanguageTag(),
+            )
+            ProviderStatusRow("系统语音识别", asrReadiness.diagnosticsLine())
+        }
+
+        // Official WebSocket ASR (/asr/v2, docId 1738/1740) readiness — honest config-gated status. The
+        // WebSocket transport (OkHttp) is present; the official path needs credentials + real-device
+        // validation, and falls back to the system recognizer above when unavailable. Never shows the key.
+        ProviderStatusRow(
+            "官方实时转写（WebSocket）",
+            "通道已就绪 · 需配置官方密钥后启用 · 未配置/失败自动用系统实时转写（待真机验证）",
+        )
+
+        // Official TTS (wss://.../tts, docId 1735): WS provider + PCM→WAV present; uses the cloud AppKey,
+        // falls back to system TTS then script. Honest, never the key.
+        ProviderStatusRow(
+            "官方 TTS（WebSocket）",
+            "通道已就绪 · 听背音频优先官方 TTS · 未配置/失败自动用系统 TTS，再失败保留文稿（待真机验证）",
+        )
+
         // Bounded model-file diagnostic (Task 3): exists/readable only — never reads content.
         files?.let { f ->
             Spacer(Modifier.height(Dimens.s))
@@ -1675,6 +1778,13 @@ private fun OnDeviceDiagnosticCard(viewModel: AppViewModel) {
         Text(
             "官方推荐路径（2026-06-11 文档）：${OnDeviceLlmConfig.DEFAULT_MODEL_DIR}；兼容旧目录 ${OnDeviceLlmConfig.LEGACY_MODEL_DIR}。" +
                 "候选检测只查固定路径的第一层文件名，不扫描全盘、不读取文件内容。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(Dimens.xs))
+        Text(
+            "${OnDeviceLlmConfig.DEFAULT_MODEL_DIR} 位于共享存储：需先在上方授予「全文件访问」权限，App 才能读取模型文件。" +
+                "未授权时端侧会显示 PERMISSION_MISSING，此时分析会自动改用云端或本地基础整理，不会卡住。",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -1729,7 +1839,7 @@ private fun OnDeviceDiagnosticCard(viewModel: AppViewModel) {
         }
         Spacer(Modifier.height(Dimens.s))
         PrimaryButton(
-            text = if (ui.onDeviceDiagnosticRunning) "诊断中…" else "测试端侧模型（文本）",
+            text = if (ui.onDeviceDiagnosticRunning) "诊断中" else "端侧文本测试",
             onClick = { viewModel.testOnDeviceModel(perms.snapshot()) },
             enabled = !ui.onDeviceDiagnosticRunning,
             modifier = Modifier.fillMaxWidth(),
@@ -1802,14 +1912,14 @@ private fun OnDeviceMultimodalDiagnosticCard(viewModel: AppViewModel) {
         ui.onDeviceRealImageMeta?.let { ProviderStatusRow("真实图片", it) }
         Spacer(Modifier.height(Dimens.s))
         PrimaryButton(
-            text = if (ui.onDeviceMultimodalRunning) "诊断中…" else "测试端侧多模态（内置 2x2）",
+            text = if (ui.onDeviceMultimodalRunning) "诊断中" else "端侧多模态",
             onClick = { viewModel.testOnDeviceMultimodal(perms.snapshot()) },
             enabled = !ui.onDeviceMultimodalRunning,
             modifier = Modifier.fillMaxWidth(),
         )
         Spacer(Modifier.height(Dimens.s))
         SecondaryButton(
-            text = if (ui.onDeviceMultimodalRunning) "诊断中…" else "选择真实图片测试（不落库）",
+            text = if (ui.onDeviceMultimodalRunning) "诊断中" else "图片测试",
             onClick = {
                 realImagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
             },
@@ -1873,7 +1983,7 @@ private fun OnDeviceCapabilityCard(viewModel: AppViewModel) {
         }
         Spacer(Modifier.height(Dimens.s))
         PrimaryButton(
-            text = if (ui.onDeviceAnalysisCheckRunning) "检查中…" else "测试端侧课程分析（无云端）",
+            text = if (ui.onDeviceAnalysisCheckRunning) "检查中" else "端侧课程分析",
             onClick = { viewModel.runOfflineOnDeviceAnalysisCheck() },
             enabled = !ui.onDeviceAnalysisCheckRunning,
             modifier = Modifier.fillMaxWidth(),
@@ -2160,7 +2270,7 @@ private fun DebugImportCard(viewModel: AppViewModel) {
         // Neutral "custom model API" affordance — long-term product only, debug-gated and collapsed.
         // Deliberately NOT branded as a competition enhancement and never shown on the main config page.
         PrimaryButton(
-            text = if (compatibleRunning) "测试中…" else "测试自定义模型接口（调试）",
+            text = if (compatibleRunning) "测试中" else "测试模型接口",
             onClick = { viewModel.testCompatibleConnection() },
             enabled = !compatibleRunning,
             modifier = Modifier.fillMaxWidth(),

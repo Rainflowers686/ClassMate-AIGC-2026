@@ -1,6 +1,7 @@
 package com.classmate.app.ui.screens.course
 
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,25 +14,44 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.classmate.app.data.HistoryRecord
 import com.classmate.app.state.AppViewModel
 import com.classmate.app.state.Screen
 import com.classmate.app.state.Tab
+import androidx.compose.ui.platform.LocalContext
+import com.classmate.app.exporting.ExportIntentFactory
+import com.classmate.app.ui.components.ActionButtonRow
 import com.classmate.app.ui.components.ChipTone
+import com.classmate.app.ui.components.PremiumCard
+import com.classmate.app.ui.components.ProminentErrorCard
+import com.classmate.app.ui.components.ProminentLoadingCard
+import com.classmate.core.ai.AiEnhancementType
 import com.classmate.app.ui.components.DockAction
 import com.classmate.app.ui.components.ExportCenterCard
 import com.classmate.app.ui.components.KnowledgePathNode
 import com.classmate.app.ui.components.LearningActionDock
 import com.classmate.app.ui.components.Pill
+import com.classmate.app.ui.components.PrimaryButton
 import com.classmate.app.ui.components.SecondaryButton
 import com.classmate.app.ui.components.SourceBadge
 import com.classmate.app.ui.components.StatusChip
@@ -67,10 +87,18 @@ fun CourseDetailScreen(viewModel: AppViewModel) {
         ?: "暂无"
     val kpCount = summary?.knowledgePointTotal ?: result?.knowledgePoints?.size ?: 0
     val quizCount = summary?.quizTotal ?: result?.quizQuestions?.size ?: 0
+    var showDeleteConfirm by remember(key, session?.id) { mutableStateOf(false) }
 
     ProductScaffold(
         contextLabel = "课程",
         onBack = { if (!viewModel.goBack()) viewModel.selectTab(Tab.HISTORY) },
+        actions = {
+            if (key != null || session != null) {
+                IconButton(onClick = { showDeleteConfirm = true }) {
+                    Icon(Icons.Filled.Delete, contentDescription = "删除课程")
+                }
+            }
+        },
     ) { padding ->
         ProductCanvas {
             Column(
@@ -100,8 +128,13 @@ fun CourseDetailScreen(viewModel: AppViewModel) {
 
                 // FIRST-SCREEN CORE — a visual learning map (connected nodes), not a list.
                 if (result != null && result.knowledgePoints.isNotEmpty()) {
-                    ProductSectionTitle("学习地图", trailing = {
-                        Text("查看全部 ›", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    ProductSectionTitle("知识结构大纲", trailing = {
+                        Text(
+                            "查看全部 ›",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.clickable { viewModel.navigateTo(Screen.KNOWLEDGE) },
+                        )
                     })
                     val nodes = result.knowledgePoints.take(5)
                     nodes.forEachIndexed { i, kp ->
@@ -111,7 +144,8 @@ fun CourseDetailScreen(viewModel: AppViewModel) {
                             summary = kp.summary,
                             evidence = kp.evidence.firstOrNull()?.quote,
                             isLast = i == nodes.lastIndex,
-                            onClick = { viewModel.navigateTo(Screen.KNOWLEDGE) },
+                            // Tapping a map node opens that point's evidence (原文), not the ask-this-lesson page.
+                            onClick = { viewModel.openEvidence(kp.id) },
                         )
                     }
                 } else {
@@ -122,54 +156,28 @@ fun CourseDetailScreen(viewModel: AppViewModel) {
                     }
                 }
 
-                // SECOND LAYER — learning actions as a connected dock, not a button pile.
+                // SECOND LAYER — learning actions as a connected dock, not a button pile. Micro-quiz and
+                // practice entries are consolidated into the 知识点时间线 (做微测) and 复习计划 (各类练习) hubs,
+                // so this card does not duplicate them (real-device issues #10, #17, #18). The ask-lesson
+                // Q&A entry was also removed here.
                 ProductSectionTitle("今日建议")
                 LearningActionDock(
                     listOf(
-                        DockAction("问这节课", Icons.Filled.Edit) { viewModel.navigateTo(Screen.KNOWLEDGE) },
-                        DockAction("做微测", Icons.Filled.CheckCircle) { viewModel.navigateTo(Screen.QUIZ) },
+                        DockAction("知识点时间线", Icons.Filled.Edit) { viewModel.navigateTo(Screen.KNOWLEDGE) },
                         DockAction("复习计划", Icons.Filled.DateRange) { viewModel.ensureReviewPlan(); viewModel.navigateTo(Screen.REVIEW) },
                         DockAction("导出笔记", Icons.Filled.Share) { viewModel.navigateTo(Screen.KNOWLEDGE) },
                     ),
                 )
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
-                    SecondaryButton("专项练习", onClick = { viewModel.startPractice(PracticeMode.QUICK_REVIEW) }, modifier = Modifier.weight(1f))
-                    SecondaryButton("错题重练", onClick = { viewModel.startPractice(PracticeMode.WRONG_ANSWER_RETRY) }, modifier = Modifier.weight(1f))
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
-                    SecondaryButton("随机小测", onClick = { viewModel.startRandomQuiz() }, modifier = Modifier.weight(1f))
-                    SecondaryButton("模拟考试", onClick = { viewModel.startExam() }, modifier = Modifier.weight(1f))
-                }
                 // Restrained entry into the immersive Flow companion (sound scenes + focus timer).
                 SecondaryButton("心流复习 · 沉浸专注", onClick = { viewModel.navigateTo(Screen.LIVE) }, modifier = Modifier.fillMaxWidth())
 
-                // On-device study advice — kept, restyled.
-                if (result != null) {
-                    ProductSectionTitle("端侧学习建议")
-                    QuietCard {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("由端侧蓝心整理", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                            SourceBadge("端侧蓝心")
-                        }
-                        ui.onDeviceReportSuggestion?.let { suggestion ->
-                            Spacer(Modifier.height(Dimens.s))
-                            Text(suggestion, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
-                        }
-                        Spacer(Modifier.height(Dimens.m))
-                        SecondaryButton(
-                            text = if (ui.onDeviceReportSuggestionRunning) "生成中…" else "生成端侧学习建议",
-                            onClick = { viewModel.generateOnDeviceReportSuggestion() },
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                }
+                ProductSectionTitle("AI 复习材料")
+                AiStudyMaterialSection(viewModel)
 
                 ProductSectionTitle("导出")
                 ExportCenterCard(
                     viewModel = viewModel,
-                    title = "导出中心",
-                    description = "导出课程报告、思维导图、PDF、Word 兼容 HTML 或演示幻灯片 HTML；导出不含密钥与内部状态。",
-                    buildArtifact = viewModel::buildCurrentReportArtifact,
+                    buildArtifact = viewModel::buildLearningStudyPackArtifact,
                 )
 
                 // THIRD LAYER — original material + records, FOLDED so they never outshine the map.
@@ -186,20 +194,45 @@ fun CourseDetailScreen(viewModel: AppViewModel) {
                 }
                 if (records.isNotEmpty()) {
                     ProductCollapse(title = "课堂记录（${records.size}）") {
+                        Text(
+                            "本课程的学习记录（时间与来源）。当前页面就是这门课程，记录仅作查看。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                         records.forEach { record ->
                             Spacer(Modifier.height(Dimens.s))
-                            LessonRecordCard(record, onOpen = { viewModel.openHistoryTimeline(record) })
+                            LessonRecordCard(record)
                         }
                     }
                 }
             }
         }
     }
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("删除课程？") },
+            text = {
+                Text("将删除「$courseName」相关的知识点、题目、错题、复习任务、导出草稿或本地记录。删除后首页、历史记录和复习列表将不再显示该课程。")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val deleted = key?.let { viewModel.deleteCourse(it) } ?: viewModel.deleteCurrentCourse()
+                    if (!deleted) viewModel.toast("删除失败，请稍后重试。")
+                    showDeleteConfirm = false
+                }) { Text("删除课程") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("取消") }
+            },
+        )
+    }
 }
 
 @Composable
 private fun L3PipelineStatusCard(viewModel: AppViewModel) {
-    val l3 = viewModel.ui.l3Pipeline
+    val ui = viewModel.ui
+    val l3 = ui.l3Pipeline
     if (l3.lessonSource == null) return
     QuietCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -217,115 +250,263 @@ private fun L3PipelineStatusCard(viewModel: AppViewModel) {
             Spacer(Modifier.height(Dimens.s))
             Text(l3.summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
         }
-        val providerSteps = l3.stepLogs.filter { it.step in listOf("OCR", "QUERY_REWRITE", "EMBEDDING", "TEXT_SIMILARITY") }
-        if (providerSteps.isNotEmpty()) {
+        Spacer(Modifier.height(Dimens.s))
+        Text("学习状态总览", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        // Each stat is a real shortcut to its surface; only tappable when it actually has content (no
+        // fake clickability on empty data).
+        fun tapTo(enabled: Boolean, action: () -> Unit): Modifier =
+            if (enabled) Modifier.clickable { action() } else Modifier
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+            StatusChip("资料 ${l3.evidenceAssets.size}", tone = ChipTone.INFO, modifier = tapTo(l3.knowledgePoints.isNotEmpty()) { viewModel.navigateTo(Screen.KNOWLEDGE) })
+            StatusChip("知识点 ${l3.knowledgePoints.size}", tone = ChipTone.INFO, modifier = tapTo(l3.knowledgePoints.isNotEmpty()) { viewModel.navigateTo(Screen.KNOWLEDGE) })
+            StatusChip("微测 ${l3.questions.size}", tone = ChipTone.INFO, modifier = tapTo(l3.questions.isNotEmpty()) { viewModel.navigateTo(Screen.QUIZ) })
+            StatusChip("错题 ${l3.wrongBook.size}", tone = if (l3.wrongBook.isEmpty()) ChipTone.NEUTRAL else ChipTone.WARNING, modifier = tapTo(l3.wrongBook.isNotEmpty()) { viewModel.ensureReviewPlan(); viewModel.navigateTo(Screen.REVIEW) })
+            StatusChip("今日复习 ${l3.reviewQueue.size}", tone = ChipTone.INFO, modifier = tapTo(l3.reviewQueue.isNotEmpty()) { viewModel.ensureReviewPlan(); viewModel.navigateTo(Screen.REVIEW) })
+            StatusChip("证据 ${l3.evidence.size}", tone = ChipTone.INFO, modifier = tapTo(l3.evidence.isNotEmpty()) { l3.evidence.firstOrNull()?.let { viewModel.openEvidenceById(it.id) } })
+            if (l3.qualityWarnings.isNotEmpty()) StatusChip("需确认 ${l3.qualityWarnings.size}", tone = ChipTone.WARNING)
+        }
+        if (l3.wrongBook.isNotEmpty() || l3.reviewQueue.isNotEmpty()) {
+            Spacer(Modifier.height(Dimens.s))
+            SecondaryButton(
+                "继续复习",
+                onClick = { viewModel.ensureReviewPlan(); viewModel.navigateTo(Screen.REVIEW) },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        Spacer(Modifier.height(Dimens.xs))
+        SecondaryButton(
+            "生成学习包",
+            onClick = { viewModel.prepareRefinedExportDraft() },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (l3.evidenceAssets.isNotEmpty()) {
             Spacer(Modifier.height(Dimens.s))
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
-                providerSteps.forEach { step ->
-                    StatusChip("${step.step}: ${step.status}", tone = ChipTone.INFO)
+                l3.evidenceAssets.groupBy { it.type }.forEach { (type, assets) ->
+                    StatusChip("${type.name} ${assets.size}", tone = ChipTone.INFO)
                 }
+            }
+            l3.evidence.firstOrNull()?.let { evidence ->
+                Spacer(Modifier.height(Dimens.s))
+                SecondaryButton(
+                    "查看首条证据",
+                    onClick = { viewModel.openEvidenceById(evidence.id) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
         if (l3.knowledgeGraphEdges.isNotEmpty()) {
             Spacer(Modifier.height(Dimens.s))
             Text("知识点地图", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            l3.knowledgeGraphEdges.take(3).forEach { edge ->
-                val from = l3.knowledgePoints.firstOrNull { it.id == edge.fromKnowledgePointId }?.title.orEmpty()
-                val to = l3.knowledgePoints.firstOrNull { it.id == edge.toKnowledgePointId }?.title.orEmpty()
-                Text("$from → $to · ${edge.relation.name}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            Text("${l3.knowledgeGraphEdges.size} 条知识点关联", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(Dimens.xs))
+            SecondaryButton("查看知识结构", onClick = { viewModel.navigateTo(Screen.KNOWLEDGE) }, modifier = Modifier.fillMaxWidth())
         }
-        if (l3.transcriptSegments.isNotEmpty()) {
-            Spacer(Modifier.height(Dimens.s))
-            Text("Transcript timeline", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            l3.transcriptSegments.take(4).forEach { segment ->
-                val start = segment.startMs?.let { "${it / 1000}s" } ?: "--"
-                val end = segment.endMs?.let { "${it / 1000}s" } ?: "--"
-                Text(
-                    "$start-$end · ${segment.sourceType.name}${if (segment.fallbackGenerated) " · fallback" else ""} · ${segment.text.take(42)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+        // Secondary / experimental study assets live in a folded "更多操作" drawer so they never
+        // compete with the core loop (knowledge / quiz / review / evidence / export).
+        Spacer(Modifier.height(Dimens.s))
+        ProductCollapse(title = "更多操作 · 听背文稿 / 实验功能") {
+            Column(verticalArrangement = Arrangement.spacedBy(Dimens.xs)) {
+                if (ui.enableExperimentalImageGeneration) {
+                    SecondaryButton(
+                        "生成学习图解提示词",
+                        onClick = { viewModel.generateVisualStudyPrompt() },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                if (ui.enableExperimentalVideoGeneration) {
+                    SecondaryButton(
+                        "生成复习短视频分镜",
+                        onClick = { viewModel.generateReviewVideoStoryboard() },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                if (ui.enableExperimentalSimultaneousInterpretation) {
+                    SecondaryButton(
+                        "生成双语转写草稿",
+                        onClick = { viewModel.generateBilingualTranscriptDraft() },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                SecondaryButton(
+                    "生成听背文稿",
+                    onClick = { viewModel.generateAudioReviewScript() },
+                    modifier = Modifier.fillMaxWidth(),
                 )
+                l3.audioReviewAssets.lastOrNull()?.takeIf { it.script.isNotBlank() }?.let { asset ->
+                    val clipboard = LocalClipboardManager.current
+                    Spacer(Modifier.height(Dimens.xs))
+                    Text(
+                        if (asset.audioRef != null) "听背音频已生成" else "听背文稿已生成（当前设备暂未生成音频，可先用文稿复习）",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(Dimens.xxs))
+                    Text(asset.script, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 8)
+                    Spacer(Modifier.height(Dimens.xs))
+                    SecondaryButton(
+                        "复制听背文稿",
+                        onClick = { clipboard.setText(AnnotatedString(asset.script)); viewModel.toast("听背文稿已复制，可粘贴分享。") },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                AiAudioReviewControls(viewModel)
             }
         }
-        if (l3.diagnostics.isNotEmpty()) {
+        if (l3.qualityWarnings.isNotEmpty()) {
             Spacer(Modifier.height(Dimens.s))
-            Text("L3 能力诊断", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
-                l3.diagnostics.take(12).forEach { status ->
-                    StatusChip("${status.capability}: ${status.status}", tone = ChipTone.NEUTRAL)
+            Text("需确认内容", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            l3.qualityWarnings.take(3).forEach { warning ->
+                Text(warning.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        if (l3.learningDiagnosis.generatedAt > 0L) {
+            Spacer(Modifier.height(Dimens.s))
+            Text("学习诊断", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(
+                l3.learningDiagnosis.recentReviewPressure.ifBlank { "暂无复习压力。" },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            l3.learningDiagnosis.weakKnowledgePoints.firstOrNull()?.let { weak ->
+                Spacer(Modifier.height(Dimens.xs))
+                Text("优先处理：${weak.title} · ${weak.reason}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                weak.evidenceIds.firstOrNull { viewModel.hasRetraceableEvidence(it) }?.let { evidenceId ->
+                    Spacer(Modifier.height(Dimens.xs))
+                    SecondaryButton("查看诊断证据", onClick = { viewModel.openEvidenceById(evidenceId) }, modifier = Modifier.fillMaxWidth())
                 }
             }
         }
-        if (l3.inputArtifacts.isNotEmpty() || l3.asrJobs.isNotEmpty()) {
-            Spacer(Modifier.height(Dimens.s))
-            Text("输入状态：${l3.inputArtifacts.size} 个 artifact · ${l3.asrJobs.size} 个 ASR job", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        if (l3.inputReports.isNotEmpty() || l3.pdfPages.isNotEmpty()) {
-            Spacer(Modifier.height(Dimens.s))
+    }
+}
+
+// P0-2: real on-device TTS audio for the 听背文稿 — generate / play / share / delete, with an honest source
+// label. The text script always remains; a failed or 0-byte synthesis never shows a fake audio file.
+@Composable
+private fun AiAudioReviewControls(viewModel: AppViewModel) {
+    val tts = viewModel.ui.ttsAudio
+    val context = LocalContext.current
+    Spacer(Modifier.height(Dimens.s))
+    when {
+        tts.running -> Text("正在用系统 TTS 生成听背音频…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+        tts.hasFile -> {
             Text(
-                "Import reports: ${l3.inputReports.size} · PDF docs: ${l3.pdfDocuments.size} · PDF pages: ${l3.pdfPages.size}",
+                "听背音频 · ${tts.sourceZh} · ${tts.fileName} · ${formatBytes(tts.sizeBytes)}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-        }
-        if (l3.semanticIndexChunks.isNotEmpty() || l3.toolOrchestrationPlan != null || l3.toolStepRecords.isNotEmpty()) {
-            Spacer(Modifier.height(Dimens.s))
-            Text(
-                "Semantic index: ${l3.semanticIndexRecords.size} records · Tool steps: ${l3.toolStepRecords.size} · ${l3.toolOrchestrationPlan?.plannedTools?.joinToString(" -> ").orEmpty()}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            Spacer(Modifier.height(Dimens.xs))
+            ActionButtonRow(
+                primaryText = "播放",
+                onPrimary = { playLocalAudio(tts.filePath) { viewModel.toast("无法播放音频文件。") } },
+                secondaryText = "分享",
+                onSecondary = {
+                    val file = java.io.File(tts.filePath)
+                    if (!file.exists()) viewModel.toast("音频文件不存在，请重新生成。")
+                    else runCatching { context.startActivity(ExportIntentFactory.shareAudioFileChooser(context, file)) }
+                        .onFailure { viewModel.toast("分享失败，请稍后重试。") }
+                },
+                tertiaryText = "删除",
+                onTertiary = { viewModel.deleteTtsAudio() },
             )
         }
-        if (l3.semanticSearchResults.isNotEmpty()) {
+        tts.failed -> Text(tts.message.ifBlank { "音频生成失败，已保留听背文稿。" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+    }
+    Spacer(Modifier.height(Dimens.xs))
+    SecondaryButton(
+        if (tts.running) "生成中…" else "生成听背音频",
+        onClick = { viewModel.generateAudioReviewFile() },
+        modifier = Modifier.fillMaxWidth(),
+        enabled = !tts.running,
+    )
+}
+
+private fun playLocalAudio(path: String, onError: () -> Unit) {
+    runCatching {
+        android.media.MediaPlayer().apply {
+            setDataSource(path)
+            setOnCompletionListener { it.release() }
+            setOnErrorListener { mp, _, _ -> mp.release(); onError(); true }
+            prepare()
+            start()
+        }
+    }.onFailure { onError() }
+}
+
+private fun formatBytes(bytes: Long): String = when {
+    bytes <= 0L -> "0 B"
+    bytes < 1024 -> "$bytes B"
+    bytes < 1024 * 1024 -> "${bytes / 1024} KB"
+    else -> "${"%.1f".format(bytes / (1024.0 * 1024.0))} MB"
+}
+
+// P0-1: a real AI second-pass that turns the current course into review/print-ready material. Cloud BlueLM
+// when configured → on-device → honest local template, each labelled with its source.
+@Composable
+private fun AiStudyMaterialSection(viewModel: AppViewModel) {
+    val state = viewModel.ui.studyPackEnhancement
+    val clipboard = LocalClipboardManager.current
+    when {
+        state.running -> ProminentLoadingCard(
+            title = "正在生成 AI 复习材料",
+            statusText = "正在调用蓝心 / 端侧模型，不可用时会用本地整理版。",
+        )
+        state.failed -> ProminentErrorCard(
+            whatHappened = "AI 整理未完成",
+            possibleCause = "云端或端侧模型暂时不可用。",
+            nextStep = "可重试，或直接用下方导出中心的基础版材料。",
+            retryText = "重试讲义版",
+            onRetry = { viewModel.generateStudyPackEnhancement(AiEnhancementType.EXPORT_HANDOUT) },
+            secondaryText = "取消",
+            onSecondary = { viewModel.clearStudyPackEnhancement() },
+        )
+        state.hasResult -> {
+            PremiumCard {
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Text("AI 整理版材料", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    StatusChip(state.sourceZh, tone = ChipTone.INFO)
+                }
+                Spacer(Modifier.height(Dimens.s))
+                Text(state.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                Spacer(Modifier.height(Dimens.s))
+                ActionButtonRow(
+                    primaryText = "复制",
+                    onPrimary = { clipboard.setText(AnnotatedString(state.text)); viewModel.toast("已复制 AI 整理版，可粘贴或打印。") },
+                    secondaryText = "重新生成",
+                    onSecondary = { viewModel.generateStudyPackEnhancement(AiEnhancementType.EXPORT_HANDOUT) },
+                    tertiaryText = "关闭",
+                    onTertiary = { viewModel.clearStudyPackEnhancement() },
+                )
+            }
+            // P0-3: the AI-organized material flows into the real export chain (DOCX/PDF/HTML/MD/TXT).
             Spacer(Modifier.height(Dimens.s))
-            val result = l3.semanticSearchResults.first()
-            Text(
-                "Local semantic search: ${result.status} · top hit ${result.hits.firstOrNull()?.ownerType.orEmpty()} ${"%.2f".format(result.hits.firstOrNull()?.score ?: 0.0)}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            ExportCenterCard(
+                viewModel = viewModel,
+                buildArtifact = viewModel::buildAiStudyMaterialArtifact,
             )
         }
-        if (l3.similarQuestionRecommendations.isNotEmpty()) {
+        else -> PremiumCard {
+            Text("把这门课整理成可复习 / 打印的材料", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(Dimens.xxs))
+            Text("蓝心可用时由蓝心整理；不可用时用端侧或本地整理版，并标注来源。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(Dimens.s))
-            Text("相似题推荐（实验）：${l3.similarQuestionRecommendations.size} 条 · ${l3.similarQuestionRecommendations.first().status}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        if (l3.examReports.isNotEmpty()) {
-            val report = l3.examReports.last()
-            Spacer(Modifier.height(Dimens.s))
-            Text(
-                "Exam report: score ${report.score} · accuracy ${"%.0f".format(report.accuracy * 100)}% · weak ${report.weakKnowledgePointIds.size} · evidence ${report.evidenceIds.size}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        if (l3.translationResults.isNotEmpty() || l3.ttsPlaybackStates.isNotEmpty()) {
-            Spacer(Modifier.height(Dimens.s))
-            Text(
-                "Study aids: translation ${l3.translationResults.lastOrNull()?.status?.name ?: "not requested"} · TTS ${l3.ttsPlaybackStates.lastOrNull()?.status?.name ?: "not requested"}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        if (l3.masteryTrendStats.recentSevenDaySummary.isNotBlank()) {
-            Spacer(Modifier.height(Dimens.s))
-            Text("Mastery trend: ${l3.masteryTrendStats.recentSevenDaySummary}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        if (l3.distractorExplanations.isNotEmpty()) {
-            Spacer(Modifier.height(Dimens.s))
-            Text(
-                "Distractor explanations: ${l3.distractorExplanations.size} · ${l3.distractorExplanations.first().status}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            ActionButtonRow(
+                primaryText = "生成讲义版",
+                onPrimary = { viewModel.generateStudyPackEnhancement(AiEnhancementType.EXPORT_HANDOUT) },
+                secondaryText = "考前速记版",
+                onSecondary = { viewModel.generateStudyPackEnhancement(AiEnhancementType.EXAM_CRAM_SHEET) },
             )
         }
     }
 }
 
+// A lesson record is an informational summary of when/how this course was studied. It is NOT clickable:
+// you are already viewing this course's detail, so re-opening it would just reload the same course
+// (a confusing dead-end). See P0-2.
 @Composable
-private fun LessonRecordCard(record: HistoryRecord, onOpen: () -> Unit) {
+private fun LessonRecordCard(record: HistoryRecord) {
     val cs = MaterialTheme.colorScheme
-    QuietCard(onClick = onOpen) {
+    QuietCard {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Column(Modifier.weight(1f)) {
                 Text(record.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
