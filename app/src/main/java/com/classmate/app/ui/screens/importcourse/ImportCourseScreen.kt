@@ -383,6 +383,12 @@ private fun ClassroomRecordingCard(
         }
         Spacer(Modifier.height(Dimens.xs))
         Text("录音后可导出，或粘贴转写继续。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        // P0-2: after stopping, the honest capture message ("录音已保存，转写暂不可用 …" when system speech
+        // recognition is missing) is shown here too, not just on the transcript screen.
+        ui.audioCaptureMessage?.takeIf { it.isNotBlank() }?.let {
+            Spacer(Modifier.height(Dimens.xs))
+            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         Spacer(Modifier.height(Dimens.s))
         Text("课堂语音模式", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.xs))
@@ -747,6 +753,18 @@ private fun OcrImageSegment(number: Int, draft: OcrImportDraft, viewModel: AppVi
                 OcrImportStatus.FAILED -> {
                     Spacer(Modifier.height(Dimens.xs))
                     Text(s.ocrFailure(draft.errorReason.ifBlank { s.ocrFailureFallback }), style = MaterialTheme.typography.bodySmall, color = cs.error)
+                    // P0-1: a failed image is NOT a dead end — the user can type the text manually here
+                    // (OCR unavailable / unconfigured on this device still lets the material be created).
+                    Spacer(Modifier.height(Dimens.xs))
+                    OutlinedTextField(
+                        value = draft.pastedText,
+                        onValueChange = { viewModel.updateOcrImportText(draft.id, it) },
+                        label = { Text(s.ocrManualInputLabel(number)) },
+                        minLines = 3,
+                        maxLines = 10,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.medium,
+                    )
                     Spacer(Modifier.height(Dimens.xs))
                     SecondaryButton(s.ocrDeleteImage, onClick = { viewModel.removeOcrImport(draft.id) }, modifier = Modifier.fillMaxWidth())
                 }
@@ -1156,13 +1174,20 @@ private fun OcrTrayEditor(
         Spacer(Modifier.height(Dimens.xs))
         Text("官方 OCR 按配置启用；未配置或不可用时，可粘贴识别文字进入资料篮。文件不会上传，不爬取第三方平台内容。", color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(Dimens.s))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
-            OcrImportKind.entries.forEach { kind ->
-                SecondaryButton(
-                    text = if (kind == selectedKind) "✓ ${shortKind(kind)}" else shortKind(kind),
-                    onClick = { onKindSelected(kind) },
-                    modifier = Modifier.weight(1f),
-                )
+        // P0-3: 4 kind buttons in a single weighted row squeezed every label to "..." on a phone. Lay them
+        // out 2-per-row so each button is wide enough to show its full label.
+        Column(verticalArrangement = Arrangement.spacedBy(Dimens.s)) {
+            OcrImportKind.entries.chunked(2).forEach { rowKinds ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+                    rowKinds.forEach { kind ->
+                        SecondaryButton(
+                            text = if (kind == selectedKind) "✓ ${shortKind(kind)}" else shortKind(kind),
+                            onClick = { onKindSelected(kind) },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    if (rowKinds.size == 1) Spacer(Modifier.weight(1f))
+                }
             }
         }
         Spacer(Modifier.height(Dimens.s))

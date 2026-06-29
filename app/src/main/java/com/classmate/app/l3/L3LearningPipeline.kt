@@ -300,7 +300,7 @@ class L3LearningPipeline {
                 masteryState = L3MasteryState.LEARNING,
             )
         }
-        val questions = QuizQuality.repairAndFilter(result.quizQuestions).mapIndexed { index, question ->
+        val repaired = QuizQuality.repairAndFilter(result.quizQuestions).mapIndexed { index, question ->
             // Carry the per-option "why right / why wrong + how to fix" reasoning into the L3 question so it
             // reaches the Study Pack export and the WrongBook (both read this explanation), not just the quiz UI.
             val optionExplanations = question.options
@@ -324,6 +324,9 @@ class L3LearningPipeline {
                 difficulty = question.difficulty,
             )
         }
+        // P0-4: when the model returns no usable quiz but the course HAS knowledge points, synthesize a few
+        // basic answerable questions locally so a real course is never left with zero 微测 (silent no-quiz).
+        val questions = repaired.ifEmpty { localBasicQuestions(session.id, knowledge, now) }
         return assembleSnapshot(
             source = source,
             transcriptSegments = emptyList(),
@@ -801,6 +804,33 @@ class L3LearningPipeline {
         val first = clean.split(" ").firstOrNull { it.length >= 2 } ?: "知识点 ${index + 1}"
         return first.take(18)
     }
+
+    /**
+     * P0-4: basic, answerable quiz built locally from the knowledge points — the fallback used when the
+     * model returns no usable quiz for a course that DOES have material. Each question has a stem, four
+     * options (A = the knowledge point's own explanation, correct), an explanation, and is bound to the
+     * knowledge point and its evidence. Only points that actually carry evidence are turned into questions,
+     * so insufficient material yields an empty list (the UI then shows "资料不足", never a fake question).
+     */
+    private fun localBasicQuestions(lessonId: String, knowledge: List<L3KnowledgePoint>, now: Long): List<L3GeneratedQuestion> =
+        knowledge.filter { it.sourceEvidenceIds.isNotEmpty() }.take(3).mapIndexed { index, kp ->
+            L3GeneratedQuestion(
+                id = "q_${now}_lf${index + 1}",
+                lessonId = lessonId,
+                knowledgePointId = kp.id,
+                stem = "关于“${kp.title}”，下面哪一项最符合课堂材料？",
+                options = listOf(
+                    "A. ${kp.explanation.ifBlank { "回到来源证据核对“${kp.title}”的关键表述" }}",
+                    "B. 与本节课无关的背景信息",
+                    "C. 只需要背诵术语，不需要回到证据",
+                    "D. 该说法无法从课堂材料中得到支持",
+                ),
+                correctAnswer = "A",
+                explanation = "A 直接对应该知识点的来源证据；复习时先读证据，再用自己的话解释。",
+                evidenceIds = listOf(kp.sourceEvidenceIds.first()),
+                difficulty = Difficulty.MEDIUM,
+            )
+        }
 
     private fun spanFor(session: CourseSession, quoteHint: String, fallbackSegmentId: String): EvidenceSpan {
         val cleanHint = quoteHint.trim().take(60)

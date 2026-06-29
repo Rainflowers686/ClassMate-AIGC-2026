@@ -1394,10 +1394,19 @@ class AppViewModel(
             val draft = routed.value
             val rawText = draft?.initialEditableText().orEmpty().ifBlank { onDeviceText }
             val clean = OcrTextPostProcessor.clean(rawText)
+            // P0-1: distinguish "OCR 未配置" from "识别为空" so the failure reason is honest, and ALWAYS
+            // leave the segment editable (the FAILED card now offers a manual-input field) so OCR being
+            // unavailable on this device never makes the image a dead end.
+            val unconfigured = draft?.ocrError == CaptureError.ConfigMissing ||
+                routed.status == AiExecutionStatus.CONFIG_MISSING
             val completed = if (clean.text.isBlank()) {
                 pending.copy(
                     status = OcrImportStatus.FAILED,
-                    errorReason = "未识别到可用文字，请手动补充或重拍。",
+                    errorReason = if (unconfigured) {
+                        "OCR 未配置，请在下方手动输入图片中的文字，或重拍更清晰的图片。"
+                    } else {
+                        "未识别到可用文字，请在下方手动输入，或重拍更清晰的图片。"
+                    },
                     updatedAt = System.currentTimeMillis(),
                 )
             } else {
@@ -2249,11 +2258,18 @@ class AppViewModel(
      */
     fun stopRecordingWithTranscription(now: Long = System.currentTimeMillis()) {
         val hadTranscript = ui.asrSession.segments.any { it.text.isNotBlank() }
+        // P0-2: when system speech recognition was unavailable, the recording still saved — say so honestly
+        // ("转写暂不可用"), never fabricate a transcript and never imply transcription succeeded.
+        val asrUnavailable = ui.asrSession.state in setOf(AsrState.UNSUPPORTED, AsrState.PERMISSION_REQUIRED, AsrState.ERROR)
         stopAsr() // folds confirmed ASR segments into ui.transcripts (LIVE_ASR transcript evidence)
         stopClassroomRecording(now) // AUDIO evidence only when a real file is present
-        if (hadTranscript) {
-            ui = ui.copy(audioCaptureMessage = "录音已保存，实时转写已生成文本，可继续整理或生成学习闭环。")
-        }
+        ui = ui.copy(
+            audioCaptureMessage = when {
+                hadTranscript -> "录音已保存，实时转写已生成文本，可继续整理或生成学习闭环。"
+                asrUnavailable -> "录音已保存，转写暂不可用（当前设备未提供系统语音识别）。可稍后使用官方长语音转写，或手动粘贴转写文本。"
+                else -> ui.audioCaptureMessage
+            },
+        )
     }
 
     /** Cancel both: no AUDIO evidence, no transcript evidence, live text dropped. */
@@ -2533,7 +2549,9 @@ class AppViewModel(
         )
         val artifacts = l3Pipeline.toCourseArtifacts(enrichedSnapshot, now)
         if (artifacts == null) {
-            ui = ui.copy(l3Pipeline = enrichedSnapshot, toast = "L3 资料不足，未生成完整闭环。")
+            // P0-4: honest "insufficient material" — never a silent no-quiz; the user is told to add material
+            // or edit the OCR text rather than left wondering why there are no 微测.
+            ui = ui.copy(l3Pipeline = enrichedSnapshot, toast = "资料不足，暂不能生成微测，请补充资料或手动编辑 OCR 文本后重试。")
             persistL3(enrichedSnapshot)
             return false
         }
