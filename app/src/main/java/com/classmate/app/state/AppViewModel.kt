@@ -27,8 +27,16 @@ import com.classmate.app.data.L3PersistenceRepository
 import com.classmate.app.data.LocalSemanticIndexRepository
 import com.classmate.app.data.ThemePreferenceRepository
 import com.classmate.app.exporting.ExportArtifact
+import com.classmate.app.audio.FlowAudioController
+import com.classmate.app.audio.NoOpFlowAudioController
+import com.classmate.app.ui.flow.AmbientSound
 import com.classmate.app.exporting.ExportCenter
 import com.classmate.app.exporting.ExportFileFormat
+import com.classmate.core.ai.PolishedStudyMaterial
+import com.classmate.core.ai.PolishedStudyPackInput
+import com.classmate.core.ai.PolishedStudyPackPromptBuilder
+import com.classmate.core.exporting.PolishedExportPlan
+import com.classmate.core.exporting.PolishedStudyPack
 import com.classmate.core.exporting.SafeExportText
 import com.classmate.core.audio.ConfigMissingTtsProvider
 import com.classmate.core.audio.CourseEssenceAudioExporter
@@ -115,6 +123,7 @@ import com.classmate.core.learning.InMemoryLearningStore
 import com.classmate.core.learning.LearningSnapshot
 import com.classmate.core.learning.LearningStore
 import com.classmate.core.learning.PracticeHistoryRecord
+import com.classmate.core.practice.KnowledgePointSearch
 import com.classmate.core.practice.PracticeAttempt
 import com.classmate.core.practice.PracticeFeedbackEngine
 import com.classmate.core.practice.PracticeGenerationRequest
@@ -286,6 +295,9 @@ class AppViewModel(
     private val captureGatewayProvider: () -> CaptureGatewayPort = { CaptureGateway() },
     private val classroomAudioRecorder: ClassroomAudioRecorder = NoOpClassroomAudioRecorder,
     private val recordingFileManager: RecordingFileManager = RecordingFileManager.disabled(),
+    // P1-2: Flow background music. No-op by default (tests / no audio); the composition root injects the
+    // real AmbientSoundPlayer-backed controller so playback survives leaving the Flow page.
+    private val flowAudioController: FlowAudioController = NoOpFlowAudioController,
     // Stage 8D-2: optional override of the all-files-access signal (tests inject false/true). Used
     // ONLY to CLASSIFY an on-device availability failure (PERMISSION_MISSING vs files/init) — it
     // never blocks the crash-safe generate attempt. Production (null) combines the live permission
@@ -399,6 +411,15 @@ class AppViewModel(
         } else {
             false
         }
+
+    /**
+     * TopBar back guard (P1-1): pop if there is a previous page, otherwise fall back to Home. A back button
+     * must NEVER strand the user on a rootless page or silently do nothing — when the stack is empty it
+     * returns to Home instead. (System back at the Home root still exits the app, which is expected.)
+     */
+    fun goBackOrHome() {
+        if (!goBack()) selectTab(Tab.HOME)
+    }
 
     fun resetTo(screen: Screen) {
         backStack.clear()
@@ -3844,6 +3865,169 @@ class AppViewModel(
         return ExportCenter.artifactFromMarkdown(courseTitle = "$title-AI-$formLabel", markdown = markdown, format = format)
     }
 
+    // ---- P0-1/P0-2: user-initiated AI 精修导出 / 导出资料升级 ----
+    // A deliberate LONG task (NOT the 30s secondary-enhancement path): cloud 蓝心 deep pass (reusing the
+    // user's analysis intensity timeout, 120–240s) → on-device → honest local organize. The default fast
+    // export stays untouched/instant; a failure never overwrites it. PDF/HTML/Word all render from the
+    // SAME PolishedStudyPack.
+    private var polishExportJob: Job? = null
+
+    /** True when there is real course material to upgrade (drives the 精修 entry's visibility). */
+    fun hasPolishableMaterial(): Boolean {
+        val s = ui.l3Pipeline
+        return s.knowledgePoints.isNotEmpty() || s.summary.isNotBlank()
+    }
+
+    private fun polishedExportInput(): PolishedStudyPackInput? {
+        val snapshot = ui.l3Pipeline
+        val title = snapshot.lessonSource?.title?.ifBlank { null }
+            ?: ui.session?.title ?: ui.history.firstOrNull()?.session?.title ?: return null
+        val evidenceById = snapshot.evidence.associateBy { it.id }
+        val materials = snapshot.knowledgePoints.map { kp ->
+            val quote = kp.sourceEvidenceIds
+                .firstNotNullOfOrNull { id -> evidenceById[id]?.text?.takeIf { it.isNotBlank() } }
+                .orEmpty()
+            PolishedStudyMaterial(kp.title, kp.explanation, quote)
+        }
+        if (materials.isEmpty() && snapshot.summary.isBlank()) return null
+        val sources = snapshot.evidence.mapNotNull { it.sourceLabel.ifBlank { null } }.distinct().take(4)
+        val hasImage = snapshot.evidence.any { it.imageRef.isNotBlank() } ||
+            snapshot.evidenceAssets.any { it.imageRef.isNotBlank() }
+        val lowConf = snapshot.qualityWarnings.map { it.message } +
+            snapshot.asrJobs.flatMap { j -> j.transcriptSegments.filter { it.lowConfidence }.map { "低置信转写：${it.text.take(60)}" } }
+        return PolishedStudyPackInput(
+            courseTitle = title,
+            sourceSummary = sources.joinToString("、").ifBlank { "课堂资料" },
+            knowledgePoints = materials,
+            quizStems = snapshot.questions.map { it.stem },
+            weakPoints = snapshot.learningDiagnosis.weakKnowledgePoints.map { it.title },
+            lowConfidenceNotes = lowConf,
+            hasImageMaterial = hasImage,
+        )
+    }
+
+    /** The honest local organize used when no cloud/on-device model is available (labelled 本地整理版). */
+    private fun localPolishedMarkdown(): String = LearningExportEngine.buildStudyPackMarkdown(ui.l3Pipeline)
+
+    /** Start the polished export. Shows staged progress + a >30s slow notice; cancelable; never blocks the
+     *  fast default export and never overwrites it on failure. */
+    fun startPolishedExport() {
+        val input = polishedExportInput() ?: run {
+            ui = ui.copy(toast = "暂无可精修的课程资料，请先生成学习包。")
+            return
+        }
+        maybePromptMissingCloudConfig("AI 精修导出")
+        polishExportJob?.cancel()
+        val startedAt = System.currentTimeMillis()
+        ui = ui.copy(
+            polishedExport = PolishedExportUiState(
+                status = PolishedExportStatus.RUNNING,
+                stageIndex = 0,
+                startedAtMs = startedAt,
+                message = "正在准备课程资料……",
+                pack = ui.polishedExport.pack, // keep any previous polished version until the new one is ready
+            ),
+        )
+        val bundle = configBundle
+        val tx = transport
+        val timeouts = PolishedExportPlan.timeouts(ui.analysisIntensity)
+        val prompt = PolishedStudyPackPromptBuilder.build(input)
+        val title = input.courseTitle
+        val generatedLabel = formatExportTime(startedAt)
+        polishExportJob = viewModelScope.launch {
+            ui = ui.copy(polishedExport = ui.polishedExport.copy(stageIndex = 1, message = "正在调用蓝心深度整理，可能需要更久……"))
+            val slowJob = launch {
+                delay(30_000)
+                if (isActive && ui.polishedExport.running) {
+                    ui = ui.copy(polishedExport = ui.polishedExport.copy(slowNotice = true, message = "蓝心正在深度整理，可继续等待或改用普通导出。"))
+                }
+            }
+            val (markdown, source) = withContext(Dispatchers.IO) {
+                val cloud = runCatching { ProviderAskChatClient(bundle, tx, timeouts = timeouts).chat(prompt, null) }.getOrNull()
+                if (cloud != null && cloud.text.isNotBlank()) return@withContext cloud.text to AiExecutionSource.CLOUD
+                val device = runCatching { onDeviceController.askSeam().chat(prompt, null) }.getOrNull()
+                if (device != null && device.text.isNotBlank()) return@withContext device.text to AiExecutionSource.ON_DEVICE
+                "" to AiExecutionSource.SAFE_PLACEHOLDER
+            }
+            slowJob.cancel()
+            ui = ui.copy(polishedExport = ui.polishedExport.copy(stageIndex = 3, message = "正在生成复习资料……"))
+            val resolved = if (markdown.isNotBlank()) markdown else localPolishedMarkdown()
+            val sourceZh = PolishedExportPlan.sourceLabel(source)
+            val pack = PolishedStudyPack(
+                courseTitle = title,
+                sourceLabel = sourceZh,
+                generatedAtLabel = generatedLabel,
+                markdown = SafeExportText.redact(resolved),
+            )
+            val ok = !pack.isBlank
+            ui = ui.copy(
+                polishedExport = PolishedExportUiState(
+                    status = if (ok) PolishedExportStatus.READY else PolishedExportStatus.FAILED,
+                    stageIndex = PolishedExportUiState.POLISH_STAGES.size,
+                    startedAtMs = startedAt,
+                    sourceZh = sourceZh,
+                    message = when {
+                        !ok -> "精修生成失败，请重试，或继续使用普通导出。"
+                        source == AiExecutionSource.SAFE_PLACEHOLDER -> "未使用云端蓝心，已用本地整理版，可重试获取蓝心精修版。"
+                        else -> "精修学习包已生成（$sourceZh），可选择 PDF / HTML / Word 等格式导出。"
+                    },
+                    pack = if (ok) pack else ui.polishedExport.pack,
+                ),
+                toast = if (ok) "精修学习包已生成（$sourceZh）。" else "精修生成失败，请重试或使用普通导出。",
+            )
+        }
+    }
+
+    /** Cancel an in-flight polished pass. Keeps any previously-generated polished version; never touches the
+     *  fast default export. */
+    fun cancelPolishedExport() {
+        polishExportJob?.cancel()
+        polishExportJob = null
+        val prev = ui.polishedExport
+        ui = ui.copy(
+            polishedExport = if (prev.pack != null) {
+                prev.copy(status = PolishedExportStatus.READY, slowNotice = false, message = "已取消重新精修，仍可导出上一版（${prev.sourceZh}）。")
+            } else {
+                PolishedExportUiState()
+            },
+            toast = "已取消精修，可继续使用普通导出。",
+        )
+    }
+
+    /** Build an export artifact from the polished pack (PDF/HTML/Word all share the SAME content). */
+    fun buildPolishedArtifact(format: ExportFileFormat): ExportArtifact? {
+        val pack = ui.polishedExport.pack ?: run {
+            ui = ui.copy(toast = "请先点击「AI 精修导出」生成精修版。")
+            return null
+        }
+        return ExportCenter.artifactFromPolishedPack(pack, format)
+    }
+
+    private fun formatExportTime(epochMs: Long): String =
+        java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US).format(java.util.Date(epochMs))
+
+    // ---- P1-2: Flow background music (lifecycle owned here, survives leaving the Flow page) ----
+    fun flowMusicPlay(sound: AmbientSound) {
+        flowAudioController.play(sound, ui.flowMusic.volume)
+        ui = ui.copy(flowMusic = ui.flowMusic.copy(status = FlowMusicStatus.PLAYING, sceneId = sound.id, soundName = sound.displayName))
+    }
+
+    fun flowMusicPause() {
+        flowAudioController.pause()
+        ui = ui.copy(flowMusic = ui.flowMusic.copy(status = FlowMusicStatus.PAUSED))
+    }
+
+    fun flowMusicStop() {
+        flowAudioController.stop()
+        ui = ui.copy(flowMusic = ui.flowMusic.copy(status = FlowMusicStatus.STOPPED))
+    }
+
+    fun flowMusicSetVolume(volume: Float) {
+        val v = volume.coerceIn(0f, 1f)
+        flowAudioController.setVolume(v)
+        ui = ui.copy(flowMusic = ui.flowMusic.copy(volume = v))
+    }
+
     fun buildHistoryReportArtifact(record: HistoryRecord, format: ExportFileFormat): ExportArtifact =
         buildReportArtifact(record.session, record.result, reviewPlan = null, learningState = null, format = format)
 
@@ -4144,6 +4328,20 @@ class AppViewModel(
         ui.learningSnapshot.tasks.filter { CourseLibraryBuilder.normalizeCourseName(it.courseTitle).lowercase() == courseKey }
 
     fun weaknessItems() = WeaknessHub.fromSnapshot(ui.learningSnapshot)
+
+    /**
+     * P1-3: honest browser-search options for a knowledge point. Gated on confidence — a point the user
+     * flagged 需复核 or one with no evidence returns [KnowledgePointSearch.Result.NeedsReview] so the UI shows
+     * a "先完善资料" hint instead of a search button. Never an in-app API search.
+     */
+    fun knowledgePointSearch(knowledgePointId: String): KnowledgePointSearch.Result {
+        val result = ui.result ?: return KnowledgePointSearch.Result.NeedsReview
+        val kp = result.knowledgePoints.firstOrNull { it.id == knowledgePointId }
+            ?: return KnowledgePointSearch.Result.NeedsReview
+        val course = ui.session?.title ?: ui.history.firstOrNull()?.session?.title ?: ""
+        val highConfidence = knowledgePointId !in ui.flaggedKnowledgePointIds && kp.evidence.isNotEmpty()
+        return KnowledgePointSearch.forKnowledgePoint(course, kp.title, highConfidence)
+    }
 
     // --- adaptive practice (Stage 7C): in-app drill that writes back through ReviewEngine rules ---
 
@@ -5182,6 +5380,8 @@ class AppViewModel(
     override fun onCleared() {
         runCatching { localTtsPlayer.release() }
         runCatching { onDeviceController.release() }
+        // P1-2: release the Flow background-music player so playback never outlives the app.
+        runCatching { flowAudioController.release() }
         super.onCleared()
     }
 

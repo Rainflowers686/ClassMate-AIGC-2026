@@ -23,6 +23,26 @@ object StudyReportDocxRenderer {
         return out.toByteArray()
     }
 
+    /**
+     * Renders a real, structured .docx from ONE markdown-like document (the polished study pack / study
+     * pack / AI material). Reuses the exact same OpenXML scaffolding as [render] — only the body differs —
+     * so the polished Word file is a genuine WordprocessingML package, not HTML renamed to .docx, and it
+     * carries the SAME content as the PDF/HTML rendered from the same markdown.
+     */
+    fun renderMarkdownDocument(courseTitle: String, markdown: String): ByteArray {
+        val out = ByteArrayOutputStream()
+        ZipOutputStream(out).use { zip ->
+            zip.writeEntry("[Content_Types].xml", contentTypesXml())
+            zip.writeEntry("_rels/.rels", relsXml())
+            zip.writeEntry("docProps/core.xml", corePropsXmlFromTitle(courseTitle))
+            zip.writeEntry("docProps/app.xml", appPropsXml())
+            zip.writeEntry("word/_rels/document.xml.rels", documentRelsXml())
+            zip.writeEntry("word/styles.xml", stylesXml())
+            zip.writeEntry("word/document.xml", markdownDocumentXml(markdown))
+        }
+        return out.toByteArray()
+    }
+
     private fun ZipOutputStream.writeEntry(name: String, content: String) {
         putNextEntry(ZipEntry(name))
         write(content.toByteArray(Charsets.UTF_8))
@@ -210,6 +230,49 @@ object StudyReportDocxRenderer {
             </w:document>
         """.trimIndent()
     }
+
+    private fun corePropsXmlFromTitle(courseTitle: String): String = xmlHeader() + """
+        <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+          <dc:title>${x(courseTitle)} - ClassMate 精修学习包</dc:title>
+          <dc:creator>ClassMate</dc:creator>
+          <cp:lastModifiedBy>ClassMate</cp:lastModifiedBy>
+          <dc:description>ClassMate polished study pack generated from user-confirmed lesson materials.</dc:description>
+        </cp:coreProperties>
+    """.trimIndent()
+
+    /** Maps a markdown-like document into Word paragraphs: #/##/### -> headings, - -> bullets, else paragraph. */
+    private fun markdownDocumentXml(markdown: String): String {
+        val body = buildString {
+            markdown.lineSequence().forEach { rawLine ->
+                val line = rawLine.trimEnd()
+                val trimmed = line.trim()
+                when {
+                    trimmed.isEmpty() -> Unit
+                    trimmed.startsWith("### ") -> h2(trimmed.removePrefix("### "))
+                    trimmed.startsWith("## ") -> h1(trimmed.removePrefix("## "))
+                    trimmed.startsWith("# ") -> p(trimmed.removePrefix("# "), "Title")
+                    trimmed.startsWith("- ") || trimmed.startsWith("* ") ->
+                        p("• " + stripInlineMarks(trimmed.drop(2)))
+                    trimmed.startsWith("> ") -> quote(stripInlineMarks(trimmed.drop(2)))
+                    else -> p(stripInlineMarks(trimmed))
+                }
+            }
+        }
+        return xmlHeader() + """
+            <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+              <w:body>
+                $body
+                <w:sectPr>
+                  <w:pgSz w:w="11906" w:h="16838"/>
+                  <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/>
+                </w:sectPr>
+              </w:body>
+            </w:document>
+        """.trimIndent()
+    }
+
+    private fun stripInlineMarks(value: String): String =
+        value.replace("**", "").replace("`", "").trim()
 
     private fun StringBuilder.h1(text: String) = p(text, "Heading1")
     private fun StringBuilder.h2(text: String) = p(text, "Heading2")

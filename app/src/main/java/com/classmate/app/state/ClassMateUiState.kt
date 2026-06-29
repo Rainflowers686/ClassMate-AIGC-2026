@@ -118,6 +118,8 @@ data class ClassMateUiState(
     val weaknessEnhancement: EnhancementUiState = EnhancementUiState.idle(),
     val weakVariantStatus: EnhancementUiState = EnhancementUiState.idle(),
     val ttsAudio: TtsAudioUiState = TtsAudioUiState(),
+    // P1-2: Flow background music. Lives at VM level so leaving the Flow page does not stop playback.
+    val flowMusic: FlowMusicUiState = FlowMusicUiState(),
     // P0-3 visible feedback closure: knowledge points / questions the user flagged as inaccurate. Drives a
     // "需复核" chip on the timeline and excludes flagged questions from random practice.
     val flaggedKnowledgePointIds: Set<String> = emptySet(),
@@ -256,6 +258,8 @@ data class ClassMateUiState(
     val feedbackEvents: List<FeedbackEvent> = emptyList(),
     val reviewPlan: ReviewPlan? = null,
     val lastExportReceipt: ExportReceipt? = null,
+    // P0-1/P0-2: user-initiated AI 精修导出 (separate from the fast default export).
+    val polishedExport: PolishedExportUiState = PolishedExportUiState(),
     val exportDraftReady: Boolean = false,
     val exportDraftMessage: String? = null,
     val exportDraftSource: String? = null,

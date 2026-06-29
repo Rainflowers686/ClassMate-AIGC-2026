@@ -29,11 +29,29 @@ object PracticeSearchEngine {
 
     /** e.g. ("高等数学 - 数项级数", "比值判别法") -> "高等数学 数项级数 比值判别法 练习题". */
     fun buildQuery(course: String, topic: String, keyword: String = "练习题"): String =
-        (splitParts(course) + splitParts(topic) + keyword)
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
-            .distinct()
-            .joinToString(" ")
+        sanitizeQuery(
+            (splitParts(course) + splitParts(topic) + keyword)
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .distinct()
+                .joinToString(" "),
+        )
+
+    const val MAX_QUERY_LENGTH = 60
+
+    /**
+     * Cleans a search query before it ever reaches a URL: strips internal ids (kp_/q_/ev_), removes
+     * secret-like fragments, collapses ALL whitespace (including newlines/tabs) to single spaces, and caps
+     * the length. Keeps the query short, clean, and free of anything that should not be sent to a browser.
+     */
+    fun sanitizeQuery(raw: String): String {
+        var q = raw.replace(rawIdRegex, " ")
+        q = removeSensitiveFragments(q)
+        q = q.split(Regex("\\s+")).filterNot { secretLikeRegex.containsMatchIn(it) }.joinToString(" ")
+        q = q.replace(Regex("\\s+"), " ").trim()
+        if (q.length > MAX_QUERY_LENGTH) q = q.take(MAX_QUERY_LENGTH).trim()
+        return q
+    }
 
     fun recommendedKeywords(course: String, topic: String): List<PracticeKeywordSuggestion> {
         val subject = detectSubject(course, topic)
@@ -162,4 +180,5 @@ object PracticeSearchEngine {
         "reasoning_content",
     )
     private val secretLikeRegex = Regex("(?i)(s" + "k-[a-z0-9_-]{8,}|[a-z0-9_-]{32,})")
+    private val rawIdRegex = Regex("\\b(kp|q|ev)_[A-Za-z0-9_-]+\\b")
 }

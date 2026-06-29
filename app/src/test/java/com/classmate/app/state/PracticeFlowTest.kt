@@ -50,6 +50,16 @@ class PracticeFlowTest {
     }
 
     @Test
+    fun polishedExportNeverBlocksOrOverwritesTheNormalExport() {
+        // P0-1/P0-2: the AI 精修导出 is a separate version. With no polished pack yet, asking for one is a
+        // graceful no-op (null + toast), and the fast default export stays fully available.
+        val viewModel = vm()
+        viewModel.openHistory(viewModel.ui.history.first())
+        assertNull("no polished pack yet -> graceful null, never a crash", viewModel.buildPolishedArtifact(ExportFileFormat.PDF))
+        assertNotNull("normal export stays available regardless of polished state", viewModel.buildLearningStudyPackArtifact(ExportFileFormat.PDF))
+    }
+
+    @Test
     fun multipleFileImportsAccumulateIntoTheMaterialLibrary() {
         // P0-4: each imported file is added to the 本课资料库 (superhub) — later files never overwrite earlier ones.
         val viewModel = vm()

@@ -42,7 +42,6 @@ import com.classmate.app.asr.AsrEventListener
 import com.classmate.app.asr.AsrState
 import com.classmate.app.state.AppViewModel
 import com.classmate.app.state.Screen
-import com.classmate.app.ui.flow.AmbientSoundPlayer
 import com.classmate.app.ui.flow.FlowBreathingTimer
 import com.classmate.app.ui.flow.FocusDurations
 import com.classmate.app.ui.flow.FlowCompColors
@@ -87,21 +86,26 @@ fun LiveCompanionScreen(viewModel: AppViewModel) {
     LaunchedEffect(running) {
         while (running) { nowTick = System.currentTimeMillis(); delay(1000) }
     }
-    var selectedScene by remember { mutableStateOf(flowCompSceneOf("rain").id) }
+    // P1-2: background-music playback is owned by the ViewModel, so leaving this page does NOT stop it.
+    // The page restores its visual scene from whatever is currently playing.
+    val flowMusic = ui.flowMusic
+    var selectedScene by remember { mutableStateOf(flowCompSceneOf(flowMusic.sceneId).id) }
     var scenePickerOpen by remember { mutableStateOf(false) }
     var jotOpen by remember { mutableStateOf(false) }
     var asrOpen by remember { mutableStateOf(false) }
     val scene = flowCompSceneOf(selectedScene)
     val accent = scene.accent
-    var ambientPlaying by remember { mutableStateOf(false) }
-    var ambientVolume by remember { mutableStateOf(0.45f) }
+    val ambientPlaying = flowMusic.playing
+    val ambientVolume = flowMusic.volume
 
     val context = LocalContext.current
-    val ambientPlayer = remember { AmbientSoundPlayer(context) }
-    DisposableEffect(ambientPlayer) { onDispose { ambientPlayer.release() } }
-    LaunchedEffect(selectedScene, ambientPlaying, ambientVolume) {
-        if (ambientPlaying) ambientPlayer.play(scene.sound, ambientVolume) else ambientPlayer.pause()
-        ambientPlayer.setVolume(ambientVolume)
+    fun toggleAmbient() {
+        if (ambientPlaying) viewModel.flowMusicPause() else viewModel.flowMusicPlay(scene.sound)
+    }
+    fun selectScene(id: String) {
+        selectedScene = id
+        // If music is already playing, switch the loop to the newly chosen scene; otherwise just preview-select.
+        if (viewModel.ui.flowMusic.playing) viewModel.flowMusicPlay(flowCompSceneOf(id).sound)
     }
 
     // --- experimental system ASR wiring (no raw audio saved, no upload, no background recording) ---
@@ -173,7 +177,7 @@ fun LiveCompanionScreen(viewModel: AppViewModel) {
                         Spacer(Modifier.height(4.dp))
                         FlowCompSectionLabel("声音场景")
                         Text("选择一个内置背景音，循环播放；不联网、不录音。", style = MaterialTheme.typography.bodySmall, color = FlowCompColors.textSecondary)
-                        FlowScenePicker(selectedId = selectedScene, modifier = Modifier.flowCompEnter()) { selectedScene = it }
+                        FlowScenePicker(selectedId = selectedScene, modifier = Modifier.flowCompEnter()) { selectScene(it) }
                         Text(FlowCompanionCopy.AUDIO_DISCLAIMER, style = MaterialTheme.typography.labelSmall, color = FlowCompColors.textMuted)
                         FlowMiniPlayer(sceneName = scene.name, soundName = scene.sound.displayName, playing = ambientPlaying, volume = ambientVolume, minutes = minutes, accent = accent)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -182,15 +186,14 @@ fun LiveCompanionScreen(viewModel: AppViewModel) {
                                 filled = true,
                                 accent = accent,
                                 modifier = Modifier.weight(1f),
-                                onClick = { ambientPlaying = !ambientPlaying },
+                                onClick = { toggleAmbient() },
                             )
                             FlowPillButton("停止", filled = false, accent = accent, modifier = Modifier.weight(1f), onClick = {
-                                ambientPlaying = false
-                                ambientPlayer.stop()
+                                viewModel.flowMusicStop()
                             })
                         }
                         Text("背景音量", style = MaterialTheme.typography.labelSmall, color = FlowCompColors.textMuted)
-                        Slider(value = ambientVolume, onValueChange = { ambientVolume = it.coerceIn(0f, 1f) })
+                        Slider(value = ambientVolume, onValueChange = { viewModel.flowMusicSetVolume(it) })
                         // Full-width bottom main button — large tap target, not stranded in the corner.
                         FlowPillButton("完成设置", filled = true, accent = accent, modifier = Modifier.fillMaxWidth(), onClick = { scenePickerOpen = false })
                     } else {

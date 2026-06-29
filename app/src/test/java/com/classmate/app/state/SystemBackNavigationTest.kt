@@ -97,4 +97,28 @@ class SystemBackNavigationTest {
         viewModel.selectTab(Tab.HOME)
         assertEquals(SettingsPage.SETTINGS_HOME, viewModel.settingsPage)
     }
+
+    // ---- P1-1: TopBar back guard (goBackOrHome) for the detail screens ----
+
+    @Test
+    fun topBarBackFromADetailScreenPopsOnePage() {
+        // CourseDetail -> EvidenceDetail / Knowledge / Quiz / Import all pop to the previous page.
+        listOf(Screen.EVIDENCE, Screen.KNOWLEDGE, Screen.QUIZ, Screen.IMPORT).forEach { detail ->
+            val viewModel = vm()
+            viewModel.navigateTo(Screen.COURSE_DETAIL)
+            viewModel.navigateTo(detail)
+            viewModel.goBackOrHome()
+            assertEquals("back from $detail pops to the previous page", Screen.COURSE_DETAIL, viewModel.currentScreen)
+        }
+    }
+
+    @Test
+    fun topBarBackWithNoPreviousPageGoesHomeNotNothing() {
+        // A rootless detail page (stack reset to just this screen) must fall back to Home, never strand.
+        val viewModel = vm()
+        viewModel.resetTo(Screen.EVIDENCE)
+        assertFalse(viewModel.canGoBack)
+        viewModel.goBackOrHome()
+        assertEquals(Screen.HOME, viewModel.currentScreen)
+    }
 }

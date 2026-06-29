@@ -53,7 +53,7 @@ fun EvidenceDetailScreen(viewModel: AppViewModel) {
     val l3Asset = l3Evidence?.assetId?.let { id -> ui.l3Pipeline.evidenceAssets.firstOrNull { it.id == id } }
     val kp = result?.knowledgePoint(ui.selectedKnowledgePointId ?: "")
 
-    ClassMateScaffold(title = s.evidenceView, onBack = { viewModel.goBack() }) { padding ->
+    ClassMateScaffold(title = s.evidenceView, onBack = { viewModel.goBackOrHome() }) { padding ->
         if (l3Evidence != null) {
             // The real, user-facing excerpt; technical metadata stays out of the study page.
             val excerpt = l3Evidence.text.ifBlank { l3Asset?.text.orEmpty() }

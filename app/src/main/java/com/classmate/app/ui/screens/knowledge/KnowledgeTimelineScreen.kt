@@ -20,8 +20,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.classmate.app.practice.PracticeSearchLauncher
 import com.classmate.app.state.AppViewModel
 import com.classmate.app.state.Screen
 import com.classmate.app.ui.components.ChipTone
@@ -37,7 +39,9 @@ import com.classmate.app.ui.components.PrimaryButton
 import com.classmate.app.ui.components.ProvenanceChip
 import com.classmate.app.ui.components.SecondaryButton
 import com.classmate.app.ui.design.Dimens
+import com.classmate.app.ui.i18n.Strings
 import com.classmate.core.model.KnowledgePoint
+import com.classmate.core.practice.KnowledgePointSearch
 
 @Composable
 fun KnowledgeTimelineScreen(viewModel: AppViewModel) {
@@ -48,7 +52,7 @@ fun KnowledgeTimelineScreen(viewModel: AppViewModel) {
 
     ClassMateScaffold(
         title = s.knowledgeTitle,
-        onBack = { viewModel.goBack() },
+        onBack = { viewModel.goBackOrHome() },
         bottomBar = {
             if (result != null) {
                 Surface(color = MaterialTheme.colorScheme.background) {
@@ -112,6 +116,7 @@ fun KnowledgeTimelineScreen(viewModel: AppViewModel) {
             // Real-device #10/#17: the ask-this-lesson Q&A box is no longer surfaced; the timeline leads
             // with knowledge points, evidence and 微测.
 
+            val context = LocalContext.current
             result.knowledgePoints.forEachIndexed { index, kp ->
                 val segIndex = session.segments.firstOrNull { it.id == kp.sourceSegmentId }?.index
                 KnowledgePointCard(
@@ -121,6 +126,11 @@ fun KnowledgeTimelineScreen(viewModel: AppViewModel) {
                     segmentLabel = if (segIndex != null) s.quizSegmentLabel(segIndex) else s.quizSourceLabel,
                     openEvidenceLabel = s.knowledgeOpenEvidence,
                     onOpenEvidence = { viewModel.openEvidence(kp.id) },
+                    strings = s,
+                    search = viewModel.knowledgePointSearch(kp.id),
+                    onOpenSearch = { link ->
+                        if (!PracticeSearchLauncher.open(context, link)) viewModel.toast("未找到浏览器，请稍后再试。")
+                    },
                 )
             }
         }
@@ -136,7 +146,17 @@ private fun Stat(value: String, label: String) {
 }
 
 @Composable
-private fun KnowledgePointCard(number: Int, kp: KnowledgePoint, flagged: Boolean, segmentLabel: String, openEvidenceLabel: String, onOpenEvidence: () -> Unit) {
+private fun KnowledgePointCard(
+    number: Int,
+    kp: KnowledgePoint,
+    flagged: Boolean,
+    segmentLabel: String,
+    openEvidenceLabel: String,
+    onOpenEvidence: () -> Unit,
+    strings: Strings,
+    search: KnowledgePointSearch.Result,
+    onOpenSearch: (com.classmate.core.practice.PracticeSearchLink) -> Unit,
+) {
     QuietCard(onClick = onOpenEvidence) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
@@ -162,5 +182,38 @@ private fun KnowledgePointCard(number: Int, kp: KnowledgePoint, flagged: Boolean
         }
         Spacer(Modifier.height(Dimens.s))
         Text(openEvidenceLabel, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+
+        // P1-3: honest browser-search entry. High-confidence points get real browser links; a 需复核 /
+        // low-confidence point shows a "先完善资料" hint instead of a misleading search button.
+        Spacer(Modifier.height(Dimens.m))
+        when (search) {
+            is KnowledgePointSearch.Result.Available -> {
+                Text(strings.knowledgeSearchTitle, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(Dimens.xs))
+                Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+                    search.links.take(2).forEach { link ->
+                        SecondaryButton(
+                            text = strings.knowledgeSearchOpen(link.sourceName),
+                            onClick = { onOpenSearch(link) },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+                Spacer(Modifier.height(Dimens.xs))
+                Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+                    search.links.drop(2).take(2).forEach { link ->
+                        SecondaryButton(
+                            text = strings.knowledgeSearchOpen(link.sourceName),
+                            onClick = { onOpenSearch(link) },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+                Spacer(Modifier.height(Dimens.xs))
+                Text(strings.knowledgeSearchHint, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            KnowledgePointSearch.Result.NeedsReview ->
+                Text(strings.knowledgeSearchNeedsReview, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }

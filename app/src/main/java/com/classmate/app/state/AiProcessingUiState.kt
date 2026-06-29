@@ -1,6 +1,8 @@
 package com.classmate.app.state
 
 import com.classmate.core.ai.AiEnhancementType
+import com.classmate.core.exporting.PolishedExportPlan
+import com.classmate.core.exporting.PolishedStudyPack
 
 /**
  * State for one AI second-pass enhancement surface (study-pack polish, quiz feedback, evidence
@@ -50,6 +52,49 @@ data class PracticeEvidenceContext(
     val isImage: Boolean,
 ) {
     val hasImage: Boolean get() = imagePath.isNotBlank()
+}
+
+/**
+ * P0-1/P0-2: the user-initiated "AI 精修导出 / 导出资料升级" task. It is SEPARATE from the fast default
+ * export (which stays instant and unblocked) and from the 30s secondary enhancements — this is an explicit
+ * long task that may use the deep/Max thinking path. [pack] is null until a polished version exists;
+ * [sourceZh] is always honest ("蓝心精修版" / "端侧精修草稿" / "本地整理版"), never local-as-蓝心.
+ */
+enum class PolishedExportStatus { IDLE, RUNNING, READY, FAILED }
+
+data class PolishedExportUiState(
+    val status: PolishedExportStatus = PolishedExportStatus.IDLE,
+    val stageIndex: Int = 0,
+    val stageCount: Int = POLISH_STAGES.size,
+    val startedAtMs: Long = 0L,
+    val slowNotice: Boolean = false,
+    val sourceZh: String = "",
+    val message: String = "",
+    val pack: PolishedStudyPack? = null,
+) {
+    val running: Boolean get() = status == PolishedExportStatus.RUNNING
+    val ready: Boolean get() = status == PolishedExportStatus.READY && pack != null
+
+    companion object {
+        /** The visible progress stages, in order. The model call spans the middle stages. */
+        val POLISH_STAGES: List<String> = PolishedExportPlan.STAGES
+    }
+}
+
+/**
+ * P1-2: Flow background-music state. Owned by the ViewModel (not the Flow Composable), so navigating away
+ * from the Flow page keeps the music in whatever state the USER left it — only an explicit pause/stop or
+ * the ViewModel being cleared changes it.
+ */
+enum class FlowMusicStatus { STOPPED, PLAYING, PAUSED }
+
+data class FlowMusicUiState(
+    val status: FlowMusicStatus = FlowMusicStatus.STOPPED,
+    val sceneId: String = "rain",
+    val soundName: String = "",
+    val volume: Float = 0.45f,
+) {
+    val playing: Boolean get() = status == FlowMusicStatus.PLAYING
 }
 
 data class AiProcessingUiState(

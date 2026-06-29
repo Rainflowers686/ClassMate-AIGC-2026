@@ -61,7 +61,7 @@ fun QuizScreen(viewModel: AppViewModel) {
     val questions = result?.let { QuizQuality.repairAndFilter(it.quizQuestions) }.orEmpty()
 
     if (result == null || session == null || questions.isEmpty()) {
-        ClassMateScaffold(title = s.quizLabel, onBack = { viewModel.goBack() }) { padding ->
+        ClassMateScaffold(title = s.quizLabel, onBack = { viewModel.goBackOrHome() }) { padding ->
             Box(Modifier.padding(padding).fillMaxWidth().padding(Dimens.screen)) {
                 Text(s.quizEmpty, style = MaterialTheme.typography.bodyMedium)
             }
@@ -76,7 +76,7 @@ fun QuizScreen(viewModel: AppViewModel) {
 
     ClassMateScaffold(
         title = s.quizTitle(index + 1, questions.size),
-        onBack = { viewModel.goBack() },
+        onBack = { viewModel.goBackOrHome() },
         bottomBar = {
             Surface(color = MaterialTheme.colorScheme.background) {
                 Row(

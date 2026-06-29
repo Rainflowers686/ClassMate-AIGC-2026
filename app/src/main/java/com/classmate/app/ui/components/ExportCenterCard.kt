@@ -18,10 +18,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import com.classmate.app.state.PolishedExportStatus
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -45,6 +47,11 @@ fun ExportCenterCard(
     var selectedFormat by remember { mutableStateOf(ExportFileFormat.PDF) }
     var pendingSave by remember { mutableStateOf<ExportArtifact?>(null) }
     var draftReady by remember { mutableStateOf(viewModel.ui.exportDraftReady) }
+    // P0-1/P0-2: AI 精修导出 — a separate, user-initiated long task. When a polished version becomes ready
+    // the format buttons default to it, but the user can switch back to the normal version at any time.
+    val polished = viewModel.ui.polishedExport
+    var usePolished by remember { mutableStateOf(false) }
+    LaunchedEffect(polished.ready) { if (polished.ready) usePolished = true }
     val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val artifact = pendingSave
         pendingSave = null
@@ -67,6 +74,13 @@ fun ExportCenterCard(
     }
 
     fun artifactOrNotify(): ExportArtifact? {
+        if (usePolished && polished.ready) {
+            return try {
+                viewModel.buildPolishedArtifact(selectedFormat)
+            } catch (_: Exception) {
+                viewModel.toast(s.exportFormatFailed(selectedFormat.displayName)); null
+            }
+        }
         if (!draftReady) {
             viewModel.toast(s.exportNeedDraftToast)
             return null
@@ -101,8 +115,70 @@ fun ExportCenterCard(
             )
         }
 
+        // ---- P0-1/P0-2: 导出资料升级 / AI 精修导出 (separate long task; normal export above stays usable) ----
+        if (viewModel.hasPolishableMaterial()) {
+            Spacer(Modifier.height(Dimens.m))
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text(s.exportPolishTitle, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                when {
+                    polished.running -> StatusChip(s.exportPolishRunningChip, tone = ChipTone.INFO)
+                    polished.ready -> StatusChip(s.exportPolishReady(polished.sourceZh), tone = ChipTone.SUCCESS)
+                    polished.status == PolishedExportStatus.FAILED -> StatusChip(s.exportPolishFailedChip, tone = ChipTone.WARNING)
+                    else -> {}
+                }
+            }
+            Spacer(Modifier.height(Dimens.xs))
+            Text(s.exportPolishDescription, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(Dimens.s))
+            when {
+                polished.running -> ProminentLoadingCard(
+                    title = s.exportPolishTitle,
+                    statusText = "${polished.stageIndex.coerceAtMost(polished.stageCount)}/${polished.stageCount} · ${polished.message}",
+                    longWaitNote = if (polished.slowNotice) s.exportPolishSlowNote else null,
+                    onCancel = { viewModel.cancelPolishedExport() },
+                    cancelText = s.exportPolishCancel,
+                    language = viewModel.ui.language,
+                )
+                polished.status == PolishedExportStatus.FAILED -> ProminentErrorCard(
+                    whatHappened = s.exportPolishFailedChip,
+                    possibleCause = polished.message,
+                    nextStep = s.exportPolishDescription,
+                    retryText = s.exportPolishRetry,
+                    onRetry = { viewModel.startPolishedExport() },
+                    secondaryText = s.exportPolishUseNormal,
+                    onSecondary = { usePolished = false },
+                    language = viewModel.ui.language,
+                )
+                polished.ready -> ActionButtonRow(
+                    primaryText = s.exportPolishRetry,
+                    onPrimary = { viewModel.startPolishedExport() },
+                    secondaryText = if (usePolished) s.exportPolishVersionNormal else s.exportPolishVersionPolished,
+                    onSecondary = { usePolished = !usePolished },
+                )
+                else -> PrimaryButton(
+                    text = s.exportPolishStart,
+                    onClick = { viewModel.startPolishedExport() },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            polished.message.takeIf { it.isNotBlank() && !polished.running }?.let {
+                Spacer(Modifier.height(Dimens.xs))
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+
         Spacer(Modifier.height(Dimens.s))
-        Text(s.exportChooseFormat, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Text(s.exportChooseFormat, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            if (polished.ready) {
+                // Which version the format buttons export — the user can switch back to the normal version.
+                StatusChip(
+                    if (usePolished) s.exportPolishVersionPolished else s.exportPolishVersionNormal,
+                    tone = if (usePolished) ChipTone.SUCCESS else ChipTone.NEUTRAL,
+                    modifier = Modifier.clickable { usePolished = !usePolished },
+                )
+            }
+        }
         Spacer(Modifier.height(Dimens.xs))
         Row(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -112,7 +188,7 @@ fun ExportCenterCard(
                 FormatChip(
                     text = format.displayName,
                     selected = selectedFormat == format,
-                    enabled = draftReady,
+                    enabled = draftReady || (usePolished && polished.ready),
                     onClick = { selectedFormat = format },
                 )
             }

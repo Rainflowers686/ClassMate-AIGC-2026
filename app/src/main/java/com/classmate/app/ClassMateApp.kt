@@ -54,6 +54,7 @@ import com.classmate.app.data.FileSnapshotIo
 import com.classmate.app.data.L3PersistenceRepository
 import com.classmate.app.data.LocalSemanticIndexRepository
 import com.classmate.app.data.ThemePreferenceRepository
+import com.classmate.app.audio.AndroidFlowAudioController
 import com.classmate.app.l3.AndroidClassroomAudioRecorder
 import com.classmate.app.l3.AndroidLocalTtsPlayer
 import com.classmate.app.capture.CaptureGateway
@@ -107,6 +108,9 @@ fun ClassMateApp() {
                     classroomAudioRecorder = AndroidClassroomAudioRecorder(File(context.filesDir, "classmate_recordings")),
                     recordingFileManager = RecordingFileManager(File(context.filesDir, "classmate_recordings")),
                     localTtsPlayer = AndroidLocalTtsPlayer(context),
+                    // P1-2: Flow background music owned at VM level — survives leaving the Flow page,
+                    // released only on pause/stop or when the VM is cleared.
+                    flowAudioController = AndroidFlowAudioController(context),
                     // Official TTS WebSocket (config-gated); writes WAV into the same classmate_tts dir as the
                     // system TTS so course-deletion cleanup and play/share/delete all keep working.
                     officialTtsProvider = com.classmate.app.asr.OfficialTtsProvider(File(context.filesDir, "classmate_tts")),

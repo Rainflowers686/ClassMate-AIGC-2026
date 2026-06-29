@@ -194,7 +194,7 @@ fun ImportCourseScreen(viewModel: AppViewModel) {
     )
 
     ProductCanvas {
-        ProductScaffold(contextLabel = "资料", onBack = { viewModel.goBack() }) { padding ->
+        ProductScaffold(contextLabel = "资料", onBack = { viewModel.goBackOrHome() }) { padding ->
             Column(
                 Modifier
                     .padding(padding)
