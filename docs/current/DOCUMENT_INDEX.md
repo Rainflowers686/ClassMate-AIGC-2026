@@ -1,4 +1,16 @@
-# Document Index - ClassMate 1.14.3
+# Document Index - ClassMate 1.14.4
+
+版本：`1.14.4 / versionCode 117`
+
+本轮新增当前入口：
+
+| 文件 | 类型 | 状态 |
+| --- | --- | --- |
+| `docs/current/CHANGELOG_1_14_4.md` | 当前版本变更 | 新增 |
+| `docs/current/REAL_DEVICE_FIX_MATRIX_1_14_4.md` | 真机问题修复矩阵 | 新增 |
+| `docs/current/REAL_DEVICE_TEST_MANUAL_1_14_4.md` | 真机复测手册 | 新增 |
+
+1.14.4 之后，ASR 无系统服务、蓝心失败、微测相关性、反馈即时优化、复习知识点摘要等当前状态以以上三个文件为准。
 
 版本：`1.14.3 / versionCode 116`
 本轮候选改动：录音/ASR readiness、反馈即时优化、复习知识摘要、题目详解增强。

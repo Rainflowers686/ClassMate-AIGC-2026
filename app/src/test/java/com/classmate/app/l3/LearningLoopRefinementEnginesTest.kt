@@ -77,6 +77,10 @@ class LearningLoopRefinementEnginesTest {
         assertNotEquals("q_1", replacement.id)
         assertTrue(replacement.explanation.contains("答案详解"))
         assertTrue(replacement.explanation.contains("证据摘录"))
+        assertEquals("kp_derivative", replacement.knowledgePointId)
+        assertTrue(replacement.evidenceIds.isNotEmpty())
+        assertFalse(replacement.options.joinToString("\n").contains("无关概念"))
+        assertFalse(replacement.options.joinToString("\n").contains("直接背答案"))
         assertTrue(outcome.snapshot.feedbackOptimizationResults.last().message.contains("生成新的练习题"))
     }
 

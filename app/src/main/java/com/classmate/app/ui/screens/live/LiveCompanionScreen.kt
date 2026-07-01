@@ -42,6 +42,7 @@ import com.classmate.app.asr.AsrEventListener
 import com.classmate.app.asr.AsrState
 import com.classmate.app.state.AppViewModel
 import com.classmate.app.state.Screen
+import com.classmate.app.ui.i18n.AppLanguage
 import com.classmate.app.ui.flow.FlowBreathingTimer
 import com.classmate.app.ui.flow.FocusDurations
 import com.classmate.app.ui.flow.FlowCompColors
@@ -110,7 +111,8 @@ fun LiveCompanionScreen(viewModel: AppViewModel) {
 
     // --- experimental system ASR wiring (no raw audio saved, no upload, no background recording) ---
     val asr = ui.asrSession
-    val engine = remember { AndroidSpeechRecognizerClient(context) }
+    val asrLanguageTag = if (ui.language.resolve() == AppLanguage.EN) "en-US" else "zh-CN"
+    val engine = remember(asrLanguageTag) { AndroidSpeechRecognizerClient(context, asrLanguageTag) }
     val listener = remember {
         object : AsrEventListener {
             override fun onListening() = viewModel.asrOnListening()
@@ -120,7 +122,7 @@ fun LiveCompanionScreen(viewModel: AppViewModel) {
             override fun onError(message: String) { viewModel.asrOnError(message); engine.stop() }
         }
     }
-    DisposableEffect(Unit) { onDispose { engine.destroy() } }
+    DisposableEffect(engine) { onDispose { engine.destroy() } }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted && viewModel.asrBegin(engine.isAvailable(), true) == AsrState.LISTENING) engine.start(listener)
         else if (!granted) viewModel.asrBegin(engine.isAvailable(), permissionGranted = false)

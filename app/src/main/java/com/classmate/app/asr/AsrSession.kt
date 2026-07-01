@@ -76,6 +76,10 @@ object AsrSessionController {
     fun onFinal(session: AsrSession, text: String, confidence: Double?, speaker: SpeakerLabel, now: Long): AsrSession {
         val clean = text.trim()
         if (!session.isActive || clean.isEmpty()) return session.copy(partialText = "", state = AsrState.LISTENING)
+        val lastText = session.segments.lastOrNull()?.text?.trim()
+        if (lastText == clean) {
+            return session.copy(state = AsrState.LISTENING, partialText = "")
+        }
         val end = session.elapsedMs(now)
         val start = session.lastSegmentEndMs.coerceAtMost(end)
         val index = session.segments.size + 1

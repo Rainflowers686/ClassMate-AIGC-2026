@@ -1631,7 +1631,7 @@ class AppViewModel(
         publishL3Snapshot(
             l3Pipeline.buildFromLearningLoopInput(input, ui.providerConfigSummary, now + 1),
             now + 1,
-            "已确认（$origin · 端侧多模态理解草稿），用户确认后进入学习资料，并已生成 L3 学习闭环。",
+            "已确认（$origin · 端侧多模态理解草稿），用户确认后进入学习资料，并已生成学习闭环。",
         )
     }
 
@@ -1708,7 +1708,7 @@ class AppViewModel(
         publishL3Snapshot(
             l3Pipeline.buildFromLearningLoopInput(input, ui.providerConfigSummary, now),
             now,
-            "已确认图片 OCR 批次，成功图片 ${merged.okDrafts.size} 张，失败 ${merged.failedDrafts.size} 张；已生成 L3 学习闭环。",
+            "已确认图片 OCR 批次，成功图片 ${merged.okDrafts.size} 张，失败 ${merged.failedDrafts.size} 张；已生成学习闭环。",
         )
         return true
     }
@@ -2135,7 +2135,7 @@ class AppViewModel(
             providerSummary = ui.providerConfigSummary,
             now = now,
         )
-        return publishL3Snapshot(snapshot, now, "已生成 L3 学习闭环：摘要、知识点、微测、错题和复习队列。")
+        return publishL3Snapshot(snapshot, now, "已生成学习闭环：摘要、知识点、微测、错题和复习队列。")
     }
 
     fun startClassroomRecording(now: Long = System.currentTimeMillis()) {
@@ -3391,7 +3391,7 @@ class AppViewModel(
                         onDeviceAnalysisReason = onDeviceReason ?: ui.onDeviceAnalysisReason,
                         onDeviceAnalysisDiagnostic = onDeviceDiag ?: ui.onDeviceAnalysisDiagnostic,
                         analysisError = buildString {
-                            append("云端蓝心：").append(sourceReport.cloudStatus)
+                            append("云端蓝心：").append(AnalysisSourceReport.cloudStatusZh(sourceReport.cloudStatus))
                             append("\n端侧蓝心：").append(if (sourceReport.onDeviceAttempted) "已尝试" else "未尝试")
                             append("\n端侧结果：").append(AnalysisSourceReport.onDeviceReasonZh(sourceReport.onDeviceReason))
                             append("\n本地基础整理：").append(if (hasUsableInput) "已尝试但未生成可用结果" else "无可用输入")

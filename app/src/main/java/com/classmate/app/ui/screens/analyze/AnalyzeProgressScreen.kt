@@ -151,7 +151,7 @@ fun AnalyzeProgressScreen(viewModel: AppViewModel) {
                 val report = ui.analysisSourceReport
                 val rows = if (report != null) {
                     listOf(
-                        "云端蓝心" to report.cloudStatus,
+                        "云端蓝心" to AnalysisSourceReport.cloudStatusZh(report.cloudStatus),
                         "端侧蓝心" to if (report.onDeviceAttempted) "已尝试" else "未尝试",
                         "端侧结果" to AnalysisSourceReport.onDeviceReasonZh(report.onDeviceReason),
                         "最终结果" to report.finalSource,

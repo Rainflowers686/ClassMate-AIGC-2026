@@ -175,19 +175,29 @@ class L3LearningPipeline {
         }
         val questions = knowledge.take(5).mapIndexed { index, kp ->
             val evidenceId = kp.sourceEvidenceIds.first()
+            val evidenceQuote = evidence.firstOrNull { it.id == evidenceId }?.text.orEmpty().take(96).ifBlank { kp.explanation }
+            val otherTitles = knowledge
+                .filter { it.id != kp.id && it.title.isNotBlank() }
+                .map { it.title }
+            val optionB = otherTitles.getOrNull(0)
+                ?.let { "B. 把「$it」的证据直接当成「${kp.title}」的结论" }
+                ?: "B. 只引用证据片段，但没有说明它怎样支撑「${kp.title}」"
+            val optionC = otherTitles.getOrNull(1)
+                ?.let { "C. 混淆「$it」和「${kp.title}」的适用范围" }
+                ?: "C. 只背关键词，没有回到证据核对「${kp.title}」"
             L3GeneratedQuestion(
                 id = "q_${now}_${index + 1}",
                 lessonId = source.id,
                 knowledgePointId = kp.id,
                 stem = "关于“${kp.title}”，下面哪一项最符合课堂材料？",
                 options = listOf(
-                    "A. ${kp.explanation}",
-                    "B. 与本节课无关的背景信息",
-                    "C. 只需要背诵术语，不需要证据",
-                    "D. 该知识点无法从材料中判断",
+                    "A. ${kp.explanation.ifBlank { evidenceQuote }}",
+                    optionB,
+                    optionC,
+                    "D. 忽略证据摘录，直接给出未被材料支持的结论",
                 ),
                 correctAnswer = "A",
-                explanation = "A 直接对应来源证据；复习时先读证据，再用自己的话解释。",
+                explanation = "答案详解：A 对应知识点「${kp.title}」并能由证据推出。B/C 混淆了同课其他知识点或适用范围；D 没有回到材料核对。证据摘录：$evidenceQuote",
                 evidenceIds = listOf(evidenceId),
                 difficulty = Difficulty.MEDIUM,
             )
@@ -300,9 +310,14 @@ class L3LearningPipeline {
                 masteryState = L3MasteryState.LEARNING,
             )
         }
-        val repaired = QuizQuality.repairAndFilter(result.quizQuestions).mapIndexed { index, question ->
+        val repaired = QuizQuality.repairAndFilter(result.quizQuestions).mapIndexedNotNull { index, question ->
             // Carry the per-option "why right / why wrong + how to fix" reasoning into the L3 question so it
             // reaches the Study Pack export and the WrongBook (both read this explanation), not just the quiz UI.
+            val kpId = question.testedKnowledgePointIds.firstOrNull()
+            val fallbackEvidenceIds = knowledge.getOrNull(index % knowledge.size.coerceAtLeast(1))?.sourceEvidenceIds.orEmpty()
+            val resolvedEvidenceIds = question.evidence.mapIndexed { evIndex, _ -> evidence.getOrNull(evIndex)?.id }.filterNotNull()
+                .ifEmpty { fallbackEvidenceIds }
+            if (kpId.isNullOrBlank() || resolvedEvidenceIds.isEmpty()) return@mapIndexedNotNull null
             val optionExplanations = question.options
                 .filter { it.rationale.isNotBlank() }
                 .joinToString("；") { "${it.id}：${it.rationale}" }
@@ -314,13 +329,12 @@ class L3LearningPipeline {
             L3GeneratedQuestion(
                 id = question.id,
                 lessonId = session.id,
-                knowledgePointId = question.testedKnowledgePointIds.firstOrNull().orEmpty(),
+                knowledgePointId = kpId,
                 stem = question.stem,
                 options = question.options.map { "${it.id}. ${it.text}" },
                 correctAnswer = question.correctOptionIds.joinToString(","),
                 explanation = fullExplanation,
-                evidenceIds = question.evidence.mapIndexed { evIndex, _ -> evidence.getOrNull(evIndex)?.id }.filterNotNull()
-                    .ifEmpty { knowledge.getOrNull(index % knowledge.size.coerceAtLeast(1))?.sourceEvidenceIds.orEmpty() },
+                evidenceIds = resolvedEvidenceIds,
                 difficulty = question.difficulty,
             )
         }
@@ -817,6 +831,15 @@ class L3LearningPipeline {
      */
     private fun localBasicQuestions(lessonId: String, knowledge: List<L3KnowledgePoint>, now: Long): List<L3GeneratedQuestion> =
         knowledge.filter { it.sourceEvidenceIds.isNotEmpty() }.take(3).mapIndexed { index, kp ->
+            val otherTitles = knowledge
+                .filter { it.id != kp.id && it.title.isNotBlank() }
+                .map { it.title }
+            val optionB = otherTitles.getOrNull(0)
+                ?.let { "B. 把「$it」的证据直接当成「${kp.title}」的结论" }
+                ?: "B. 只引用证据片段，但没有说明它怎样支撑「${kp.title}」"
+            val optionC = otherTitles.getOrNull(1)
+                ?.let { "C. 混淆「$it」和「${kp.title}」的适用范围" }
+                ?: "C. 只背关键词，没有回到证据核对「${kp.title}」"
             L3GeneratedQuestion(
                 id = "q_${now}_lf${index + 1}",
                 lessonId = lessonId,
@@ -824,12 +847,12 @@ class L3LearningPipeline {
                 stem = "关于“${kp.title}”，下面哪一项最符合课堂材料？",
                 options = listOf(
                     "A. ${kp.explanation.ifBlank { "回到来源证据核对“${kp.title}”的关键表述" }}",
-                    "B. 与本节课无关的背景信息",
-                    "C. 只需要背诵术语，不需要回到证据",
+                    optionB,
+                    optionC,
                     "D. 该说法无法从课堂材料中得到支持",
                 ),
                 correctAnswer = "A",
-                explanation = "A 直接对应该知识点的来源证据；复习时先读证据，再用自己的话解释。",
+                explanation = "答案详解：A 对应知识点「${kp.title}」并绑定来源证据。B/C 混淆了同课知识点或适用范围；D 没有给出证据支撑。复习时先读证据，再用自己的话解释。",
                 evidenceIds = listOf(kp.sourceEvidenceIds.first()),
                 difficulty = Difficulty.MEDIUM,
             )

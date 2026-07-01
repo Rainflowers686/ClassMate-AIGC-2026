@@ -68,6 +68,17 @@ class AsrSessionControllerTest {
     }
 
     @Test
+    fun duplicateFinalDoesNotCreateRepeatedTranscriptSegment() {
+        val listening = AsrSessionController.begin(base, true, true, 1_000)
+        val first = AsrSessionController.onFinal(listening, "电磁感应", null, SpeakerLabel.TEACHER, 2_000)
+        val duplicate = AsrSessionController.onFinal(first, " 电磁感应 ", null, SpeakerLabel.TEACHER, 3_000)
+
+        assertEquals(1, duplicate.segments.size)
+        assertEquals("", duplicate.partialText)
+        assertEquals(AsrState.LISTENING, duplicate.state)
+    }
+
+    @Test
     fun errorKeepsConfirmedSegments() {
         val listening = AsrSessionController.begin(base, true, true, 1_000)
         val withSeg = AsrSessionController.onFinal(listening, "已确认片段", null, SpeakerLabel.UNKNOWN, 2_000)

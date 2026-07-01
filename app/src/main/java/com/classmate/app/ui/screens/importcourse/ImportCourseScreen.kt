@@ -70,6 +70,7 @@ import com.classmate.app.importing.SelectedLocalFileMetadata
 import com.classmate.app.sample.SampleLessonLibrary
 import com.classmate.app.state.AppViewModel
 import com.classmate.app.state.Screen
+import com.classmate.app.ui.i18n.AppLanguage
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
@@ -160,7 +161,8 @@ fun ImportCourseScreen(viewModel: AppViewModel) {
     }
     // P0-1: live speech-to-text engine for INLINE "record + transcribe". Uses the system recognizer as
     // the non-official fallback (no raw audio kept by the recognizer itself); honest states drive the UI.
-    val asrEngine = remember { AndroidSpeechRecognizerClient(context) }
+    val asrLanguageTag = if (ui.language.resolve() == AppLanguage.EN) "en-US" else "zh-CN"
+    val asrEngine = remember(asrLanguageTag) { AndroidSpeechRecognizerClient(context, asrLanguageTag) }
     val asrListener = remember {
         object : AsrEventListener {
             override fun onListening() = viewModel.asrOnListening()
@@ -170,7 +172,7 @@ fun ImportCourseScreen(viewModel: AppViewModel) {
             override fun onError(message: String) { viewModel.asrOnError(message); asrEngine.stop() }
         }
     }
-    DisposableEffect(Unit) { onDispose { asrEngine.destroy() } }
+    DisposableEffect(asrEngine) { onDispose { asrEngine.destroy() } }
     fun beginRecordAndTranscribe(granted: Boolean) {
         val state = viewModel.startRecordingWithTranscription(asrEngine.isAvailable(), granted)
         if (state == AsrState.LISTENING) asrEngine.start(asrListener)
@@ -280,7 +282,7 @@ fun ImportCourseScreen(viewModel: AppViewModel) {
                                 SampleLessonLibrary.lessons.firstOrNull()?.let { viewModel.loadSampleLesson(it.id) }
                                 viewModel.navigateTo(Screen.IMPORT_TRAY)
                             }),
-                            ProductRow("L3 演示包", "加载课堂材料和题库模板，用于 2–3 分钟闭环演示", Icons.Filled.CheckCircle, onClick = {
+                            ProductRow("演示学习包", "加载课堂材料和题库模板，用于 2–3 分钟闭环演示", Icons.Filled.CheckCircle, onClick = {
                                 viewModel.loadL3DemoSeed()
                                 viewModel.navigateTo(Screen.IMPORT_TRAY)
                             }),
@@ -469,7 +471,7 @@ private fun ClassroomRecordingCard(
             )
             Spacer(Modifier.height(Dimens.xs))
             Text(
-                "官方 ASR 未配置时，这条手动转写会进入同一 L3 pipeline，并保留录音文件、时间段和转写片段证据。",
+                "自动转写不可用时，这条手动转写会进入同一学习闭环，并保留录音文件、时间段和转写片段证据。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -527,18 +529,35 @@ private fun ClassroomRecordingCard(
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(Dimens.s))
+                SecondaryButton(
+                    text = "粘贴转写文本",
+                    onClick = { viewModel.navigateTo(Screen.TRANSCRIPT_IMPORT) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(Dimens.s))
             }
-            PrimaryButton("开始录音并实时转写", onClick = onStartRecording, modifier = Modifier.fillMaxWidth())
+            PrimaryButton(
+                if (ui.asrSession.state == AsrState.UNSUPPORTED) "仅录音" else "开始录音并实时转写",
+                onClick = onStartRecording,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }
 
 private fun openSpeechRecognitionSettings(context: Context, onFailed: () -> Unit) {
     for (target in SpeechRecognitionSettingsTargets.ordered()) {
-        val launched = runCatching {
-            context.startActivity(Intent(target.action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            true
-        }.getOrDefault(false)
+        val intent = Intent(target.action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).apply {
+            if (target.requiresAppPackageUri) data = Uri.parse("package:${context.packageName}")
+        }
+        val launched = if (intent.resolveActivity(context.packageManager) == null) {
+            false
+        } else {
+            runCatching {
+                context.startActivity(intent)
+                true
+            }.getOrDefault(false)
+        }
         if (launched) return
     }
     onFailed()
@@ -1253,7 +1272,7 @@ fun ImportSettingsScreen(viewModel: AppViewModel) {
                 modifier = Modifier.fillMaxWidth(),
             )
             SecondaryButton(
-                text = "生成 L3 本地学习闭环",
+                text = "生成本地学习闭环",
                 onClick = { viewModel.generateL3PipelineFromCurrentMaterial() },
                 enabled = ui.courseText.isNotBlank() || ui.ocrImports.any { it.status == OcrImportStatus.OK && it.pastedText.isNotBlank() } || ui.transcripts.any { it.segments.any { seg -> seg.text.isNotBlank() } },
                 modifier = Modifier.fillMaxWidth(),

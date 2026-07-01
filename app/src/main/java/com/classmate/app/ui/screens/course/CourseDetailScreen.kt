@@ -237,7 +237,7 @@ private fun L3PipelineStatusCard(viewModel: AppViewModel) {
     QuietCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("L3 学习闭环", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Text("学习闭环", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 Text(
                     "${l3.evidence.size} 条证据 · ${l3.questions.size} 道微测 · ${l3.reviewQueue.size} 个复习项",
                     style = MaterialTheme.typography.bodySmall,

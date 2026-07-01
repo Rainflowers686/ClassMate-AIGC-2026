@@ -236,12 +236,12 @@ object FeedbackLearningOptimizer {
             stem = "根据课堂证据，以下哪项最能说明「$title」？",
             options = listOf(
                 "A. $quote",
-                "B. 只记住题面，不回看课堂证据",
-                "C. 把无关概念当成本课重点",
-                "D. 跳过证据，直接背答案",
+                "B. 只引用证据表面词语，没有说明它怎样支撑「$title」",
+                "C. 把证据片段当作结论，但没有核对题干要求",
+                "D. 忽略证据摘录，选择未被课堂材料支持的说法",
             ),
             correctAnswer = "A",
-            explanation = "答案详解：A 直接来自本课证据，能支撑「$title」。B/C/D 都没有回到课堂证据，容易造成误判。证据摘录：$quote",
+            explanation = "答案详解：A 直接来自本课证据，能支撑「$title」。B/C/D 都没有把题干、知识点和证据对应起来，容易造成误判。证据摘录：$quote",
             evidenceIds = listOf(evidence.id),
             difficulty = old.difficulty,
         )

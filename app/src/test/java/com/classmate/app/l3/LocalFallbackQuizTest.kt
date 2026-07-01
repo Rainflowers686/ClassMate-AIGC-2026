@@ -1,6 +1,11 @@
 package com.classmate.app.l3
 
 import com.classmate.app.platform.ProviderConfigSummary
+import com.classmate.core.model.Difficulty
+import com.classmate.core.model.EvidenceSpan
+import com.classmate.core.model.QuestionType
+import com.classmate.core.model.QuizOption
+import com.classmate.core.model.QuizQuestion
 import com.classmate.core.sample.SampleCourses
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -46,5 +51,37 @@ class LocalFallbackQuizTest {
         assertNotNull("artifacts build (not null) once a quiz exists", artifacts)
         assertFalse("result.quizQuestions is populated", artifacts!!.result.quizQuestions.isEmpty())
         assertTrue("the generated quiz has a correct option id", artifacts.result.quizQuestions.first().correctOptionIds.isNotEmpty())
+    }
+
+    @Test
+    fun unrelatedModelQuizWithoutKnowledgeBindingIsFilteredBeforePractice() {
+        val session = SampleCourses.seriesSession(now)
+        val badQuestion = QuizQuestion(
+            id = "bad_unbound",
+            type = QuestionType.CONCEPT_UNDERSTANDING,
+            stem = "这道题没有绑定本课知识点",
+            options = listOf(
+                QuizOption("A", "随便猜一个答案", true, "没有证据"),
+                QuizOption("B", "另一个随机答案", false, "没有证据"),
+            ),
+            testedKnowledgePointIds = emptyList(),
+            evidence = listOf(EvidenceSpan.of(session.segments.first().id, 0, session.segments.first().text.take(8))),
+            explanation = "没有知识点绑定",
+            difficulty = Difficulty.EASY,
+        )
+        val result = SampleCourses.seriesAnalysis(now).copy(quizQuestions = listOf(badQuestion))
+
+        val snapshot = L3LearningPipeline().buildFromAnalysis(
+            session = session,
+            result = result,
+            sourceType = L3SourceType.TEXT,
+            providerSummary = providerSummary,
+            now = now + 1,
+        )
+
+        assertFalse(snapshot.questions.any { it.id == "bad_unbound" })
+        assertTrue(snapshot.questions.isNotEmpty())
+        assertTrue(snapshot.questions.all { it.knowledgePointId.isNotBlank() && it.evidenceIds.isNotEmpty() })
+        assertFalse(snapshot.questions.joinToString("\n") { it.options.joinToString("\n") }.contains("与本节课无关"))
     }
 }

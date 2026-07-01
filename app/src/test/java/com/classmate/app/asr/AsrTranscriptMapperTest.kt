@@ -54,4 +54,29 @@ class AsrTranscriptMapperTest {
             assertFalse("recognizer client must not contain $it", source.contains(it))
         }
     }
+
+    @Test
+    fun androidClientPassesExplicitLanguageToSystemRecognizer() {
+        val source = listOf(
+            File("src/main/java/com/classmate/app/asr/AndroidSpeechRecognizerClient.kt"),
+            File("app/src/main/java/com/classmate/app/asr/AndroidSpeechRecognizerClient.kt"),
+        ).first { it.exists() }.readText()
+
+        assertTrue(source.contains("RecognizerIntent.EXTRA_LANGUAGE"))
+        assertTrue(source.contains("RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE"))
+        assertTrue(source.contains("languageTag"))
+    }
+
+    @Test
+    fun importRecordingSettingsResolveBeforeOpeningSystemScreens() {
+        val source = listOf(
+            File("src/main/java/com/classmate/app/ui/screens/importcourse/ImportCourseScreen.kt"),
+            File("app/src/main/java/com/classmate/app/ui/screens/importcourse/ImportCourseScreen.kt"),
+        ).first { it.exists() }.readText()
+
+        assertTrue(source.contains("resolveActivity(context.packageManager)"))
+        assertTrue(source.contains("requiresAppPackageUri"))
+        assertTrue(source.contains("仅录音"))
+        assertTrue(source.contains("粘贴转写文本"))
+    }
 }

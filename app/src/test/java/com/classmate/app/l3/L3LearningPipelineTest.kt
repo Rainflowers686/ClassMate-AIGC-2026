@@ -53,6 +53,32 @@ class L3LearningPipelineTest {
     }
 
     @Test
+    fun localQuizQuestionsStayBoundToKnowledgeAndEvidence() {
+        val snapshot = L3LearningPipeline().buildFromText(
+            title = "物理：电磁感应",
+            text = """
+                法拉第电磁感应定律说明，穿过闭合回路的磁通量发生变化时会产生感应电动势。
+                楞次定律用于判断感应电流方向，感应电流的磁场总是阻碍引起它的磁通量变化。
+                感应电动势大小与磁通量变化率有关，可以通过实验线圈和电流计观察。
+            """.trimIndent(),
+            sourceType = L3SourceType.TEXT,
+            providerSummary = providerSummary,
+            now = now + 21,
+        )
+
+        assertTrue(snapshot.questions.isNotEmpty())
+        snapshot.questions.forEach { question ->
+            assertTrue(question.knowledgePointId.isNotBlank())
+            assertTrue(question.evidenceIds.isNotEmpty())
+            assertTrue(question.explanation.contains("答案详解"))
+            assertTrue(question.explanation.contains("证据摘录") || question.explanation.contains("来源证据"))
+            val joined = question.options.joinToString("\n")
+            assertFalse(joined.contains("与本节课无关"))
+            assertFalse(joined.contains("只需要背诵"))
+        }
+    }
+
+    @Test
     fun learningLoopInputKeepsOcrAssetMetadataOnEvidence() {
         val input = LearningLoopInput(
             id = "input_ocr",

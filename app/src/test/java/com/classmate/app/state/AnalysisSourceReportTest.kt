@@ -60,4 +60,23 @@ class AnalysisSourceReportTest {
             )
         }
     }
+
+    @Test
+    fun cloudStatusMapsToFriendlyUserTextWithoutSecretsOrRawCodes() {
+        val cases = listOf(
+            "BLUELM:CONFIG_MISSING" to "未配置",
+            "BLUELM:HTTP_401" to "鉴权",
+            "BLUELM:NETWORK:UNKNOWN_HOST" to "网络",
+            "BLUELM:SOCKET_TIMEOUT" to "超时",
+            "BLUELM:EMPTY_RESPONSE" to "返回为空",
+        )
+
+        cases.forEach { (code, expected) ->
+            val zh = AnalysisSourceReport.cloudStatusZh(code)
+            assertTrue("$code should mention $expected", zh.contains(expected))
+            assertFalse(zh.contains("BLUELM:"))
+            assertFalse(zh.contains("AppKey="))
+            assertFalse(zh.contains("Authorization"))
+        }
+    }
 }

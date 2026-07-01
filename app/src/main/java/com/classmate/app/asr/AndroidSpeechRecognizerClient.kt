@@ -18,7 +18,10 @@ import android.speech.SpeechRecognizer
  * Must be created/used on the main thread. Not unit-tested (Android dependency); the state machine in
  * [AsrSessionController] is tested with a fake instead.
  */
-class AndroidSpeechRecognizerClient(private val context: Context) : SpeechRecognizerEngine {
+class AndroidSpeechRecognizerClient(
+    private val context: Context,
+    private val languageTag: String = "zh-CN",
+) : SpeechRecognizerEngine {
 
     private var recognizer: SpeechRecognizer? = null
     private var listener: AsrEventListener? = null
@@ -54,6 +57,8 @@ class AndroidSpeechRecognizerClient(private val context: Context) : SpeechRecogn
         if (!active) return
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, languageTag)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, languageTag)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {

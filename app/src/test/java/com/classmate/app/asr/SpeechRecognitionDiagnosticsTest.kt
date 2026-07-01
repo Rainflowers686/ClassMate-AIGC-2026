@@ -49,8 +49,10 @@ class SpeechRecognitionDiagnosticsTest {
 
         assertEquals(SpeechRecognitionSettingsTargets.ACTION_VOICE_INPUT_SETTINGS, targets.first().action)
         assertTrue(targets.any { it.action == SpeechRecognitionSettingsTargets.ACTION_INPUT_METHOD_SETTINGS })
+        assertTrue(targets.any { it.action == SpeechRecognitionSettingsTargets.ACTION_APPLICATION_DETAILS_SETTINGS && it.requiresAppPackageUri })
         assertEquals(SpeechRecognitionSettingsTargets.ACTION_SETTINGS, targets.last().action)
-        assertTrue(SpeechRecognitionSettingsTargets.unavailableGuidance().contains("系统语音识别服务不可用"))
+        assertTrue(SpeechRecognitionSettingsTargets.unavailableGuidance().contains("未提供系统语音识别服务"))
+        assertTrue(SpeechRecognitionSettingsTargets.unavailableGuidance().contains("仅录音"))
         assertTrue(SpeechRecognitionSettingsTargets.unavailableGuidance().contains("手动粘贴"))
     }
 }
