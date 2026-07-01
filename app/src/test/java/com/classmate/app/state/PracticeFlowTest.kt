@@ -85,9 +85,13 @@ class PracticeFlowTest {
         val question = viewModel.ui.result!!.quizQuestions.first()
         viewModel.submitFeedback(FeedbackType.NOT_ACCURATE, FeedbackTargetKind.QUIZ_QUESTION, question.id)
         assertTrue(viewModel.ui.flaggedQuestionIds.contains(question.id))
+        val replacement = viewModel.ui.l3Pipeline.feedbackOptimizationResults.last().createdQuestionId
+        assertNotNull("feedback should create a replacement quiz when evidence exists", replacement)
+        assertTrue("replacement enters the current quiz list", viewModel.ui.result!!.quizQuestions.any { it.id == replacement })
         viewModel.startRandomQuiz(now = now)
         viewModel.ui.practiceSession?.let { s ->
             assertTrue("flagged question excluded from random quiz", s.items.none { it.quizId == question.id })
+            assertTrue("random quiz still has follow-up practice", s.items.isNotEmpty())
         }
     }
 

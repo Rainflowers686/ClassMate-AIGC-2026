@@ -1,7 +1,7 @@
-# Document Index - ClassMate 1.14.2
+# Document Index - ClassMate 1.14.3
 
-版本：`1.14.2 / versionCode 115`
-最新提交：`7473fb1 fix(product): repair final real-device import and quiz blockers`
+版本：`1.14.3 / versionCode 116`
+本轮候选改动：录音/ASR readiness、反馈即时优化、复习知识摘要、题目详解增强。
 
 ## 文档盘点表
 
@@ -15,12 +15,15 @@
 | `docs/INDEX.md` | docs 总入口 | 是 | 更新为当前 docs/current 入口 |
 | `docs/current/README.md` | 当前文档入口 | 缺失 | 已新建 |
 | `docs/current/FINAL_STATUS_1_14_2.md` | 当前状态 | 缺失 | 已新建 |
+| `docs/current/FINAL_STATUS_1_14_3.md` | 当前状态 | 缺失 | 已新建，覆盖 1.14.3 新增修复 |
 | `docs/current/CHANGELOG_1_14_2.md` | 当前版本变更 | 缺失 | 已新建 |
+| `docs/current/CHANGELOG_1_14_3.md` | 当前版本变更 | 缺失 | 已新建 |
 | `docs/current/OFFICIAL_CAPABILITY_MATRIX_1_14_2.md` | 官方能力 | 缺失 | 已新建 |
 | `docs/current/official_capability_evidence_matrix_v2.md` | 官方能力旧入口 | 部分过时 | 更新为 1.14.2 映射 |
 | `docs/current/official_tool_matrix.md` | 官方工具旧入口 | 部分过时 | 更新为 1.14.2 映射 |
 | `docs/current/official_tool_productization_matrix.md` | 官方产品化旧入口 | 部分过时 | 更新为 1.14.2 映射 |
 | `docs/current/REAL_DEVICE_FIX_MATRIX_1_14_2.md` | 真机修复 | 缺失 | 已新建 |
+| `docs/current/REAL_DEVICE_FIX_MATRIX_1_14_3.md` | 真机修复 | 缺失 | 已新建，补充 ASR 设置入口和反馈即时优化 |
 | `docs/current/REAL_DEVICE_REGRESSION_CHECKLIST.md` | 真机回归 | 缺失 | 已新建 |
 | `docs/current/realdevice_regression_checklist_v1.md` | 旧真机清单 | 部分过时 | 保留并加新入口说明 |
 | `docs/current/ARCHITECTURE_1_14_2.md` | 架构 | 缺失 | 已新建 |
@@ -48,9 +51,9 @@
 ## 当前推荐阅读顺序
 
 1. `README.md`
-2. `docs/current/FINAL_STATUS_1_14_2.md`
+2. `docs/current/FINAL_STATUS_1_14_3.md`
 3. `docs/current/OFFICIAL_CAPABILITY_MATRIX_1_14_2.md`
-4. `docs/current/REAL_DEVICE_FIX_MATRIX_1_14_2.md`
+4. `docs/current/REAL_DEVICE_FIX_MATRIX_1_14_3.md`
 5. `docs/current/DEMO_SCRIPT_1_14_2.md`
 6. `docs/current/REAL_DEVICE_TEST_MANUAL_1_14_2.md`
 7. `docs/current/BUILD_AND_RELEASE.md`

@@ -536,6 +536,29 @@ data class L3GeneratedQuestion(
     val difficulty: Difficulty,
 )
 
+data class RelatedKnowledgeSummary(
+    val id: String,
+    val sourceKnowledgePointId: String,
+    val sourceKnowledgePointTitle: String,
+    val relatedKnowledgePointTitles: List<String>,
+    val evidenceQuotes: List<String>,
+    val confidence: Double,
+    val needsReview: Boolean,
+    val summary: String,
+)
+
+data class FeedbackOptimizationResult(
+    val id: String,
+    val type: String,
+    val message: String,
+    val createdQuestionId: String? = null,
+    val retiredQuestionId: String? = null,
+    val updatedKnowledgePointId: String? = null,
+    val alternativeEvidenceId: String? = null,
+    val needsReview: Boolean = false,
+    val createdAt: Long,
+)
+
 data class L3PracticeAttempt(
     val id: String,
     val questionId: String,
@@ -995,6 +1018,8 @@ data class L3PipelineSnapshot(
     val semanticIndexChunks: List<SemanticIndexChunk> = emptyList(),
     val semanticIndexRecords: List<LocalSemanticIndexRecord> = emptyList(),
     val semanticSearchResults: List<SemanticSearchResult> = emptyList(),
+    val relatedKnowledgeSummaries: List<RelatedKnowledgeSummary> = emptyList(),
+    val feedbackOptimizationResults: List<FeedbackOptimizationResult> = emptyList(),
     val similarityMatches: List<TextSimilarityMatch> = emptyList(),
     val knowledgeGraphEdges: List<KnowledgeGraphEdge> = emptyList(),
     val similarQuestionRecommendations: List<SimilarQuestionRecommendation> = emptyList(),

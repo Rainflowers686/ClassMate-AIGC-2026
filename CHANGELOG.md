@@ -1,6 +1,14 @@
 # Changelog
 
-当前候选版本：`1.14.2 / versionCode 115`，最新核心提交 `7473fb1 fix(product): repair final real-device import and quiz blockers`。
+当前候选版本：`1.14.3 / versionCode 116`，本轮聚焦真机录音/转写入口、反馈即时优化、复习知识摘要和版本收口。
+
+## 1.14.3 / 116 - capture readiness and feedback-driven learning refinement
+
+- 录音实时转写不可用时提供系统语音设置入口，同时保留录音保存、手动转写和字幕导入 fallback。
+- 反馈不只记录：对题目、证据、知识点和复习计划反馈会即时生成替换题或重写知识点摘要，并进入复习队列。
+- 复习页和知识页展示本课核心知识点、相关知识点和证据摘录，减少技术统计露出。
+- 小测替换题补充“答案详解”、选项解释和证据摘录，避免只给正确答案。
+- 风险：官方 OCR/ASR/TTS 网络成功仍需真实 AppKey、权限和设备环境验证；系统语音设置入口是否可直达取决于 ROM。
 
 ## 1.14.2 / 115 - final real-device import and quiz blockers
 

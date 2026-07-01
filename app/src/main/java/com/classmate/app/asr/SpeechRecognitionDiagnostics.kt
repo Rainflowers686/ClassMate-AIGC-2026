@@ -20,7 +20,7 @@ data class SpeechRecognitionReadiness(
         !recordAudioGranted ->
             "请先授予录音权限再开始实时转写；也可手动粘贴或导入字幕。"
         else ->
-            "当前系统未提供语音识别服务，可在系统设置启用语音服务，或手动粘贴/导入字幕；录音会照常保存。"
+            SpeechRecognitionSettingsTargets.unavailableGuidance()
     }
 
     /** One-line readiness summary for the developer diagnostics page (technical wording allowed there). */

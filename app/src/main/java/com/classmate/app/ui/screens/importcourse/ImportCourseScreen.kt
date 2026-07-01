@@ -2,6 +2,7 @@ package com.classmate.app.ui.screens.importcourse
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
@@ -43,6 +44,7 @@ import com.classmate.app.asr.AndroidSpeechRecognizerClient
 import com.classmate.app.asr.AsrEventListener
 import com.classmate.app.asr.AsrSession
 import com.classmate.app.asr.AsrState
+import com.classmate.app.asr.SpeechRecognitionSettingsTargets
 import com.classmate.app.l3.L3RecordingStatus
 import com.classmate.app.l3.ClassroomRecordingRecord
 import com.classmate.app.l3.DialectMode
@@ -487,15 +489,56 @@ private fun ClassroomRecordingCard(
         if (active) {
             // Inline live speech-to-text while recording (P0-1): partial + confirmed segments + honest state.
             LiveTranscriptPanel(ui.asrSession)
+            if (ui.asrSession.state == AsrState.UNSUPPORTED) {
+                Spacer(Modifier.height(Dimens.s))
+                SecondaryButton(
+                    text = "打开语音设置",
+                    onClick = {
+                        openSpeechRecognitionSettings(recordingContext) {
+                            viewModel.toast("无法打开系统语音设置，请手动进入系统设置检查语音服务。")
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
             Spacer(Modifier.height(Dimens.s))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
                 PrimaryButton("停止并保存", onClick = onStopRecording, modifier = Modifier.weight(1f))
                 SecondaryButton("取消", onClick = onCancelRecording, modifier = Modifier.weight(1f))
             }
         } else {
+            if (ui.asrSession.state == AsrState.UNSUPPORTED) {
+                Text(
+                    SpeechRecognitionSettingsTargets.unavailableGuidance(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(Dimens.s))
+                SecondaryButton(
+                    text = "打开语音设置",
+                    onClick = {
+                        openSpeechRecognitionSettings(recordingContext) {
+                            viewModel.toast("无法打开系统语音设置，请手动进入系统设置检查语音服务。")
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(Dimens.s))
+            }
             PrimaryButton("开始录音并实时转写", onClick = onStartRecording, modifier = Modifier.fillMaxWidth())
         }
     }
+}
+
+private fun openSpeechRecognitionSettings(context: Context, onFailed: () -> Unit) {
+    for (target in SpeechRecognitionSettingsTargets.ordered()) {
+        val launched = runCatching {
+            context.startActivity(Intent(target.action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            true
+        }.getOrDefault(false)
+        if (launched) return
+    }
+    onFailed()
 }
 
 /** Inline live transcript view for the recording card: honest state + confirmed segments + interim text. */

@@ -116,6 +116,26 @@ fun KnowledgeTimelineScreen(viewModel: AppViewModel) {
             // Real-device #10/#17: the ask-this-lesson Q&A box is no longer surfaced; the timeline leads
             // with knowledge points, evidence and 微测.
 
+            val related = ui.l3Pipeline.relatedKnowledgeSummaries.take(4)
+            if (related.isNotEmpty()) {
+                QuietCard {
+                    Text("相关知识点", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(Dimens.s))
+                    related.forEach { item ->
+                        Text(
+                            item.summary + if (item.needsReview) "（待核对）" else "",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        if (item.evidenceQuotes.isNotEmpty()) {
+                            Spacer(Modifier.height(Dimens.xs))
+                            EvidenceBlock(quote = item.evidenceQuotes.first(), segmentLabel = s.quizSourceLabel)
+                        }
+                        Spacer(Modifier.height(Dimens.s))
+                    }
+                }
+            }
+
             val context = LocalContext.current
             result.knowledgePoints.forEachIndexed { index, kp ->
                 val segIndex = session.segments.firstOrNull { it.id == kp.sourceSegmentId }?.index

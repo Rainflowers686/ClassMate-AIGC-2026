@@ -66,6 +66,8 @@ import com.classmate.app.l3.AsrLongJob
 import com.classmate.app.l3.AsrLongProductizationEngine
 import com.classmate.app.l3.AudioSessionEngine
 import com.classmate.app.l3.ExamReportEngine
+import com.classmate.app.l3.FeedbackLearningOptimizer
+import com.classmate.app.l3.FeedbackOptimizationOutcome
 import com.classmate.app.l3.InputArtifactStatus
 import com.classmate.app.l3.InputFileKind
 import com.classmate.app.l3.InputReportEngine
@@ -230,7 +232,9 @@ import com.classmate.core.model.CourseAnalysisResult
 import com.classmate.core.model.CourseSession
 import com.classmate.core.model.LearningState
 import com.classmate.core.model.QuizAttempt
+import com.classmate.core.model.QuizOption
 import com.classmate.core.model.QuizQuestion
+import com.classmate.core.model.QuestionType
 import com.classmate.core.model.SourceKind
 import com.classmate.core.prompt.Prompt
 import com.classmate.core.prompt.PromptBuilder
@@ -3733,14 +3737,25 @@ class AppViewModel(
             else -> null
         }?.takeIf { inaccurate }
         val flaggedQId = targetId.takeIf { inaccurate && targetKind == FeedbackTargetKind.QUIZ_QUESTION }
+        val oldCoreQuestion = ui.result?.quizQuestions?.firstOrNull { it.id == targetId }
+        val optimization = if (ui.l3Pipeline.lessonSource != null) {
+            FeedbackLearningOptimizer.optimize(ui.l3Pipeline, type, targetKind, targetId, note, now)
+        } else {
+            null
+        }
+        val optimizedSnapshot = optimization?.snapshot ?: ui.l3Pipeline
+        val optimizedResult = syncFeedbackOptimizationToResult(ui.result, oldCoreQuestion, optimization)
         ui = ui.copy(
             feedbackEvents = ui.feedbackEvents + event,
             learningState = updated ?: ui.learningState,
+            result = optimizedResult,
+            l3Pipeline = optimizedSnapshot,
             reviewPlan = null,
             flaggedKnowledgePointIds = if (flaggedKpId != null) ui.flaggedKnowledgePointIds + flaggedKpId else ui.flaggedKnowledgePointIds,
             flaggedQuestionIds = if (flaggedQId != null) ui.flaggedQuestionIds + flaggedQId else ui.flaggedQuestionIds,
-            toast = if (inaccurate) "已加入待复核，复习计划已更新。" else "已记录反馈：${type.displayZh}",
+            toast = optimization?.result?.message ?: if (inaccurate) "已加入待复核，复习计划已更新。" else "已记录反馈：${type.displayZh}",
         )
+        optimization?.snapshot?.let { persistL3(it) }
         // Mirror into the cross-course review queue (when the feedback maps to a known kp).
         val sessionId = ui.result?.sessionId
         val kpId = when (targetKind) {
@@ -3753,6 +3768,58 @@ class AppViewModel(
             learningStore.recordFeedback(sessionId, kpId, reviewType)
             ui = ui.copy(learningSnapshot = learningStore.snapshot())
         }
+    }
+
+    private fun syncFeedbackOptimizationToResult(
+        result: CourseAnalysisResult?,
+        oldCoreQuestion: QuizQuestion?,
+        optimization: FeedbackOptimizationOutcome?,
+    ): CourseAnalysisResult? {
+        if (result == null || optimization == null) return result
+        val snapshot = optimization.snapshot
+        val updatedKnowledge = optimization.result.updatedKnowledgePointId?.let { kpId ->
+            val updatedL3 = snapshot.knowledgePoints.firstOrNull { it.id == kpId }
+            if (updatedL3 == null) result.knowledgePoints else {
+                result.knowledgePoints.map { kp ->
+                    if (kp.id == kpId) kp.copy(summary = updatedL3.explanation) else kp
+                }
+            }
+        } ?: result.knowledgePoints
+        val replacement = optimization.result.createdQuestionId?.let { id ->
+            val l3Question = snapshot.questions.firstOrNull { it.id == id }
+            if (l3Question != null) {
+                val fallbackEvidence = oldCoreQuestion?.evidence.orEmpty()
+                QuizQuestion(
+                    id = l3Question.id,
+                    type = oldCoreQuestion?.type ?: QuestionType.CONCEPT_UNDERSTANDING,
+                    stem = l3Question.stem,
+                    options = l3Question.options.mapIndexed { index, option ->
+                        QuizOption(
+                            id = QuizOptionIds.letterId(index),
+                            text = QuizOptionIds.cleanText(option),
+                            isCorrect = QuizOptionIds.isAnswer(index, option, l3Question.correctAnswer),
+                            rationale = if (QuizOptionIds.isAnswer(index, option, l3Question.correctAnswer)) {
+                                l3Question.explanation
+                            } else {
+                                "请回到课堂证据核对，该选项没有直接支撑。"
+                            },
+                        )
+                    },
+                    testedKnowledgePointIds = listOf(l3Question.knowledgePointId).filter { it.isNotBlank() },
+                    evidence = fallbackEvidence,
+                    explanation = l3Question.explanation,
+                    difficulty = l3Question.difficulty,
+                )
+            } else {
+                null
+            }
+        }
+        val updatedQuestions = if (replacement != null && result.quizQuestions.none { it.id == replacement.id }) {
+            result.quizQuestions + replacement
+        } else {
+            result.quizQuestions
+        }
+        return result.copy(knowledgePoints = updatedKnowledge, quizQuestions = updatedQuestions)
     }
 
     private fun FeedbackType.toReviewEventType(): ReviewEventType? = when (this) {

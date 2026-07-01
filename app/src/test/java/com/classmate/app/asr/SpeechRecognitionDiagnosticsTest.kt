@@ -42,4 +42,15 @@ class SpeechRecognitionDiagnosticsTest {
         val line = SpeechRecognitionReadiness(recordAudioGranted = true, recognizerAvailable = false, locale = "zh-CN").diagnosticsLine()
         assertEquals("RECORD_AUDIO=granted · recognizer=unavailable · locale=zh-CN", line)
     }
+
+    @Test
+    fun systemSpeechSettingsTargetsProvideOrderedFallbacks() {
+        val targets = SpeechRecognitionSettingsTargets.ordered()
+
+        assertEquals(SpeechRecognitionSettingsTargets.ACTION_VOICE_INPUT_SETTINGS, targets.first().action)
+        assertTrue(targets.any { it.action == SpeechRecognitionSettingsTargets.ACTION_INPUT_METHOD_SETTINGS })
+        assertEquals(SpeechRecognitionSettingsTargets.ACTION_SETTINGS, targets.last().action)
+        assertTrue(SpeechRecognitionSettingsTargets.unavailableGuidance().contains("系统语音识别服务不可用"))
+        assertTrue(SpeechRecognitionSettingsTargets.unavailableGuidance().contains("手动粘贴"))
+    }
 }

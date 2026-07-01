@@ -72,6 +72,22 @@ fun FeedbackScreen(viewModel: AppViewModel) {
                 )
             }
 
+            val optimizations = ui.l3Pipeline.feedbackOptimizationResults
+            if (optimizations.isNotEmpty()) {
+                ClassMateCard {
+                    Text("反馈后的即时优化", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(Dimens.s))
+                    optimizations.asReversed().take(3).forEach { result ->
+                        Text(
+                            "• ${result.message}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(Dimens.xxs))
+                    }
+                }
+            }
+
             if (ui.feedbackEvents.isNotEmpty()) {
                 ClassMateCard {
                     Text("已记录的反馈（${ui.feedbackEvents.size}）", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)

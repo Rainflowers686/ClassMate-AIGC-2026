@@ -156,7 +156,7 @@ private fun L3LearningLoopCard(viewModel: AppViewModel) {
     val reviewing = l3.masteryStats.count { it.state.name == "REVIEWING" }
     val mastered = l3.masteryStats.count { it.state.name == "MASTERED" }
     ClassMateCard {
-        Text("L3 闭环统计", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text("本课知识点复习", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.s))
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.xl)) {
             Stat("${l3.wrongBook.size}", "错题")
@@ -164,6 +164,38 @@ private fun L3LearningLoopCard(viewModel: AppViewModel) {
             Stat("$weak", "薄弱")
             Stat("$reviewing", "复习中")
             Stat("$mastered", "掌握")
+        }
+        val corePoints = l3.knowledgePoints
+            .filter { it.title.isNotBlank() && !it.title.startsWith("kp_") }
+            .take(5)
+        if (corePoints.isNotEmpty()) {
+            Spacer(Modifier.height(Dimens.s))
+            Text("本课核心知识点", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            corePoints.forEach { kp ->
+                val marker = when {
+                    kp.id in viewModel.ui.flaggedKnowledgePointIds -> "需复核"
+                    l3.masteryStats.any { it.knowledgePointId == kp.id && it.state.name == "WEAK" } -> "薄弱"
+                    else -> "复习"
+                }
+                Spacer(Modifier.height(Dimens.xxs))
+                Text("• ${kp.title}（$marker）", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        val related = l3.relatedKnowledgeSummaries.take(3)
+        if (related.isNotEmpty()) {
+            Spacer(Modifier.height(Dimens.s))
+            Text("相关知识点", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            related.forEach { item ->
+                Spacer(Modifier.height(Dimens.xxs))
+                Text(
+                    item.summary + if (item.needsReview) "（待核对）" else "",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else if (corePoints.isEmpty()) {
+            Spacer(Modifier.height(Dimens.s))
+            Text("资料不足，暂时无法可靠总结本课知识点。请补充课堂材料或确认 OCR/转写文本。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (l3.reviewQueue.isNotEmpty()) {
             Spacer(Modifier.height(Dimens.s))

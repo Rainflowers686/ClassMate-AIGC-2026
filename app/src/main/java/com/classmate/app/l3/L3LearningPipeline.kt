@@ -647,12 +647,15 @@ class L3LearningPipeline {
         )
         val semanticRecords = LocalSemanticIndexEngine.records(withPlan, providerSummary, now)
         val searchQuery = knowledge.firstOrNull()?.title ?: summary
-        return withPlan.copy(
+        val withSearch = withPlan.copy(
             semanticIndexRecords = semanticRecords,
             semanticSearchResults = if (searchQuery.isBlank()) emptyList() else listOf(LocalSemanticIndexEngine.search(semanticRecords, searchQuery)),
             toolStepRecords = withPlan.toolOrchestrationPlan?.stepRecords.orEmpty(),
             masteryTrendStats = MasteryTrendEngine.trend(withPlan.masteryHistory, withPlan, now),
-            learningDiagnosis = LearningDiagnosisEngine.build(withPlan, now),
+        )
+        return withSearch.copy(
+            relatedKnowledgeSummaries = RelatedKnowledgeSummaryEngine.build(withSearch),
+            learningDiagnosis = LearningDiagnosisEngine.build(withSearch, now),
         )
     }
 
