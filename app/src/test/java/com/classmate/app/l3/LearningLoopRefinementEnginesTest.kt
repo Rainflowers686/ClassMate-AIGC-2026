@@ -59,6 +59,27 @@ class LearningLoopRefinementEnginesTest {
     }
 
     @Test
+    fun relatedKnowledgeIgnoresClassroomPromptNoise() {
+        val base = snapshot()
+        val noisy = base.copy(
+            evidence = base.evidence + Evidence("ev_noise", base.lessonSource!!.id, L3SourceType.TEXT, "同学们注意，重点来了，大家记一下。", 3),
+            knowledgePoints = base.knowledgePoints + L3KnowledgePoint(
+                id = "kp_noise",
+                title = "同学们注意",
+                explanation = "重点来了，大家记一下。",
+                sourceEvidenceIds = listOf("ev_noise"),
+                masteryState = L3MasteryState.LEARNING,
+            ),
+        )
+
+        val related = RelatedKnowledgeSummaryEngine.build(noisy)
+
+        assertTrue(related.isNotEmpty())
+        assertFalse(related.any { it.sourceKnowledgePointTitle.contains("同学们注意") })
+        assertFalse(related.flatMap { it.relatedKnowledgePointTitles }.any { it.contains("重点来了") })
+    }
+
+    @Test
     fun questionFeedbackRetiresAndCreatesReplacementQuizWithDetailedExplanation() {
         val base = snapshot()
         val outcome = FeedbackLearningOptimizer.optimize(
@@ -82,6 +103,40 @@ class LearningLoopRefinementEnginesTest {
         assertFalse(replacement.options.joinToString("\n").contains("无关概念"))
         assertFalse(replacement.options.joinToString("\n").contains("直接背答案"))
         assertTrue(outcome.snapshot.feedbackOptimizationResults.last().message.contains("生成新的练习题"))
+    }
+
+    @Test
+    fun questionFeedbackDoesNotGenerateReplacementFromNoiseEvidence() {
+        val base = snapshot()
+        val noisyQuestion = base.questions.first().copy(
+            id = "q_noise",
+            knowledgePointId = "kp_noise",
+            evidenceIds = listOf("ev_noise"),
+        )
+        val noisy = base.copy(
+            evidence = base.evidence + Evidence("ev_noise", base.lessonSource!!.id, L3SourceType.TEXT, "同学们注意，重点来了，大家记一下。", 3),
+            knowledgePoints = base.knowledgePoints + L3KnowledgePoint(
+                id = "kp_noise",
+                title = "同学们注意",
+                explanation = "重点来了，大家记一下。",
+                sourceEvidenceIds = listOf("ev_noise"),
+                masteryState = L3MasteryState.LEARNING,
+            ),
+            questions = base.questions + noisyQuestion,
+        )
+
+        val outcome = FeedbackLearningOptimizer.optimize(
+            snapshot = noisy,
+            type = FeedbackType.NOT_ACCURATE,
+            targetKind = FeedbackTargetKind.QUIZ_QUESTION,
+            targetId = "q_noise",
+            note = "题目无关",
+            now = 789L,
+        )
+
+        assertEquals("q_noise", outcome.result.retiredQuestionId)
+        assertTrue(outcome.result.createdQuestionId == null)
+        assertTrue(outcome.result.needsReview)
     }
 
     @Test

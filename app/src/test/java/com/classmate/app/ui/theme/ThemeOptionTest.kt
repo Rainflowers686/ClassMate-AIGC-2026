@@ -9,8 +9,8 @@ import org.junit.Test
 class ThemeOptionTest {
 
     @Test
-    fun defaultThemeIsStandardStudy() {
-        assertEquals(ThemePreset.STANDARD_STUDY, ThemePreset.Default)
+    fun defaultThemeIsFocusImmersion() {
+        assertEquals(ThemePreset.FOCUS_IMMERSION, ThemePreset.Default)
     }
 
     @Test
@@ -42,7 +42,7 @@ class ThemeOptionTest {
     @Test
     fun typographyPresetsAreAvailableWithoutAddingThemePresets() {
         assertEquals(3, ThemePreset.entries.size)
-        assertEquals(TypographyPreset.SYSTEM_DEFAULT, TypographyPreset.Default)
+        assertEquals(TypographyPreset.ACADEMIC, TypographyPreset.Default)
         assertEquals(
             listOf(
                 TypographyPreset.SYSTEM_DEFAULT,

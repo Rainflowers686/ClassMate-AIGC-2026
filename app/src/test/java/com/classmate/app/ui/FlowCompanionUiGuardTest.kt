@@ -102,8 +102,8 @@ class FlowCompanionUiGuardTest {
             assertTrue("$rel must not adopt FlowBreathingTimer", !s.contains("FlowBreathingTimer"))
             // The task pages keep their Stage 10 product shell.
         }
-        // Standard Study stays the global default; the companion layout is still a scoped page.
-        assertEquals(ThemePreset.STANDARD_STUDY, ThemePreset.Default)
+        // Fresh installs start in Focus Immersion; the companion layout is still a scoped page.
+        assertEquals(ThemePreset.FOCUS_IMMERSION, ThemePreset.Default)
     }
 
     @Test

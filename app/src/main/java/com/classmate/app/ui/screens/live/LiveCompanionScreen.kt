@@ -1,7 +1,10 @@
 package com.classmate.app.ui.screens.live
 
 import android.Manifest
+import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -40,6 +43,7 @@ import androidx.core.content.ContextCompat
 import com.classmate.app.asr.AndroidSpeechRecognizerClient
 import com.classmate.app.asr.AsrEventListener
 import com.classmate.app.asr.AsrState
+import com.classmate.app.asr.SpeechRecognitionSettingsTargets
 import com.classmate.app.state.AppViewModel
 import com.classmate.app.state.Screen
 import com.classmate.app.ui.i18n.AppLanguage
@@ -360,7 +364,20 @@ fun LiveCompanionScreen(viewModel: AppViewModel) {
                                 }
                             }
                             when (asr.state) {
-                                AsrState.UNSUPPORTED -> AsrHint("不支持系统语音识别，请使用手动记录或导入字幕。")
+                                AsrState.UNSUPPORTED -> {
+                                    AsrHint("当前设备未提供系统语音识别服务。录音仍可保存；可打开系统语音设置，或改用手动记录/资料导入页粘贴转写。")
+                                    Spacer(Modifier.height(8.dp))
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        FlowPillButton("打开语音设置", filled = false, accent = accent, modifier = Modifier.weight(1f), onClick = {
+                                            openSpeechRecognitionSettings(context) {
+                                                viewModel.toast("未找到可打开的语音识别设置，请在系统设置中检查语音输入服务。")
+                                            }
+                                        })
+                                        FlowPillButton("粘贴转写", filled = false, accent = accent, modifier = Modifier.weight(1f), onClick = {
+                                            viewModel.navigateTo(Screen.IMPORT)
+                                        })
+                                    }
+                                }
                                 AsrState.PERMISSION_REQUIRED -> AsrHint("未授权麦克风，仍可手动记录或导入转写稿。")
                                 AsrState.ERROR -> AsrHint(asr.errorMessage ?: "系统语音识别出错，请改用手动记录。")
                                 else -> {}
@@ -416,4 +433,22 @@ private fun asrStateZh(state: AsrState): String = when (state) {
     AsrState.PAUSED -> "已暂停"
     AsrState.ERROR -> "出错"
     AsrState.UNSUPPORTED -> "不支持"
+}
+
+private fun openSpeechRecognitionSettings(context: Context, onFailed: () -> Unit) {
+    for (target in SpeechRecognitionSettingsTargets.ordered()) {
+        val intent = Intent(target.action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).apply {
+            if (target.requiresAppPackageUri) data = Uri.parse("package:${context.packageName}")
+        }
+        val launched = if (intent.resolveActivity(context.packageManager) == null) {
+            false
+        } else {
+            runCatching {
+                context.startActivity(intent)
+                true
+            }.getOrDefault(false)
+        }
+        if (launched) return
+    }
+    onFailed()
 }

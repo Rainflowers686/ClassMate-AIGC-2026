@@ -136,8 +136,22 @@ class L3LearningPipeline {
             status = if (text.isBlank()) "EMPTY" else "READY",
         )
         if (text.isBlank()) return L3PipelineSnapshot(lessonSource = source)
-        val paragraphs = paragraphChunks(text)
-        val evidence = paragraphs.take(6).mapIndexed { index, paragraph ->
+        val rawParagraphs = paragraphChunks(text)
+        val subjectParagraphs = SubjectKnowledgeExtractor.filterEvidenceParagraphs(rawParagraphs, lessonTitle)
+        val evidenceParagraphs = subjectParagraphs.ifEmpty {
+            rawParagraphs
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+                .filterNot { SubjectKnowledgeExtractor.isNoiseLine(it) }
+                .take(3)
+        }
+        if (evidenceParagraphs.isEmpty()) {
+            return L3PipelineSnapshot(
+                lessonSource = source,
+                summary = "资料质量较低，建议手动修正 OCR/转写文本后再生成知识点。",
+            )
+        }
+        val evidence = evidenceParagraphs.take(6).mapIndexed { index, paragraph ->
             Evidence(
                 id = "ev_${now}_${index + 1}",
                 sourceId = source.id,
@@ -163,8 +177,18 @@ class L3LearningPipeline {
                 null
             }
         }
-        val knowledge = evidence.take(5).mapIndexed { index, ev ->
-            val titleHint = titleFromEvidence(ev.text, index)
+        val allowGenericKnowledgeFallback = sourceType != L3SourceType.OCR_IMAGE
+        val knowledgeEvidence = if (subjectParagraphs.isNotEmpty()) {
+            evidence
+        } else if (allowGenericKnowledgeFallback) {
+            evidence
+        } else {
+            emptyList()
+        }
+        val knowledge = knowledgeEvidence.take(5).mapIndexedNotNull { index, ev ->
+            val titleHint = SubjectKnowledgeExtractor.titleFromEvidence(ev.text, index, lessonTitle)
+                .ifBlank { titleFromEvidence(ev.text, index) }
+            if (!SubjectKnowledgeExtractor.isAcceptedKnowledge(titleHint, ev.text, lessonTitle)) return@mapIndexedNotNull null
             L3KnowledgePoint(
                 id = "kp_${now}_${index + 1}",
                 title = titleHint,
@@ -205,7 +229,7 @@ class L3LearningPipeline {
         return assembleSnapshot(
             source = source,
             transcriptSegments = transcriptSegments,
-            summary = summaryFrom(paragraphs),
+            summary = summaryFrom(subjectParagraphs.ifEmpty { evidenceParagraphs }),
             keyTakeaways = knowledge.map { it.title }.take(4),
             reviewFocus = knowledge.take(3).map { "复习：${it.title}" },
             actionItems = knowledge.take(3).map { "用自己的话解释：${it.title}" },
@@ -299,14 +323,19 @@ class L3LearningPipeline {
                 )
             }
         val evidenceByKp = evidence.groupBy { it.id.substringAfter("ev_").substringBeforeLast("_") }
-        val knowledge = result.knowledgePoints.map { kp ->
+        val knowledge = result.knowledgePoints.mapNotNull { kp ->
+            val sourceEvidenceIds = evidenceByKp[kp.id].orEmpty().map { it.id }.ifEmpty {
+                evidence.firstOrNull()?.let { listOf(it.id) } ?: emptyList()
+            }
+            val evidenceText = sourceEvidenceIds.mapNotNull { id -> evidence.firstOrNull { it.id == id }?.text }.joinToString(" ")
+            if (!SubjectKnowledgeExtractor.isAcceptedKnowledge(kp.title, evidenceText.ifBlank { kp.summary }, source.title)) {
+                return@mapNotNull null
+            }
             L3KnowledgePoint(
                 id = kp.id,
                 title = kp.title,
                 explanation = kp.summary,
-                sourceEvidenceIds = evidenceByKp[kp.id].orEmpty().map { it.id }.ifEmpty {
-                    evidence.firstOrNull()?.let { listOf(it.id) } ?: emptyList()
-                },
+                sourceEvidenceIds = sourceEvidenceIds,
                 masteryState = L3MasteryState.LEARNING,
             )
         }
@@ -314,10 +343,11 @@ class L3LearningPipeline {
             // Carry the per-option "why right / why wrong + how to fix" reasoning into the L3 question so it
             // reaches the Study Pack export and the WrongBook (both read this explanation), not just the quiz UI.
             val kpId = question.testedKnowledgePointIds.firstOrNull()
+            if (kpId.isNullOrBlank() || kpId !in knowledge.map { it.id }.toSet()) return@mapIndexedNotNull null
             val fallbackEvidenceIds = knowledge.getOrNull(index % knowledge.size.coerceAtLeast(1))?.sourceEvidenceIds.orEmpty()
             val resolvedEvidenceIds = question.evidence.mapIndexed { evIndex, _ -> evidence.getOrNull(evIndex)?.id }.filterNotNull()
                 .ifEmpty { fallbackEvidenceIds }
-            if (kpId.isNullOrBlank() || resolvedEvidenceIds.isEmpty()) return@mapIndexedNotNull null
+            if (resolvedEvidenceIds.isEmpty()) return@mapIndexedNotNull null
             val optionExplanations = question.options
                 .filter { it.rationale.isNotBlank() }
                 .joinToString("；") { "${it.id}：${it.rationale}" }
@@ -344,10 +374,10 @@ class L3LearningPipeline {
         return assembleSnapshot(
             source = source,
             transcriptSegments = emptyList(),
-            summary = result.knowledgePoints.take(3).joinToString("；") { it.summary }.ifBlank { "已生成课程摘要。" },
-            keyTakeaways = result.knowledgePoints.map { it.title }.take(4),
-            reviewFocus = result.knowledgePoints.take(3).map { "回看证据：${it.title}" },
-            actionItems = result.knowledgePoints.take(3).map { "复述并验证：${it.title}" },
+            summary = knowledge.take(3).joinToString("；") { it.explanation }.ifBlank { "资料不足，建议补充或修正后再总结知识点。" },
+            keyTakeaways = knowledge.map { it.title }.take(4),
+            reviewFocus = knowledge.take(3).map { "回看证据：${it.title}" },
+            actionItems = knowledge.take(3).map { "复述并验证：${it.title}" },
             evidence = evidence,
             knowledge = knowledge,
             questions = questions,
@@ -830,7 +860,11 @@ class L3LearningPipeline {
      * so insufficient material yields an empty list (the UI then shows "资料不足", never a fake question).
      */
     private fun localBasicQuestions(lessonId: String, knowledge: List<L3KnowledgePoint>, now: Long): List<L3GeneratedQuestion> =
-        knowledge.filter { it.sourceEvidenceIds.isNotEmpty() }.take(3).mapIndexed { index, kp ->
+        knowledge
+            .filter { it.sourceEvidenceIds.isNotEmpty() }
+            .filter { SubjectKnowledgeExtractor.isAcceptedKnowledge(it.title, it.explanation) }
+            .take(3)
+            .mapIndexed { index, kp ->
             val otherTitles = knowledge
                 .filter { it.id != kp.id && it.title.isNotBlank() }
                 .map { it.title }

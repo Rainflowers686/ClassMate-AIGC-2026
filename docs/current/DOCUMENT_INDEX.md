@@ -1,4 +1,16 @@
-# Document Index - ClassMate 1.14.4
+# Document Index - ClassMate 1.14.5
+
+版本：`1.14.5 / versionCode 118`
+
+本轮新增当前入口：
+
+| 文件 | 类型 | 状态 |
+| --- | --- | --- |
+| `docs/current/CHANGELOG_1_14_5.md` | 当前版本变更 | 新增 |
+| `docs/current/REAL_DEVICE_FIX_MATRIX_1_14_5.md` | 真机问题修复矩阵 | 新增 |
+| `docs/current/REAL_DEVICE_TEST_MANUAL_1_14_5.md` | 真机复测手册 | 新增 |
+
+1.14.5 之后，OCR/文本学科知识点过滤、微测相关性、复习计划知识点口径、课程相关知识课内检索、ASR 无服务 fallback 和新装默认外观状态以上述三个文件为准。
 
 版本：`1.14.4 / versionCode 117`
 

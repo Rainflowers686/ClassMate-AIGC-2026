@@ -6,9 +6,14 @@ import com.classmate.core.model.FeedbackType
 object RelatedKnowledgeSummaryEngine {
     fun build(snapshot: L3PipelineSnapshot): List<RelatedKnowledgeSummary> {
         val evidenceById = snapshot.evidence.associateBy { it.id }
-        return snapshot.knowledgePoints.take(6).mapNotNull { source ->
+        val lessonTitle = snapshot.lessonSource?.title.orEmpty()
+        val acceptedKnowledge = snapshot.knowledgePoints.filter { kp ->
+            val evidenceText = kp.sourceEvidenceIds.mapNotNull { evidenceById[it]?.text }.joinToString(" ")
+            SubjectKnowledgeExtractor.isAcceptedKnowledge(kp.title, evidenceText.ifBlank { kp.explanation }, lessonTitle)
+        }
+        return acceptedKnowledge.take(6).mapNotNull { source ->
             val sourceTokens = tokens(source.title + " " + source.explanation)
-            val related = snapshot.knowledgePoints
+            val related = acceptedKnowledge
                 .filterNot { it.id == source.id }
                 .map { candidate ->
                     candidate to tokens(candidate.title + " " + candidate.explanation)
@@ -95,8 +100,15 @@ object FeedbackLearningOptimizer {
         val kp = snapshot.knowledgePoints.firstOrNull { it.id == question.knowledgePointId }
         val evidence = snapshot.evidence.firstOrNull { it.id in question.evidenceIds }
             ?: snapshot.evidence.firstOrNull { it.sourceId == snapshot.lessonSource?.id }
-        val replacement = evidence?.let {
-            replacementQuestion(question, kp, it, now, snapshot.questions.size + 1)
+        val replacement = evidence?.let { ev ->
+            replacementQuestion(question, kp, ev, now, snapshot.questions.size + 1)
+                .takeIf {
+                    SubjectKnowledgeExtractor.isAcceptedKnowledge(
+                        kp?.title.orEmpty().ifBlank { question.knowledgePointId },
+                        ev.text,
+                        snapshot.lessonSource?.title.orEmpty(),
+                    )
+                }
         }
         val alternativeEvidence = if (type == FeedbackType.EVIDENCE_WRONG) {
             findAlternativeEvidence(snapshot, question.knowledgePointId, question.evidenceIds)
@@ -260,6 +272,13 @@ object FeedbackLearningOptimizer {
             .toSet()
         return snapshot.evidence
             .filterNot { it.id in excluded }
+            .filter {
+                SubjectKnowledgeExtractor.isAcceptedKnowledge(
+                    kp?.title.orEmpty(),
+                    it.text,
+                    snapshot.lessonSource?.title.orEmpty(),
+                )
+            }
             .map { ev ->
                 ev to ev.text.lowercase()
                     .split(Regex("[^\\p{L}\\p{N}]+"))

@@ -29,8 +29,8 @@ class Stage9aFocusUiGuardTest {
     // ---- theme positioning ----------------------------------------------------------------------
 
     @Test
-    fun standardStudyIsTheDefaultThemeAndThreePresetMappingHolds() {
-        assertEquals(ThemePreset.STANDARD_STUDY, ThemePreset.Default)
+    fun focusImmersionIsFreshInstallDefaultAndThreePresetMappingHolds() {
+        assertEquals(ThemePreset.FOCUS_IMMERSION, ThemePreset.Default)
         assertEquals(3, ThemePreset.entries.size)
         assertTrue(ThemePreset.STANDARD_STUDY.sourceLabel.contains("Dashboard"))
         assertTrue(ThemePreset.ACTIVE_STUDY.sourceLabel.contains("Main Dashboard"))

@@ -79,6 +79,52 @@ class L3LearningPipelineTest {
     }
 
     @Test
+    fun noisyOcrBuildsSubjectKnowledgeNotClassroomPrompts() {
+        val snapshot = L3LearningPipeline().buildFromText(
+            title = "高等数学导数",
+            text = """
+                同学们注意
+                重点来了
+                大家记一下
+
+                导数表示函数在某一点附近的瞬时变化率，切线斜率可以用导数计算。
+                极值点需要结合导数符号变化判断。
+                页面 右下角 点击 上传 下载
+            """.trimIndent(),
+            sourceType = L3SourceType.OCR_IMAGE,
+            providerSummary = providerSummary,
+            now = now + 31,
+        )
+
+        val joinedKnowledge = snapshot.knowledgePoints.joinToString("\n") { it.title }
+        assertTrue(snapshot.knowledgePoints.isNotEmpty())
+        assertTrue(joinedKnowledge.contains("导数") || joinedKnowledge.contains("极值"))
+        listOf("同学们注意", "重点来了", "大家记一下", "右下角", "点击").forEach { noise ->
+            assertFalse(joinedKnowledge.contains(noise))
+            assertFalse(snapshot.reviewQueue.joinToString("\n") { it.arrangementReason + it.recommendedActions.joinToString() }.contains(noise))
+            assertFalse(snapshot.questions.joinToString("\n") { it.stem + it.options.joinToString() + it.explanation }.contains(noise))
+        }
+        assertTrue(snapshot.questions.all { it.knowledgePointId.isNotBlank() && it.evidenceIds.isNotEmpty() })
+        assertTrue(snapshot.relatedKnowledgeSummaries.all { it.sourceKnowledgePointTitle.contains("导数") || it.sourceKnowledgePointTitle.contains("极值") })
+    }
+
+    @Test
+    fun onlyClassroomNoiseDoesNotGenerateFakeKnowledgeOrQuiz() {
+        val snapshot = L3LearningPipeline().buildFromText(
+            title = "课堂截图",
+            text = "同学们注意\n重点来了\n大家记一下\n页面 右下角 点击 上传 下载\n嗯啊呃 好的 然后呢",
+            sourceType = L3SourceType.OCR_IMAGE,
+            providerSummary = providerSummary,
+            now = now + 32,
+        )
+
+        assertTrue(snapshot.knowledgePoints.isEmpty())
+        assertTrue(snapshot.questions.isEmpty())
+        assertTrue(snapshot.reviewQueue.isEmpty())
+        assertTrue(snapshot.summary.contains("资料质量较低") || snapshot.summary.contains("资料不足"))
+    }
+
+    @Test
     fun learningLoopInputKeepsOcrAssetMetadataOnEvidence() {
         val input = LearningLoopInput(
             id = "input_ocr",

@@ -38,7 +38,7 @@ enum class ThemePreset(
     );
 
     companion object {
-        val Default = STANDARD_STUDY
+        val Default = FOCUS_IMMERSION
     }
 }
 
@@ -72,7 +72,7 @@ enum class TypographyPreset(
     TITLE_PERSONALITY("个性标题", "仅强化大标题气质，正文保持清晰无衬线");
 
     companion object {
-        val Default = SYSTEM_DEFAULT
+        val Default = ACADEMIC
     }
 }
 

@@ -12,12 +12,12 @@ import org.junit.Test
 class ThemePreferenceRepositoryTest {
 
     @Test
-    fun defaultPreferenceIsStandardStudy() {
+    fun freshInstallDefaultsToImmersiveLearningAndAcademicTypography() {
         val repo = ThemePreferenceRepository(tempFile())
 
-        assertEquals(ThemePreset.STANDARD_STUDY, repo.load().themePreset)
+        assertEquals(ThemePreset.FOCUS_IMMERSION, repo.load().themePreset)
         assertEquals(AccentColorPreset.GREEN, repo.load().accentColorPreset)
-        assertEquals(TypographyPreset.SYSTEM_DEFAULT, repo.load().typographyPreset)
+        assertEquals(TypographyPreset.ACADEMIC, repo.load().typographyPreset)
         assertEquals(false, repo.load().customPalette.enabled)
     }
 
@@ -58,7 +58,7 @@ class ThemePreferenceRepositoryTest {
         assertEquals(ThemePreset.ACTIVE_STUDY, reset.themePreset)
         assertEquals(AccentColorPreset.OCEAN, reset.accentColorPreset)
         assertEquals(false, reset.customPalette.enabled)
-        assertEquals(TypographyPreset.SYSTEM_DEFAULT, reset.typographyPreset)
+        assertEquals(TypographyPreset.ACADEMIC, reset.typographyPreset)
     }
 
     @Test

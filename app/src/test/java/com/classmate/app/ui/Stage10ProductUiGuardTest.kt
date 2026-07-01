@@ -119,8 +119,8 @@ class Stage10ProductUiGuardTest {
     // ---- honest positioning + vocabulary --------------------------------------------------------
 
     @Test
-    fun standardStudyStaysDefaultThemeAfterRebuild() {
-        assertEquals(ThemePreset.STANDARD_STUDY, ThemePreset.Default)
+    fun focusImmersionStaysFreshInstallDefaultThemeAfterRebuild() {
+        assertEquals(ThemePreset.FOCUS_IMMERSION, ThemePreset.Default)
         assertEquals(3, ThemePreset.entries.size)
     }
 
