@@ -44,4 +44,19 @@ class ImportCourseEntriesTest {
         assertFalse(s.contains("DeepSeek"))
         assertFalse(s.contains("Compatible Demo"))
     }
+
+    @Test
+    fun ocrImageDraftAndMaterialTrayExposePreviewAndRetry() {
+        val s = source()
+        val components = listOf(
+            File("src/main/java/com/classmate/app/ui/components/IaComponents.kt"),
+            File("app/src/main/java/com/classmate/app/ui/components/IaComponents.kt"),
+        ).first { it.exists() }.readText()
+
+        assertTrue("OCR segment should render the saved image preview", s.contains("OCR 图片预览"))
+        assertTrue("failed or low-quality OCR segment should offer retry", s.contains("重新 OCR"))
+        assertTrue("retry should use the saved image file, not a fake action", s.contains("retryOcrFromDraft"))
+        assertTrue("material tray item should accept image preview path", components.contains("imagePath: String"))
+        assertTrue("material tray should show an image preview when possible", components.contains("资料篮图片预览"))
+    }
 }

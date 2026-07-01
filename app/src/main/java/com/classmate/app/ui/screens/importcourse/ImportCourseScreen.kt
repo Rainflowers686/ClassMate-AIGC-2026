@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Build
@@ -13,6 +14,7 @@ import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.PickVisualMediaRequest
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -36,6 +38,8 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.core.content.ContextCompat
@@ -780,6 +784,7 @@ private fun ImageDraftCard(viewModel: AppViewModel) {
 @Composable
 private fun OcrImageSegment(number: Int, draft: OcrImportDraft, viewModel: AppViewModel, s: Strings) {
     val cs = MaterialTheme.colorScheme
+    val context = LocalContext.current
     val (statusLabel, tone) = when {
         draft.status == OcrImportStatus.FAILED -> s.ocrStatusFailed to ChipTone.WARNING
         draft.isLowQuality() -> s.ocrStatusLowQuality to ChipTone.WARNING
@@ -792,6 +797,7 @@ private fun OcrImageSegment(number: Int, draft: OcrImportDraft, viewModel: AppVi
                 Text(s.ocrSegmentTitle(number, draft.fileMeta.safeDisplayLabel()), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 StatusChip(statusLabel, tone = tone)
             }
+            OcrImagePreview(draft.fileMeta.fileName)
             when (draft.status) {
                 OcrImportStatus.FAILED -> {
                     Spacer(Modifier.height(Dimens.xs))
@@ -809,7 +815,10 @@ private fun OcrImageSegment(number: Int, draft: OcrImportDraft, viewModel: AppVi
                         shape = MaterialTheme.shapes.medium,
                     )
                     Spacer(Modifier.height(Dimens.xs))
-                    SecondaryButton(s.ocrDeleteImage, onClick = { viewModel.removeOcrImport(draft.id) }, modifier = Modifier.fillMaxWidth())
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+                        SecondaryButton("重新 OCR", onClick = { retryOcrFromDraft(context, draft, viewModel) }, modifier = Modifier.weight(1f))
+                        SecondaryButton(s.ocrDeleteImage, onClick = { viewModel.removeOcrImport(draft.id) }, modifier = Modifier.weight(1f))
+                    }
                 }
                 OcrImportStatus.PENDING -> {
                     Spacer(Modifier.height(Dimens.xs))
@@ -831,11 +840,63 @@ private fun OcrImageSegment(number: Int, draft: OcrImportDraft, viewModel: AppVi
                         shape = MaterialTheme.shapes.medium,
                     )
                     Spacer(Modifier.height(Dimens.xs))
-                    SecondaryButton(s.ocrDeleteImage, onClick = { viewModel.removeOcrImport(draft.id) }, modifier = Modifier.fillMaxWidth())
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+                        SecondaryButton("重新 OCR", onClick = { retryOcrFromDraft(context, draft, viewModel) }, modifier = Modifier.weight(1f))
+                        SecondaryButton(s.ocrDeleteImage, onClick = { viewModel.removeOcrImport(draft.id) }, modifier = Modifier.weight(1f))
+                    }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun OcrImagePreview(imagePath: String) {
+    if (imagePath.isBlank()) return
+    val cs = MaterialTheme.colorScheme
+    val bitmap = remember(imagePath) {
+        runCatching { BitmapFactory.decodeFile(imagePath) }.getOrNull()
+    }
+    Spacer(Modifier.height(Dimens.s))
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap.asImageBitmap(),
+            contentDescription = "OCR 图片预览",
+            modifier = Modifier.fillMaxWidth().height(150.dp),
+            contentScale = ContentScale.Fit,
+        )
+    } else {
+        Text(
+            "图片预览暂不可用，仍保留可编辑 OCR 文本。",
+            style = MaterialTheme.typography.bodySmall,
+            color = cs.onSurfaceVariant,
+        )
+    }
+}
+
+private fun retryOcrFromDraft(context: Context, draft: OcrImportDraft, viewModel: AppViewModel) {
+    val file = java.io.File(draft.fileMeta.fileName)
+    if (!file.exists() || file.length() <= 0L) {
+        viewModel.toast("原图文件不可用，请重新选择图片或手动输入。")
+        return
+    }
+    val bitmap = runCatching { BitmapFactory.decodeFile(file.absolutePath) }.getOrNull()
+    if (bitmap == null) {
+        viewModel.toast("图片预览不可用，请重新选择图片或手动输入。")
+        return
+    }
+    val page = draft.pageIndex ?: draft.fileMeta.pageIndex ?: 1
+    val total = viewModel.ui.imageDraftBatchTotal.coerceAtLeast(viewModel.ui.ocrImports.size.coerceAtLeast(1))
+    viewModel.ingestMultiImageOcr(
+        BitmapToRgb.toRgbScaled(bitmap),
+        OnDevicePermissions(context).allFilesAccessGranted(),
+        originalWidth = bitmap.width,
+        originalHeight = bitmap.height,
+        encodedImageBytes = file.readBytes(),
+        pageIndex = page,
+        total = total,
+        batchId = draft.batchId.ifBlank { viewModel.ui.imageDraftBatchId },
+    )
 }
 
 /** Decode a picked image Uri to a bitmap (bounded) and run the on-device draft. Never crashes. */
@@ -977,6 +1038,7 @@ fun MaterialTrayScreen(viewModel: AppViewModel) {
                     source = OcrImportAssembler.sourceLabel(draft.kind),
                     meta = "$statusText · ${draft.pastedText.count { !it.isWhitespace() }} 字",
                     onRemove = { viewModel.removeOcrImport(draft.id) },
+                    imagePath = draft.fileMeta.fileName,
                 )
             }
             ui.transcripts.forEach { transcript ->
