@@ -17,8 +17,8 @@ import okio.ByteString.Companion.toByteString
 /**
  * Real OkHttp WebSocket implementation of [OfficialWsTransport] for the official vivo `/asr/v2` stream.
  * Failures are mapped to user/diagnostics-safe Chinese reasons — a raw throwable message or response body is
- * NEVER surfaced (it could contain a URL or token). The official path is always optional: any failure here
- * makes the session report a safe error and the caller falls back to the system SpeechRecognizer.
+ * NEVER surfaced (it could contain a URL or token). The official path is config-gated: any failure here
+ * makes the session report a safe error and the caller keeps the recording/manual transcript fallback.
  */
 class OkHttpOfficialWsTransport(
     private val client: OkHttpClient = OkHttpClient.Builder()
@@ -58,9 +58,9 @@ class OkHttpOfficialWsTransport(
     }
 
     private fun safeReason(t: Throwable): String = when (t) {
-        is UnknownHostException -> "网络不可用，已改用系统实时转写。"
-        is SocketTimeoutException -> "官方实时转写连接超时，已改用系统实时转写。"
-        else -> "官方实时转写连接失败，已改用系统实时转写。"
+        is UnknownHostException -> "网络不可用，录音会保留，可稍后重试官方转写或粘贴转写文本。"
+        is SocketTimeoutException -> "官方实时转写连接超时，录音会保留，可稍后重试官方转写或粘贴转写文本。"
+        else -> "官方实时转写连接失败，录音会保留，可稍后重试官方转写或粘贴转写文本。"
     }
 
     private companion object {

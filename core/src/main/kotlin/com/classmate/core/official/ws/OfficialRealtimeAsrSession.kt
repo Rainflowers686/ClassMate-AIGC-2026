@@ -7,7 +7,7 @@ package com.classmate.core.official.ws
  * unit-testable with a fake transport; the app injects the real OkHttp transport + PCM capture.
  *
  * Honest contract: returns false (and reports a safe error) when not configured or when the transport is
- * absent, so the caller falls back to the system SpeechRecognizer — the official path never blocks recording.
+ * absent, so the caller keeps the saved recording/manual transcript fallback — the official path never blocks recording.
  */
 class OfficialRealtimeAsrSession(private val transport: OfficialWsTransport) {
 
@@ -26,7 +26,7 @@ class OfficialRealtimeAsrSession(private val transport: OfficialWsTransport) {
         onError: (String) -> Unit,
     ): Boolean {
         if (!config.isConfigured) {
-            onError("官方实时转写需要配置后使用，已改用系统实时转写。")
+            onError("官方实时转写需要配置后使用；录音会保留，可粘贴转写文本或稍后重试官方转写。")
             return false
         }
         val url = OfficialAsrWsProtocol.buildUrl(
@@ -58,7 +58,7 @@ class OfficialRealtimeAsrSession(private val transport: OfficialWsTransport) {
             },
         )
         if (conn == null) {
-            onError("当前设备不支持官方实时转写，已改用系统实时转写。")
+            onError("当前设备不支持官方实时转写；录音会保留，可粘贴转写文本。")
             return false
         }
         connection = conn

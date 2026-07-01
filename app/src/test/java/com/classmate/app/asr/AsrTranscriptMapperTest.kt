@@ -76,7 +76,9 @@ class AsrTranscriptMapperTest {
 
         assertTrue(source.contains("resolveActivity(context.packageManager)"))
         assertTrue(source.contains("requiresAppPackageUri"))
-        assertTrue(source.contains("仅录音"))
+        assertTrue(source.contains("routePlan.primaryRecordingButton"))
         assertTrue(source.contains("粘贴转写文本"))
+        assertTrue(source.contains("使用系统实时转写（可选）"))
+        assertFalse(source.contains("开始录音并实时转写"))
     }
 }

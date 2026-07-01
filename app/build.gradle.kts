@@ -36,8 +36,8 @@ android {
         applicationId = "com.classmate.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 118
-        versionName = "1.14.5"
+        versionCode = 119
+        versionName = "1.14.6"
         vectorDrawables { useSupportLibrary = true }
         buildConfigField("String", "BUILT_AT", "\"$builtAtValue\"")
         buildConfigField("String", "GIT_COMMIT", "\"$gitCommitValue\"")

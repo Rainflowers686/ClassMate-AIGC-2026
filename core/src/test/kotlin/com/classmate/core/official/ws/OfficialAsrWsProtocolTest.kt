@@ -67,7 +67,7 @@ class OfficialAsrWsProtocolTest {
         val error = OfficialAsrWsProtocol.parseEvent("""{"action":"error","code":40001,"sid":"x"}""")
         assertTrue(error is OfficialAsrWsProtocol.AsrEvent.Error)
         // The error message is user-safe and does not echo a raw body.
-        assertTrue((error as OfficialAsrWsProtocol.AsrEvent.Error).safeMessage.contains("系统实时转写"))
+        assertTrue((error as OfficialAsrWsProtocol.AsrEvent.Error).safeMessage.contains("录音会保留"))
 
         assertTrue(OfficialAsrWsProtocol.parseEvent("""{"action":"vad","code":1}""") is OfficialAsrWsProtocol.AsrEvent.Vad)
         assertTrue(OfficialAsrWsProtocol.parseEvent("not json") is OfficialAsrWsProtocol.AsrEvent.Ignored)

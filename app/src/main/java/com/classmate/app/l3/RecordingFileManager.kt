@@ -22,6 +22,16 @@ class RecordingFileManager(private val directory: File? = null) {
         return file.exists() && file.length() > 0L
     }
 
+    fun readBytes(record: ClassroomRecordingRecord): ByteArray? {
+        val dir = directory ?: return null
+        val file = fileForRecord(dir, record) ?: return null
+        return if (file.exists() && file.length() > 0L) {
+            runCatching { file.readBytes() }.getOrNull()
+        } else {
+            null
+        }
+    }
+
     fun deleteForRecords(records: Collection<ClassroomRecordingRecord>): RecordingFileCleanupResult {
         val dir = directory ?: return RecordingFileCleanupResult()
         var deleted = 0

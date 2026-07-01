@@ -1731,10 +1731,11 @@ private fun OnDeviceDiagnosticCard(viewModel: AppViewModel) {
 
         // Official WebSocket ASR (/asr/v2, docId 1738/1740) readiness — honest config-gated status. The
         // WebSocket transport (OkHttp) is present; the official path needs credentials + real-device
-        // validation, and falls back to the system recognizer above when unavailable. Never shows the key.
+        // validation. When unavailable, recordings remain saved and the user can paste/edit transcript text;
+        // system speech recognition is only an optional device fallback. Never shows the key.
         ProviderStatusRow(
             "官方实时转写（WebSocket）",
-            "通道已就绪 · 需配置官方密钥后启用 · 未配置/失败自动用系统实时转写（待真机验证）",
+            "通道已就绪 · 需配置官方密钥后启用 · 未配置/失败时保留录音并转手动转写，系统实时识别仅为可选 fallback（待真机验证）",
         )
 
         // Official TTS (wss://.../tts, docId 1735): WS provider + PCM→WAV present; uses the cloud AppKey,

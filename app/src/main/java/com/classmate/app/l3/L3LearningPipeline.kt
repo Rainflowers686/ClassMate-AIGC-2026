@@ -197,7 +197,7 @@ class L3LearningPipeline {
                 masteryState = L3MasteryState.LEARNING,
             )
         }
-        val questions = knowledge.take(5).mapIndexed { index, kp ->
+        val draftQuestions = knowledge.take(5).mapIndexed { index, kp ->
             val evidenceId = kp.sourceEvidenceIds.first()
             val evidenceQuote = evidence.firstOrNull { it.id == evidenceId }?.text.orEmpty().take(96).ifBlank { kp.explanation }
             val otherTitles = knowledge
@@ -226,6 +226,7 @@ class L3LearningPipeline {
                 difficulty = Difficulty.MEDIUM,
             )
         }
+        val questions = QuizRelevanceGate.filter(draftQuestions, knowledge, evidence)
         return assembleSnapshot(
             source = source,
             transcriptSegments = transcriptSegments,
@@ -351,11 +352,22 @@ class L3LearningPipeline {
             val optionExplanations = question.options
                 .filter { it.rationale.isNotBlank() }
                 .joinToString("；") { "${it.id}：${it.rationale}" }
+            val evidenceQuote = resolvedEvidenceIds
+                .mapNotNull { id -> evidence.firstOrNull { it.id == id }?.text?.trim() }
+                .firstOrNull { it.isNotBlank() }
+                ?.take(96)
             val fullExplanation = listOf(question.explanation, optionExplanations.takeIf { it.isNotBlank() }?.let { "选项解析：$it" })
                 .filterNotNull()
                 .filter { it.isNotBlank() }
                 .joinToString(" ")
                 .ifBlank { question.explanation }
+                .let { explanation ->
+                    if (evidenceQuote != null && !explanation.contains("证据")) {
+                        "$explanation 证据摘录：$evidenceQuote"
+                    } else {
+                        explanation
+                    }
+                }
             L3GeneratedQuestion(
                 id = question.id,
                 lessonId = session.id,
@@ -370,7 +382,10 @@ class L3LearningPipeline {
         }
         // P0-4: when the model returns no usable quiz but the course HAS knowledge points, synthesize a few
         // basic answerable questions locally so a real course is never left with zero 微测 (silent no-quiz).
-        val questions = repaired.ifEmpty { localBasicQuestions(session.id, knowledge, now) }
+        val relevantRepaired = QuizRelevanceGate.filter(repaired, knowledge, evidence)
+        val questions = relevantRepaired.ifEmpty {
+            QuizRelevanceGate.filter(localBasicQuestions(session.id, knowledge, now), knowledge, evidence)
+        }
         return assembleSnapshot(
             source = source,
             transcriptSegments = emptyList(),

@@ -11,7 +11,7 @@ import android.media.MediaRecorder
  * pipeline from the MediaRecorder file recording, so the two never share AudioRecord state.
  *
  * The caller MUST hold RECORD_AUDIO before start(); start() returns false (never crashes) when the mic is
- * unavailable or busy, so the caller can fall back to the system SpeechRecognizer.
+ * unavailable or busy, so the caller can keep the saved recording and fall back to manual transcript.
  */
 class PcmAudioCapture(private val onFrame: (ByteArray) -> Unit) {
 

@@ -34,7 +34,7 @@ class OfficialRealtimeAsrSessionTest {
             OfficialWsConfig(), OfficialAsrWsProtocol.AsrEngine.REALTIME_SHORT, "r", 1L, {}, {}, { errors += it },
         )
         assertFalse(started)
-        assertTrue(errors.single().contains("系统实时转写"))
+        assertTrue(errors.single().contains("录音会保留"))
     }
 
     @Test
@@ -44,7 +44,7 @@ class OfficialRealtimeAsrSessionTest {
             ready, OfficialAsrWsProtocol.AsrEngine.REALTIME_SHORT, "r", 1L, {}, {}, { errors += it },
         )
         assertFalse(started)
-        assertTrue(errors.single().contains("系统实时转写"))
+        assertTrue(errors.single().contains("录音会保留"))
     }
 
     @Test

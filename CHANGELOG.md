@@ -1,5 +1,17 @@
 # Changelog
 
+当前候选版本：`1.14.6 / versionCode 119`，本轮聚焦真实服务接入路径：蓝心配置/诊断、官方 ASR 主路线、系统 ASR 降级为可选 fallback、学科知识点过滤贯穿和微测相关性 gate。
+
+## 1.14.6 / 119 - official ASR routing and model diagnostics hardening
+
+- ASR 主路线改为官方优先：官方实时 ASR / 官方长语音转写按配置进入 route plan；录音主按钮不再默认启动系统 SpeechRecognizer。
+- 系统 SpeechRecognizer 降级为“可选设备 fallback”，只在用户主动选择时使用；无系统语音识别服务不再阻塞录音保存和手动转写。
+- 录音保存后可对 app-private 音频触发“官方 ASR 转写录音”路径，复用现有官方长语音转写/手动 fallback 处理，不生成假 transcript。
+- 设置保存的 AppID/AppKey 会同步喂给 capture readiness，OCR/官方 ASR/TTS 摘要不再和真实运行配置脱节；所有显示仍只暴露配置存在性，不输出密钥。
+- 新增 QuizRelevanceGate：模型题和本地题必须绑定已接受学科知识点、证据摘录和答案详解，拒绝强调词/无关占位题。
+- 继续保留本地整理、手动转写、系统 TTS/ASR 等 fallback，但普通用户文案不把 fallback 冒充蓝心或 vivo 官方能力。
+- 风险：官方 BlueLM/ASR/TTS 网络成功仍依赖真实 AppKey、接口权限、网络、录音权限和设备验证；本轮不读取或提交 `config.local.json`。
+
 当前候选版本：`1.14.5 / versionCode 118`，本轮聚焦真机反馈中的 OCR/文本学科知识点过滤、微测相关性、复习计划知识点口径、课程相关知识课内检索、ASR 不可用路径和新装默认外观。
 
 ## 1.14.5 / 118 - subject extraction, quiz relevance, and fresh-install appearance

@@ -5,6 +5,7 @@ import com.classmate.app.l3.ClassroomAudioRecorder
 import com.classmate.app.l3.InputFileKind
 import com.classmate.app.l3.L3RecordingStatus
 import com.classmate.app.l3.RecordingArtifactResult
+import com.classmate.app.l3.RecordingFileManager
 import com.classmate.app.platform.ConfigRepository
 import com.classmate.core.transcript.TranscriptSourceType
 import java.nio.file.Files
@@ -33,6 +34,17 @@ class RecordingTranscriptionFlowTest {
         configRepository = ConfigRepository(Files.createTempDirectory("cm-rt").resolve("config.local.json").toFile()),
         classroomAudioRecorder = FakeRecorder(stopSucceeds),
     )
+
+    private class FileRecorder(private val dir: java.io.File) : ClassroomAudioRecorder {
+        override fun start(sessionId: String) = RecordingArtifactResult(true, "$sessionId.m4a", "录音已开始。")
+        override fun stop(): RecordingArtifactResult {
+            val file = java.io.File(dir, "saved.m4a")
+            file.parentFile?.mkdirs()
+            file.writeBytes(ByteArray(16) { 1 })
+            return RecordingArtifactResult(true, file.name, "已保存。", fileSizeBytes = file.length())
+        }
+        override fun cancel() = RecordingArtifactResult(true, "saved.m4a", "已取消。")
+    }
 
     @Test
     fun startBeginsRecordingAndListening() {
@@ -110,5 +122,23 @@ class RecordingTranscriptionFlowTest {
         assertEquals(AsrState.UNSUPPORTED, state)
         // The recording proceeds even when the recognizer is unavailable — no dead end.
         assertEquals(L3RecordingStatus.RECORDING, viewModel.ui.currentRecording?.status)
+    }
+
+    @Test
+    fun savedRecordingCanInvokeOfficialAsrPathWithoutSystemRecognizer() {
+        val dir = Files.createTempDirectory("cm-rt-files").toFile()
+        val viewModel = AppViewModel(
+            configRepository = ConfigRepository(Files.createTempDirectory("cm-rt-config").resolve("config.local.json").toFile()),
+            classroomAudioRecorder = FileRecorder(dir),
+            recordingFileManager = RecordingFileManager(dir),
+        )
+        viewModel.startClassroomRecording(now = 1_000L)
+        viewModel.stopClassroomRecording(now = 5_000L)
+        val record = viewModel.ui.recordingRecords.single()
+
+        assertEquals(L3RecordingStatus.SAVED, record.status)
+        assertTrue(java.io.File(dir, record.artifactFileName ?: "").exists())
+        assertTrue("saved audio can be read for official ASR action", viewModel.savedRecordingAudioAvailable(record.id))
+        assertTrue("no fake transcript is generated", viewModel.ui.transcripts.isEmpty())
     }
 }

@@ -9,6 +9,8 @@ import androidx.lifecycle.viewModelScope
 import com.classmate.app.asr.AsrSession
 import com.classmate.app.asr.AsrSessionController
 import com.classmate.app.asr.AsrState
+import com.classmate.app.asr.OfficialAsrRoutePlan
+import com.classmate.app.asr.OfficialAsrRoutePlanner
 import com.classmate.app.asr.SpeechRecognitionReadiness
 import com.classmate.app.ui.screens.settings.SettingsPage
 import com.classmate.app.asr.AsrTranscriptMapper
@@ -158,6 +160,7 @@ import com.classmate.app.platform.AiModelProviderMode
 import com.classmate.app.platform.MaskedModelProfile
 import com.classmate.app.platform.ModelApiProfile
 import com.classmate.app.platform.ModelConfigRepository
+import com.classmate.app.platform.OfficialProviderConfigSummary
 import com.classmate.app.platform.ProviderConfigSummary
 import com.classmate.app.ui.i18n.AppLanguage
 import com.classmate.app.ui.theme.AccentColorPreset
@@ -328,6 +331,7 @@ class AppViewModel(
     // storage) onto the loaded bundle. The merge ONLY swaps the BlueLM credential/baseUrl/model —
     // it never changes the resolver order, profile, or request building (qwen guard intact).
     private var configBundle: ProviderConfigBundle = applyPersistedModelProfile(initialConfig.bundle)
+    private var officialProvidersFromConfig: OfficialProviderConfigSummary = initialConfig.summary.officialProviders
     private val initialConfigSource: String =
         if (modelConfigRepository.hasUsableProfile()) "saved model config" else initialConfig.summary.source
     private val initialThemePreference = themePreferenceRepository.load()
@@ -760,6 +764,7 @@ class AppViewModel(
         val preview = DebugConfigImporter.inspect(jsonText, debugEnabled)
         val imported = preview.runtimeConfig
         if (preview.valid && imported != null) {
+            officialProvidersFromConfig = configRepository.parseOrDefault(jsonText, source = "debug import").summary.officialProviders
             val blueLmReady = imported.configOf(ProviderKind.BLUELM)?.hasRealCredential() == true
             applyActiveConfig(
                 bundle = imported,
@@ -778,6 +783,7 @@ class AppViewModel(
 
     fun reloadLocalProviderConfig() {
         val result = configRepository.loadLocalOrDefault()
+        officialProvidersFromConfig = result.summary.officialProviders
         applyActiveConfig(
             bundle = result.bundle,
             source = result.summary.source,
@@ -827,12 +833,28 @@ class AppViewModel(
     internal fun runCompatibleConnectionDiagnostic(): CompatibleDiagnosticReport =
         CompatibleDiagnosticRunner(transport).run(configBundle.configOf(ProviderKind.COMPATIBLE))
 
-    private fun providerSummary(source: String): ProviderConfigSummary =
-        ProviderConfigSummary.fromBundle(
+    private fun providerSummary(source: String): ProviderConfigSummary {
+        val officialProviders = mergedOfficialProviderSummary()
+        return ProviderConfigSummary.fromBundle(
             source = source,
             bundle = configBundle,
             primaryReady = ProviderResolver(configBundle, promptBuilder, transport, blueLmSigner).isPrimaryReady(),
+            officialProviders = officialProviders,
         )
+    }
+
+    private fun mergedOfficialProviderSummary(): OfficialProviderConfigSummary {
+        val captureReady = runCatching { captureGateway.status().configured }.getOrDefault(false)
+        return officialProvidersFromConfig.copy(
+            ocrConfigured = officialProvidersFromConfig.ocrConfigured || captureReady,
+            realtimeAsrConfigured = officialProvidersFromConfig.realtimeAsrConfigured || captureReady,
+            asrLongConfigured = officialProvidersFromConfig.asrLongConfigured || captureReady,
+            ttsConfigured = officialProvidersFromConfig.ttsConfigured || captureReady,
+        )
+    }
+
+    fun officialAsrRoutePlan(systemRecognizerAvailable: Boolean = false): OfficialAsrRoutePlan =
+        OfficialAsrRoutePlanner.plan(ui.providerConfigSummary, systemRecognizerAvailable)
 
     // --- persistent official-model config (P5): 蓝心大模型 saved across restarts ---
 
@@ -2174,6 +2196,7 @@ class AppViewModel(
             durationMs = (now - current.createdAt).coerceAtLeast(0L),
             status = if (artifact.success) L3RecordingStatus.SAVED else L3RecordingStatus.FAILED,
             artifactFileName = artifact.fileName ?: current.artifactFileName,
+            artifactPath = artifact.fileName ?: current.artifactPath ?: current.artifactFileName,
             fileSizeBytes = artifact.fileSizeBytes,
             asrStatus = if (ui.providerConfigSummary.officialProviders.asrLongConfigured) L3AsrStatus.PENDING_ASR_CONFIG else L3AsrStatus.ASR_NOT_CONFIGURED,
             message = artifact.safeMessage,
@@ -2247,13 +2270,37 @@ class AppViewModel(
         )
     }
 
-    // --- P0-1: inline "record + live transcribe" — recording file AND live speech-to-text together ---
+    fun transcribeSavedRecording(recordId: String): Boolean {
+        val record = ui.recordingRecords.firstOrNull { it.id == recordId }
+        if (record == null || record.status != L3RecordingStatus.SAVED) {
+            ui = ui.copy(toast = "未找到可转写的录音。")
+            return false
+        }
+        val audioBytes = recordingFileManager.readBytes(record)
+        if (audioBytes == null || audioBytes.isEmpty()) {
+            ui = ui.copy(audioCaptureMessage = "录音文件缺失或为空，可粘贴转写文本继续。", toast = "录音文件不可用。")
+            return false
+        }
+        transcribeAudioFile(
+            audioBytes = audioBytes,
+            fileName = record.artifactFileName ?: "${record.id}.m4a",
+            mimeType = "audio/mp4",
+        )
+        return true
+    }
+
+    internal fun savedRecordingAudioAvailable(recordId: String): Boolean {
+        val record = ui.recordingRecords.firstOrNull { it.id == recordId } ?: return false
+        val bytes = recordingFileManager.readBytes(record)
+        return record.status == L3RecordingStatus.SAVED && bytes != null && bytes.isNotEmpty()
+    }
+
+    // --- Optional system ASR fallback: recording file AND live speech-to-text together ---
 
     /**
-     * Start classroom recording AND live speech-to-text in one action. The recording produces the AUDIO
-     * file; the live transcript (official ASR when configured, else the system SpeechRecognizer) shows
-     * partial/final text inline. Returns the [AsrState] so the screen knows whether the recognizer is
-     * listening or fell back (UNSUPPORTED / PERMISSION_REQUIRED) — the recording still proceeds either way.
+     * Start classroom recording AND optional system speech-to-text in one action. This is no longer the
+     * product's main ASR route: official ASR is represented by [transcribeSavedRecording] after a real audio
+     * file is saved. The system recognizer remains a user-opted fallback only.
      */
     fun startRecordingWithTranscription(
         asrAvailable: Boolean,

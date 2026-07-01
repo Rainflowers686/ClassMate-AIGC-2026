@@ -1,4 +1,16 @@
-# Document Index - ClassMate 1.14.5
+# Document Index - ClassMate 1.14.6
+
+版本：`1.14.6 / versionCode 119`
+
+本轮新增当前入口：
+
+| 文件 | 类型 | 状态 |
+| --- | --- | --- |
+| `docs/current/CHANGELOG_1_14_6.md` | 当前版本变更 | 新增 |
+| `docs/current/REAL_DEVICE_FIX_MATRIX_1_14_6.md` | 真机问题修复矩阵 | 新增 |
+| `docs/current/REAL_DEVICE_TEST_MANUAL_1_14_6.md` | 真机复测手册 | 新增 |
+
+1.14.6 之后，官方 ASR 主路线、系统 ASR 可选 fallback、蓝心配置诊断、录音后官方转写和微测相关性 gate 以上述三个文件为准。
 
 版本：`1.14.5 / versionCode 118`
 

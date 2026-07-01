@@ -1,5 +1,8 @@
 package com.classmate.app.state
 
+import com.classmate.app.capture.CaptureGateway
+import com.classmate.app.asr.OfficialAsrRouteKind
+import com.classmate.app.platform.CaptureConfigLoader
 import com.classmate.app.platform.ConfigRepository
 import com.classmate.app.platform.AiModelProviderMode
 import com.classmate.app.platform.ModelConfigRepository
@@ -202,6 +205,34 @@ class AppViewModelProviderConfigTest {
         assertEquals(AiModelProviderMode.OFFICIAL_BLUELM, viewModel.ui.modelConfigMasked?.mode)
         assertTrue(viewModel.ui.providerConfigSummary.blueLmConfigured)
         assertEquals(ProviderKind.BLUELM, viewModel.activeConfigBundle().primary)
+        assertFalse(viewModel.ui.toString().contains("official-unit-key"))
+    }
+
+    @Test
+    fun savedOfficialModelConfigAlsoFeedsCaptureAndOfficialAsrSummary() {
+        val missing = Files.createTempDirectory("classmate-vm-capture").resolve("config.local.json").toFile()
+        val modelFile = Files.createTempDirectory("classmate-vm-capture-model").resolve("classmate_model_config.json").toFile()
+        val viewModel = AppViewModel(
+            configRepository = ConfigRepository(missing),
+            modelConfigRepository = ModelConfigRepository(modelFile),
+            captureGatewayProvider = {
+                CaptureGateway(configLoader = CaptureConfigLoader(localConfigFile = missing, modelConfigFile = modelFile))
+            },
+        )
+
+        viewModel.saveOfficialModelConfig(
+            baseUrl = "https://api-ai.vivo.com.cn/v1",
+            model = "qwen3.5-plus",
+            appId = "official-app-id",
+            appKey = "official-unit-key",
+        )
+
+        val official = viewModel.ui.providerConfigSummary.officialProviders
+        assertTrue(official.ocrConfigured)
+        assertTrue(official.realtimeAsrConfigured)
+        assertTrue(official.asrLongConfigured)
+        assertTrue(official.ttsConfigured)
+        assertEquals(OfficialAsrRouteKind.OFFICIAL_REALTIME, viewModel.officialAsrRoutePlan(systemRecognizerAvailable = false).primary)
         assertFalse(viewModel.ui.toString().contains("official-unit-key"))
     }
 

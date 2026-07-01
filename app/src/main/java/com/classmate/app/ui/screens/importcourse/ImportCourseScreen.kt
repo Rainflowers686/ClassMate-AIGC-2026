@@ -46,6 +46,7 @@ import androidx.core.content.ContextCompat
 import androidx.compose.ui.text.font.FontStyle
 import com.classmate.app.asr.AndroidSpeechRecognizerClient
 import com.classmate.app.asr.AsrEventListener
+import com.classmate.app.asr.OfficialAsrRoutePlan
 import com.classmate.app.asr.AsrSession
 import com.classmate.app.asr.AsrState
 import com.classmate.app.asr.SpeechRecognitionSettingsTargets
@@ -159,10 +160,11 @@ fun ImportCourseScreen(viewModel: AppViewModel) {
             viewModel.toast("未拍摄到图片。")
         }
     }
-    // P0-1: live speech-to-text engine for INLINE "record + transcribe". Uses the system recognizer as
-    // the non-official fallback (no raw audio kept by the recognizer itself); honest states drive the UI.
+    // Optional system speech-to-text fallback. The primary ASR path is official ASR after a saved recording;
+    // system SpeechRecognizer is exposed only as an experimental device fallback.
     val asrLanguageTag = if (ui.language.resolve() == AppLanguage.EN) "en-US" else "zh-CN"
     val asrEngine = remember(asrLanguageTag) { AndroidSpeechRecognizerClient(context, asrLanguageTag) }
+    val asrRoutePlan = viewModel.officialAsrRoutePlan(systemRecognizerAvailable = asrEngine.isAvailable())
     val asrListener = remember {
         object : AsrEventListener {
             override fun onListening() = viewModel.asrOnListening()
@@ -173,24 +175,42 @@ fun ImportCourseScreen(viewModel: AppViewModel) {
         }
     }
     DisposableEffect(asrEngine) { onDispose { asrEngine.destroy() } }
-    fun beginRecordAndTranscribe(granted: Boolean) {
+    fun beginRecordOnly(granted: Boolean) {
+        if (granted) viewModel.startClassroomRecording() else viewModel.toast("请先授予录音权限；也可粘贴转写文本继续。")
+    }
+    fun beginOptionalSystemAsr(granted: Boolean) {
         val state = viewModel.startRecordingWithTranscription(asrEngine.isAvailable(), granted)
         if (state == AsrState.LISTENING) asrEngine.start(asrListener)
     }
     val recordingPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        beginRecordAndTranscribe(granted)
+        beginRecordOnly(granted)
+    }
+    val optionalSystemAsrPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        beginOptionalSystemAsr(granted)
     }
     fun startRecordingWithPermission() {
         val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-        if (granted) beginRecordAndTranscribe(true) else recordingPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        if (granted) beginRecordOnly(true) else recordingPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+    }
+    fun startOptionalSystemAsrWithPermission() {
+        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+        if (granted) beginOptionalSystemAsr(true) else optionalSystemAsrPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
     }
     fun stopRecordAndTranscribe() {
         asrEngine.stop()
-        viewModel.stopRecordingWithTranscription()
+        if (ui.asrSession.segments.any { it.text.isNotBlank() } || ui.asrSession.state != AsrState.IDLE) {
+            viewModel.stopRecordingWithTranscription()
+        } else {
+            viewModel.stopClassroomRecording()
+        }
     }
     fun cancelRecordAndTranscribe() {
         asrEngine.stop()
-        viewModel.cancelRecordingWithTranscription()
+        if (ui.asrSession.segments.any { it.text.isNotBlank() } || ui.asrSession.state != AsrState.IDLE) {
+            viewModel.cancelRecordingWithTranscription()
+        } else {
+            viewModel.cancelClassroomRecording()
+        }
     }
 
     AiProcessingDialog(
@@ -292,7 +312,9 @@ fun ImportCourseScreen(viewModel: AppViewModel) {
                 DocumentEvidenceIntakeCard(viewModel)
                 ClassroomRecordingCard(
                     viewModel,
+                    routePlan = asrRoutePlan,
                     onStartRecording = { startRecordingWithPermission() },
+                    onStartOptionalSystemAsr = { startOptionalSystemAsrWithPermission() },
                     onStopRecording = { stopRecordAndTranscribe() },
                     onCancelRecording = { cancelRecordAndTranscribe() },
                 )
@@ -368,7 +390,9 @@ private fun DocumentEvidenceIntakeCard(viewModel: AppViewModel) {
 @Composable
 private fun ClassroomRecordingCard(
     viewModel: AppViewModel,
+    routePlan: OfficialAsrRoutePlan,
     onStartRecording: () -> Unit,
+    onStartOptionalSystemAsr: () -> Unit,
     onStopRecording: () -> Unit,
     onCancelRecording: () -> Unit,
 ) {
@@ -389,9 +413,10 @@ private fun ClassroomRecordingCard(
             )
         }
         Spacer(Modifier.height(Dimens.xs))
-        Text("录音后可导出，或粘贴转写继续。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        // P0-2: after stopping, the honest capture message ("录音已保存，转写暂不可用 …" when system speech
-        // recognition is missing) is shown here too, not just on the transcript screen.
+        Text(routePlan.headline, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
+        Spacer(Modifier.height(Dimens.xxs))
+        Text(routePlan.detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        // After stopping, the honest capture message is shown here too, not just on the transcript screen.
         ui.audioCaptureMessage?.takeIf { it.isNotBlank() }?.let {
             Spacer(Modifier.height(Dimens.xs))
             Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -432,6 +457,8 @@ private fun ClassroomRecordingCard(
             Spacer(Modifier.height(Dimens.s))
             RecordingRecordRow(
                 record = record,
+                routePlan = routePlan,
+                onTranscribe = { viewModel.transcribeSavedRecording(record.id) },
                 onShare = {
                     val file = recordingFile(recordingContext, record)
                     if (file != null && file.exists() && file.length() > 0L) {
@@ -492,8 +519,21 @@ private fun ClassroomRecordingCard(
         )
         Spacer(Modifier.height(Dimens.s))
         if (active) {
-            // Inline live speech-to-text while recording (P0-1): partial + confirmed segments + honest state.
-            LiveTranscriptPanel(ui.asrSession)
+            if (ui.asrSession.state != AsrState.IDLE) {
+                LiveTranscriptPanel(ui.asrSession)
+            } else if (routePlan.showSystemFallbackAction) {
+                SecondaryButton(
+                    text = "使用系统实时转写（可选）",
+                    onClick = onStartOptionalSystemAsr,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(Dimens.xs))
+                Text(
+                    "系统语音识别依赖机型和 ROM，仅作为可选实验 fallback；官方 ASR/手动转写才是主路线。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             if (ui.asrSession.state == AsrState.UNSUPPORTED) {
                 Spacer(Modifier.height(Dimens.s))
                 SecondaryButton(
@@ -537,10 +577,24 @@ private fun ClassroomRecordingCard(
                 Spacer(Modifier.height(Dimens.s))
             }
             PrimaryButton(
-                if (ui.asrSession.state == AsrState.UNSUPPORTED) "仅录音" else "开始录音并实时转写",
+                routePlan.primaryRecordingButton,
                 onClick = onStartRecording,
                 modifier = Modifier.fillMaxWidth(),
             )
+            Spacer(Modifier.height(Dimens.s))
+            SecondaryButton(
+                text = "粘贴转写文本",
+                onClick = { viewModel.navigateTo(Screen.TRANSCRIPT_IMPORT) },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            if (routePlan.showSystemFallbackAction) {
+                Spacer(Modifier.height(Dimens.s))
+                SecondaryButton(
+                    text = "使用系统实时转写（可选）",
+                    onClick = onStartOptionalSystemAsr,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
     }
 }
@@ -563,7 +617,7 @@ private fun openSpeechRecognitionSettings(context: Context, onFailed: () -> Unit
     onFailed()
 }
 
-/** Inline live transcript view for the recording card: honest state + confirmed segments + interim text. */
+/** Optional system live transcript view for the recording card: honest state + confirmed segments + interim text. */
 @Composable
 private fun LiveTranscriptPanel(asr: AsrSession) {
     val cs = MaterialTheme.colorScheme
@@ -577,7 +631,7 @@ private fun LiveTranscriptPanel(asr: AsrSession) {
     }
     Spacer(Modifier.height(Dimens.s))
     Text(
-        "实时转写 · $stateLabel",
+        "系统实时转写（可选）· $stateLabel",
         style = MaterialTheme.typography.labelLarge,
         color = if (asr.state == AsrState.ERROR) cs.error else cs.primary,
     )
@@ -614,7 +668,13 @@ private fun DialectModeButton(label: String, selected: Boolean, onClick: () -> U
 
 /** Honest per-recording row: real file name, duration, size, Chinese status + export/delete entries. */
 @Composable
-private fun RecordingRecordRow(record: ClassroomRecordingRecord, onShare: () -> Unit, onDelete: () -> Unit) {
+private fun RecordingRecordRow(
+    record: ClassroomRecordingRecord,
+    routePlan: OfficialAsrRoutePlan,
+    onTranscribe: () -> Unit,
+    onShare: () -> Unit,
+    onDelete: () -> Unit,
+) {
     val cs = MaterialTheme.colorScheme
     val saved = record.status == L3RecordingStatus.SAVED && record.fileSizeBytes > 0L
     Column(Modifier.fillMaxWidth()) {
@@ -630,6 +690,10 @@ private fun RecordingRecordRow(record: ClassroomRecordingRecord, onShare: () -> 
                 color = cs.onSurfaceVariant,
             )
             Spacer(Modifier.height(Dimens.xs))
+            if (routePlan.showOfficialLongAction) {
+                SecondaryButton(routePlan.afterRecordingAction, onClick = onTranscribe, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(Dimens.xs))
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
                 SecondaryButton("导出录音", onClick = onShare, modifier = Modifier.weight(1f))
                 SecondaryButton("删除", onClick = onDelete, modifier = Modifier.weight(1f))

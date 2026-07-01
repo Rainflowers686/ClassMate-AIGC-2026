@@ -127,7 +127,7 @@ object OfficialAsrWsProtocol {
     fun safeErrorMessage(code: Int?): String = when (code) {
         null -> "官方实时转写返回了无法识别的状态。"
         0 -> "官方实时转写处理中。"
-        else -> "官方实时转写暂时不可用（错误码 $code），可改用系统实时转写或稍后重试。"
+        else -> "官方实时转写暂时不可用（错误码 $code），录音会保留，可稍后重试官方转写或粘贴转写文本。"
     }
 
     private fun enc(value: String): String = URLEncoder.encode(value, StandardCharsets.UTF_8.name())

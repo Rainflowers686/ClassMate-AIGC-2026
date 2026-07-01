@@ -82,6 +82,7 @@ data class OfficialProviderConfigSummary(
     val translationConfigured: Boolean = false,
     val ttsConfigured: Boolean = false,
     val functionCallingConfigured: Boolean = false,
+    val realtimeAsrConfigured: Boolean = false,
     val asrLongConfigured: Boolean = false,
 ) {
     val anyConfigured: Boolean
@@ -93,6 +94,7 @@ data class OfficialProviderConfigSummary(
             translationConfigured,
             ttsConfigured,
             functionCallingConfigured,
+            realtimeAsrConfigured,
             asrLongConfigured,
         ).any { it }
 }
@@ -257,6 +259,7 @@ class ConfigRepository(
             translationConfigured = root.providerReady("translation"),
             ttsConfigured = root.providerReady("tts", "audioGeneration", "audio_generation"),
             functionCallingConfigured = root.providerReady("functionCalling", "function_calling"),
+            realtimeAsrConfigured = root.providerReady("realtimeAsr", "asrRealtime", "asr_ws", "asrWebSocket"),
             asrLongConfigured = root.providerReady("asrLong", "asr_long", "longAsr"),
         )
 
