@@ -100,7 +100,6 @@ import com.classmate.app.ui.product.ProductScaffold
 import com.classmate.app.ui.product.ProductSectionTitle
 import com.classmate.app.ui.product.ProductSpace
 import com.classmate.app.ui.product.QuietCard
-import com.classmate.app.platform.CaptureConfigLoader
 import com.classmate.app.ui.design.Dimens
 import com.classmate.app.ui.i18n.Strings
 import com.classmate.app.ui.i18n.appStrings
@@ -216,7 +215,7 @@ fun ImportCourseScreen(viewModel: AppViewModel) {
                     subtitle = "图片、拍照、文本会先形成可编辑学习草稿，用户确认后进入知识结构大纲。",
                 )
                 // AI 来源：云端优先 · 端侧兜底 — 未配置官方服务不等于没有 AI；端侧蓝心仍可生成学习草稿。
-                val captureStatus = remember { CaptureConfigLoader().status() }
+                val captureStatus = viewModel.captureConfigStatus()
                 Text(
                     "AI 来源：云端优先 · 端侧兜底。官方 OCR / ASR ${captureStatus.labelZh()}；未配置时端侧蓝心仍可生成图片学习草稿，或粘贴转写文本，用户确认后生成知识结构大纲。",
                     style = MaterialTheme.typography.bodySmall,

@@ -245,7 +245,7 @@ fun SettingsScreen(viewModel: AppViewModel) {
                 SettingsPage.AI_MODEL_CONFIG -> {
                     SettingsPageHeader(page = page, onBack = { viewModel.openSettingsPage(SettingsPage.GENERAL_SETTINGS) })
                     AiModelConfigurationPage(viewModel)
-                    ModelAccessNotesCard()
+                    ModelAccessNotesCard(viewModel)
                     OfficialProviderReadinessCard(includeDevLab = false)
                 }
 
@@ -1448,13 +1448,15 @@ private fun advancedJsonError(text: String): String? =
 private val settingsJson = Json { ignoreUnknownKeys = true; isLenient = true }
 
 @Composable
-private fun ModelAccessNotesCard() {
+private fun ModelAccessNotesCard(viewModel: AppViewModel) {
+    val captureStatus = viewModel.captureConfigStatus()
     ClassMateCard {
         Text("AI 路由说明", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.xs))
         Text("云端优先，端侧兜底，用户确认后再写入学习资料。官方 OCR / ASR 未配置时，仍可继续编辑草稿或粘贴转写文本。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(Dimens.xs))
         ProviderStatusRow("TTS / 音频生成", "未配置时导出课程精华脚本文本")
+        ProviderStatusRow("官方 OCR / ASR", "${captureStatus.labelZh()}；未配置时可继续编辑图片草稿或粘贴转写文本")
         ProviderStatusRow("翻译辅助学习", "保留 derived note，不修改原始证据")
         ProviderStatusRow("端侧文本安全审核", "不可用时提示，不阻断核心学习")
         ProviderStatusRow("检索增强", "查询改写 / 文本相似度 / 文本向量未配置时，本地证据检索继续可用")

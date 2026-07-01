@@ -59,4 +59,12 @@ class ImportCourseEntriesTest {
         assertTrue("material tray item should accept image preview path", components.contains("imagePath: String"))
         assertTrue("material tray should show an image preview when possible", components.contains("资料篮图片预览"))
     }
+
+    @Test
+    fun ocrReadinessUsesViewModelGatewayStatus() {
+        val s = source()
+
+        assertTrue("import page must use the injected capture gateway status", s.contains("viewModel.captureConfigStatus()"))
+        assertFalse("import page must not bypass saved Settings config", s.contains("CaptureConfigLoader().status()"))
+    }
 }

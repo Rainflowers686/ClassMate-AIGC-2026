@@ -82,6 +82,15 @@ class CaptureGatewayWiringTest {
     }
 
     @Test
+    fun captureReadinessComesFromInjectedGateway() {
+        val viewModel = AppViewModel(captureGatewayProvider = {
+            FakeCaptureGateway(status = CaptureConfigStatus(configured = true, hasAppId = true, hasAppKey = true))
+        })
+
+        assertEquals("已配置", viewModel.captureConfigStatus().labelZh())
+    }
+
+    @Test
     fun pastedTranscriptCreatesEditableDraftThroughGateway() {
         val gateway = FakeCaptureGateway()
         val viewModel = AppViewModel(captureGatewayProvider = { gateway })
@@ -130,12 +139,14 @@ private fun routedImageDraft(draft: ImageStudyDraft, source: AiExecutionSource):
         ),
     )
 
-private class FakeCaptureGateway : CaptureGatewayPort {
+private class FakeCaptureGateway(
+    private val status: CaptureConfigStatus = CaptureConfigStatus(configured = false, hasAppId = false, hasAppKey = false),
+) : CaptureGatewayPort {
     var confirmImageCalled = false
     var manualTranscriptCalled = false
 
     override fun refresh() = Unit
-    override fun status(): CaptureConfigStatus = CaptureConfigStatus(configured = false, hasAppId = false, hasAppKey = false)
+    override fun status(): CaptureConfigStatus = status
     override val isOcrConfigured: Boolean = false
     override val isAsrConfigured: Boolean = false
     override fun recognizeImage(imageBytes: ByteArray): CaptureResult<OcrResult> = CaptureResult.fail(CaptureError.ConfigMissing)

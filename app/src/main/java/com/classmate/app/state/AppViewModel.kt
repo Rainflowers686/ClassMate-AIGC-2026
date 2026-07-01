@@ -152,6 +152,7 @@ import com.classmate.app.ondevice.OnDevicePermissionSnapshot
 import com.classmate.core.ondevice.OnDeviceModelFileProbe
 import com.classmate.app.platform.ConfigImportPreview
 import com.classmate.app.platform.ConfigRepository
+import com.classmate.app.platform.CaptureConfigStatus
 import com.classmate.app.platform.DebugConfigImporter
 import com.classmate.app.platform.AiModelProviderMode
 import com.classmate.app.platform.MaskedModelProfile
@@ -879,6 +880,9 @@ class AppViewModel(
     /** Masked view of the saved official-model config for Settings (never the raw secret). */
     fun savedModelConfig(): MaskedModelProfile? = ui.modelConfigMasked
 
+    /** Value-only OCR/ASR capture readiness from the production gateway, never raw credentials. */
+    fun captureConfigStatus(): CaptureConfigStatus = captureGateway.status()
+
     /**
      * Persist an official BlueLM config and apply it to the active bundle immediately. Credentials
      * are written ONLY to app-private storage; never logged, exported, or echoed back.
@@ -896,6 +900,7 @@ class AppViewModel(
         )
         if (saved) {
             configBundle = applyPersistedModelProfile(configRepository.loadLocalOrDefault().bundle)
+            captureGateway.refresh()
         }
         val profile = modelConfigRepository.load()
         ui = ui.copy(
@@ -919,6 +924,7 @@ class AppViewModel(
         val saved = modelConfigRepository.saveCustom(apiKey = apiKey, advancedJson = advancedJson)
         if (saved) {
             configBundle = applyPersistedModelProfile(configRepository.loadLocalOrDefault().bundle)
+            captureGateway.refresh()
         }
         val profile = modelConfigRepository.load()
         ui = ui.copy(
@@ -936,6 +942,7 @@ class AppViewModel(
         if (!modelConfigRepository.isEnabled) return
         if (modelConfigRepository.setMode(mode)) {
             configBundle = applyPersistedModelProfile(configRepository.loadLocalOrDefault().bundle)
+            captureGateway.refresh()
             ui = ui.copy(
                 providerConfigSummary = providerSummary("saved model mode"),
                 modelConfigMasked = modelConfigRepository.masked(),
@@ -952,6 +959,7 @@ class AppViewModel(
         }
         modelConfigRepository.deleteOfficial()
         configBundle = applyPersistedModelProfile(configRepository.loadLocalOrDefault().bundle)
+        captureGateway.refresh()
         ui = ui.copy(
             providerConfigSummary = providerSummary("model config deleted"),
             modelConfigMasked = modelConfigRepository.masked(),
@@ -966,6 +974,7 @@ class AppViewModel(
         }
         modelConfigRepository.deleteCustom()
         configBundle = applyPersistedModelProfile(configRepository.loadLocalOrDefault().bundle)
+        captureGateway.refresh()
         ui = ui.copy(
             providerConfigSummary = providerSummary("custom model config deleted"),
             modelConfigMasked = modelConfigRepository.masked(),
