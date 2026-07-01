@@ -1,4 +1,17 @@
-# Document Index - ClassMate 1.14.6
+# Document Index - ClassMate 1.14.7
+
+版本：`1.14.7 / versionCode 120`
+
+本轮新增当前入口：
+
+| 文件 | 类型 | 状态 |
+| --- | --- | --- |
+| `docs/current/CHANGELOG_1_14_7.md` | 当前版本变更 | 新增 |
+| `docs/current/REAL_DEVICE_FIX_MATRIX_1_14_7.md` | 真机官方服务诊断修复矩阵 | 新增 |
+| `docs/current/REAL_DEVICE_TEST_MANUAL_1_14_7.md` | 真机官方服务 dry-run 手册 | 新增 |
+| `scripts/qa/provider_live_smoke.ps1` | 本地官方服务 smoke 脚本 | 新增 |
+
+1.14.7 之后，BlueLM、官方 ASR、官方 TTS/OCR 的配置读取、readiness、dry-run、错误分类和脚本验证以上述文件以及 `OFFICIAL_INTERFACE_REFERENCE_INDEX.md`、`CLAUDE_OFFICIAL_INTERFACE_LOOKUP_GUIDE.md` 为准。缺配置输出 SKIP，不等于功能失败；本地 fallback 不等于官方成功。
 
 版本：`1.14.6 / versionCode 119`
 

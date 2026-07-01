@@ -1,5 +1,14 @@
 # ClassMate Official Interface Reference Index
 
+Current update: `1.14.7 / versionCode 120`
+
+1.14.7 adds a verifiable provider diagnostics layer:
+
+- `OfficialProviderDiagnostics` maps BlueLM and official provider readiness into safe categories: `SUCCESS`, `SKIP_MISSING_CONFIG`, `AUTH_FAILED`, `NETWORK_FAILED`, `TIMEOUT`, `BAD_REQUEST`, `SERVER_ERROR`, `EMPTY_RESPONSE`, `PARSE_ERROR`, `READY_CONFIG_PRESENT`, `SKIPPED_NO_AUDIO`.
+- Developer Settings can run an official service dry-run. BlueLM uses the same provider path as the real request with a minimal safe prompt. Official ASR/TTS/OCR report config/readiness without exposing credentials.
+- `scripts/qa/provider_live_smoke.ps1` defaults to no local credential inspection and no network request. It prints SKIP when credentials are missing or not inspected; explicit `-UseLocalConfig` delegates to the existing official smoke with redacted output.
+- System SpeechRecognizer is only an optional device fallback. The ClassMate ASR main route is official realtime ASR, official long-ASR after recording, then manual transcript.
+
 Version: `1.14.2 / versionCode 115`
 Latest documentation baseline: `711e35d docs(final): rewrite release docs and submission evidence for v1.14.2`
 Current product baseline includes: `7473fb1 fix(product): repair final real-device import and quiz blockers`

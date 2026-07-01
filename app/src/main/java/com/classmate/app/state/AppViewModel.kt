@@ -161,6 +161,8 @@ import com.classmate.app.platform.MaskedModelProfile
 import com.classmate.app.platform.ModelApiProfile
 import com.classmate.app.platform.ModelConfigRepository
 import com.classmate.app.platform.OfficialProviderConfigSummary
+import com.classmate.app.platform.OfficialProviderDiagnostics
+import com.classmate.app.platform.ProviderDryRunResult
 import com.classmate.app.platform.ProviderConfigSummary
 import com.classmate.app.ui.i18n.AppLanguage
 import com.classmate.app.ui.theme.AccentColorPreset
@@ -205,6 +207,7 @@ import com.classmate.core.ondevice.OnDeviceGenerationResult
 import com.classmate.core.ondevice.OnDeviceLlmDiagnostic
 import com.classmate.core.ondevice.OnDeviceLlmTaskProfile
 import com.classmate.core.ondevice.OnDevicePromptTemplate
+import com.classmate.core.provider.BlueLMDiagnosticStatus
 import com.classmate.core.provider.Credential
 import com.classmate.core.provider.HttpTimeouts
 import com.classmate.core.provider.LearnerProfile
@@ -805,6 +808,60 @@ class AppViewModel(
 
     internal fun runBlueLmConnectionDiagnostic(): BlueLMDiagnosticReport =
         BlueLMDiagnosticRunner(transport).run(configBundle.configOf(ProviderKind.BLUELM))
+
+    internal fun runOfficialProviderDryRunOnce(): List<ProviderDryRunResult> =
+        buildOfficialProviderDryRunResults(runBlueLmConnectionDiagnostic())
+
+    private fun buildOfficialProviderDryRunResults(blueLmReport: BlueLMDiagnosticReport): List<ProviderDryRunResult> {
+        val captureStatus = captureConfigStatus()
+        val official = mergedOfficialProviderSummary()
+        return listOf(
+            OfficialProviderDiagnostics.fromBlueLm(
+                report = blueLmReport,
+                successEpochMs = if (blueLmReport.status == BlueLMDiagnosticStatus.OK) System.currentTimeMillis() else null,
+            ),
+            OfficialProviderDiagnostics.fromCaptureConfig(
+                capability = "官方实时 ASR WebSocket",
+                status = captureStatus,
+                configuredMessage = "配置来源与正式 capture provider 同源；本次未占用麦克风，只确认配置可用于官方实时 ASR 路由",
+                missingMessage = "未读取到官方 ASR AppID/AppKey；录音仍会保存，可粘贴转写文本",
+            ).copy(configured = official.realtimeAsrConfigured),
+            OfficialProviderDiagnostics.fromCaptureConfig(
+                capability = "官方长语音转写",
+                status = captureStatus,
+                configuredMessage = "配置来源与正式长语音 provider 同源；需要选择短录音后才能发起真实转写 smoke",
+                missingMessage = "未读取到官方长语音转写配置；录音后可手动粘贴转写文本",
+                noAudio = captureStatus.configured,
+            ).copy(configured = official.asrLongConfigured),
+            OfficialProviderDiagnostics.fromCaptureConfig(
+                capability = "官方 TTS WebSocket",
+                status = captureStatus,
+                configuredMessage = "配置来源与官方 TTS provider 同源；真实合成需用户主动触发并依赖接口权限",
+                missingMessage = "未读取到官方 TTS 配置；系统 TTS 或听背文稿仍可用",
+            ).copy(configured = official.ttsConfigured),
+            OfficialProviderDiagnostics.fromCaptureConfig(
+                capability = "官方 OCR",
+                status = captureStatus,
+                configuredMessage = "配置来源与生产 OCR gateway 同源；真实图片识别由导入页触发",
+                missingMessage = "未读取到官方 OCR 配置；图片仍保留，支持手动输入和重新 OCR",
+            ).copy(configured = official.ocrConfigured),
+        )
+    }
+
+    fun runOfficialProviderDryRun() {
+        ui = ui.copy(officialProviderDiagnosticsRunning = true)
+        viewModelScope.launch {
+            val report = withContext(Dispatchers.IO) { runBlueLmConnectionDiagnostic() }
+            val results = buildOfficialProviderDryRunResults(report)
+            val blueLm = results.firstOrNull { it.capability.contains("蓝心") }
+            ui = ui.copy(
+                officialProviderDiagnosticsRunning = false,
+                officialProviderDiagnostics = results,
+                blueLmDiagnostic = report,
+                toast = blueLm?.let { "官方服务 dry-run：${it.capability} ${it.category.labelZh}" },
+            )
+        }
+    }
 
     /**
      * Official-path connection test for the competition main config page. Unlike

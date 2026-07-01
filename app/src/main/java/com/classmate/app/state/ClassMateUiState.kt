@@ -29,6 +29,7 @@ import com.classmate.app.l3.PracticeQuestionMode
 import com.classmate.app.l3.QuestionBankParseResult
 import com.classmate.app.material.MaterialSourceSummary
 import com.classmate.app.platform.MaskedModelProfile
+import com.classmate.app.platform.ProviderDryRunResult
 import com.classmate.core.importing.ImportSourceType
 import com.classmate.core.learning.LearningSnapshot
 import com.classmate.core.provider.AnalysisIntensity
@@ -187,6 +188,8 @@ data class ClassMateUiState(
     val blueLmDiagnostic: BlueLMDiagnosticReport? = null,
     val compatibleDiagnosticRunning: Boolean = false,
     val compatibleDiagnostic: CompatibleDiagnosticReport? = null,
+    val officialProviderDiagnosticsRunning: Boolean = false,
+    val officialProviderDiagnostics: List<ProviderDryRunResult> = emptyList(),
     // On-device BlueLM 3B (P6) + persistent official-model config (P5) + honest local path.
     val onDeviceDiagnostic: OnDeviceLlmDiagnostic? = null,
     val onDeviceDiagnosticRunning: Boolean = false,

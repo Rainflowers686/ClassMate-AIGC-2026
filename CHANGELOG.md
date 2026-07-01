@@ -1,5 +1,16 @@
 # Changelog
 
+当前候选版本：`1.14.7 / versionCode 120`，本轮只收口真实官方服务配置、readiness、dry-run 和脱敏诊断链路；不把 fallback 写成官方可用。
+
+## 1.14.7 / 120 - official provider diagnostics and smoke checks
+
+- 新增统一 `OfficialProviderDiagnostics`：把 BlueLM 最小真实请求诊断、官方 ASR/OCR/TTS 配置状态、缺音频 SKIP 状态统一映射为 `SUCCESS / SKIP_MISSING_CONFIG / AUTH_FAILED / NETWORK_FAILED / TIMEOUT / BAD_REQUEST / SERVER_ERROR / EMPTY_RESPONSE / PARSE_ERROR / READY_CONFIG_PRESENT / SKIPPED_NO_AUDIO`。
+- BlueLM dry-run 继续使用正式 provider 的同一 `configBundle`、同一 header/request 构造和最小安全 prompt；未配置时短路为 SKIP，不发网络请求；成功/失败均不暴露 AppKey 或 Authorization 值。
+- 开发者设置新增“运行官方服务 dry-run”入口，显示 BlueLM、官方实时 ASR、官方长语音转写、官方 TTS、官方 OCR 的脱敏分类结果；普通学习页仍只显示友好失败与 fallback。
+- 新增 `scripts/qa/provider_live_smoke.ps1`：默认不读取本地凭据、不联网；无配置输出 SKIP；显式 `-UseLocalConfig` 时委托既有 official provider smoke 并保持输出脱敏。
+- ASR 主路线继续固定为官方实时 ASR / 官方长语音转写 / 手动转写；系统 SpeechRecognizer 只作为用户主动选择的设备 fallback，不作为比赛主承诺。
+- 风险：真实官方服务成功仍依赖本机 AppID/AppKey、接口权限、网络、设备权限和服务端状态。本轮不会读取或提交 `config.local.json`，也不会把本地 fallback 冒充官方成功。
+
 当前候选版本：`1.14.6 / versionCode 119`，本轮聚焦真实服务接入路径：蓝心配置/诊断、官方 ASR 主路线、系统 ASR 降级为可选 fallback、学科知识点过滤贯穿和微测相关性 gate。
 
 ## 1.14.6 / 119 - official ASR routing and model diagnostics hardening

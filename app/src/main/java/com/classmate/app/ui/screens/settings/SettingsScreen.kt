@@ -82,6 +82,7 @@ import com.classmate.app.ondevice.OnDevicePermissions
 import com.classmate.app.platform.ConfigImportPreview
 import com.classmate.app.platform.AiModelProviderMode
 import com.classmate.app.platform.ModelApiProfile
+import com.classmate.app.platform.ProviderDryRunResult
 import com.classmate.app.platform.ProviderConfigSummary
 import com.classmate.app.platform.ProviderSummary
 import com.classmate.app.state.AnalysisSourceReport
@@ -1432,9 +1433,31 @@ private fun DeveloperSettingsHomeCard(viewModel: AppViewModel) {
         ProviderStatusRow("Official Provider Smoke", "默认 dry-run；真实网络 smoke 需要显式授权")
         ProviderStatusRow("端侧模型状态", viewModel.ui.onDeviceDiagnostic?.status?.displayZh ?: "未知")
         ProviderStatusRow("qwen profile", cloudQualityProfileStatus())
+        Spacer(Modifier.height(Dimens.s))
+        SecondaryButton(
+            text = if (viewModel.ui.officialProviderDiagnosticsRunning) "官方服务 dry-run 中" else "运行官方服务 dry-run",
+            onClick = { viewModel.runOfficialProviderDryRun() },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OfficialDryRunResults(viewModel.ui.officialProviderDiagnostics)
         ProviderStatusRow("云端模型", if (summary.blueLmConfigured || summary.compatibleConfigured) "已配置" else "未配置")
         ProviderStatusRow("密钥显示", "不显示完整 key，仅显示 configured / missing 或脱敏状态")
     }
+}
+
+@Composable
+private fun OfficialDryRunResults(results: List<ProviderDryRunResult>) {
+    if (results.isEmpty()) return
+    Spacer(Modifier.height(Dimens.xs))
+    results.forEach { result ->
+        ProviderStatusRow(result.capability, result.displayLine())
+    }
+    Spacer(Modifier.height(Dimens.xs))
+    Text(
+        "dry-run 只显示分类和脱敏状态；缺配置输出 SKIP，不会把本地兜底写成官方成功。",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 private fun advancedJsonError(text: String): String? =

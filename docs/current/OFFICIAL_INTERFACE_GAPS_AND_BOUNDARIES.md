@@ -1,5 +1,9 @@
 # Official Interface Gaps and Boundaries
 
+Current update: `1.14.7 / versionCode 120`
+
+1.14.7 adds provider dry-run categories and `scripts/qa/provider_live_smoke.ps1`. These diagnostics prove configuration wiring and safe error classification; they do not by themselves prove full real-device media success. `SKIP` means missing or intentionally uninspected local credentials, not a user failure. `READY_CONFIG_PRESENT` means the provider can see configuration and still needs a real AppKey/network/device validation. `SKIPPED_NO_AUDIO` means long ASR was not live-tested because no test recording was supplied.
+
 Version: `1.14.2 / versionCode 115`
 
 This file is the boundary contract for official vivo/BlueLM capability claims in ClassMate. It prevents future work from overstating code paths, smoke evidence, or fallback behavior.

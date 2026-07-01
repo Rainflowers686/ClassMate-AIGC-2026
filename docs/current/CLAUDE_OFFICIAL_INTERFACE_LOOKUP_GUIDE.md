@@ -1,5 +1,22 @@
 # Claude Official Interface Lookup Guide
 
+Current update: `1.14.7 / versionCode 120`
+
+Before changing any provider route, check the current diagnostic layer:
+
+- App code: `app/src/main/java/com/classmate/app/platform/OfficialProviderDiagnostics.kt`
+- ViewModel entry: `AppViewModel.runOfficialProviderDryRunOnce()` and `runOfficialProviderDryRun()`
+- Settings entry: Developer Settings -> `运行官方服务 dry-run`
+- Local script: `scripts/qa/provider_live_smoke.ps1`
+
+Rules after 1.14.7:
+
+1. Missing local credentials must be reported as SKIP, not as a fake network failure.
+2. BlueLM dry-run must use the same `configBundle`, header construction, and minimal provider path as the real request.
+3. Official ASR is the main route; Android SpeechRecognizer is only an optional device fallback.
+4. Official long ASR without a test audio file is `SKIPPED_NO_AUDIO`, not success.
+5. Never print AppKey, Authorization values, full responses, or local config contents.
+
 Version: `1.14.2 / versionCode 115`
 
 Read this first before changing any official vivo/BlueLM capability in ClassMate. It is deliberately direct: find the capability, open the source files, keep fallback behavior, and do not overclaim real-device status.

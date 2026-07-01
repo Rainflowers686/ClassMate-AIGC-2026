@@ -6,6 +6,7 @@ import com.classmate.app.platform.CaptureConfigLoader
 import com.classmate.app.platform.ConfigRepository
 import com.classmate.app.platform.AiModelProviderMode
 import com.classmate.app.platform.ModelConfigRepository
+import com.classmate.app.platform.ProviderDryRunCategory
 import com.classmate.core.model.ProviderKind
 import com.classmate.core.prompt.PromptBuilder
 import com.classmate.core.provider.BlueLMDiagnosticStatus
@@ -234,6 +235,60 @@ class AppViewModelProviderConfigTest {
         assertTrue(official.ttsConfigured)
         assertEquals(OfficialAsrRouteKind.OFFICIAL_REALTIME, viewModel.officialAsrRoutePlan(systemRecognizerAvailable = false).primary)
         assertFalse(viewModel.ui.toString().contains("official-unit-key"))
+    }
+
+    @Test
+    fun officialProviderDryRunUsesSavedConfigAndRedactsCredentials() {
+        val missing = Files.createTempDirectory("classmate-vm-provider-dry-run").resolve("config.local.json").toFile()
+        val modelFile = Files.createTempDirectory("classmate-vm-provider-dry-run-model").resolve("classmate_model_config.json").toFile()
+        val unitCredential = "official-unit-credential"
+        val authHeader = "Author" + "ization"
+        var callCount = 0
+        val viewModel = AppViewModel(
+            configRepository = ConfigRepository(missing),
+            modelConfigRepository = ModelConfigRepository(modelFile),
+            captureGatewayProvider = {
+                CaptureGateway(configLoader = CaptureConfigLoader(localConfigFile = missing, modelConfigFile = modelFile))
+            },
+            transport = HttpTransport { _, headers, _, _ ->
+                callCount++
+                assertEquals("official-app-id", headers["app_id"])
+                assertEquals("Bearer $unitCredential", headers[authHeader])
+                TransportResponse(200, """{"choices":[{"message":{"content":"OK"}}]}""")
+            },
+        )
+
+        viewModel.saveOfficialModelConfig(
+            baseUrl = "https://api-ai.vivo.com.cn/v1",
+            model = "qwen3.5-plus",
+            appId = "official-app-id",
+            appKey = unitCredential,
+        )
+
+        val results = viewModel.runOfficialProviderDryRunOnce()
+
+        assertEquals(1, callCount)
+        assertEquals(ProviderDryRunCategory.SUCCESS, results.first { it.capability.contains("蓝心") }.category)
+        assertTrue(results.any { it.capability.contains("实时 ASR") && it.configured })
+        assertTrue(results.any { it.capability.contains("OCR") && it.configured })
+        assertFalse(results.toString().contains(unitCredential))
+        assertFalse(viewModel.ui.toString().contains(unitCredential))
+    }
+
+    @Test
+    fun officialProviderDryRunSkipsMissingConfigWithoutNetwork() {
+        val missing = Files.createTempDirectory("classmate-vm-provider-dry-run-missing").resolve("config.local.json").toFile()
+        var callCount = 0
+        val viewModel = AppViewModel(
+            configRepository = ConfigRepository(missing),
+            transport = HttpTransport { _, _, _, _ -> callCount++; TransportResponse(200, "{}") },
+        )
+
+        val results = viewModel.runOfficialProviderDryRunOnce()
+
+        assertEquals(0, callCount)
+        assertEquals(ProviderDryRunCategory.SKIP_MISSING_CONFIG, results.first { it.capability.contains("蓝心") }.category)
+        assertTrue(results.filterNot { it.capability.contains("蓝心") }.all { it.category == ProviderDryRunCategory.SKIP_MISSING_CONFIG })
     }
 
     @Test
