@@ -66,8 +66,8 @@ ClassMate product matrix note:
 | Parameter | Official docs | Current code before this pass | Current code after this pass | Conflict with guard | Decision |
 |---|---|---|---|---|---|
 | Model | official docs include several cloud models including `qwen3.5-plus` | `qwen3.5-plus` as cloud BlueLM-compatible default | unchanged | none | Keep qwen / cloud BlueLM-compatible path; do not switch to doubao. |
-| `enable_thinking` / thinking | official docs state `qwen3.5-plus` defaults to thinking enabled and supports top-level `enable_thinking` | `qwen3.5-plus` request used a top-level `enable_thinking=false` compatibility guard | profile-aware: `DEEP_STUDY` and `BALANCED` send `enable_thinking=true` when the endpoint declares support; unsupported compatibility mode omits thinking fields | yes, old global false guard conflicted with quality goals | Replace global false guard with feature flags: `supportsEnableThinking`, `supportsReasoningEffort`, `supportsMaxCompletionTokens`. Response readers still detect reasoning metadata only and never surface or log reasoning text. |
-| `reasoning_effort` | official values include `minimal`, `low`, `medium`, `high` | not sent | `DEEP_STUDY=high`, `BALANCED=medium`, `FAST=medium` when supported | no | Use high for persistent learning outputs and medium for default/fast tasks. |
+| `enable_thinking` / thinking | official docs state `qwen3.5-plus` supports top-level `enable_thinking` | `qwen3.5-plus` request used a top-level `enable_thinking=false` compatibility guard | profile-aware: `FAST=false`, `BALANCED=false`, `DEEP_STUDY=true` when the endpoint declares support; unsupported compatibility mode omits thinking fields | yes, old global false guard conflicted with quality goals | Keep direct answers for fast/balanced work and enable thinking only for Professional/Max. Response readers still detect reasoning metadata only and never surface or log reasoning text. |
+| `reasoning_effort` | official values include `minimal`, `low`, `medium`, `high` | not sent | `DEEP_STUDY=high`, `BALANCED=medium`, `FAST=low` when supported | no | UI Max/Professional maps to API `high`; never send raw `max` unless official docs add it. |
 | `max_tokens` | default 4096; does not include thinking content | default provider used lower cap in some paths | `DEEP_STUDY` and `BALANCED` use 4096 unless a repair call-site cap is explicit | no | Keep visible answer length high for CourseAnalysis / Ask / Report. |
 | `max_completion_tokens` | official range `[0, 65,536]`; includes answer plus thinking chain | not sent | `DEEP_STUDY=65,536`, `BALANCED=32,768`, `FAST=8,192` when supported | no | Use the official high ceiling for deep study while preserving compatibility flags. |
 | `temperature` | range 0-2, default 1 | configured per provider, often low | profile-based: FAST 0.20, BALANCED 0.35, DEEP_STUDY 0.30 | no | Keep conservative values for evidence-grounded learning. |
@@ -97,8 +97,8 @@ The following learning tasks must use `DEEP_STUDY` or an equivalent high-quality
 
 The profile now controls public generation parameters plus qwen thinking fields. The old global `enable_thinking=false` guard is replaced by feature flags:
 
-- supported qwen path: `enable_thinking=true`
-- supported qwen path: `reasoning_effort=high` for `DEEP_STUDY`, `medium` for `BALANCED` and `FAST`
+- supported qwen path: `enable_thinking=false` for `FAST` and `BALANCED`, `true` for `DEEP_STUDY`
+- supported qwen path: `reasoning_effort=low` for `FAST`, `reasoning_effort=medium` for `BALANCED`, and `reasoning_effort=high` for `DEEP_STUDY` / UI Max
 - unsupported compatibility path: omit thinking / reasoning / max-completion / penalty fields instead of forcing a failing request
 - response readers keep reasoning text private and expose only `reasoningContentPresent` and length metadata
 

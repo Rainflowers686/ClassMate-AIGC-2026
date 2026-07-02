@@ -72,11 +72,12 @@ class CourseDetailModuleGuardTest {
     fun coreStatChipsStillNavigate() {
         listOf(
             "Screen.KNOWLEDGE",
-            "Screen.QUIZ",
+            "startPractice(PracticeMode.QUICK_REVIEW)",
             "Screen.REVIEW",
             "openEvidenceById",
         ).forEach {
             assertTrue("CourseDetail stat chips should still navigate via $it", source.contains(it))
         }
+        assertFalse("CourseDetail micro-quiz chip should not use the old Quiz screen", source.contains("navigateTo(Screen.QUIZ)"))
     }
 }

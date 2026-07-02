@@ -1,6 +1,16 @@
 # Claude Official Interface Lookup Guide
 
-Current update: `1.14.8 / versionCode 121`
+Current update: `1.14.9 / versionCode 122`
+
+Rules after 1.14.9:
+
+1. The BlueLM competition provider uses the official qwen3.5-plus chat-completions path under the product label “BlueLM / 蓝心大模型”.
+2. Never expose `qwen3.5-plus` in normal user pages or exports. Use it only in provider code, tests, developer docs, and diagnostic references.
+3. Product mode mapping is exact: Fast -> `low` + `enable_thinking=false`; Balanced -> `medium` + `false`; Professional/Max -> API `high` + `true`.
+4. Do not pass the UI word `max` to `reasoning_effort`; official documented values are `minimal / low / medium / high`.
+5. Formal provider calls must use long read timeouts by mode. Dry-run and `provider_live_smoke.ps1` stay short and must not become main-flow gates.
+6. Parse final answer content only. `reasoning_content` or streaming `delta.reasoning_content` must not reach UI, logs, or exports.
+7. Practice entry points must use the unified Practice flow; do not route CourseDetail/KnowledgeTimeline micro-quiz actions to the old Quiz screen.
 
 Rules after 1.14.8:
 

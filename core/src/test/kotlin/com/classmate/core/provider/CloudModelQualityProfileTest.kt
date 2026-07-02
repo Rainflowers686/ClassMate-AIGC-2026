@@ -41,7 +41,7 @@ class CloudModelQualityProfileTest {
         assertEquals(ReasoningEffort.HIGH, options.reasoningEffort)
         assertEquals(0.20, options.frequencyPenalty ?: 0.0, 0.0001)
         assertEquals(0.08, options.presencePenalty ?: 0.0, 0.0001)
-        assertEquals(120, CloudModelQualityProfile.DEEP_STUDY.timeoutSeconds)
+        assertEquals(600, CloudModelQualityProfile.DEEP_STUDY.timeoutSeconds)
         assertEquals(2, CloudModelQualityProfile.DEEP_STUDY.retryCount)
         assertEquals(CloudModelQualityProfile.DEEP_STUDY, options.qualityProfile)
     }
@@ -63,9 +63,18 @@ class CloudModelQualityProfileTest {
     }
 
     @Test
-    fun balancedKeepsMediumOrHigherReasoning() {
-        assertEquals(true, CloudModelQualityProfile.BALANCED.enableThinking)
+    fun fastBalancedAndProfessionalMapToOfficialQwenThinkingModes() {
+        assertEquals(false, CloudModelQualityProfile.FAST.enableThinking)
+        assertEquals(ReasoningEffort.LOW, CloudModelQualityProfile.FAST.reasoningEffort)
+        assertEquals(300, CloudModelQualityProfile.FAST.timeoutSeconds)
+
+        assertEquals(false, CloudModelQualityProfile.BALANCED.enableThinking)
         assertEquals(ReasoningEffort.MEDIUM, CloudModelQualityProfile.BALANCED.reasoningEffort)
         assertEquals(32768, CloudModelQualityProfile.BALANCED.maxCompletionTokens)
+        assertEquals(360, CloudModelQualityProfile.BALANCED.timeoutSeconds)
+
+        assertEquals(true, CloudModelQualityProfile.DEEP_STUDY.enableThinking)
+        assertEquals(ReasoningEffort.HIGH, CloudModelQualityProfile.DEEP_STUDY.reasoningEffort)
+        assertEquals(600, CloudModelQualityProfile.DEEP_STUDY.timeoutSeconds)
     }
 }

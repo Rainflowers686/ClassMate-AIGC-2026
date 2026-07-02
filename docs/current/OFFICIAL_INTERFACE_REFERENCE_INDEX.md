@@ -1,6 +1,15 @@
 # ClassMate Official Interface Reference Index
 
-Current update: `1.14.8 / versionCode 121`
+Current update: `1.14.9 / versionCode 122`
+
+1.14.9 qwen/BlueLM correction:
+
+- Competition main cloud model path uses the official OpenAI-style chat-completions protocol with `model=qwen3.5-plus`.
+- User-facing pages must say “BlueLM / 蓝心大模型”; do not expose the raw model name in normal UI or exports.
+- Product modes map to API parameters as follows: Fast -> `reasoning_effort=low`, `enable_thinking=false`; Balanced -> `reasoning_effort=medium`, `enable_thinking=false`; Professional/Max -> API `reasoning_effort=high`, `enable_thinking=true`.
+- Do not send `reasoning_effort=max` unless an updated official document confirms it. The local UI may say Max/Professional, but the API value is `high`.
+- Formal requests use long timeouts: about 5 minutes for Fast, 6 minutes for Balanced, and 10 minutes for Professional. Dry-run and provider smoke stay short (15-30 seconds).
+- `reasoning_content` is never shown to normal users and is not exported; only final assistant `content` is used.
 
 1.14.8 restores BlueLM as the primary AI provider for learning features, not just diagnostics:
 

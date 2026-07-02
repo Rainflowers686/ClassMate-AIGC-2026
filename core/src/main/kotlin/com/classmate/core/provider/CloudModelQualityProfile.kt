@@ -6,8 +6,9 @@ const val OFFICIAL_QWEN_MAX_COMPLETION_TOKENS = 65_536
  * Quality presets for cloud text-generation calls used by learning tasks.
  *
  * The official large-model docs say qwen3.5-plus supports `enable_thinking` and
- * `reasoning_effort`. These profiles make thinking profile-aware instead of globally
- * disabling it. Reasoning text is still never surfaced or logged by response readers.
+ * `reasoning_effort` values minimal/low/medium/high. Product "Max/Professional"
+ * maps to API `high`; never send a raw `max` value. Reasoning text is never surfaced
+ * or logged by response readers.
  */
 enum class CloudModelQualityProfile(
     val temperature: Double,
@@ -27,11 +28,11 @@ enum class CloudModelQualityProfile(
         topP = 0.85,
         maxTokens = 2048,
         maxCompletionTokens = 8192,
-        enableThinking = true,
-        reasoningEffort = ReasoningEffort.MEDIUM,
+        enableThinking = false,
+        reasoningEffort = ReasoningEffort.LOW,
         frequencyPenalty = 0.10,
         presencePenalty = 0.05,
-        timeoutSeconds = 20,
+        timeoutSeconds = 300,
         retryCount = 1,
         intendedTasks = setOf("FAST_UI_FEEDBACK", "short_titles", "small_status_copy"),
     ),
@@ -40,11 +41,11 @@ enum class CloudModelQualityProfile(
         topP = 0.90,
         maxTokens = 4096,
         maxCompletionTokens = 32768,
-        enableThinking = true,
+        enableThinking = false,
         reasoningEffort = ReasoningEffort.MEDIUM,
         frequencyPenalty = 0.15,
         presencePenalty = 0.08,
-        timeoutSeconds = 60,
+        timeoutSeconds = 360,
         retryCount = 1,
         intendedTasks = setOf("DEFAULT_LEARNING", "normal_ask", "light_summary"),
     ),
@@ -57,7 +58,7 @@ enum class CloudModelQualityProfile(
         reasoningEffort = ReasoningEffort.HIGH,
         frequencyPenalty = 0.20,
         presencePenalty = 0.08,
-        timeoutSeconds = 120,
+        timeoutSeconds = 600,
         retryCount = 2,
         intendedTasks = setOf(
             "COURSE_ANALYSIS",

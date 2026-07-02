@@ -65,8 +65,9 @@ class ProductCopyConsistencyTest {
     fun settingsModelCopyUsesCurrentSourceVocabulary() {
         val settings = read("src/main/java/com/classmate/app/ui/screens/settings/SettingsScreen.kt")
         listOf(
-            "当前模型：云端蓝心",
-            "qwen3.5-plus",
+            "蓝心大模型",
+            "快速 / 均衡 / 专业",
+            "专业模式开启深度思考",
             "端侧 BlueLM 3B",
             "官方 OCR",
             "ASR",
@@ -74,6 +75,8 @@ class ProductCopyConsistencyTest {
             "未检测到本地 SDK 文件",
         ).forEach { assertTrue("missing settings copy: $it", settings.contains(it)) }
 
+        assertFalse(settings.contains("当前模型：云端蓝心"))
+        assertFalse(settings.contains("qwen3.5-plus / DEEP_STUDY"))
         assertFalse(settings.contains("doubao", ignoreCase = true))
         assertFalse(settings.contains("豆包"))
         assertFalse(settings.contains("本地智能兜底"))

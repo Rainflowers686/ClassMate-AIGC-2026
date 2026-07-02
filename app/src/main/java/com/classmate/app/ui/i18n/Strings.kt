@@ -7,7 +7,7 @@ import java.util.Locale
  * resolves against the device locale at read time. Kept as plain Kotlin (no Android resources) so
  * the language switch is instant (no Activity recreation) and the string packs are unit-testable.
  *
- * Technical short codes (BlueLM, LocalFallback, qwen3.5-plus, JSON, Debug) stay as-is in
+ * Technical short codes (BlueLM, LocalFallback, JSON, Debug) stay as-is in
  * both languages on purpose.
  */
 enum class AppLanguage(val displayName: String) {
@@ -357,7 +357,7 @@ private val ZH = Strings(
     ocrDecodeFailedReason = "无法读取该图片，请重试或手动补充文字。",
     settingsTitle = "设置",
     settingsLanguage = "语言",
-    settingsLanguageDesc = "选择界面语言；技术短码（BlueLM、qwen3.5-plus、JSON 等）保留英文。",
+    settingsLanguageDesc = "选择界面语言；技术短码（BlueLM、JSON 等）保留英文。",
     quizLabel = "微测",
     quizTitle = { i, n -> "微测 $i / $n" },
     quizEmpty = "资料不足，暂不能生成微测，请补充资料或手动编辑 OCR 文本后重试。",
@@ -600,7 +600,7 @@ private val EN = Strings(
     ocrDecodeFailedReason = "Cannot read this image. Try again or add text manually.",
     settingsTitle = "Settings",
     settingsLanguage = "Language",
-    settingsLanguageDesc = "Choose the UI language; technical short codes (BlueLM, qwen3.5-plus, JSON, etc.) stay in English.",
+    settingsLanguageDesc = "Choose the UI language; technical short codes (BlueLM, JSON, etc.) stay in English.",
     quizLabel = "Quiz",
     quizTitle = { i, n -> "Quiz $i / $n" },
     quizEmpty = "Not enough material to generate a quiz yet. Add material or edit the OCR text and retry.",

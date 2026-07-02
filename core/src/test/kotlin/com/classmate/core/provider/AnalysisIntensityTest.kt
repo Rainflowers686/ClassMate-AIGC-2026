@@ -27,13 +27,14 @@ class AnalysisIntensityTest {
         // FAST must be materially lighter than STANDARD: fewer output tokens and fewer knowledge points.
         assertTrue(AnalysisIntensity.FAST.profile.maxTokens < AnalysisIntensity.STANDARD.profile.maxTokens)
         assertTrue(AnalysisIntensity.FAST.maxKnowledgePoints < AnalysisIntensity.STANDARD.maxKnowledgePoints)
-        // STANDARD must not be as heavy as DEEP (everyday default stays well under the 1–3 min ceiling).
+        // STANDARD stays below the professional/Max path while still allowing long cloud reasoning.
         assertTrue(AnalysisIntensity.STANDARD.readTimeoutMs < AnalysisIntensity.DEEP.readTimeoutMs)
     }
 
     @Test fun httpTimeoutsReflectTheIntensity() {
-        assertEquals(45_000L, AnalysisIntensity.FAST.httpTimeouts().readTimeoutMs)
-        assertEquals(240_000L, AnalysisIntensity.DEEP.httpTimeouts().readTimeoutMs)
+        assertEquals(300_000L, AnalysisIntensity.FAST.httpTimeouts().readTimeoutMs)
+        assertEquals(360_000L, AnalysisIntensity.STANDARD.httpTimeouts().readTimeoutMs)
+        assertEquals(600_000L, AnalysisIntensity.DEEP.httpTimeouts().readTimeoutMs)
     }
 
     @Test fun fromWireIsLenientAndDefaultsToStandard() {

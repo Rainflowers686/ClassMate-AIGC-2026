@@ -74,7 +74,7 @@ class BlueLMProviderTest {
         assertTrue(result is ProviderResult.Success)
         assertEquals(HttpRequestProfile.ANALYSIS, capturedProfile)
         assertEquals(15_000L, capturedTimeouts?.connectTimeoutMs)
-        assertEquals(120_000L, capturedTimeouts?.readTimeoutMs)
+        assertEquals(360_000L, capturedTimeouts?.readTimeoutMs)
     }
 
     @Test
@@ -338,7 +338,26 @@ class BlueLMProviderTest {
 
         provider.generate(AnalysisRequest(SampleCourses.seriesSession(), intensity = AnalysisIntensity.FAST))
 
-        assertEquals(45_000L, captured?.readTimeoutMs)
+        assertEquals(300_000L, captured?.readTimeoutMs)
+    }
+
+    @Test
+    fun deepIntensityUsesProfessionalTenMinuteTimeout() {
+        var captured: HttpTimeouts? = null
+        val transport = object : HttpTransport {
+            override fun postJson(url: String, headers: Map<String, String>, body: String, timeoutMs: Long): TransportResponse =
+                error("BlueLMProvider must use the profiled transport call")
+
+            override fun postJson(url: String, headers: Map<String, String>, body: String, profile: HttpRequestProfile, timeouts: HttpTimeouts): TransportResponse {
+                captured = timeouts
+                return TransportResponse(200, """{"choices":[{"message":{"content":"{\"knowledgePoints\":[],\"quizQuestions\":[]}"}}]}""")
+            }
+        }
+        val provider = BlueLMProvider(config = fakeBlueLmConfig(), promptBuilder = PromptBuilder(), transport = transport, requestIdFactory = { "req-deep" })
+
+        provider.generate(AnalysisRequest(SampleCourses.seriesSession(), intensity = AnalysisIntensity.DEEP))
+
+        assertEquals(600_000L, captured?.readTimeoutMs)
     }
 
     private fun fakeBlueLmConfig(requestIdQueryName: String = "request_id") = ProviderConfig(

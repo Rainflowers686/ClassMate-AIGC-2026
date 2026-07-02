@@ -50,15 +50,15 @@ class PolishedStudyPackTest {
 
     @Test
     fun polishedTimeoutIsAlwaysTheLongTaskTimeoutNeverThe30sEnhancement() {
-        // The polished pass reuses the chosen intensity but is clamped 120s..240s; never the 30s diagnostic.
+        // The polished pass reuses the chosen intensity but is clamped 5m..10m; never the 30s diagnostic.
         AnalysisIntensity.entries.forEach { intensity ->
             val read = PolishedExportPlan.timeouts(intensity).readTimeoutMs
-            assertTrue("$intensity >= 120s", read >= 120_000L)
-            assertTrue("$intensity <= 240s", read <= 240_000L)
+            assertTrue("$intensity >= 300s", read >= 300_000L)
+            assertTrue("$intensity <= 600s", read <= 600_000L)
             assertFalse("$intensity is not the 30s enhancement", read == HttpTimeouts.BLUE_LM_DIAGNOSTIC.readTimeoutMs)
         }
-        assertEquals(120_000L, PolishedExportPlan.timeouts(AnalysisIntensity.FAST).readTimeoutMs)
-        assertEquals(240_000L, PolishedExportPlan.timeouts(AnalysisIntensity.DEEP).readTimeoutMs)
+        assertEquals(300_000L, PolishedExportPlan.timeouts(AnalysisIntensity.FAST).readTimeoutMs)
+        assertEquals(600_000L, PolishedExportPlan.timeouts(AnalysisIntensity.DEEP).readTimeoutMs)
     }
 
     @Test

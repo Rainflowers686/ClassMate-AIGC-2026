@@ -22,8 +22,9 @@ class ProviderAskChatClient(
     private val bundle: ProviderConfigBundle,
     private val transport: HttpTransport = NoNetworkTransport,
     private val requestIdFactory: () -> String = { "cm_ask_" + UUID.randomUUID() },
-    // Read timeout for the chat call. Defaults to the analysis timeout; secondary AI enhancements pass a
-    // shorter one so a slow/hung BlueLM call falls back to the local template quickly (P0-1, no long spinner).
+    private val qualityProfile: CloudModelQualityProfile = CloudLearningTask.ASK_WITH_EVIDENCE.qualityProfile,
+    // Read timeout for the chat call. Defaults to the formal analysis timeout; app call sites pass the
+    // current user mode so official BlueLM calls use the same long timeout policy as analysis/export.
     private val timeouts: HttpTimeouts = HttpTimeouts.BLUE_LM_ANALYSIS,
 ) : AskChatSeam {
 
@@ -49,7 +50,7 @@ class ProviderAskChatClient(
             val body = VivoOpenAIChatRequestFactory.build(
                 model = config.model,
                 prompt = prompt,
-                options = CloudLearningTask.ASK_WITH_EVIDENCE.qualityProfile.toRequestOptions(
+                options = qualityProfile.toRequestOptions(
                     config = config,
                     stream = false,
                     maxTokensCap = ASK_MAX_TOKENS,

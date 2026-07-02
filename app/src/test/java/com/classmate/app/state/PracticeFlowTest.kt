@@ -234,6 +234,27 @@ class PracticeFlowTest {
     }
 
     @Test
+    fun practiceCompletionStaysOnPracticeScreenUntilExplicitReturn() {
+        val practice = source("app/src/main/java/com/classmate/app/ui/screens/practice/PracticeSessionScreen.kt")
+        assertTrue(practice.contains("练习已完成，结果已写入复习计划。"))
+        assertTrue(practice.contains("继续练习"))
+        assertTrue(practice.contains("查看解析"))
+        assertTrue(practice.contains("返回课程"))
+        assertTrue(practice.contains("重新生成微测"))
+        assertFalse(practice.contains("PrimaryButton(text = \"完成练习\", onClick = { viewModel.exitPractice() }"))
+    }
+
+    @Test
+    fun courseAndKnowledgeQuizEntriesUseUnifiedPracticeSource() {
+        val knowledge = source("app/src/main/java/com/classmate/app/ui/screens/knowledge/KnowledgeTimelineScreen.kt")
+        val course = source("app/src/main/java/com/classmate/app/ui/screens/course/CourseDetailScreen.kt")
+        assertTrue(knowledge.contains("viewModel.startPractice(PracticeMode.QUICK_REVIEW)"))
+        assertTrue(course.contains("viewModel.startPractice(PracticeMode.QUICK_REVIEW)"))
+        assertFalse(knowledge.contains("viewModel.navigateTo(Screen.QUIZ)"))
+        assertFalse(course.contains("viewModel.navigateTo(Screen.QUIZ)"))
+    }
+
+    @Test
     fun realQuizWrongAnswerWritesBackBeforeSummary() {
         val viewModel = vm()
         viewModel.openHistory(viewModel.ui.history.first())

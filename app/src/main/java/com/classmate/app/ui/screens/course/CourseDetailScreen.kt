@@ -259,7 +259,7 @@ private fun L3PipelineStatusCard(viewModel: AppViewModel) {
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
             StatusChip("资料 ${l3.evidenceAssets.size}", tone = ChipTone.INFO, modifier = tapTo(l3.knowledgePoints.isNotEmpty()) { viewModel.navigateTo(Screen.KNOWLEDGE) })
             StatusChip("知识点 ${l3.knowledgePoints.size}", tone = ChipTone.INFO, modifier = tapTo(l3.knowledgePoints.isNotEmpty()) { viewModel.navigateTo(Screen.KNOWLEDGE) })
-            StatusChip("微测 ${l3.questions.size}", tone = ChipTone.INFO, modifier = tapTo(l3.questions.isNotEmpty()) { viewModel.navigateTo(Screen.QUIZ) })
+            StatusChip("微测 ${l3.questions.size}", tone = ChipTone.INFO, modifier = tapTo(l3.questions.isNotEmpty()) { viewModel.startPractice(PracticeMode.QUICK_REVIEW) })
             StatusChip("错题 ${l3.wrongBook.size}", tone = if (l3.wrongBook.isEmpty()) ChipTone.NEUTRAL else ChipTone.WARNING, modifier = tapTo(l3.wrongBook.isNotEmpty()) { viewModel.ensureReviewPlan(); viewModel.navigateTo(Screen.REVIEW) })
             StatusChip("今日复习 ${l3.reviewQueue.size}", tone = ChipTone.INFO, modifier = tapTo(l3.reviewQueue.isNotEmpty()) { viewModel.ensureReviewPlan(); viewModel.navigateTo(Screen.REVIEW) })
             StatusChip("证据 ${l3.evidence.size}", tone = ChipTone.INFO, modifier = tapTo(l3.evidence.isNotEmpty()) { l3.evidence.firstOrNull()?.let { viewModel.openEvidenceById(it.id) } })

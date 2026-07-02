@@ -17,7 +17,7 @@ data class HttpTimeouts(
         fun single(timeoutMs: Long): HttpTimeouts = HttpTimeouts(timeoutMs, timeoutMs)
 
         val BLUE_LM_DIAGNOSTIC = HttpTimeouts(connectTimeoutMs = 10_000, readTimeoutMs = 30_000)
-        val BLUE_LM_ANALYSIS = HttpTimeouts(connectTimeoutMs = 15_000, readTimeoutMs = 120_000)
+        val BLUE_LM_ANALYSIS = HttpTimeouts(connectTimeoutMs = 15_000, readTimeoutMs = 360_000)
     }
 }
 

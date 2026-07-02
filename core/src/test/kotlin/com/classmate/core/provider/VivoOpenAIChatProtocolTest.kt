@@ -55,6 +55,35 @@ class VivoOpenAIChatProtocolTest {
     }
 
     @Test
+    fun requestBodyMapsFastAndBalancedQwenModesWithoutThinking() {
+        val config = ProviderConfigBundle.defaults().configOf(ProviderKind.BLUELM)!!
+        val fast = Json.parseToJsonElement(
+            VivoOpenAIChatRequestFactory.build(
+                model = "qwen3.5-plus",
+                prompt = Prompt(system = "system rules", user = "course prompt"),
+                options = CloudModelQualityProfile.FAST.toRequestOptions(config),
+            ),
+        ) as JsonObject
+        val balanced = Json.parseToJsonElement(
+            VivoOpenAIChatRequestFactory.build(
+                model = "qwen3.5-plus",
+                prompt = Prompt(system = "system rules", user = "course prompt"),
+                options = CloudModelQualityProfile.BALANCED.toRequestOptions(config),
+            ),
+        ) as JsonObject
+
+        assertEquals("qwen3.5-plus", fast.str("model"))
+        assertEquals(false, (fast["enable_thinking"] as JsonPrimitive).content.toBoolean())
+        assertEquals("low", fast.str("reasoning_effort"))
+        assertEquals(8192, (fast["max_completion_tokens"] as JsonPrimitive).content.toInt())
+        assertEquals(false, (balanced["enable_thinking"] as JsonPrimitive).content.toBoolean())
+        assertEquals("medium", balanced.str("reasoning_effort"))
+        assertEquals(32768, (balanced["max_completion_tokens"] as JsonPrimitive).content.toInt())
+        assertFalse(fast.str("reasoning_effort") == "max")
+        assertFalse(balanced.str("reasoning_effort") == "max")
+    }
+
+    @Test
     fun qwen35PlusCompatibilityUnsupportedOmitsThinkingFields() {
         val body = VivoOpenAIChatRequestFactory.build(
             model = "qwen3.5-plus",

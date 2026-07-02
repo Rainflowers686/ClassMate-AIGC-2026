@@ -199,7 +199,10 @@ class L3LearningPipeline {
         }
         val draftQuestions = knowledge.take(5).mapIndexed { index, kp ->
             val evidenceId = kp.sourceEvidenceIds.first()
-            val evidenceQuote = evidence.firstOrNull { it.id == evidenceId }?.text.orEmpty().take(96).ifBlank { kp.explanation }
+            val rawEvidenceText = evidence.firstOrNull { it.id == evidenceId }?.text.orEmpty()
+            val evidenceQuote = summaryFrom(listOf(rawEvidenceText)).take(96).ifBlank {
+                rawEvidenceText.take(96).ifBlank { kp.explanation }
+            }
             val otherTitles = knowledge
                 .filter { it.id != kp.id && it.title.isNotBlank() }
                 .map { it.title }
@@ -858,8 +861,19 @@ class L3LearningPipeline {
             .filter { it.length >= 6 }
             .ifEmpty { listOf(text.trim()) }
 
-    private fun summaryFrom(paragraphs: List<String>): String =
-        paragraphs.take(2).joinToString(" ") { it.take(90) }.ifBlank { "已整理课堂摘要。" }
+    private fun summaryFrom(paragraphs: List<String>): String {
+        val subjectSentences = paragraphs
+            .flatMap { paragraph ->
+                paragraph.split(Regex("""(?<=[。！？!?])\s*|[\n\r]+"""))
+            }
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .filterNot { SubjectKnowledgeExtractor.isNoiseLine(it) }
+            .filter { SubjectKnowledgeExtractor.subjectScore(it) > 0 || it.length >= 18 }
+            .distinct()
+        return subjectSentences.take(2).joinToString(" ") { it.take(90) }
+            .ifBlank { "资料不足，建议补充或修正后再总结知识点。" }
+    }
 
     private fun titleFromEvidence(text: String, index: Int): String {
         val clean = text.replace(Regex("""[：:，,。.!？?\s]+"""), " ").trim()

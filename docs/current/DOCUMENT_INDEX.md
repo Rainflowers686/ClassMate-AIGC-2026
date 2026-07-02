@@ -1,4 +1,16 @@
-# Document Index - ClassMate 1.14.8
+# Document Index - ClassMate 1.14.9
+
+版本：`1.14.9 / versionCode 122`
+
+本轮新增当前入口：
+
+| 文件 | 类型 | 状态 |
+| --- | --- | --- |
+| `docs/current/CHANGELOG_1_14_9.md` | 当前版本变更 | 新增 |
+| `docs/current/REAL_DEVICE_FIX_MATRIX_1_14_9.md` | 真机回归修复矩阵 | 新增 |
+| `docs/current/REAL_DEVICE_TEST_MANUAL_1_14_9.md` | 真机复测手册 | 新增 |
+
+1.14.9 之后，练习完成不再自动退出；课程详情、知识点时间线和复习路径的微测入口统一到 Practice 主流程；复习计划、课程总结、相关知识点和微测题只使用 accepted subject knowledge points + evidence binding。BlueLM 底层对齐 qwen3.5-plus 官方接口，快速/均衡/专业分别映射为 low/medium/high + enable_thinking false/false/true；普通用户仍只看到“蓝心 / 蓝心大模型”，不展示底层模型名或 reasoning 内容。
 
 版本：`1.14.8 / versionCode 121`
 

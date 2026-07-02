@@ -1,8 +1,20 @@
 # Changelog
 
-当前候选版本：`1.14.8 / versionCode 121`，本轮把 BlueLM 从“可诊断”重新接回 AI 主功能优先 provider：课程分析、微测、反馈修正、弱点变式和 AI 精修导出在配置可用时先尝试 BlueLM，失败后才进入端侧/本地 fallback。
+当前候选版本：`1.14.9 / versionCode 122`。本轮修复真机回归中的练习流、复习/总结噪声过滤、微测入口分叉，以及 BlueLM qwen3.5-plus 三档思考模式和长超时策略。
+
+## 1.14.9 / 122 - practice flow and qwen reasoning mode stabilization
+
+- “完成练习”不再自动退出练习页；完成后停留在当前练习页，显示本轮完成摘要，并提供继续练习、查看解析、返回课程和重新生成微测等明确操作。
+- 课程详情、知识点时间线和复习/证据路径的微测入口统一走 Practice 主流程，避免“证据页有题、知识时间线开始微测无题”的数据源分叉。
+- 复习计划、课程总结、相关知识点和微测题继续只使用 accepted subject knowledge points + evidence binding；新增真机反馈中的物理 OCR 样例守卫，过滤“同学们注意 / 重点来了 / 大家记一下 / 作业截图上传”等课堂强调词。
+- BlueLM 比赛主路径对齐 qwen3.5-plus 官方接口：快速发送 `reasoning_effort=low` + `enable_thinking=false`；均衡发送 `medium` + `false`；专业/Max 在 UI 中仍叫专业，但 API 发送 `high` + `true`，不把 `max` 原样发给接口。
+- 正式 BlueLM 请求超时按模式放长：快速约 5 分钟、均衡约 6 分钟、专业约 10 分钟；dry-run 和 provider live smoke 仍保持 15-30 秒短超时。
+- 普通用户页面和导出报告只显示“蓝心 / 蓝心大模型”等官方字眼，不展示实际模型名，也不展示 `reasoning_content`。
+- 风险：真实 BlueLM 成功仍依赖 AppID/AppKey、网络、接口权限和服务状态；本地 fallback 仍保留，但不会冒充 BlueLM。
 
 ## 1.14.8 / 121 - restore BlueLM as primary AI provider
+
+本轮把 BlueLM 从“可诊断”重新接回 AI 主功能优先 provider：课程分析、微测、反馈修正、弱点变式和 AI 精修导出在配置可用时先尝试 BlueLM，失败后才进入端侧/本地 fallback。
 
 - 新增 `BlueLMProviderResolver`，统一判断设置页保存的 BlueLM 配置是否 Missing / Incomplete / Invalid / Ready；正式 provider、增强入口和测试 hook 复用同源配置。
 - 微测生成在 BlueLM 配置 Ready 时先走 `ProviderAskChatClient`，模型返回题再经过学科知识点和 evidence 绑定校验，不合格才落回本地证据题。

@@ -108,16 +108,16 @@ class CourseAnalyzerTest {
         assertFalse(blueLmLog.fallbackUsed)
         assertEquals("SOCKET_TIMEOUT", blueLmLog.errorType)
         assertEquals("ANALYSIS", blueLmLog.requestProfile)
-        assertEquals(120_000L, blueLmLog.timeoutMs)
+        assertEquals(360_000L, blueLmLog.timeoutMs)
         assertEquals("SOCKET_TIMEOUT", blueLmLog.networkSubtype)
-        assertEquals("vivo-BlueLM-TB-Pro", blueLmLog.model)
+        assertEquals("qwen3.5-plus", blueLmLog.model)
         assertEquals(4096, blueLmLog.maxTokens)
 
         val rendered = outcome.logs.joinToString("\n") { it.format() }
         assertTrue(rendered.contains("request_profile=ANALYSIS"))
-        assertTrue(rendered.contains("timeout_ms=120000"))
+        assertTrue(rendered.contains("timeout_ms=360000"))
         assertTrue(rendered.contains("network_subtype=SOCKET_TIMEOUT"))
-        assertTrue(rendered.contains("model=vivo-BlueLM-TB-Pro"))
+        assertTrue(rendered.contains("model=qwen3.5-plus"))
         assertTrue(rendered.contains("max_tokens=4096"))
         assertFalse(rendered.contains("appkey1234567"))
         assertFalse(rendered.contains("Authorization"))
@@ -262,7 +262,7 @@ class CourseAnalyzerTest {
                 kind = ProviderKind.BLUELM,
                 enabled = true,
                 baseUrl = "https://example.test",
-                model = "vivo-BlueLM-TB-Pro",
+                model = "qwen3.5-plus",
                 credential = Credential.BlueLm("appid123456", "appkey1234567"),
             ),
             ProviderKind.LOCAL_FALLBACK to ProviderConfig(ProviderKind.LOCAL_FALLBACK, enabled = true),

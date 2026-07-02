@@ -13,6 +13,7 @@ import com.classmate.core.model.FeedbackTargetKind
 import com.classmate.core.model.FeedbackType
 import com.classmate.core.practice.PracticeGenerationRequest
 import com.classmate.core.practice.PracticeMode
+import com.classmate.core.provider.AnalysisIntensity
 import com.classmate.core.provider.HttpTransport
 import com.classmate.core.provider.TransportResponse
 import com.classmate.core.sample.SampleCourses
@@ -54,10 +55,13 @@ class BlueLMMainFlowIntegrationTest {
         val authHeader = "Author" + "ization"
         val viewModel = vm(
             record,
-            transport = HttpTransport { _, headers, _, _ ->
+            transport = HttpTransport { _, headers, body, timeoutMs ->
                 calls++
                 assertEquals(unitAppId, headers["app_id"])
                 assertEquals("Bearer $unitCredential", headers[authHeader])
+                assertEquals(360_000L, timeoutMs)
+                assertTrue(body.contains("\"reasoning_effort\":\"medium\""))
+                assertTrue(body.contains("\"enable_thinking\":false"))
                 TransportResponse(200, chatResponse(modelText))
             },
         )
@@ -96,15 +100,19 @@ class BlueLMMainFlowIntegrationTest {
         val authHeader = "Author" + "ization"
         val viewModel = vm(
             record,
-            transport = HttpTransport { _, headers, body, _ ->
+            transport = HttpTransport { _, headers, body, timeoutMs ->
                 calls++
                 assertEquals(unitAppId, headers["app_id"])
                 assertEquals("Bearer $unitCredential", headers[authHeader])
+                assertEquals(600_000L, timeoutMs)
                 assertTrue(body.contains("messages"))
+                assertTrue(body.contains("\"reasoning_effort\":\"high\""))
+                assertTrue(body.contains("\"enable_thinking\":true"))
                 TransportResponse(200, chatResponse("请根据课堂证据重新聚焦级数定义，不扩展课外内容。"))
             },
         )
         viewModel.openHistory(viewModel.ui.history.first())
+        viewModel.setAnalysisIntensity(AnalysisIntensity.DEEP)
         viewModel.saveOfficialModelConfig("https://api-ai.vivo.com.cn/v1", "qwen3.5-plus", unitAppId, unitCredential)
         val question = viewModel.ui.l3Pipeline.questions.first()
 

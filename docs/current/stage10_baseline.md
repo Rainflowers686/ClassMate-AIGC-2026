@@ -89,7 +89,7 @@ Stage 10 完成了当前 product UI baseline。主要页面已经重构到更接
 - 不提交 `app/libs/*.aar`。
 - 不提交 APK / AAB / build outputs / `.gradle`。
 - 不 direct import `com.vivo.llmsdk`；SDK 通过 reflection bridge。
-- qwen3.5-plus 使用 profile-aware deep thinking：`DEEP_STUDY` / `BALANCED` 在兼容支持时发送 `enable_thinking=true`，不支持时由 capability flag 安全省略。
+- qwen3.5-plus 使用 profile-aware thinking：`FAST` / `BALANCED` 发送 `enable_thinking=false`，`DEEP_STUDY` / UI 专业 Max 发送 `enable_thinking=true`；UI Max 映射到 API `reasoning_effort=high`，不发送原始 `max`。
 - LocalRule / `LOCAL_FALLBACK` 不作为用户可见智能能力展示。
 - 安全占位只作为最终兜底状态。
 - CourseAnalysis 持久化必须由 validators gate。

@@ -367,8 +367,17 @@ class AppViewModel(
     private fun blueLmReadyForMainPath(): Boolean =
         blueLmResolution() is BlueLMProviderResolution.Ready
 
-    private fun cloudAskClient(timeouts: HttpTimeouts = HttpTimeouts.BLUE_LM_DIAGNOSTIC): ProviderAskChatClient? =
-        if (blueLmReadyForMainPath()) ProviderAskChatClient(cloudOnlyBundle(), transport, timeouts = timeouts) else null
+    private fun cloudAskClient(timeouts: HttpTimeouts? = null): ProviderAskChatClient? =
+        if (blueLmReadyForMainPath()) {
+            ProviderAskChatClient(
+                cloudOnlyBundle(),
+                transport,
+                qualityProfile = ui.analysisIntensity.profile,
+                timeouts = timeouts ?: ui.analysisIntensity.httpTimeouts(),
+            )
+        } else {
+            null
+        }
 
     internal fun analysisProviderOrderForTest(): List<ProviderKind> = cloudOnlyBundle().order
 
@@ -4521,7 +4530,8 @@ class AppViewModel(
         val model = raw.trim()
         return when {
             model.isBlank() -> ""
-            model.contains("Seed-2.0", ignoreCase = true) -> "qwen3.5-plus"
+            model.contains("Seed-2.0", ignoreCase = true) -> ""
+            model.equals("qwen3.5-plus", ignoreCase = true) -> ""
             else -> model
         }
     }
@@ -5465,7 +5475,15 @@ class AppViewModel(
                 // Honest order: cloud BlueLM → on-device BlueLM 3B → (engine LocalRule evidence).
                 // The engine still enforces anti-fabrication on whichever seam answers.
                 val seam = CompositeAskChatSeam(
-                    listOf(ProviderAskChatClient(bundle, tx), onDeviceController.askSeam()),
+                    listOf(
+                        ProviderAskChatClient(
+                            bundle,
+                            tx,
+                            qualityProfile = ui.analysisIntensity.profile,
+                            timeouts = ui.analysisIntensity.httpTimeouts(),
+                        ),
+                        onDeviceController.askSeam(),
+                    ),
                 )
                 GroundedAskLessonEngine.answer(question, session, result, seam)
             }

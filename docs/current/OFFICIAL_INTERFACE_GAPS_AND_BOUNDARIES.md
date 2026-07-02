@@ -1,6 +1,8 @@
 # Official Interface Gaps and Boundaries
 
-Current update: `1.14.8 / versionCode 121`
+Current update: `1.14.9 / versionCode 122`
+
+1.14.9 boundary: BlueLM/qwen3.5-plus parameter alignment is implemented in code and tests, but live success still depends on real credentials and network/service permission. Product UI can call the top tier “Professional/Max”; the API value must remain `reasoning_effort=high` unless official docs add `max`. Long formal timeouts reduce false failures but do not guarantee service success. Normal users must not see the raw model name or reasoning text.
 
 1.14.8 boundary: BlueLM is now the preferred AI provider for the main learning features when the saved official configuration is Ready. This is a product-flow guarantee, not a live-network guarantee. Real success still depends on AppID/AppKey, network, endpoint permission, timeout behavior, and service status. If the provider fails, ClassMate must keep the local/on-device result and label it honestly.
 

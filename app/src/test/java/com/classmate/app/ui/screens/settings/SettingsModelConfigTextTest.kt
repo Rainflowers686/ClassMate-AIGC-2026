@@ -35,7 +35,6 @@ class SettingsModelConfigTextTest {
             "测试配置（readiness / dry-run）",
             "配置仅保存在本机",
             "2026374747",
-            "qwen3.5-plus",
             "云端蓝心",
             "端侧蓝心",
             "端侧 BlueLM 3B",
@@ -122,19 +121,20 @@ class SettingsModelConfigTextTest {
         assertFalse(s.contains("完整密钥"))
     }
     @Test
-    fun qwenDeepStudyAndOfficialProviderConfigStatusAreVisible() {
+    fun blueLmQualityModesAndOfficialProviderConfigStatusAreVisibleWithoutRawModelCopy() {
         val s = source()
         listOf(
-            "Cloud quality profile",
-            "qwen3.5-plus",
-            "DEEP_STUDY",
-            "enable_thinking=true if supported",
-            "reasoning_effort",
+            "蓝心大模型",
+            "快速 / 均衡 / 专业",
+            "专业模式开启深度思考",
             "Official OCR config",
             "Query Rewrite config",
             "Text Similarity config",
             "Embedding config",
             "TTS config",
         ).forEach { assertTrue("missing current AI status copy: $it", s.contains(it)) }
+        listOf("qwen3.5-plus / DEEP_STUDY", "enable_thinking=true if supported").forEach {
+            assertFalse("raw model/protocol copy should not be visible in Settings: $it", s.contains(it))
+        }
     }
 }

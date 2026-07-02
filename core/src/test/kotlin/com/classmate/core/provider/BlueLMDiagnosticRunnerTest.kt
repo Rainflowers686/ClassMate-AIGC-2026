@@ -95,7 +95,7 @@ class BlueLMDiagnosticRunnerTest {
     }
 
     @Test
-    fun qwenDiagnosticEnablesFastThinkingAndKeepsReasoningMetadataOnly() {
+    fun qwenDiagnosticUsesFastNonThinkingModeAndKeepsReasoningMetadataOnly() {
         val runner = BlueLMDiagnosticRunner(
             transport = object : HttpTransport {
                 override fun postJson(
@@ -114,8 +114,8 @@ class BlueLMDiagnosticRunnerTest {
                 ): TransportResponse {
                     val root = Json.parseToJsonElement(body) as JsonObject
                     assertEquals("qwen3.5-plus", (root["model"] as JsonPrimitive).content)
-                    assertEquals(true, (root["enable_thinking"] as JsonPrimitive).content.toBoolean())
-                    assertEquals("medium", (root["reasoning_effort"] as JsonPrimitive).content)
+                    assertEquals(false, (root["enable_thinking"] as JsonPrimitive).content.toBoolean())
+                    assertEquals("low", (root["reasoning_effort"] as JsonPrimitive).content)
                     assertEquals(64, (root["max_tokens"] as JsonPrimitive).content.toInt())
                     assertEquals(8192, (root["max_completion_tokens"] as JsonPrimitive).content.toInt())
                     assertEquals("Bearer fake-app-key-for-tests", headers["Authorization"])

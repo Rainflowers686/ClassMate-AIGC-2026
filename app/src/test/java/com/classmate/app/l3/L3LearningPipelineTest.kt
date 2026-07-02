@@ -109,6 +109,40 @@ class L3LearningPipelineTest {
     }
 
     @Test
+    fun physicsOcrNoiseDoesNotReachReviewSummaryRelatedKnowledgeOrQuiz() {
+        val noisyPhysicsText = "同学们注意，重点来了，这个地方可能考。下面看牛顿第二定律，物体的加速度与所受合外力成正比，与质量成反比，公式 F=ma。大家记一下，作业截图上传。"
+        val snapshot = L3LearningPipeline().buildFromText(
+            title = "高中物理：牛顿第二定律",
+            text = noisyPhysicsText,
+            sourceType = L3SourceType.OCR_IMAGE,
+            providerSummary = providerSummary,
+            now = now + 33,
+        )
+
+        val knowledgeById = snapshot.knowledgePoints.associateBy { it.id }
+        val knowledgeText = snapshot.knowledgePoints.joinToString("\n") { it.title + it.explanation }
+        val reviewText = snapshot.reviewQueue.joinToString("\n") {
+            (knowledgeById[it.knowledgePointId]?.title.orEmpty()) + it.arrangementReason + it.recommendedActions.joinToString()
+        }
+        val relatedText = snapshot.relatedKnowledgeSummaries.joinToString("\n") {
+            it.sourceKnowledgePointTitle + it.relatedKnowledgePointTitles.joinToString() + it.summary
+        }
+        val quizText = snapshot.questions.joinToString("\n") { it.stem + it.options.joinToString() + it.explanation }
+        val userFacingText = listOf(knowledgeText, reviewText, relatedText, quizText, snapshot.summary).joinToString("\n")
+
+        listOf("同学们注意", "重点来了", "大家记一下", "作业截图上传").forEach { noise ->
+            assertFalse("noise should not become user-facing learning content: $noise", userFacingText.contains(noise))
+        }
+        assertTrue(
+            "subject knowledge should survive filtering",
+            listOf("牛顿第二定律", "加速度", "合外力", "质量", "F=ma").any { userFacingText.contains(it) },
+        )
+        assertTrue(snapshot.knowledgePoints.isNotEmpty())
+        assertTrue(snapshot.reviewQueue.isNotEmpty())
+        assertTrue(snapshot.questions.all { it.knowledgePointId.isNotBlank() && it.evidenceIds.isNotEmpty() })
+    }
+
+    @Test
     fun onlyClassroomNoiseDoesNotGenerateFakeKnowledgeOrQuiz() {
         val snapshot = L3LearningPipeline().buildFromText(
             title = "课堂截图",

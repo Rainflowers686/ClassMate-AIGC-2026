@@ -344,7 +344,17 @@ private fun PracticeSummary(viewModel: AppViewModel, session: PracticeSession) {
         }
     }
 
-    PrimaryButton(text = "完成练习", onClick = { viewModel.exitPractice() }, modifier = Modifier.fillMaxWidth())
+    QuietCard {
+        Text("练习已完成，结果已写入复习计划。", style = MaterialTheme.typography.bodyMedium)
+        Spacer(Modifier.height(Dimens.s))
+        PrimaryButton(text = "继续练习", onClick = { viewModel.startPractice(session.mode) }, modifier = Modifier.fillMaxWidth())
+        Spacer(Modifier.height(Dimens.xs))
+        SecondaryButton(text = "查看解析", onClick = { viewModel.toast("解析已显示在本页题目记录中。") }, modifier = Modifier.fillMaxWidth())
+        Spacer(Modifier.height(Dimens.xs))
+        SecondaryButton(text = "返回课程", onClick = { viewModel.exitPractice() }, modifier = Modifier.fillMaxWidth())
+        Spacer(Modifier.height(Dimens.xs))
+        SecondaryButton(text = "重新生成微测", onClick = { viewModel.startPractice(session.mode) }, modifier = Modifier.fillMaxWidth())
+    }
 }
 
 /** P0-2: shows a quiz question's source evidence while answering — image thumbnail, OCR text, or an honest

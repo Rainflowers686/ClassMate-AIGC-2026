@@ -42,6 +42,7 @@ import com.classmate.app.ui.design.Dimens
 import com.classmate.app.ui.i18n.Strings
 import com.classmate.core.model.KnowledgePoint
 import com.classmate.core.practice.KnowledgePointSearch
+import com.classmate.core.practice.PracticeMode
 
 @Composable
 fun KnowledgeTimelineScreen(viewModel: AppViewModel) {
@@ -59,7 +60,7 @@ fun KnowledgeTimelineScreen(viewModel: AppViewModel) {
                     Column(Modifier.fillMaxWidth().padding(horizontal = Dimens.screen, vertical = Dimens.m)) {
                         PrimaryButton(
                             text = s.knowledgeStartQuiz(result.quizQuestions.size),
-                            onClick = { viewModel.navigateTo(Screen.QUIZ) },
+                            onClick = { viewModel.startPractice(PracticeMode.QUICK_REVIEW) },
                             modifier = Modifier.fillMaxWidth(),
                             enabled = result.quizQuestions.isNotEmpty(),
                         )

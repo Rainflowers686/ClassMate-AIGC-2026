@@ -70,10 +70,11 @@ Current conclusion: BlueLM cloud is the primary AI analysis route when configure
 | --- | --- |
 | Endpoint | `https://api-ai.vivo.com.cn/v1/chat/completions` |
 | Auth | Header `Authorization` with value pattern `Bearer <AppKey>` plus `app_id` request header |
-| Body style | OpenAI-compatible chat request: `model`, `messages`, `stream`, `max_tokens`, `temperature`, `top_p` |
-| Response | `choices[0].message.content` is parsed as assistant content |
+| Body style | OpenAI-compatible chat request: `model`, `messages`, `stream`, `max_tokens`, `max_completion_tokens`, `temperature`, `top_p`, `reasoning_effort`, `enable_thinking` |
+| Response | `choices[0].message.content` is parsed as assistant content; `reasoning_content` is ignored for normal UI/export |
 | Request id behavior | Code supports documented request id naming and retry compatibility |
-| Timeout | Analysis and polished export use longer timeout profiles than quick fallback |
+| qwen thinking | Fast: `reasoning_effort=low`, `enable_thinking=false`; Balanced: `medium`, `false`; Professional/Max UI: API `high`, `true` |
+| Timeout | Formal requests use long profiles: Fast about 5 min, Balanced about 6 min, Professional about 10 min; dry-run/smoke stays 15-30s |
 | Fallback | BlueLM -> optional on-device model -> local rule analysis |
 | Code | `core/src/main/kotlin/com/classmate/core/provider/BlueLMProvider.kt`, `BlueLmSigner.kt`, `BlueLMDiagnostic.kt`, `BlueLmConfigDoctor.kt`, `app/src/main/java/com/classmate/app/data/BlueLMHttpTransport.kt` |
 | Related app code | `PromptBuilder`, `PolishedStudyPackPromptBuilder`, `PolishedExportPlan`, `AppViewModel`, `ModelConfigRepository`, `ConfigRepository` |

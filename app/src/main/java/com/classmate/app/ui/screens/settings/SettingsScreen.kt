@@ -1167,7 +1167,7 @@ private fun AiModelConfigurationPage(viewModel: AppViewModel) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(Dimens.s))
-        ProviderStatusRow("当前模型：云端蓝心", "qwen3.5-plus / DEEP_STUDY")
+        ProviderStatusRow("当前模型：蓝心大模型", "官方蓝心 / 专业模式")
         ProviderStatusRow("Cloud quality profile", cloudQualityProfileStatus())
         ProviderStatusRow("Official OCR config", configuredStatus(summary.officialProviders.ocrConfigured))
         ProviderStatusRow("Query Rewrite config", configuredStatus(summary.officialProviders.queryRewriteConfigured))
@@ -1211,7 +1211,7 @@ private fun OfficialBlueLmConfigCard(viewModel: AppViewModel) {
             Column(Modifier.weight(1f)) {
                 Text("蓝心大模型", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "适合比赛官方能力，使用云端蓝心 / qwen3.5-plus，重要学习任务使用深度学习配置。",
+                    "适合比赛官方能力，使用云端蓝心大模型，重要学习任务使用专业模式。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1220,7 +1220,7 @@ private fun OfficialBlueLmConfigCard(viewModel: AppViewModel) {
         Spacer(Modifier.height(Dimens.s))
         ProviderStatusRow("当前状态", if (masked?.officialConfigured == true) "已配置" else "未配置")
         ProviderStatusRow("默认 AppID", "2026374747")
-        ProviderStatusRow("质量模式", "默认 DEEP_STUDY；重要学习任务使用深度思考，轻量任务使用均衡")
+        ProviderStatusRow("质量模式", "快速 / 均衡 / 专业；专业模式开启深度思考")
         ProviderStatusRow("配置保存", "配置仅保存在本机，不写入 Git / docs / tests")
         Spacer(Modifier.height(Dimens.s))
         OutlinedTextField(
@@ -2043,8 +2043,7 @@ private fun cloudBlueLmStatus(ui: ClassMateUiState): String {
 }
 
 private fun cloudQualityProfileStatus(): String {
-    val profile = CloudModelQualityProfile.DEEP_STUDY
-    return "qwen3.5-plus / ${profile.name} / enable_thinking=true if supported / reasoning_effort=${profile.reasoningEffort.wireValue}"
+    return "蓝心大模型 / 快速、均衡、专业三档；专业模式开启深度思考"
 }
 
 private fun configuredStatus(configured: Boolean, missing: String = "missing"): String =
@@ -2053,8 +2052,9 @@ private fun configuredStatus(configured: Boolean, missing: String = "missing"): 
 private fun displayCloudModelName(raw: String?): String {
     val trimmed = raw?.trim().orEmpty()
     return when {
-        trimmed.isBlank() -> "qwen3.5-plus"
-        trimmed.contains("Seed-2.0", ignoreCase = true) -> "qwen3.5-plus"
+        trimmed.isBlank() -> "蓝心大模型"
+        trimmed.contains("Seed-2.0", ignoreCase = true) -> "蓝心大模型"
+        trimmed.equals("qwen3.5-plus", ignoreCase = true) -> "蓝心大模型"
         else -> trimmed
     }
 }
