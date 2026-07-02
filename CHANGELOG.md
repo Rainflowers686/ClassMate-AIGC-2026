@@ -1,5 +1,16 @@
 # Changelog
 
+当前候选版本：`1.14.8 / versionCode 121`，本轮把 BlueLM 从“可诊断”重新接回 AI 主功能优先 provider：课程分析、微测、反馈修正、弱点变式和 AI 精修导出在配置可用时先尝试 BlueLM，失败后才进入端侧/本地 fallback。
+
+## 1.14.8 / 121 - restore BlueLM as primary AI provider
+
+- 新增 `BlueLMProviderResolver`，统一判断设置页保存的 BlueLM 配置是否 Missing / Incomplete / Invalid / Ready；正式 provider、增强入口和测试 hook 复用同源配置。
+- 微测生成在 BlueLM 配置 Ready 时先走 `ProviderAskChatClient`，模型返回题再经过学科知识点和 evidence 绑定校验，不合格才落回本地证据题。
+- 反馈后修正会优先调用 BlueLM 生成同知识点/证据的修正提示，再刷新当前 L3 snapshot；失败时保留本地即时优化结果。
+- 弱点变式、学习增强、AI 精修导出改为通过 BlueLM 同源 resolver 获取云端 client，避免因为 dry-run 未运行或本地 fallback 混入而绕过 BlueLM。
+- 保留官方 ASR 主路线：官方实时 ASR / 官方长语音转写 / 手动转写；系统 SpeechRecognizer 仍只是用户主动选择的设备 fallback。
+- 风险：真实成功仍依赖 AppID/AppKey、网络和接口权限；无配置时 provider live smoke 可以 SKIP，但主流程测试已证明 fake BlueLM provider 会被优先尝试。
+
 当前候选版本：`1.14.7 / versionCode 120`，本轮只收口真实官方服务配置、readiness、dry-run 和脱敏诊断链路；不把 fallback 写成官方可用。
 
 ## 1.14.7 / 120 - official provider diagnostics and smoke checks

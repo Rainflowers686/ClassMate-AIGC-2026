@@ -117,6 +117,7 @@ import com.classmate.app.l3.TtsPlaybackStatus
 import com.classmate.app.l3.TtsPlaybackSourceType
 import com.classmate.app.l3.TranscriptSegment
 import com.classmate.app.l3.TranscriptGlossaryExtractor
+import com.classmate.app.l3.SubjectKnowledgeExtractor
 import com.classmate.app.material.LessonMaterialAssembler
 import com.classmate.core.material.LessonContextHints
 import com.classmate.app.sample.SampleLessonLibrary
@@ -189,6 +190,8 @@ import com.classmate.core.provider.AnalysisIntensity
 import com.classmate.core.provider.AnalysisTimeEstimator
 import com.classmate.core.provider.BlueLmConfigDoctor
 import com.classmate.core.provider.BlueLmConfigState
+import com.classmate.core.provider.BlueLMProviderResolution
+import com.classmate.core.provider.BlueLMProviderResolver
 import com.classmate.core.ai.AiExecutionStatus
 import com.classmate.core.ai.AiExecutionSource
 import com.classmate.core.ai.AiRouteDecision
@@ -358,6 +361,15 @@ class AppViewModel(
         CourseAnalyzer(ProviderResolver(cloudOnlyBundle(), promptBuilder, transport, blueLmSigner))
 
     /** Test hook: the course-analysis chain order (must never include LOCAL_FALLBACK — Phase A). */
+    private fun blueLmResolution(): BlueLMProviderResolution =
+        BlueLMProviderResolver.resolve(cloudOnlyBundle())
+
+    private fun blueLmReadyForMainPath(): Boolean =
+        blueLmResolution() is BlueLMProviderResolution.Ready
+
+    private fun cloudAskClient(timeouts: HttpTimeouts = HttpTimeouts.BLUE_LM_DIAGNOSTIC): ProviderAskChatClient? =
+        if (blueLmReadyForMainPath()) ProviderAskChatClient(cloudOnlyBundle(), transport, timeouts = timeouts) else null
+
     internal fun analysisProviderOrderForTest(): List<ProviderKind> = cloudOnlyBundle().order
 
     var ui by mutableStateOf(
@@ -1106,7 +1118,7 @@ class AppViewModel(
     }
 
     private fun hasConfiguredCloudModel(): Boolean =
-        configBundle.configOf(ProviderKind.BLUELM)?.hasRealCredential() == true ||
+        BlueLMProviderResolver.isReady(cloudOnlyBundle()) ||
             configBundle.configOf(ProviderKind.COMPATIBLE)?.hasRealCredential() == true
 
     // --- on-device BlueLM 3B diagnostic (P6/P3) ---
@@ -3869,6 +3881,9 @@ class AppViewModel(
             toast = optimization?.result?.message ?: if (inaccurate) "已加入待复核，复习计划已更新。" else "已记录反馈：${type.displayZh}",
         )
         optimization?.snapshot?.let { persistL3(it) }
+        if (inaccurate && optimization != null && blueLmReadyForMainPath()) {
+            scheduleBlueLmFeedbackRefinement(type, targetKind, targetId, note)
+        }
         // Mirror into the cross-course review queue (when the feedback maps to a known kp).
         val sessionId = ui.result?.sessionId
         val kpId = when (targetKind) {
@@ -3881,6 +3896,80 @@ class AppViewModel(
             learningStore.recordFeedback(sessionId, kpId, reviewType)
             ui = ui.copy(learningSnapshot = learningStore.snapshot())
         }
+    }
+
+    private fun scheduleBlueLmFeedbackRefinement(
+        type: FeedbackType,
+        targetKind: FeedbackTargetKind,
+        targetId: String?,
+        note: String,
+    ) {
+        viewModelScope.launch {
+            val hint = withContext(Dispatchers.IO) {
+                blueLmFeedbackHintForTest(ui.l3Pipeline, type, targetKind, targetId, note)
+            } ?: return@launch
+            val now = System.currentTimeMillis()
+            val oldCoreQuestion = ui.result?.quizQuestions?.firstOrNull { it.id == targetId }
+            val refined = FeedbackLearningOptimizer.optimize(ui.l3Pipeline, type, targetKind, targetId, note, now, hint)
+            val updatedResult = syncFeedbackOptimizationToResult(ui.result, oldCoreQuestion, refined)
+            ui = ui.copy(
+                result = updatedResult,
+                l3Pipeline = refined.snapshot,
+                reviewPlan = null,
+                toast = "已用 BlueLM 根据反馈重新优化当前学习内容；本地结果已保留为兜底。",
+            )
+            persistL3(refined.snapshot)
+        }
+    }
+
+    internal fun blueLmFeedbackHintForTest(
+        snapshot: L3PipelineSnapshot,
+        type: FeedbackType,
+        targetKind: FeedbackTargetKind,
+        targetId: String?,
+        note: String,
+    ): String? {
+        val client = cloudAskClient() ?: return null
+        val prompt = feedbackRefinementPrompt(snapshot, type, targetKind, targetId, note)
+        return runCatching { client.chat(prompt, null)?.text?.trim()?.take(600) }
+            .getOrNull()
+            ?.takeIf { it.isNotBlank() && !SubjectKnowledgeExtractor.isNoiseLine(it) }
+    }
+
+    private fun feedbackRefinementPrompt(
+        snapshot: L3PipelineSnapshot,
+        type: FeedbackType,
+        targetKind: FeedbackTargetKind,
+        targetId: String?,
+        note: String,
+    ): com.classmate.core.prompt.Prompt {
+        val target = when (targetKind) {
+            FeedbackTargetKind.QUIZ_QUESTION -> {
+                val q = snapshot.questions.firstOrNull { it.id == targetId }
+                val kp = snapshot.knowledgePoints.firstOrNull { it.id == q?.knowledgePointId }
+                val evidence = q?.evidenceIds?.firstNotNullOfOrNull { id -> snapshot.evidence.firstOrNull { it.id == id }?.text }
+                "题目：${q?.stem.orEmpty()}\n知识点：${kp?.title.orEmpty()}\n证据：${evidence.orEmpty().take(180)}"
+            }
+            FeedbackTargetKind.KNOWLEDGE_POINT -> {
+                val kp = snapshot.knowledgePoints.firstOrNull { it.id == targetId }
+                val evidence = kp?.sourceEvidenceIds?.firstNotNullOfOrNull { id -> snapshot.evidence.firstOrNull { it.id == id }?.text }
+                "知识点：${kp?.title.orEmpty()}\n当前摘要：${kp?.explanation.orEmpty()}\n证据：${evidence.orEmpty().take(180)}"
+            }
+            FeedbackTargetKind.ANALYSIS, FeedbackTargetKind.REVIEW_PLAN -> {
+                val points = snapshot.knowledgePoints.take(6).joinToString("；") { it.title }
+                val evidence = snapshot.evidence.firstOrNull()?.text.orEmpty()
+                "课程知识点：$points\n证据：${evidence.take(180)}"
+            }
+        }
+        return com.classmate.core.prompt.Prompt(
+            system = "你是 ClassMate 的反馈修正助手。只根据给定知识点和证据给出简短中文修正建议，不输出内部 id、调试信息或密钥。",
+            user = buildString {
+                append("反馈类型：").append(type.displayZh).append('\n')
+                if (note.isNotBlank()) append("用户补充：").append(note.take(200)).append('\n')
+                append(target).append('\n')
+                append("请输出可直接用于修正摘要或替换题解析的一段建议，必须引用本课证据，不要扩展课外知识。")
+            },
+        )
     }
 
     private fun syncFeedbackOptimizationToResult(
@@ -4126,8 +4215,6 @@ class AppViewModel(
                 pack = ui.polishedExport.pack, // keep any previous polished version until the new one is ready
             ),
         )
-        val bundle = configBundle
-        val tx = transport
         val timeouts = PolishedExportPlan.timeouts(ui.analysisIntensity)
         val prompt = PolishedStudyPackPromptBuilder.build(input)
         val title = input.courseTitle
@@ -4141,7 +4228,7 @@ class AppViewModel(
                 }
             }
             val (markdown, source) = withContext(Dispatchers.IO) {
-                val cloud = runCatching { ProviderAskChatClient(bundle, tx, timeouts = timeouts).chat(prompt, null) }.getOrNull()
+                val cloud = runCatching { cloudAskClient(timeouts)?.chat(prompt, null) }.getOrNull()
                 if (cloud != null && cloud.text.isNotBlank()) return@withContext cloud.text to AiExecutionSource.CLOUD
                 val device = runCatching { onDeviceController.askSeam().chat(prompt, null) }.getOrNull()
                 if (device != null && device.text.isNotBlank()) return@withContext device.text to AiExecutionSource.ON_DEVICE
@@ -4573,13 +4660,11 @@ class AppViewModel(
         prompt: Prompt,
         localTemplate: () -> String,
     ): AiCapabilityResult<AiEnhancement> {
-        val bundle = configBundle
-        val tx = transport
         return withContext(Dispatchers.IO) {
             enhancementUseCase.enhance(
                 type = type,
                 cloud = {
-                    val reply = runCatching { ProviderAskChatClient(bundle, tx, timeouts = HttpTimeouts.BLUE_LM_DIAGNOSTIC).chat(prompt, null) }.getOrNull()
+                    val reply = runCatching { cloudAskClient()?.chat(prompt, null) }.getOrNull()
                     if (reply != null && reply.text.isNotBlank()) StageOutcome.Produced(reply.text)
                     else StageOutcome.Unavailable(AiExecutionStatus.CONFIG_MISSING)
                 },
@@ -4747,14 +4832,12 @@ class AppViewModel(
             result.knowledgePoints.firstOrNull { it.title == title }?.id ?: kpId
         }
         val prompt = EnhancementPromptBuilder.weakPointVariants(weak.title, weak.reason, wrongStems, evidenceQuotes)
-        val bundle = configBundle
-        val tx = transport
         val now = System.currentTimeMillis()
         val idPrefix = "var_${courseId}_$now"
         ui = ui.copy(weakVariantStatus = EnhancementUiState(type = AiEnhancementType.WEAKNESS_VARIANTS, running = true))
         viewModelScope.launch {
             val (items, source) = withContext(Dispatchers.IO) {
-                val cloud = runCatching { ProviderAskChatClient(bundle, tx, timeouts = HttpTimeouts.BLUE_LM_DIAGNOSTIC).chat(prompt, null) }.getOrNull()
+                val cloud = runCatching { cloudAskClient()?.chat(prompt, null) }.getOrNull()
                 val cloudItems = cloud?.text?.let { VariantQuizParser.parse(it, AiExecutionSource.CLOUD, idPrefix, kpResolver) }.orEmpty()
                 if (cloudItems.isNotEmpty()) return@withContext cloudItems to AiExecutionSource.CLOUD
                 val device = runCatching { onDeviceController.askSeam().chat(prompt, null) }.getOrNull()
@@ -4955,15 +5038,37 @@ class AppViewModel(
             r,
             ui.learningSnapshot,
         )
-        val generated = practiceGeneration.generate(
-            PracticeGenerationRequest(
-                result = r,
-                snapshot = ui.learningSnapshot,
-                mode = mode,
-                now = now,
-                courseTitle = s.title,
-            ),
+        val request = PracticeGenerationRequest(
+            result = r,
+            snapshot = ui.learningSnapshot,
+            mode = mode,
+            now = now,
+            courseTitle = s.title,
         )
+        if (blueLmReadyForMainPath()) {
+            viewModelScope.launch {
+                val generated = withContext(Dispatchers.IO) {
+                    practiceGeneration.generate(
+                        request,
+                        cloud = { cloudPracticeGeneration(request) },
+                    )
+                }
+                finishPracticeGeneration(generated, r, s, mode, questionMode, now)
+            }
+            return
+        }
+        val generated = practiceGeneration.generate(request)
+        finishPracticeGeneration(generated, r, s, mode, questionMode, now)
+    }
+
+    private fun finishPracticeGeneration(
+        generated: AiCapabilityResult<com.classmate.core.practice.GeneratedPracticeSession>,
+        r: CourseAnalysisResult,
+        s: CourseSession,
+        mode: PracticeMode,
+        questionMode: PracticeQuestionMode,
+        now: Long,
+    ) {
         val generatedPractice = generated.value?.session ?: PracticeSessionEngine.build(r, ui.learningSnapshot, mode, now, courseTitle = s.title)
         val practice = when (questionMode) {
             // Graded quizzes (real quiz / exam) only keep questions that actually have a correct answer
@@ -5010,6 +5115,108 @@ class AppViewModel(
             aiProcessing = AiProcessingUiState.hidden(),
         )
         navigateTo(Screen.PRACTICE)
+    }
+
+    internal fun cloudPracticeGenerationForTest(request: PracticeGenerationRequest): StageOutcome<PracticeSession> =
+        cloudPracticeGeneration(request)
+
+    private data class CloudPracticePoint(
+        val id: String,
+        val title: String,
+        val summary: String,
+        val quote: String,
+    )
+
+    private fun cloudPracticeGeneration(request: PracticeGenerationRequest): StageOutcome<PracticeSession> {
+        val client = cloudAskClient() ?: return StageOutcome.Unavailable(AiExecutionStatus.CONFIG_MISSING)
+        val points = cloudPracticePoints(request.result, request.courseTitle)
+        if (points.isEmpty()) return StageOutcome.Unavailable(AiExecutionStatus.LOW_CONFIDENCE)
+        val prompt = cloudPracticePrompt(request.courseTitle, points, request.limit)
+        val reply = runCatching { client.chat(prompt, null) }.getOrNull()
+            ?: return StageOutcome.Unavailable(AiExecutionStatus.CONFIG_MISSING)
+        val parsed = VariantQuizParser.parse(
+            rawModelText = reply.text,
+            source = AiExecutionSource.CLOUD,
+            idPrefix = "practice_cloud_${request.now}",
+            knowledgePointIdFor = { title -> resolveCloudPracticeKnowledgePointId(title, points) },
+        )
+        val items = parsed
+            .mapNotNull { item -> enrichCloudPracticeItem(item, points) }
+            .filter { it.isAnswerableQuiz() }
+            .take(request.limit.coerceIn(1, 10))
+        if (items.isEmpty()) return StageOutcome.Unavailable(AiExecutionStatus.LOW_CONFIDENCE)
+        return StageOutcome.Produced(
+            PracticeSession(
+                id = "practice_cloud_${request.now}",
+                courseSessionId = request.result.sessionId,
+                courseTitle = request.courseTitle,
+                mode = request.mode,
+                items = items,
+                createdAt = request.now,
+                source = AiExecutionSource.CLOUD,
+                routeReason = "BlueLM practice generation, validated by course evidence",
+            ),
+        )
+    }
+
+    private fun cloudPracticePoints(result: CourseAnalysisResult, courseTitle: String): List<CloudPracticePoint> =
+        result.knowledgePoints.mapNotNull { kp ->
+            val quote = kp.evidence.firstOrNull { it.quote.isNotBlank() }?.quote.orEmpty()
+            val grounding = quote.ifBlank { kp.summary }
+            if (grounding.isBlank()) return@mapNotNull null
+            if (!SubjectKnowledgeExtractor.isAcceptedKnowledge(kp.title, grounding, courseTitle)) return@mapNotNull null
+            CloudPracticePoint(kp.id, kp.title, kp.summary, quote.take(180))
+        }
+
+    private fun cloudPracticePrompt(
+        courseTitle: String,
+        points: List<CloudPracticePoint>,
+        limit: Int,
+    ): com.classmate.core.prompt.Prompt =
+        com.classmate.core.prompt.Prompt(
+            system = "你是 ClassMate 的微测出题助手。只根据给定课程知识点和证据出题，只输出 JSON，不要输出调试信息、id 或密钥。",
+            user = buildString {
+                append("课程：").append(courseTitle).append('\n')
+                append("请生成 ").append(limit.coerceIn(1, 8)).append(" 道围绕知识点的单选或判断题。每题必须有 knowledgePointTitle、答案、中文详解和错误项解释。\n")
+                append("严格 JSON 结构：{\"questions\":[{\"stem\":\"题干\",\"type\":\"single_choice|true_false\",\"options\":[{\"id\":\"A\",\"text\":\"选项A\"},{\"id\":\"B\",\"text\":\"选项B\"}],\"answer\":\"A\",\"explanation\":\"答案详解，说明证据如何支持正确答案，以及错误项为什么不对\",\"knowledgePointTitle\":\"知识点标题\",\"difficulty\":\"basic|normal|advanced\",\"whyThisVariant\":\"为什么考这个知识点\"}]}\n")
+                append("知识点与证据：\n")
+                points.take(8).forEach { p ->
+                    append("- ").append(p.title).append("：").append(p.summary.take(80))
+                    if (p.quote.isNotBlank()) append("；证据：").append(p.quote.take(100))
+                    append('\n')
+                }
+            },
+        )
+
+    private fun resolveCloudPracticeKnowledgePointId(title: String, points: List<CloudPracticePoint>): String {
+        val normalized = title.trim()
+        return points.firstOrNull { it.title == normalized }?.id
+            ?: points.firstOrNull { normalized.contains(it.title) || it.title.contains(normalized) }?.id
+            ?: points.first().id
+    }
+
+    private fun enrichCloudPracticeItem(item: PracticeItem, points: List<CloudPracticePoint>): PracticeItem? {
+        val point = points.firstOrNull { it.id == item.knowledgePointId }
+            ?: points.firstOrNull { it.title == item.knowledgePointTitle }
+            ?: return null
+        if (SubjectKnowledgeExtractor.isNoiseLine(item.question)) return null
+        if (item.options.any { it.text.contains("与课程无关") || it.text.contains("无关废话") }) return null
+        val titleSignal = item.question.contains(point.title) || item.answer.contains(point.title)
+        val quoteSignal = point.quote.isBlank() || item.answer.contains(point.quote.take(8)) || item.question.contains(point.quote.take(4))
+        if (!titleSignal && !quoteSignal) return null
+        val answer = item.answer.ifBlank { "答案详解：请回到证据核对 ${point.title}。" }
+        val groundedAnswer = if (point.quote.isNotBlank() && !answer.contains("证据")) {
+            "$answer\n证据摘录：${point.quote.take(120)}"
+        } else {
+            answer
+        }
+        return item.copy(
+            knowledgePointId = point.id,
+            knowledgePointTitle = point.title,
+            evidenceQuote = point.quote,
+            answer = groundedAnswer,
+            whyThisQuestionMatters = item.whyThisQuestionMatters.ifBlank { "围绕本课知识点「${point.title}」并绑定课堂证据。" },
+        )
     }
 
     /** Start practice focused on a review task's course, picking a mode from its counters. */
@@ -5236,7 +5443,7 @@ class AppViewModel(
         // Grounded QA routes through the SAME profile order as the analyzer (BlueLM/Compatible/Local).
         // The network call runs off the main thread; with no real credentials the seam returns null
         // and the engine answers from local evidence — never inventing course-external facts.
-        val bundle = configBundle
+        val bundle = cloudOnlyBundle()
         val tx = transport
         ui = ui.copy(
             askLessonPending = true,

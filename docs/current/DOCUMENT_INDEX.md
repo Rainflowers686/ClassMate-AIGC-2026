@@ -1,4 +1,15 @@
-# Document Index - ClassMate 1.14.7
+# Document Index - ClassMate 1.14.8
+
+版本：`1.14.8 / versionCode 121`
+
+本轮新增当前入口：
+| 文件 | 类型 | 状态 |
+| --- | --- | --- |
+| `docs/current/CHANGELOG_1_14_8.md` | 当前版本变更 | 新增 |
+| `docs/current/REAL_DEVICE_FIX_MATRIX_1_14_8.md` | 真机 BlueLM 主链路修复矩阵 | 新增 |
+| `docs/current/REAL_DEVICE_TEST_MANUAL_1_14_8.md` | 真机 BlueLM 主链路复测手册 | 新增 |
+
+1.14.8 之后，BlueLM 是课程分析、课程总结/相关知识、微测生成、反馈重写/替换题、弱点变式和 AI 精修导出的优先 provider。dry-run 只用于诊断，不能作为主流程开关；正式请求失败后才进入端侧或本地 fallback。官方 ASR 主路线继续为官方实时 ASR、官方长语音转写、手动转写，系统 SpeechRecognizer 仅为用户主动选择的设备 fallback。
 
 版本：`1.14.7 / versionCode 120`
 

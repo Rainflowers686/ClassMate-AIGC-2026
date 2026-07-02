@@ -1,6 +1,10 @@
 # Official Interface Gaps and Boundaries
 
-Current update: `1.14.7 / versionCode 120`
+Current update: `1.14.8 / versionCode 121`
+
+1.14.8 boundary: BlueLM is now the preferred AI provider for the main learning features when the saved official configuration is Ready. This is a product-flow guarantee, not a live-network guarantee. Real success still depends on AppID/AppKey, network, endpoint permission, timeout behavior, and service status. If the provider fails, ClassMate must keep the local/on-device result and label it honestly.
+
+The following features should attempt BlueLM before fallback when configured: course analysis, course summary and related knowledge, practice generation, feedback refinement/replacement, weakness variants, secondary learning enhancements, and polished study-pack export.
 
 1.14.7 adds provider dry-run categories and `scripts/qa/provider_live_smoke.ps1`. These diagnostics prove configuration wiring and safe error classification; they do not by themselves prove full real-device media success. `SKIP` means missing or intentionally uninspected local credentials, not a user failure. `READY_CONFIG_PRESENT` means the provider can see configuration and still needs a real AppKey/network/device validation. `SKIPPED_NO_AUDIO` means long ASR was not live-tested because no test recording was supplied.
 

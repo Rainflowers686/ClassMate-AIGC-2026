@@ -1,6 +1,15 @@
 # ClassMate Official Interface Reference Index
 
-Current update: `1.14.7 / versionCode 120`
+Current update: `1.14.8 / versionCode 121`
+
+1.14.8 restores BlueLM as the primary AI provider for learning features, not just diagnostics:
+
+- Course analysis still uses the cloud-first analyzer path.
+- Practice generation now attempts BlueLM first when the saved official config is Ready, then validates model output against accepted subject knowledge and evidence.
+- Feedback refinement can call BlueLM for same-knowledge/evidence repair hints and then refresh the current learning snapshot; local immediate optimization remains the fallback.
+- Weakness variants, secondary learning enhancements, and polished study-pack export use the same BlueLM resolver/client path before falling back.
+- Dry-run remains a diagnostic tool only. Unknown or not-yet-run diagnostics must not block a real BlueLM attempt when the saved config is Ready.
+- Official ASR remains official realtime ASR -> official long ASR -> manual transcript; Android SpeechRecognizer is only an optional device fallback.
 
 1.14.7 adds a verifiable provider diagnostics layer:
 

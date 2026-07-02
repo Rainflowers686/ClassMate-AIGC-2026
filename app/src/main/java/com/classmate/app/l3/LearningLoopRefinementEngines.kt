@@ -76,12 +76,13 @@ object FeedbackLearningOptimizer {
         targetId: String?,
         note: String,
         now: Long,
+        aiHint: String? = null,
     ): FeedbackOptimizationOutcome {
         val baseId = "feedback_opt_$now"
         return when (targetKind) {
-            FeedbackTargetKind.QUIZ_QUESTION -> optimizeQuestion(snapshot, type, targetId, note, now, baseId)
-            FeedbackTargetKind.KNOWLEDGE_POINT -> optimizeKnowledge(snapshot, type, targetId, note, now, baseId)
-            FeedbackTargetKind.ANALYSIS, FeedbackTargetKind.REVIEW_PLAN -> optimizeAnalysis(snapshot, type, note, now, baseId)
+            FeedbackTargetKind.QUIZ_QUESTION -> optimizeQuestion(snapshot, type, targetId, note, now, baseId, aiHint)
+            FeedbackTargetKind.KNOWLEDGE_POINT -> optimizeKnowledge(snapshot, type, targetId, note, now, baseId, aiHint)
+            FeedbackTargetKind.ANALYSIS, FeedbackTargetKind.REVIEW_PLAN -> optimizeAnalysis(snapshot, type, note, now, baseId, aiHint)
         }
     }
 
@@ -92,6 +93,7 @@ object FeedbackLearningOptimizer {
         note: String,
         now: Long,
         baseId: String,
+        aiHint: String?,
     ): FeedbackOptimizationOutcome {
         val question = snapshot.questions.firstOrNull { it.id == targetId }
         if (question == null) {
@@ -101,7 +103,7 @@ object FeedbackLearningOptimizer {
         val evidence = snapshot.evidence.firstOrNull { it.id in question.evidenceIds }
             ?: snapshot.evidence.firstOrNull { it.sourceId == snapshot.lessonSource?.id }
         val replacement = evidence?.let { ev ->
-            replacementQuestion(question, kp, ev, now, snapshot.questions.size + 1)
+            replacementQuestion(question, kp, ev, now, snapshot.questions.size + 1, aiHint)
                 .takeIf {
                     SubjectKnowledgeExtractor.isAcceptedKnowledge(
                         kp?.title.orEmpty().ifBlank { question.knowledgePointId },
@@ -154,6 +156,7 @@ object FeedbackLearningOptimizer {
         note: String,
         now: Long,
         baseId: String,
+        aiHint: String?,
     ): FeedbackOptimizationOutcome {
         val kp = snapshot.knowledgePoints.firstOrNull { it.id == targetId }
         if (kp == null) {
@@ -201,6 +204,7 @@ object FeedbackLearningOptimizer {
         note: String,
         now: Long,
         baseId: String,
+        aiHint: String?,
     ): FeedbackOptimizationOutcome {
         val related = RelatedKnowledgeSummaryEngine.build(snapshot)
         val focus = related.map { it.summary }.take(3)
@@ -238,9 +242,11 @@ object FeedbackLearningOptimizer {
         evidence: Evidence,
         now: Long,
         index: Int,
+        aiHint: String?,
     ): L3GeneratedQuestion {
         val title = kp?.title?.takeIf { it.isNotBlank() } ?: "本课知识点"
         val quote = evidence.text.take(96).ifBlank { title }
+        val hint = aiHint?.takeIf { it.isNotBlank() && !SubjectKnowledgeExtractor.isNoiseLine(it) }?.take(160)
         return L3GeneratedQuestion(
             id = "q_feedback_${now}_$index",
             lessonId = old.lessonId,
@@ -253,7 +259,8 @@ object FeedbackLearningOptimizer {
                 "D. 忽略证据摘录，选择未被课堂材料支持的说法",
             ),
             correctAnswer = "A",
-            explanation = "答案详解：A 直接来自本课证据，能支撑「$title」。B/C/D 都没有把题干、知识点和证据对应起来，容易造成误判。证据摘录：$quote",
+            explanation = "答案详解：A 直接来自本课证据，能支撑「$title」。B/C/D 都没有把题干、知识点和证据对应起来，容易造成误判。证据摘录：$quote" +
+                (hint?.let { "\n云端优化提示：$it" } ?: ""),
             evidenceIds = listOf(evidence.id),
             difficulty = old.difficulty,
         )

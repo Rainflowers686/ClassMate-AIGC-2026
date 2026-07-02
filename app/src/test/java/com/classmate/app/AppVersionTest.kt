@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The competition demo build must report version 1.14.7 / 120, not older release lines. The build commit is
+ * The competition demo build must report version 1.14.8 / 121, not older release lines. The build commit is
  * kept separately via BuildConfig.GIT_COMMIT (not asserted here).
  */
 class AppVersionTest {
@@ -17,7 +17,7 @@ class AppVersionTest {
 
     @Test
     fun versionNameIsCurrentAndNotOld() {
-        assertTrue(gradle.contains("versionName = \"1.14.7\""))
+        assertTrue(gradle.contains("versionName = \"1.14.8\""))
         assertFalse(gradle.contains("versionName = \"0.1.0\""))
         assertFalse(gradle.contains("versionName = \"1.0.0\""))
         assertFalse(gradle.contains("versionName = \"1.0.1\""))
@@ -49,11 +49,12 @@ class AppVersionTest {
         assertFalse(gradle.contains("versionName = \"1.14.4\""))
         assertFalse(gradle.contains("versionName = \"1.14.5\""))
         assertFalse(gradle.contains("versionName = \"1.14.6\""))
+        assertFalse(gradle.contains("versionName = \"1.14.7\""))
     }
 
     @Test
     fun versionCodeIsCurrent() {
-        assertTrue(gradle.contains("versionCode = 120"))
+        assertTrue(gradle.contains("versionCode = 121"))
     }
 
     @Test

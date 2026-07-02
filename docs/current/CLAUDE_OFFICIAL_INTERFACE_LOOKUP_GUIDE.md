@@ -1,6 +1,14 @@
 # Claude Official Interface Lookup Guide
 
-Current update: `1.14.7 / versionCode 120`
+Current update: `1.14.8 / versionCode 121`
+
+Rules after 1.14.8:
+
+1. BlueLM is the preferred provider for course analysis, summary/related knowledge, practice generation, feedback refinement, weakness variants, and polished export when the saved official config is Ready.
+2. `BlueLMProviderResolver` is the shared value-level gate. Missing / Incomplete / Invalid config blocks BlueLM; a Ready config must be allowed to attempt the real provider path even if dry-run was not executed.
+3. Dry-run is diagnostic evidence, not a product-flow switch.
+4. BlueLM model output must still pass subject-knowledge filtering, evidence binding, and quiz relevance checks before reaching the UI.
+5. Local fallback remains available but must never be labelled as BlueLM.
 
 Before changing any provider route, check the current diagnostic layer:
 
