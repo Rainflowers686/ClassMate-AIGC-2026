@@ -91,4 +91,17 @@ class OcrTextPostProcessorTest {
         assertEquals("", r.text)
         assertFalse(r.needsReview)
     }
+
+    @Test
+    fun normalizationDoesNotDropSubjectTextOnPromptLine() {
+        val raw = "同学们注意，重点来了，这个地方可能考。下面看牛顿第二定律，物体的加速度与所受合外力成正比，与质量成反比，公式 F=ma。大家记一下，作业截图上传。"
+
+        val cleaned = OcrTextPostProcessor.clean(raw)
+
+        assertTrue(cleaned.text.contains("同学们注意"))
+        assertTrue(cleaned.text.contains("牛顿第二定律"))
+        assertTrue(cleaned.text.contains("加速度"))
+        assertTrue(cleaned.text.contains("F=ma"))
+        assertTrue("normalization should preserve most OCR content", cleaned.text.length >= raw.length * 0.9)
+    }
 }

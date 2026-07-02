@@ -869,6 +869,9 @@ class L3LearningPipeline {
             .map { it.trim() }
             .filter { it.isNotBlank() }
             .filterNot { SubjectKnowledgeExtractor.isNoiseLine(it) }
+            .map { SubjectKnowledgeExtractor.cleanSubjectTextForDisplay(it) }
+            .filter { it.isNotBlank() }
+            .filterNot { SubjectKnowledgeExtractor.isNoiseLine(it) }
             .filter { SubjectKnowledgeExtractor.subjectScore(it) > 0 || it.length >= 18 }
             .distinct()
         return subjectSentences.take(2).joinToString(" ") { it.take(90) }

@@ -1352,7 +1352,9 @@ class AppViewModel(
     fun beginImageDraft(origin: String? = null) {
         ui = ui.copy(
             ocrImports = ui.ocrImports.filter { it.batchId.isBlank() },
-            imageDraftActive = true, imageDraftRunning = false, imageDraftText = "",
+            imageDraftActive = true, imageDraftRunning = false,
+            imageDraftRawText = "", imageDraftNormalizedText = "", imageDraftSubjectCandidates = emptyList(),
+            imageDraftText = "",
             imageDraftManualMode = false, imageDraftMessage = null,
             imageDraftOrigin = origin, imageDraftMeta = null,
             imageDraftImageRef = "", imageDraftThumbnailRef = "", imageDraftMimeType = "",
@@ -1366,6 +1368,9 @@ class AppViewModel(
             ocrImports = emptyList(),
             imageDraftActive = true,
             imageDraftRunning = total > 0,
+            imageDraftRawText = "",
+            imageDraftNormalizedText = "",
+            imageDraftSubjectCandidates = emptyList(),
             imageDraftText = "",
             imageDraftManualMode = false,
             imageDraftMessage = if (total > 0) "正在识别 $total 张图片，请稍后检查草稿。" else "未选择图片。",
@@ -1525,6 +1530,8 @@ class AppViewModel(
             val completed = if (clean.text.isBlank()) {
                 pending.copy(
                     status = OcrImportStatus.FAILED,
+                    rawOcrText = rawText,
+                    normalizedOcrText = clean.text,
                     errorReason = if (unconfigured) {
                         "OCR 未配置，请在下方手动输入图片中的文字，或重拍更清晰的图片。"
                     } else {
@@ -1535,6 +1542,8 @@ class AppViewModel(
             } else {
                 pending.copy(
                     pastedText = clean.text,
+                    rawOcrText = rawText,
+                    normalizedOcrText = clean.text,
                     status = OcrImportStatus.OK,
                     errorReason = if (clean.needsReview) clean.reviewHint else "",
                     updatedAt = System.currentTimeMillis(),
@@ -1558,6 +1567,9 @@ class AppViewModel(
         }
         ui = ui.copy(
             ocrImports = imports,
+            imageDraftRawText = merged.rawText,
+            imageDraftNormalizedText = merged.normalizedText,
+            imageDraftSubjectCandidates = SubjectKnowledgeExtractor.subjectKnowledgeCandidates(merged.text, ui.courseTitle),
             imageDraftText = merged.text,
             imageDraftRunning = processed < total.coerceAtLeast(imports.size),
             imageDraftManualMode = merged.okDrafts.isEmpty(),
@@ -1577,6 +1589,9 @@ class AppViewModel(
                 ui.copy(
                     imageDraftActive = true,
                     imageDraftRunning = false,
+                    imageDraftRawText = result.text,
+                    imageDraftNormalizedText = cleaned.text,
+                    imageDraftSubjectCandidates = SubjectKnowledgeExtractor.subjectKnowledgeCandidates(cleaned.text, ui.courseTitle),
                     imageDraftText = cleaned.text,
                     imageDraftManualMode = false,
                     imageDraftSource = AiExecutionSource.ON_DEVICE,
@@ -1607,11 +1622,15 @@ class AppViewModel(
             return
         }
         val cleaned = OcrTextPostProcessor.clean(draft.initialEditableText().trim())
+        val rawText = draft.initialEditableText().trim()
         val text = cleaned.text
         val needsManualText = text.isBlank()
         ui = ui.copy(
             imageDraftActive = true,
             imageDraftRunning = false,
+            imageDraftRawText = rawText,
+            imageDraftNormalizedText = text,
+            imageDraftSubjectCandidates = SubjectKnowledgeExtractor.subjectKnowledgeCandidates(text, ui.courseTitle),
             imageDraftText = text,
             imageDraftManualMode = needsManualText,
             imageDraftMessage = imageDraftStatusMessage(result.source, draft.ocrError) +
@@ -1669,7 +1688,13 @@ class AppViewModel(
         else -> "请手动补充图片中的学习内容；确认后再生成知识结构大纲。"
     }
 
-    fun updateImageDraftText(text: String) { ui = ui.copy(imageDraftText = text) }
+    fun updateImageDraftText(text: String) {
+        ui = ui.copy(
+            imageDraftText = text,
+            imageDraftNormalizedText = text,
+            imageDraftSubjectCandidates = SubjectKnowledgeExtractor.subjectKnowledgeCandidates(text, ui.courseTitle),
+        )
+    }
 
     /**
      * Confirm the draft → it becomes the course text and enters the EXISTING CourseAnalysis flow.
@@ -1696,6 +1721,9 @@ class AppViewModel(
             importSourceType = ImportSourceType.IMAGE_OCR,
             imageDraftActive = false,
             imageDraftRunning = false,
+            imageDraftRawText = "",
+            imageDraftNormalizedText = "",
+            imageDraftSubjectCandidates = emptyList(),
             imageDraftText = "",
             imageDraftManualMode = false,
             imageDraftMessage = null,
@@ -1712,6 +1740,7 @@ class AppViewModel(
             imageDraftBatchProcessed = 0,
             aiProcessing = AiProcessingUiState.hidden(),
         )
+        val rawEvidenceText = ui.imageDraftRawText.ifBlank { courseText }
         val input = currentLearningLoopInput(
             now = now + 1,
             text = courseText,
@@ -1722,7 +1751,7 @@ class AppViewModel(
                     id = "asset_image_$now",
                     type = EvidenceAssetType.OCR_IMAGE,
                     sourceType = L3SourceType.OCR_IMAGE,
-                    text = courseText,
+                    text = rawEvidenceText,
                     sourceLabel = origin,
                     fileName = draft?.origin?.takeIf { it.isNotBlank() } ?: origin,
                     fileExt = mimeType.substringAfterLast('/', "image"),
@@ -1730,7 +1759,7 @@ class AppViewModel(
                     localUri = imageRef,
                     thumbnailRef = thumbnailRef,
                     imageRef = imageRef,
-                    snippet = courseText.take(180),
+                    snippet = rawEvidenceText.take(180),
                     createdAt = now,
                     status = "OCR_TEXT_CONFIRMED",
                 ),
@@ -1768,7 +1797,7 @@ class AppViewModel(
                 id = "asset_${draft.id}",
                 type = EvidenceAssetType.OCR_IMAGE,
                 sourceType = L3SourceType.OCR_IMAGE,
-                text = draft.pastedText,
+                text = draft.rawOcrText.ifBlank { draft.pastedText },
                 sourceLabel = draft.fileMeta.safeDisplayLabel(),
                 fileName = draft.fileMeta.fileName,
                 fileExt = draft.fileMeta.fileName.substringAfterLast('.', "image"),
@@ -1778,7 +1807,7 @@ class AppViewModel(
                 imageRef = draft.fileMeta.fileName,
                 pageHint = draft.pageIndex?.let { "image $it" }.orEmpty(),
                 segmentHint = "image ${draft.pageIndex ?: 1}",
-                snippet = draft.pastedText.take(180),
+                snippet = draft.rawOcrText.ifBlank { draft.pastedText }.take(180),
                 createdAt = draft.createdAt,
                 status = "OCR_TEXT_CONFIRMED",
             )
@@ -1790,6 +1819,9 @@ class AppViewModel(
             ocrImports = emptyList(),
             imageDraftActive = false,
             imageDraftRunning = false,
+            imageDraftRawText = "",
+            imageDraftNormalizedText = "",
+            imageDraftSubjectCandidates = emptyList(),
             imageDraftText = "",
             imageDraftManualMode = false,
             imageDraftMessage = null,
@@ -1828,7 +1860,9 @@ class AppViewModel(
         val activeBatchId = ui.imageDraftBatchId
         ui = ui.copy(
             ocrImports = if (activeBatchId.isBlank()) ui.ocrImports else ui.ocrImports.filterNot { it.batchId == activeBatchId },
-            imageDraftActive = false, imageDraftRunning = false, imageDraftText = "",
+            imageDraftActive = false, imageDraftRunning = false,
+            imageDraftRawText = "", imageDraftNormalizedText = "", imageDraftSubjectCandidates = emptyList(),
+            imageDraftText = "",
             imageDraftManualMode = false, imageDraftMessage = null,
             imageDraftOrigin = null, imageDraftMeta = null,
             imageStudyDraft = null, imageDraftSource = null, imageDraftOcrError = null,
@@ -1897,6 +1931,8 @@ class AppViewModel(
                 pageIndex = ordinal,
             ),
             pastedText = clean,
+            rawOcrText = pastedText,
+            normalizedOcrText = clean,
             status = OcrImportStatus.OK,
             errorReason = if (cleanResult.needsReview) cleanResult.reviewHint else "",
             pageIndex = ordinal,
@@ -1922,6 +1958,8 @@ class AppViewModel(
                 if (draft.id == id) {
                     draft.copy(
                         pastedText = cleanResult.text,
+                        rawOcrText = draft.rawOcrText.ifBlank { text },
+                        normalizedOcrText = cleanResult.text,
                         status = if (cleanResult.text.isBlank()) OcrImportStatus.FAILED else OcrImportStatus.OK,
                         errorReason = if (cleanResult.text.isBlank()) {
                             "OCR 文本为空，请重新输入。"
@@ -2517,7 +2555,7 @@ class AppViewModel(
                 id = "asset_${draft.id}",
                 type = EvidenceAssetType.OCR_IMAGE,
                 sourceType = L3SourceType.OCR_IMAGE,
-                text = draft.pastedText,
+                text = draft.rawOcrText.ifBlank { draft.pastedText },
                 sourceLabel = draft.fileMeta.safeDisplayLabel(),
                 fileName = draft.fileMeta.fileName,
                 fileExt = draft.fileMeta.fileName.substringAfterLast('.', ""),
@@ -2525,7 +2563,7 @@ class AppViewModel(
                 imageRef = draft.fileMeta.fileName,
                 thumbnailRef = draft.fileMeta.safeSummary(),
                 pageHint = draft.pageIndex?.let { "page $it" }.orEmpty(),
-                snippet = draft.pastedText.take(180),
+                snippet = draft.rawOcrText.ifBlank { draft.pastedText }.take(180),
                 createdAt = draft.createdAt,
                 status = "OCR_TEXT_CONFIRMED",
             )

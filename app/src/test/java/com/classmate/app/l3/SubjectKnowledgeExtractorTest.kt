@@ -51,4 +51,21 @@ class SubjectKnowledgeExtractorTest {
         assertTrue(title.contains("极限"))
         assertFalse(title.contains("同学们注意"))
     }
+
+    @Test
+    fun mixedFreshOcrKeepsSubjectCandidateButCleansPromptFragments() {
+        val text = "同学们注意，重点来了，这个地方可能考。下面看牛顿第二定律，物体的加速度与所受合外力成正比，与质量成反比，公式 F=ma。大家记一下，作业截图上传。"
+
+        val candidates = SubjectKnowledgeExtractor.subjectKnowledgeCandidates(text, "高中物理")
+        val title = SubjectKnowledgeExtractor.titleFromEvidence(text, 0, "高中物理")
+        val display = SubjectKnowledgeExtractor.cleanSubjectTextForDisplay("下面看牛顿第二定律，公式 F=ma")
+
+        assertTrue(candidates.any { it.contains("牛顿第二定律") || it.contains("加速度") || it.contains("F=ma") })
+        listOf("同学们注意", "重点来了", "大家记一下", "作业截图上传", "下面看").forEach { noise ->
+            assertFalse("candidate leaked $noise", candidates.joinToString("\n").contains(noise))
+            assertFalse("title leaked $noise", title.contains(noise))
+            assertFalse("display leaked $noise", display.contains(noise))
+        }
+        assertTrue(title.contains("牛顿第二定律") || title.contains("加速度") || title.contains("F=ma"))
+    }
 }

@@ -12,10 +12,15 @@ object SubjectKnowledgeExtractor {
         "重点来了",
         "大家记一下",
         "这里可能考",
+        "这个地方可能考",
         "下面我们来看",
+        "下面我们看",
+        "下面来看",
+        "下面看",
         "这个地方",
         "老师说",
         "作业要求",
+        "作业截图上传",
         "请看这里",
         "看这里",
         "首先其次然后",
@@ -69,6 +74,9 @@ object SubjectKnowledgeExtractor {
         "显著性检验",
         "牛顿",
         "加速度",
+        "合外力",
+        "质量",
+        "F=ma",
         "速度",
         "电磁感应",
         "磁通量",
@@ -121,16 +129,27 @@ object SubjectKnowledgeExtractor {
             .map { normalize(it) }
             .filter { it.isNotBlank() }
             .filterNot { isNoiseLine(it) }
-            .filter { subjectScore(it, courseTitle) > 0 || meaningfulLength(it) >= 18 }
+            .filter { subjectScore(it, courseTitle) > 0 || (meaningfulLength(it) >= 18 && !hasNoisePhrase(it)) }
             .distinct()
         return accepted
     }
 
-    fun titleFromEvidence(text: String, index: Int, courseTitle: String = ""): String {
-        val candidates = sentenceCandidates(text)
-            .map { stripLeadingNoise(it) }
+    fun subjectKnowledgeCandidates(text: String, courseTitle: String = ""): List<String> =
+        sentenceCandidates(text)
+            .map { cleanSubjectTextForDisplay(it) }
             .filter { it.length >= 2 }
             .filterNot { isNoiseLine(it) }
+            .filter { subjectScore(it, courseTitle) > 0 || (meaningfulLength(it) >= 6 && !hasNoisePhrase(it)) }
+            .distinct()
+
+    fun cleanSubjectTextForDisplay(text: String): String =
+        stripNoiseFragments(text)
+            .replace(Regex("""^[\s:：，,。.!！?？、；;]+"""), "")
+            .replace(Regex("""[\s:：，,。.!！?？、；;]+$"""), "")
+            .trim()
+
+    fun titleFromEvidence(text: String, index: Int, courseTitle: String = ""): String {
+        val candidates = subjectKnowledgeCandidates(text, courseTitle)
             .sortedWith(compareByDescending<String> { subjectScore(it, courseTitle) }.thenBy { it.length })
         val selected = candidates.firstOrNull { subjectScore(it, courseTitle) > 0 }
             ?: candidates.firstOrNull { meaningfulLength(it) >= 6 }
@@ -139,7 +158,7 @@ object SubjectKnowledgeExtractor {
     }
 
     fun isAcceptedKnowledge(title: String, evidenceText: String, courseTitle: String = ""): Boolean {
-        val cleanTitle = stripLeadingNoise(title)
+        val cleanTitle = cleanSubjectTextForDisplay(title)
         val cleanEvidence = normalize(evidenceText)
         if (cleanTitle.isBlank() || cleanEvidence.isBlank()) return false
         if (isNoiseLine(cleanTitle)) return false
@@ -200,8 +219,28 @@ object SubjectKnowledgeExtractor {
         return clean
     }
 
+    private fun stripNoiseFragments(text: String): String {
+        var clean = normalize(text)
+        var changed: Boolean
+        do {
+            changed = false
+            noisePhrases.forEach { phrase ->
+                val before = clean
+                clean = clean
+                    .replace(Regex("""^\s*${Regex.escape(phrase)}[\s:：，,。.!！?？、；;]*""", RegexOption.IGNORE_CASE), "")
+                    .replace(Regex("""[\s:：，,、；;]*${Regex.escape(phrase)}[\s:：，,。.!！?？、；;]*$""", RegexOption.IGNORE_CASE), "")
+                    .trim()
+                if (clean != before) changed = true
+            }
+        } while (changed)
+        return clean
+    }
+
+    private fun hasNoisePhrase(text: String): Boolean =
+        noisePhrases.any { text.contains(it, ignoreCase = true) }
+
     private fun compactTitle(text: String): String {
-        val stripped = stripLeadingNoise(text)
+        val stripped = cleanSubjectTextForDisplay(text)
         val beforeDefinition = stripped.split(Regex("""(是|表示|说明|用于|由|决定|导致|影响|可以|需要)"""), limit = 2).first().trim()
         val picked = beforeDefinition.takeIf { it.length in 2..22 } ?: stripped
         return picked.replace(Regex("""[\s，,。.!！?？；;：:]+$"""), "").trim()

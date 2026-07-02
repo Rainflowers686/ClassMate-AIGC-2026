@@ -33,6 +33,9 @@ class ImageDraftFlowTest {
 
         viewModel.applyImageDraftResult(OnDeviceImageDraftResult.Draft("图片中的知识点：光合作用发生在叶绿体。"))
         assertEquals("图片中的知识点：光合作用发生在叶绿体。", viewModel.ui.imageDraftText)
+        assertEquals("图片中的知识点：光合作用发生在叶绿体。", viewModel.ui.imageDraftRawText)
+        assertEquals("图片中的知识点：光合作用发生在叶绿体。", viewModel.ui.imageDraftNormalizedText)
+        assertTrue(viewModel.ui.imageDraftSubjectCandidates.any { it.contains("光合作用") || it.contains("叶绿体") })
         assertFalse(viewModel.ui.imageDraftManualMode)
         assertFalse(viewModel.ui.imageDraftRunning)
     }
@@ -145,6 +148,8 @@ class ImageDraftFlowTest {
         assertTrue(viewModel.ui.imageDraftText.contains("图片1"))
         assertTrue(viewModel.ui.imageDraftText.contains("图片3"))
         assertFalse(viewModel.ui.imageDraftText.contains("图片2"))
+        assertTrue(viewModel.ui.imageDraftRawText.contains("第一张：牛顿第二定律。"))
+        assertTrue(viewModel.ui.imageDraftNormalizedText.contains("第三张：动量守恒。"))
 
         assertTrue(viewModel.confirmImageOcrBatch(now = 20L))
 
@@ -152,6 +157,21 @@ class ImageDraftFlowTest {
         assertEquals(2, viewModel.ui.l3Pipeline.evidenceAssets.count { it.type.name == "OCR_IMAGE" })
         assertFalse(viewModel.ui.imageDraftActive)
         assertTrue(viewModel.ui.ocrImports.isEmpty())
+    }
+
+    @Test
+    fun ocrDraftSeparatesRawNormalizedAndSubjectCandidates() {
+        val viewModel = vm()
+        val raw = "同学们注意，重点来了。下面看牛顿第二定律，公式 F=ma。大家记一下，作业截图上传。"
+
+        viewModel.beginImageDraft("图片学习输入")
+        viewModel.applyImageDraftResult(OnDeviceImageDraftResult.Draft(raw))
+
+        assertTrue(viewModel.ui.imageDraftRawText.contains("同学们注意"))
+        assertTrue(viewModel.ui.imageDraftText.contains("同学们注意"))
+        assertTrue(viewModel.ui.imageDraftNormalizedText.contains("牛顿第二定律"))
+        assertTrue(viewModel.ui.imageDraftSubjectCandidates.any { it.contains("牛顿第二定律") || it.contains("F=ma") })
+        assertFalse(viewModel.ui.imageDraftSubjectCandidates.joinToString("\n").contains("同学们注意"))
     }
 
     @Test

@@ -23,6 +23,8 @@ fun OcrImportDraft.isLowQuality(): Boolean = status == OcrImportStatus.OK && err
 
 data class MergedOcrImport(
     val text: String,
+    val rawText: String,
+    val normalizedText: String,
     val okDrafts: List<OcrImportDraft>,
     val failedDrafts: List<OcrImportDraft>,
 )
@@ -51,7 +53,12 @@ data class OcrImportDraft(
     val id: String,
     val kind: OcrImportKind,
     val fileMeta: OcrImportFileMeta,
+    /** Editable, user-confirmed OCR text used as learning material. */
     val pastedText: String,
+    /** Raw provider output. It is preserved for preview/evidence and is never subject-filtered. */
+    val rawOcrText: String = pastedText,
+    /** Lightly normalized reading text before subject-knowledge candidate filtering. */
+    val normalizedOcrText: String = pastedText,
     val status: OcrImportStatus = OcrImportStatus.OK,
     val errorReason: String = "",
     val batchId: String = "",
@@ -114,12 +121,18 @@ object OcrImportAssembler {
         )
         val ok = ordered.filter { it.status == OcrImportStatus.OK && it.pastedText.isNotBlank() }
         val failed = ordered.filter { it.status == OcrImportStatus.FAILED }
-        val body = ok.joinToString("\n\n") { draft ->
+        fun mergedBody(selector: (OcrImportDraft) -> String): String = ok.joinToString("\n\n") { draft ->
             val index = draft.pageIndex ?: draft.fileMeta.pageIndex ?: (ok.indexOf(draft) + 1)
             val label = draft.fileMeta.safeDisplayLabel().ifBlank { "图片$index" }
-            "【图片$index：$label】\n${draft.pastedText.trim()}"
+            "【图片$index：$label】\n${selector(draft).trim()}"
         }
-        return MergedOcrImport(body, ok, failed)
+        return MergedOcrImport(
+            text = mergedBody { it.pastedText },
+            rawText = mergedBody { draft -> draft.rawOcrText.ifBlank { draft.pastedText } },
+            normalizedText = mergedBody { draft -> draft.normalizedOcrText.ifBlank { draft.pastedText } },
+            okDrafts = ok,
+            failedDrafts = failed,
+        )
     }
 
     fun materialType(kind: OcrImportKind): MaterialSourceType = when (kind) {

@@ -1,5 +1,17 @@
 # Changelog
 
+当前候选版本：`1.14.11 / versionCode 124`。本轮修复 fresh-install 新材料主流程和 OCR 回归：OCR 原文/轻清洗/学科候选三层分离，学科过滤只作用于知识点候选，不再破坏 OCR 草稿和 evidence；新装新课从图片 OCR 到课程总结、复习计划、微测入口和完成练习都有端到端回归守卫。
+
+## 1.14.11 / 124 - fresh OCR text protection and learning flow repair
+
+- OCR 文本流拆成三层：`rawOcrText` 保留 provider 原文用于预览/evidence，`normalizedOcrText` 只做轻量阅读清洗，`subjectKnowledgeCandidates` 只在知识点提取阶段过滤课堂提示语；不再用学科过滤缩短 OCR 草稿。
+- 多图 OCR、单图草稿和手动 OCR 导入都保留 raw/normalized 信息；课程分析继续使用用户确认后的可编辑文本，证据资产优先保存 raw OCR 原文，便于对照图片核查。
+- fresh-install 新材料路径修复：同一段中混有“同学们注意 / 重点来了 / 作业截图上传”和“牛顿第二定律 / 加速度 / F=ma”时，课程总结、相关知识点、复习计划和微测主题只使用学科知识点。
+- 知识点提取增加“下面看 / 下面来看 / 这个地方可能考 / 作业截图上传”等真机提示语清理，处理无空格中文句号连接的 OCR 段落。
+- 新增 fresh install 端到端回归：空 store + 新 OCR 资料 -> 生成课程 -> 课程总结/复习计划/知识时间线 -> 开始微测 -> 完成练习，确认微测不为空且完成后停留在练习页。
+- 保持 1.14.9 BlueLM/qwen3.5-plus 策略：快速 low + `enable_thinking=false`，均衡 medium + false，专业 UI Max/API high + true；dry-run 短超时，正式请求长超时。
+- 风险：OCR 真实准确率仍依赖图片清晰度、官方 OCR 配置和网络；本轮保证不会在 App 内因学科过滤二次破坏已识别文本，低质量图片仍建议手动修正。
+
 当前候选版本：`1.14.10 / versionCode 123`。本轮修复真机旧课程数据和入口一致性：打开旧课程时自动修复/重建脏学习 artifact，普通用户 UI 最终渲染前再过滤课堂强调词，微测入口统一走同一 PracticeSession 构建链路，完成练习后不再自动退出。
 
 ## 1.14.10 / 123 - legacy artifact repair and practice routing

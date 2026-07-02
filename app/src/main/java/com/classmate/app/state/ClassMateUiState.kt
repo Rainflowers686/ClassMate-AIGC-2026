@@ -218,6 +218,12 @@ data class ClassMateUiState(
     // Stage 8C: image/photo → on-device multimodal → editable learning-text DRAFT (user-confirmed).
     val imageDraftActive: Boolean = false,
     val imageDraftRunning: Boolean = false,
+    /** Raw OCR/provider text for preview and evidence; never filtered by subject-knowledge heuristics. */
+    val imageDraftRawText: String = "",
+    /** Lightly normalized OCR reading text. The editable field below starts from this value. */
+    val imageDraftNormalizedText: String = "",
+    /** Candidate subject concepts used only after confirmation, not for OCR preview/editing. */
+    val imageDraftSubjectCandidates: List<String> = emptyList(),
     val imageDraftText: String = "",
     val imageDraftManualMode: Boolean = false, // true when multimodal is unavailable → manual input
     val imageDraftMessage: String? = null,

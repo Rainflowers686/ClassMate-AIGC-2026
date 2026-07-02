@@ -1,3 +1,16 @@
+# Document Index - ClassMate 1.14.11
+
+版本：`1.14.11 / versionCode 124`
+
+本轮新增当前入口：
+| 文件 | 类型 | 状态 |
+| --- | --- | --- |
+| `docs/current/CHANGELOG_1_14_11.md` | 当前版本变更 | 新增 |
+| `docs/current/REAL_DEVICE_FIX_MATRIX_1_14_11.md` | fresh-install OCR/学习闭环修复矩阵 | 新增 |
+| `docs/current/REAL_DEVICE_TEST_MANUAL_1_14_11.md` | fresh-install 真机复测手册 | 新增 |
+
+1.14.11 之后，OCR 原文、轻清洗文本和学科知识候选三层分离：raw OCR 不再被 SubjectKnowledgeExtractor 或旧 artifact repairer 缩短；知识点过滤只作用于课程总结、复习计划、相关知识点和微测主题。fresh-install 新材料主流程已新增端到端回归：新 OCR 资料生成课程后，知识点时间线开始微测不为空，完成练习后仍停留在练习页；1.14.9 的 BlueLM/qwen3.5-plus 三档策略保持不变。
+
 # Document Index - ClassMate 1.14.10
 
 版本：`1.14.10 / versionCode 123`
