@@ -1,5 +1,17 @@
 # Changelog
 
+当前候选版本：`1.14.10 / versionCode 123`。本轮修复真机旧课程数据和入口一致性：打开旧课程时自动修复/重建脏学习 artifact，普通用户 UI 最终渲染前再过滤课堂强调词，微测入口统一走同一 PracticeSession 构建链路，完成练习后不再自动退出。
+
+## 1.14.10 / 123 - legacy artifact repair and practice routing
+
+- 打开旧课程、进入复习计划或开始微测前，会对已保存的 L3 snapshot、CourseSummary、RelatedKnowledge、ReviewPlan、QuizQuestion 和 evidence-backed questions 进行 deterministic repair；旧版本保存的“同学们注意 / 重点来了 / 大家记一下 / 作业截图上传”等课堂强调词不再作为知识点标题、相关知识点 anchor 或微测主题出现。
+- 若旧 artifact 已无法可信使用，会从本课原始 evidence / OCR / transcript / file / manual text 重新提取 accepted subject knowledge points，并重建课程总结、相关知识点、复习队列和可答题微测；保留用户练习历史，不清空已做记录。
+- 练习入口统一：课程知识点时间线、课程详情统计入口、复习计划、证据页微测和反馈后继续练习都先使用同一条修复后的 PracticeSession 构建路径；如果旧 core quiz id 与 L3 question id 不一致，会回退到修复后的 evidence-backed L3 questions。
+- 进入 PracticeSession 前再次执行题目防线：噪声题干被过滤；缺 evidenceQuote 或 knowledgePointTitle 的旧题会尝试由证据映射补齐；“与课程无关”等坏干扰项不会进入用户练习。
+- 点击“完成练习”只写入学习记录并留在练习页显示完成摘要；只有用户点击“返回课程 / 返回复习计划”等显式按钮才导航。
+- 保持 1.14.9 的 BlueLM/qwen3.5-plus 策略：快速 low + `enable_thinking=false`，均衡 medium + false，专业 UI Max/API high + true；正式请求长超时，dry-run 短超时，本地 fallback 不冒充 BlueLM。
+- 风险：旧数据修复为保守规则，极端 OCR 噪声仍建议用户手动修正文本；真实 BlueLM/官方 ASR 成功仍依赖有效配置、网络和接口权限。
+
 当前候选版本：`1.14.9 / versionCode 122`。本轮修复真机回归中的练习流、复习/总结噪声过滤、微测入口分叉，以及 BlueLM qwen3.5-plus 三档思考模式和长超时策略。
 
 ## 1.14.9 / 122 - practice flow and qwen reasoning mode stabilization

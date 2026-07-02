@@ -85,6 +85,7 @@ import com.classmate.app.l3.LearningLoopInput
 import com.classmate.app.l3.LearningLoopInputKind
 import com.classmate.app.l3.LearningDiagnosisEngine
 import com.classmate.app.l3.LearningExportEngine
+import com.classmate.app.l3.LearningArtifactRepairer
 import com.classmate.app.l3.LearningLoopCapabilityOrchestrator
 import com.classmate.app.l3.LocalTtsPlayer
 import com.classmate.app.l3.LocalSemanticIndexEngine
@@ -102,6 +103,7 @@ import com.classmate.app.l3.PracticeGradingEngine
 import com.classmate.app.l3.PracticeAnswerState
 import com.classmate.app.l3.PracticeAnswerSubmission
 import com.classmate.app.l3.PracticeQuestionMode
+import com.classmate.app.l3.QuizRelevanceGate
 import com.classmate.app.l3.QuestionBankParser
 import com.classmate.app.l3.RecordingFileManager
 import com.classmate.app.l3.ReviewStatsEngine
@@ -416,11 +418,19 @@ class AppViewModel(
         // purpose so construction needs no Main dispatcher (keeps the ViewModel unit-testable);
         // both files are tiny. Home/Review/History then share this one snapshot.
         val persistedL3 = l3PersistenceRepository.loadSnapshot()
+        val repairedPersistedL3 = LearningArtifactRepairer.repair(
+            snapshot = persistedL3,
+            providerSummary = providerSummary(initialConfigSource),
+            now = System.currentTimeMillis(),
+        )
         ui = ui.copy(
             history = historyStore.load(),
             learningSnapshot = learningStore.snapshot(),
-            l3Pipeline = persistedL3,
+            l3Pipeline = repairedPersistedL3,
         )
+        if (repairedPersistedL3 != persistedL3) {
+            l3PersistenceRepository.saveSnapshot(repairedPersistedL3)
+        }
         recordingFileManager.cleanupOrphans(emptySet(), deleteUnknown = false)
     }
 
@@ -2685,12 +2695,13 @@ class AppViewModel(
         val enrichedSnapshot = withCapabilityLayer.copy(
             learningDiagnosis = LearningDiagnosisEngine.build(withCapabilityLayer, now),
         )
-        val artifacts = l3Pipeline.toCourseArtifacts(enrichedSnapshot, now)
+        val repairedSnapshot = repairLearningArtifacts(enrichedSnapshot, now)
+        val artifacts = l3Pipeline.toCourseArtifacts(repairedSnapshot, now)
         if (artifacts == null) {
             // P0-4: honest "insufficient material" — never a silent no-quiz; the user is told to add material
             // or edit the OCR text rather than left wondering why there are no 微测.
-            ui = ui.copy(l3Pipeline = enrichedSnapshot, toast = "资料不足，暂不能生成微测，请补充资料或手动编辑 OCR 文本后重试。")
-            persistL3(enrichedSnapshot)
+            ui = ui.copy(l3Pipeline = repairedSnapshot, toast = "资料不足，暂不能生成微测，请补充资料或手动编辑 OCR 文本后重试。")
+            persistL3(repairedSnapshot)
             return false
         }
         val outcome = AnalysisOutcome.Success(
@@ -2709,11 +2720,11 @@ class AppViewModel(
         ui = ui.copy(
             session = artifacts.session,
             result = artifacts.result,
-            l3Pipeline = enrichedSnapshot,
-            l3ToolOrchestrationPlan = enrichedSnapshot.toolOrchestrationPlan,
-            l3ToolStepRecords = enrichedSnapshot.toolStepRecords,
-            l3SemanticSearchResults = enrichedSnapshot.semanticSearchResults,
-            l3EdgeStudySeam = L3OfficialToolSeams.edgeStudyFallback(enrichedSnapshot.summary),
+            l3Pipeline = repairedSnapshot,
+            l3ToolOrchestrationPlan = repairedSnapshot.toolOrchestrationPlan,
+            l3ToolStepRecords = repairedSnapshot.toolStepRecords,
+            l3SemanticSearchResults = repairedSnapshot.semanticSearchResults,
+            l3EdgeStudySeam = L3OfficialToolSeams.edgeStudyFallback(repairedSnapshot.summary),
             learningState = LearningState.seed(artifacts.result.sessionId, artifacts.result.knowledgePoints, now),
             learningSnapshot = learningStore.snapshot(),
             history = updatedHistory,
@@ -2728,7 +2739,7 @@ class AppViewModel(
             toast = toast,
         )
         persistHistory(updatedHistory)
-        persistL3(enrichedSnapshot)
+        persistL3(repairedSnapshot)
         // Replace the loading screen so system back from the course never returns to the analyze/loading
         // screen (P0-1). From any other entry, just push the course.
         if (currentScreen == Screen.ANALYZE) navigateReplacing(Screen.COURSE_DETAIL) else navigateTo(Screen.COURSE_DETAIL)
@@ -2737,6 +2748,60 @@ class AppViewModel(
 
     private fun persistL3(snapshot: L3PipelineSnapshot) {
         l3PersistenceRepository.saveSnapshot(snapshot)
+    }
+
+    private fun repairLearningArtifacts(snapshot: L3PipelineSnapshot, now: Long): L3PipelineSnapshot =
+        LearningArtifactRepairer.repair(
+            snapshot = snapshot,
+            providerSummary = ui.providerConfigSummary,
+            now = now,
+        )
+
+    private fun repairCurrentLearningArtifacts(now: Long = System.currentTimeMillis()): CourseAnalysisResult? {
+        val baseSnapshot = when {
+            ui.l3Pipeline.lessonSource != null -> ui.l3Pipeline
+            ui.session != null && ui.result != null -> l3Pipeline.buildFromAnalysis(
+                session = ui.session!!,
+                result = ui.result!!,
+                sourceType = L3SourceType.TEXT,
+                providerSummary = ui.providerConfigSummary,
+                now = now,
+            )
+            else -> ui.l3Pipeline
+        }
+        val repairedSnapshot = repairLearningArtifacts(baseSnapshot, now)
+        val artifacts = l3Pipeline.toCourseArtifacts(repairedSnapshot, now)
+        val nextSession = artifacts?.session ?: ui.session
+        val nextResult = artifacts?.result ?: ui.result
+        val oldHistory = ui.history
+        val nextHistory = if (nextSession != null && nextResult != null) {
+            oldHistory.map { record ->
+                if (record.session.id == nextSession.id) {
+                    record.copy(
+                        session = nextSession,
+                        result = nextResult,
+                        knowledgePointCount = nextResult.knowledgePoints.size,
+                        quizCount = nextResult.quizQuestions.size,
+                    )
+                } else {
+                    record
+                }
+            }
+        } else {
+            oldHistory
+        }
+        if (repairedSnapshot != ui.l3Pipeline || nextSession != ui.session || nextResult != ui.result || nextHistory != oldHistory) {
+            ui = ui.copy(
+                session = nextSession,
+                result = nextResult,
+                l3Pipeline = repairedSnapshot,
+                history = nextHistory,
+                reviewPlan = null,
+            )
+            persistL3(repairedSnapshot)
+            if (nextHistory != oldHistory) persistHistory(nextHistory)
+        }
+        return nextResult
     }
 
     fun prepareL3Translation(targetLanguage: String = "zh-CHS"): Boolean {
@@ -5011,12 +5076,13 @@ class AppViewModel(
     }
 
     private fun startPracticeInternal(mode: PracticeMode, questionMode: PracticeQuestionMode) {
+        repairCurrentLearningArtifacts()
         var result = ui.result
         var session = ui.session
         if (result == null || session == null) {
             val task = learningStore.listDueTasks().firstOrNull() ?: ui.learningSnapshot.tasks.firstOrNull { !it.manuallyRemoved }
             val record = task?.let { t -> ui.history.firstOrNull { it.session.id == t.courseSessionId } }
-            if (record != null) { loadHistoryRecord(record); result = record.result; session = record.session }
+            if (record != null) { loadHistoryRecord(record); result = ui.result; session = ui.session }
         }
         val r = result
         val s = session
@@ -5080,15 +5146,21 @@ class AppViewModel(
         now: Long,
     ) {
         val generatedPractice = generated.value?.session ?: PracticeSessionEngine.build(r, ui.learningSnapshot, mode, now, courseTitle = s.title)
-        val practice = when (questionMode) {
+        val repairedPractice = sanitizePracticeSession(generatedPractice)
+        val candidatePractice = when (questionMode) {
             // Graded quizzes (real quiz / exam) only keep questions that actually have a correct answer
             // — see PracticeItem.isAnswerableQuiz(). Self-assessment cards have no graded answer.
             PracticeQuestionMode.REAL_QUIZ, PracticeQuestionMode.EXAM -> {
                 // P0-3: flagged-as-wrong questions are excluded from graded practice.
-                val quizItems = generatedPractice.items.filter { it.isAnswerableQuiz() && it.quizId !in ui.flaggedQuestionIds }
-                generatedPractice.copy(items = quizItems)
+                val quizItems = repairedPractice.items.filter { it.isAnswerableQuiz() && it.quizId !in ui.flaggedQuestionIds }
+                repairedPractice.copy(items = quizItems)
             }
-            PracticeQuestionMode.SELF_ASSESSMENT -> generatedPractice
+            PracticeQuestionMode.SELF_ASSESSMENT -> repairedPractice
+        }
+        val practice = if (candidatePractice.items.isEmpty()) {
+            practiceFromRepairedL3(s, mode, questionMode, now) ?: candidatePractice
+        } else {
+            candidatePractice
         }
         if (practice.items.isEmpty()) {
             val message = if (questionMode == PracticeQuestionMode.SELF_ASSESSMENT) {
@@ -5125,6 +5197,102 @@ class AppViewModel(
             aiProcessing = AiProcessingUiState.hidden(),
         )
         navigateTo(Screen.PRACTICE)
+    }
+
+    private fun sanitizePracticeSession(session: PracticeSession): PracticeSession =
+        session.copy(
+            items = session.items.filterNot { item ->
+                LearningArtifactRepairer.hasForbiddenTitleText(item.knowledgePointTitle) ||
+                    isUnsafePracticeQuestion(item.question) ||
+                    item.options.any { option -> isUnsafePracticeOption(option.text) }
+            },
+        )
+
+    private fun isUnsafePracticeQuestion(text: String): Boolean =
+        LearningArtifactRepairer.hasForbiddenTitleText(text) &&
+            SubjectKnowledgeExtractor.subjectScore(text) == 0
+
+    private fun isUnsafePracticeOption(text: String): Boolean {
+        val blocked = listOf(
+            "同学们注意",
+            "重点来了",
+            "大家记一下",
+            "这个地方可能考",
+            "作业截图上传",
+            "与课程无关",
+            "无关废话",
+            "随机猜测",
+        )
+        return blocked.any { text.contains(it, ignoreCase = true) } ||
+            (text.length > 8 && isUnsafePracticeQuestion(text))
+    }
+
+    private fun practiceFromRepairedL3(
+        session: CourseSession,
+        mode: PracticeMode,
+        questionMode: PracticeQuestionMode,
+        now: Long,
+    ): PracticeSession? {
+        val snapshot = repairCurrentLearningArtifacts(now) ?: return null
+        val l3 = ui.l3Pipeline
+        val evidenceById = l3.evidence.associateBy { it.id }
+        val knowledgeById = l3.knowledgePoints.associateBy { it.id }
+        val gatedQuestions = QuizRelevanceGate
+            .filter(l3.questions, l3.knowledgePoints, l3.evidence)
+            .filter { it.id !in ui.flaggedQuestionIds }
+        val repairedQuestions = gatedQuestions.ifEmpty {
+            l3.questions.filter { question ->
+                val kp = knowledgeById[question.knowledgePointId] ?: return@filter false
+                val evidenceReady = question.evidenceIds.any { id -> evidenceById[id]?.text?.isNotBlank() == true }
+                evidenceReady &&
+                    !LearningArtifactRepairer.hasForbiddenTitleText(kp.title) &&
+                    !isUnsafePracticeQuestion(question.stem) &&
+                    question.options.size >= 2 &&
+                    question.options.none { option -> isUnsafePracticeOption(option) }
+            }.filter { it.id !in ui.flaggedQuestionIds }
+        }
+        val items = repairedQuestions.mapNotNull { question ->
+            val kp = knowledgeById[question.knowledgePointId] ?: return@mapNotNull null
+            if (LearningArtifactRepairer.hasForbiddenTitleText(kp.title)) return@mapNotNull null
+            val evidenceQuote = question.evidenceIds
+                .firstNotNullOfOrNull { evidenceById[it]?.text?.trim()?.take(180) }
+                ?: return@mapNotNull null
+            val options = question.options.mapIndexed { index, option ->
+                PracticeOption(
+                    id = QuizOptionIds.letterId(index),
+                    text = QuizOptionIds.cleanText(option),
+                    correct = QuizOptionIds.isAnswer(index, option, question.correctAnswer),
+                )
+            }
+            PracticeItem(
+                id = question.id,
+                type = PracticeItemType.QUIZ_RETRY,
+                knowledgePointId = kp.id,
+                knowledgePointTitle = kp.title,
+                question = question.stem,
+                answer = question.explanation,
+                evidenceQuote = evidenceQuote,
+                quizId = question.id,
+                options = options,
+                source = AiExecutionSource.SAFE_PLACEHOLDER,
+                whyThisQuestionMatters = "旧课程题目已按知识点和证据重新校验。",
+            )
+        }
+        val practiceItems = when (questionMode) {
+            PracticeQuestionMode.REAL_QUIZ, PracticeQuestionMode.EXAM -> items.filter { it.isAnswerableQuiz() }
+            PracticeQuestionMode.SELF_ASSESSMENT -> items
+        }.take(10)
+        if (practiceItems.isEmpty()) return null
+        return PracticeSession(
+            id = "practice_l3_repair_$now",
+            courseSessionId = snapshot.sessionId,
+            courseTitle = session.title,
+            mode = mode,
+            items = practiceItems,
+            createdAt = now,
+            source = AiExecutionSource.SAFE_PLACEHOLDER,
+            routeReason = "built from repaired evidence-backed questions",
+        )
     }
 
     internal fun cloudPracticeGenerationForTest(request: PracticeGenerationRequest): StageOutcome<PracticeSession> =
@@ -5580,6 +5748,7 @@ class AppViewModel(
     /** Open the course behind a review task (loads it from history if needed) at its timeline. */
     fun openTaskCourse(task: ReviewTask) {
         if (ui.result?.sessionId == task.courseSessionId && ui.session != null) {
+            repairCurrentLearningArtifacts()
             navigateTo(Screen.COURSE_DETAIL)
             return
         }
@@ -5593,7 +5762,7 @@ class AppViewModel(
 
     // --- review (legacy single-session plan; kept for compatibility, unused by the new Review tab) ---
     fun ensureReviewPlan() {
-        val result = ui.result ?: return
+        val result = repairCurrentLearningArtifacts() ?: return
         if (ui.reviewPlan != null) return
         val now = System.currentTimeMillis()
         val learning = ui.learningState ?: LearningState.seed(result.sessionId, result.knowledgePoints, now)
@@ -5656,25 +5825,45 @@ class AppViewModel(
 
     private fun loadHistoryRecord(record: HistoryRecord) {
         val now = System.currentTimeMillis()
-        val l3Snapshot = l3Pipeline.buildFromAnalysis(
+        val builtSnapshot = l3Pipeline.buildFromAnalysis(
             session = record.session,
             result = record.result,
             sourceType = L3SourceType.TEXT,
             providerSummary = ui.providerConfigSummary,
             now = now,
         )
+        val l3Snapshot = repairLearningArtifacts(builtSnapshot, now)
+        val repairedArtifacts = l3Pipeline.toCourseArtifacts(l3Snapshot, now)
+        val repairedSession = repairedArtifacts?.session ?: record.session
+        val repairedResult = repairedArtifacts?.result ?: record.result
+        val oldHistory = ui.history
+        val nextHistory = oldHistory.map { item ->
+            if (item.id == record.id || item.session.id == record.session.id) {
+                item.copy(
+                    session = repairedSession,
+                    result = repairedResult,
+                    knowledgePointCount = repairedResult.knowledgePoints.size,
+                    quizCount = repairedResult.quizQuestions.size,
+                )
+            } else {
+                item
+            }
+        }
         ui = ui.copy(
-            selectedCourseKey = CourseLibraryBuilder.normalizeCourseName(record.title).lowercase(),
-            session = record.session,
-            result = record.result,
+            selectedCourseKey = CourseLibraryBuilder.normalizeCourseName(repairedSession.title).lowercase(),
+            session = repairedSession,
+            result = repairedResult,
             l3Pipeline = l3Snapshot,
-            learningState = LearningState.seed(record.result.sessionId, record.result.knowledgePoints, now),
+            history = nextHistory,
+            learningState = LearningState.seed(repairedResult.sessionId, repairedResult.knowledgePoints, now),
             reviewPlan = null,
             answers = emptyMap(),
             revealedQuestionIds = emptySet(),
             currentQuestionIndex = 0,
             feedbackEvents = emptyList(),
         )
+        persistL3(l3Snapshot)
+        if (nextHistory != oldHistory) persistHistory(nextHistory)
     }
 
     fun deleteCourse(courseKey: String): Boolean {

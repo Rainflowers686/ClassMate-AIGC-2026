@@ -1,3 +1,16 @@
+# Document Index - ClassMate 1.14.10
+
+版本：`1.14.10 / versionCode 123`
+
+本轮新增当前入口：
+| 文件 | 类型 | 状态 |
+| --- | --- | --- |
+| `docs/current/CHANGELOG_1_14_10.md` | 当前版本变更 | 新增 |
+| `docs/current/REAL_DEVICE_FIX_MATRIX_1_14_10.md` | 真机旧数据与练习入口修复矩阵 | 新增 |
+| `docs/current/REAL_DEVICE_TEST_MANUAL_1_14_10.md` | 真机旧课程/微测入口复测手册 | 新增 |
+
+1.14.10 之后，旧课程学习 artifact 会在打开课程、进入复习计划和开始微测前自动修复；复习计划、课程总结、相关知识点和微测题在最终 UI 前还有噪声防线；证据页、课程时间线和课程详情的微测入口统一使用同一条 PracticeSession 构建路径；点击完成练习不再自动导航；1.14.9 的 BlueLM/qwen3.5-plus 三档策略保持不变。
+
 # Document Index - ClassMate 1.14.9
 
 版本：`1.14.9 / versionCode 122`
