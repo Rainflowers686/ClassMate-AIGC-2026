@@ -5,7 +5,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * P0-3: a graded quiz question is only usable when it has options AND a resolved correct answer.
+ * P0-3: a graded quiz question is only usable when it has resolved answer data: either options with a
+ * correct option, or an explicit fill-blank answer.
  * This single gate ([isAnswerableQuiz]) is shared by every graded-quiz entry point so that
  * "随机小测无正确答案" can never happen again.
  */
@@ -48,5 +49,16 @@ class PracticeAnswerableGateTest {
     fun questionWithoutEnoughOptionsIsRejected() {
         assertFalse(item(emptyList()).isAnswerableQuiz())
         assertFalse(item(listOf(PracticeOption("a", "A", correct = true))).isAnswerableQuiz())
+    }
+
+    @Test
+    fun fillBlankWithAnswerIsAnswerable() {
+        val fill = item(emptyList()).copy(
+            type = PracticeItemType.FILL_BLANK,
+            question = "填空题：牛顿第二定律公式是 ____。",
+            answer = "正确答案：F=ma。答案详解：公式表示合外力、质量和加速度的关系。",
+        )
+
+        assertTrue(fill.isAnswerableQuiz())
     }
 }

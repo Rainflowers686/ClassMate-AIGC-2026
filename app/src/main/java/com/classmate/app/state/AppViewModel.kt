@@ -108,6 +108,7 @@ import com.classmate.app.l3.QuestionBankParser
 import com.classmate.app.l3.RecordingFileManager
 import com.classmate.app.l3.ReviewStatsEngine
 import com.classmate.app.l3.SafetyGuardEngine
+import com.classmate.app.l3.StudentVisibleQuizSanitizer
 import com.classmate.app.l3.ToolInputType
 import com.classmate.app.l3.ToolOrchestratorProductizationEngine
 import com.classmate.app.l3.TranslationProductEngine
@@ -1483,6 +1484,8 @@ class AppViewModel(
                 sizeBytes = encodedImageBytes.size.toLong(),
                 displayLabel = "图片$pageIndex$dimensionLabel",
                 pageIndex = pageIndex,
+                originalImagePath = storedImage.imageRef,
+                previewImagePath = storedImage.thumbnailRef,
             ),
             pastedText = "",
             status = OcrImportStatus.PENDING,
@@ -1800,11 +1803,11 @@ class AppViewModel(
                 text = draft.rawOcrText.ifBlank { draft.pastedText },
                 sourceLabel = draft.fileMeta.safeDisplayLabel(),
                 fileName = draft.fileMeta.fileName,
-                fileExt = draft.fileMeta.fileName.substringAfterLast('.', "image"),
+                fileExt = draft.fileMeta.imagePathForOcr().substringAfterLast('.', "image"),
                 mimeType = draft.fileMeta.mimeType.orEmpty().ifBlank { "image/jpeg" },
-                localUri = draft.fileMeta.fileName,
-                thumbnailRef = draft.fileMeta.fileName,
-                imageRef = draft.fileMeta.fileName,
+                localUri = draft.fileMeta.imagePathForOcr(),
+                thumbnailRef = draft.fileMeta.imagePathForPreview(),
+                imageRef = draft.fileMeta.imagePathForOcr(),
                 pageHint = draft.pageIndex?.let { "image $it" }.orEmpty(),
                 segmentHint = "image ${draft.pageIndex ?: 1}",
                 snippet = draft.rawOcrText.ifBlank { draft.pastedText }.take(180),
@@ -4115,7 +4118,7 @@ class AppViewModel(
                             rationale = if (QuizOptionIds.isAnswer(index, option, l3Question.correctAnswer)) {
                                 l3Question.explanation
                             } else {
-                                "请回到课堂证据核对，该选项没有直接支撑。"
+                                "该项混淆了本题知识点的概念范围、适用条件或结论方向。"
                             },
                         )
                     },
@@ -4996,6 +4999,7 @@ class AppViewModel(
                 practiceQuestionMode = PracticeQuestionMode.REAL_QUIZ,
                 practiceStartedAt = now,
                 practiceRevealed = false,
+                practiceTextAnswers = emptyMap(),
                 toast = "已生成 ${items.size} 道变式题（$sourceZh）。",
             )
             navigateTo(Screen.PRACTICE)
@@ -5046,6 +5050,7 @@ class AppViewModel(
             practiceSession = session.copy(items = picked, routeReason = "random quiz from current lesson/question bank"),
             practiceIndex = 0,
             practiceSelectedAnswers = emptyMap(),
+            practiceTextAnswers = emptyMap(),
             practiceSubmittedAnswers = emptyMap(),
             practiceAttempts = emptyList(),
             practiceResult = null,
@@ -5105,6 +5110,7 @@ class AppViewModel(
             practiceRevealed = false,
             practiceQuestionMode = PracticeQuestionMode.REAL_QUIZ,
             practiceSelectedAnswers = emptyMap(),
+            practiceTextAnswers = emptyMap(),
             practiceSubmittedAnswers = emptyMap(),
             examSession = null,
             toast = "已进入这道错题的重练。",
@@ -5230,6 +5236,7 @@ class AppViewModel(
             practiceRevealed = false,
             practiceQuestionMode = questionMode,
             practiceSelectedAnswers = emptyMap(),
+            practiceTextAnswers = emptyMap(),
             practiceSubmittedAnswers = emptyMap(),
             examSession = exam,
             aiProcessing = AiProcessingUiState.hidden(),
@@ -5239,9 +5246,11 @@ class AppViewModel(
 
     private fun sanitizePracticeSession(session: PracticeSession): PracticeSession {
         val filtered = session.items.filterNot { item ->
+            val gradedQuiz = item.type == PracticeItemType.QUIZ_RETRY || item.type == PracticeItemType.FILL_BLANK
             LearningArtifactRepairer.hasForbiddenTitleText(item.knowledgePointTitle) ||
                 isUnsafePracticeQuestion(item.question) ||
-                item.options.any { option -> isUnsafePracticeOption(option.text) }
+                item.options.any { option -> isUnsafePracticeOption(option.text) } ||
+                (gradedQuiz && !StudentVisibleQuizSanitizer.isStudentSafe(item))
         }
         return session.copy(items = balancePracticeItems(filtered))
     }
@@ -5283,18 +5292,18 @@ class AppViewModel(
     private fun convertTrueFalseToSingleChoice(item: PracticeItem, index: Int): PracticeItem {
         val title = item.knowledgePointTitle.ifBlank { "本课知识点" }
         val quote = item.evidenceQuote?.takeIf { it.isNotBlank() } ?: item.answer.take(96)
-        val correctText = "能用课程证据解释「$title」的概念关系和适用条件"
+        val correctText = subjectCorrectOption(title, quote)
         val distractors = listOf(
-            "只背 OCR 原句，不解释「$title」的知识点关系",
-            "忽略证据限定，选择未被本课材料支持的结论",
-            "把同课其他概念直接当成「$title」的结论",
+            "把适用条件反过来理解，导致结论方向相反",
+            "混淆相近概念，把另一个知识点的结论套用到本题",
+            "只记住名称，没有说明定义、条件与结论之间的关系",
         )
         val correctLetter = listOf("B", "C", "D", "A")[index % 4]
         val options = listOf("A", "B", "C", "D").map { letter ->
             val text = if (letter == correctLetter) {
                 correctText
             } else {
-                distractors.getOrElse((letter.first() - 'A').coerceIn(0, 2)) { "没有回到证据核对知识点" }
+                distractors.getOrElse((letter.first() - 'A').coerceIn(0, 2)) { "混淆概念范围、适用条件或结论方向" }
             }
             PracticeOption(letter, text, letter == correctLetter)
         }
@@ -5302,12 +5311,26 @@ class AppViewModel(
             question = "围绕「$title」的理解，下列哪一项最符合本课知识点？",
             answer = buildString {
                 append("答案详解：$correctLetter 正确。")
-                append("本题考查「$title」的知识点理解，正确项需要能由证据推出。")
-                append("其他选项只是照搬 OCR、忽略证据或混淆概念。")
+                append("本题考查「$title」的定义、条件和结论。")
+                append("其他选项分别颠倒适用条件、混淆相近概念，或只停留在概念名称上。")
                 if (quote.isNotBlank()) append("证据摘录：$quote")
             },
             options = options,
         )
+    }
+
+    private fun subjectCorrectOption(title: String, quote: String): String {
+        val clean = SubjectKnowledgeExtractor.cleanSubjectTextForDisplay(quote)
+        val signal = clean
+            .split(Regex("[。；;.!?！？\\n]"))
+            .map { it.trim() }
+            .firstOrNull { it.contains(title.take(2)) || SubjectKnowledgeExtractor.subjectScore(it) > 0 }
+            ?.take(56)
+        return if (signal.isNullOrBlank() || StudentVisibleQuizSanitizer.hasBlockedText(signal)) {
+            "能说明「$title」的定义、适用条件和核心结论"
+        } else {
+            "能说明「$title」的核心关系：$signal"
+        }
     }
 
     private fun remapCorrectLetter(item: PracticeItem, index: Int): PracticeItem {
@@ -5337,7 +5360,8 @@ class AppViewModel(
             "无关废话",
             "随机猜测",
         )
-        return blocked.any { text.contains(it, ignoreCase = true) } ||
+        return StudentVisibleQuizSanitizer.hasBlockedText(text) ||
+            blocked.any { text.contains(it, ignoreCase = true) } ||
             (text.length > 8 && isUnsafePracticeQuestion(text))
     }
 
@@ -5380,11 +5404,11 @@ class AppViewModel(
             }
             PracticeItem(
                 id = question.id,
-                type = PracticeItemType.QUIZ_RETRY,
+                type = if (question.options.isEmpty()) PracticeItemType.FILL_BLANK else PracticeItemType.QUIZ_RETRY,
                 knowledgePointId = kp.id,
                 knowledgePointTitle = kp.title,
                 question = question.stem,
-                answer = question.explanation,
+                answer = question.explanation.ifBlank { "正确答案：${question.correctAnswer}" },
                 evidenceQuote = evidenceQuote,
                 quizId = question.id,
                 options = options,
@@ -5434,6 +5458,7 @@ class AppViewModel(
         )
         val items = parsed
             .mapNotNull { item -> enrichCloudPracticeItem(item, points) }
+            .filter { StudentVisibleQuizSanitizer.isStudentSafe(it) }
             .filter { it.isAnswerableQuiz() }
             .take(request.limit.coerceIn(1, 10))
         if (items.isEmpty()) return StageOutcome.Unavailable(AiExecutionStatus.LOW_CONFIDENCE)
@@ -5469,8 +5494,9 @@ class AppViewModel(
             system = "你是 ClassMate 的微测出题助手。只根据给定课程知识点和证据出题，只输出 JSON，不要输出调试信息、id 或密钥。",
             user = buildString {
                 append("课程：").append(courseTitle).append('\n')
-                append("请生成 ").append(limit.coerceIn(1, 8)).append(" 道围绕知识点的单选或判断题。每题必须有 knowledgePointTitle、答案、中文详解和错误项解释。\n")
-                append("严格 JSON 结构：{\"questions\":[{\"stem\":\"题干\",\"type\":\"single_choice|true_false\",\"options\":[{\"id\":\"A\",\"text\":\"选项A\"},{\"id\":\"B\",\"text\":\"选项B\"}],\"answer\":\"A\",\"explanation\":\"答案详解，说明证据如何支持正确答案，以及错误项为什么不对\",\"knowledgePointTitle\":\"知识点标题\",\"difficulty\":\"basic|normal|advanced\",\"whyThisVariant\":\"为什么考这个知识点\"}]}\n")
+                append("请生成 ").append(limit.coerceIn(1, 8)).append(" 道面向学生的学科练习题，题型混合：单选、判断、填空、简答；至少包含 1 道填空题。每题必须有 knowledgePointTitle、答案、中文详解和错误项解释。\n")
+                append("题干、选项、解析不得出现 OCR、原文、课堂原句、证据支持、题干限定、字面顺序、relevance、fallback 等内部质量规则词。证据只用于保证可追溯，不要把证据说明写进选项。\n")
+                append("严格 JSON 结构：{\"questions\":[{\"stem\":\"题干\",\"type\":\"single_choice|true_false|fill_blank|short_answer\",\"options\":[{\"id\":\"A\",\"text\":\"选项A\"},{\"id\":\"B\",\"text\":\"选项B\"}],\"answer\":\"A 或填空答案\",\"explanation\":\"答案详解，解释学科原理和错误项为什么不对\",\"knowledgePointTitle\":\"知识点标题\",\"difficulty\":\"basic|normal|advanced\",\"whyThisVariant\":\"为什么考这个知识点\"}]}\n")
                 append("知识点与证据：\n")
                 points.take(8).forEach { p ->
                     append("- ").append(p.title).append("：").append(p.summary.take(80))
@@ -5492,11 +5518,12 @@ class AppViewModel(
             ?: points.firstOrNull { it.title == item.knowledgePointTitle }
             ?: return null
         if (SubjectKnowledgeExtractor.isNoiseLine(item.question)) return null
+        if (!StudentVisibleQuizSanitizer.isStudentSafe(item)) return null
         if (item.options.any { it.text.contains("与课程无关") || it.text.contains("无关废话") }) return null
         val titleSignal = item.question.contains(point.title) || item.answer.contains(point.title)
         val quoteSignal = point.quote.isBlank() || item.answer.contains(point.quote.take(8)) || item.question.contains(point.quote.take(4))
         if (!titleSignal && !quoteSignal) return null
-        val answer = item.answer.ifBlank { "答案详解：请回到证据核对 ${point.title}。" }
+        val answer = item.answer.ifBlank { "答案详解：本题考查 ${point.title} 的定义、条件和结论。" }
         val groundedAnswer = if (point.quote.isNotBlank() && !answer.contains("证据")) {
             "$answer\n证据摘录：${point.quote.take(120)}"
         } else {
@@ -5546,18 +5573,30 @@ class AppViewModel(
         ui = ui.copy(practiceSelectedAnswers = ui.practiceSelectedAnswers + (item.id to next))
     }
 
+    fun updatePracticeTextAnswer(itemId: String, value: String) {
+        if (itemId in ui.practiceSubmittedAnswers) return
+        ui = ui.copy(practiceTextAnswers = ui.practiceTextAnswers + (itemId to value))
+    }
+
     fun submitPracticeAnswer(now: Long = System.currentTimeMillis()): Boolean {
         val session = ui.practiceSession ?: return false
         val item = session.items.getOrNull(ui.practiceIndex) ?: return false
         if (item.id in ui.practiceSubmittedAnswers) return true
+        val textAnswer = ui.practiceTextAnswers[item.id].orEmpty().trim()
         val selected = ui.practiceSelectedAnswers[item.id].orEmpty().toList().sorted()
-        if (selected.isEmpty()) {
+        val isFillBlank = item.type == PracticeItemType.FILL_BLANK && item.options.isEmpty()
+        if (!isFillBlank && selected.isEmpty()) {
             ui = ui.copy(toast = "请先选择一个答案。")
             return false
         }
-        val grade = PracticeGradingEngine.grade(item, selected)
+        if (isFillBlank && textAnswer.isBlank()) {
+            ui = ui.copy(toast = "请先填写答案。")
+            return false
+        }
+        val grade = PracticeGradingEngine.grade(item, selected, textAnswer.takeIf { it.isNotBlank() })
         val correctAnswers = grade.correctAnswers
         val correct = grade.correct
+        val submittedAnswers = if (isFillBlank) grade.selectedAnswers else selected
         val mode = ui.practiceQuestionMode
         val elapsedMs = (now - ui.practiceStartedAt).coerceAtLeast(0L)
         val outcome = if (correct) PracticeOutcome.CORRECT else PracticeOutcome.WRONG
@@ -5567,14 +5606,15 @@ class AppViewModel(
             knowledgePointId = item.knowledgePointId,
             taskId = item.taskId,
             outcome = outcome,
-            submittedAnswer = selected.joinToString(","),
+            submittedAnswer = submittedAnswers.joinToString(","),
             feedback = feedback,
         )
         val quizId = item.quizId
         val submission = PracticeAnswerSubmission(
             itemId = item.id,
             questionId = quizId ?: item.id,
-            selectedAnswers = selected,
+            selectedAnswers = submittedAnswers,
+            textAnswer = textAnswer.takeIf { isFillBlank && it.isNotBlank() },
             correct = correct,
             submittedAt = now,
             elapsedMs = elapsedMs,
@@ -5585,9 +5625,9 @@ class AppViewModel(
             l3Pipeline.submitAnswer(
                 snapshot = ui.l3Pipeline,
                 questionId = questionId,
-                userAnswer = selected.joinToString(","),
+                userAnswer = submittedAnswers.joinToString(","),
                 now = now,
-                selectedAnswers = selected,
+                selectedAnswers = submittedAnswers,
                 elapsedMs = elapsedMs,
                 mode = mode,
             )
@@ -5597,7 +5637,7 @@ class AppViewModel(
                 courseSessionId = session.courseSessionId,
                 knowledgePointId = item.knowledgePointId,
                 quizId = quizId,
-                selectedAnswer = selected.joinToString(","),
+                selectedAnswer = submittedAnswers.joinToString(","),
                 correctAnswer = correctAnswers.joinToString(","),
                 isCorrect = correct,
             )
@@ -5729,6 +5769,7 @@ class AppViewModel(
             practiceRevealed = false,
             practiceQuestionMode = PracticeQuestionMode.REAL_QUIZ,
             practiceSelectedAnswers = emptyMap(),
+            practiceTextAnswers = emptyMap(),
             practiceSubmittedAnswers = emptyMap(),
             examSession = null,
         )

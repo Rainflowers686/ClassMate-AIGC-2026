@@ -20,6 +20,7 @@ object QuizRelevanceGate {
             evidenceTexts.any { SubjectKnowledgeExtractor.isAcceptedKnowledge(kp.title, it) }
         if (!acceptedKnowledge) return false
         if (SubjectKnowledgeExtractor.isNoiseLine(question.stem) || question.stem.isBlank()) return false
+        if (!StudentVisibleQuizSanitizer.isStudentSafe(question)) return false
         if (question.options.any { it.contains("与课程无关") || it.contains("无关废话") }) return false
         val haystack = (question.stem + " " + question.explanation + " " + evidenceTexts.joinToString(" ")).lowercase()
         val titleTokens = subjectTokens(kp.title)

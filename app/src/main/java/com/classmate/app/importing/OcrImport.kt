@@ -35,6 +35,8 @@ data class OcrImportFileMeta(
     val sizeBytes: Long? = null,
     val displayLabel: String,
     val pageIndex: Int? = null,
+    val originalImagePath: String = "",
+    val previewImagePath: String = "",
 ) {
     fun safeSummary(): String {
         val mime = mimeType?.takeIf { it.isNotBlank() } ?: "type unknown"
@@ -47,6 +49,12 @@ data class OcrImportFileMeta(
 
     private fun safeFileName(): String =
         fileName.safeTailName().ifBlank { "selected-file" }
+
+    fun imagePathForPreview(): String =
+        previewImagePath.ifBlank { originalImagePath.ifBlank { fileName } }
+
+    fun imagePathForOcr(): String =
+        originalImagePath.ifBlank { fileName }
 }
 
 data class OcrImportDraft(

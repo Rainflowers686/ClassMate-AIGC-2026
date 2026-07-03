@@ -187,6 +187,34 @@ class ImageDraftFlowTest {
         assertEquals("", viewModel.ui.imageDraftText)
     }
 
+    @Test
+    fun failedImageImportKeepsOriginalPreviewAndManualInputCanRecover() {
+        val viewModel = vm()
+        val batchId = viewModel.beginImageOcrBatch("图片学习输入", total = 1, now = 300L)
+        val failed = batchDraft(batchId, 1, "", OcrImportStatus.FAILED, "OCR 未配置").copy(
+            fileMeta = OcrImportFileMeta(
+                fileName = "display.jpg",
+                mimeType = "image/jpeg",
+                sizeBytes = 4096L,
+                displayLabel = "图片1",
+                pageIndex = 1,
+                originalImagePath = "C:/tmp/original.jpg",
+                previewImagePath = "C:/tmp/preview.jpg",
+            ),
+        )
+
+        viewModel.applyImageOcrBatchItem(failed, total = 1)
+        assertEquals("C:/tmp/preview.jpg", viewModel.ui.ocrImports.single().fileMeta.imagePathForPreview())
+        assertEquals("C:/tmp/original.jpg", viewModel.ui.ocrImports.single().fileMeta.imagePathForOcr())
+
+        viewModel.updateOcrImportText(failed.id, "牛顿第二定律：F=ma。")
+
+        val recovered = viewModel.ui.ocrImports.single()
+        assertEquals(OcrImportStatus.OK, recovered.status)
+        assertTrue(recovered.pastedText.contains("F=ma"))
+        assertTrue(viewModel.ui.imageDraftText.contains("F=ma") || recovered.pastedText.contains("F=ma"))
+    }
+
     private fun batchDraft(
         batchId: String,
         page: Int,

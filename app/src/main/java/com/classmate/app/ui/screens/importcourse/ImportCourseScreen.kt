@@ -879,7 +879,7 @@ private fun OcrImageSegment(number: Int, draft: OcrImportDraft, viewModel: AppVi
                 Text(s.ocrSegmentTitle(number, draft.fileMeta.safeDisplayLabel()), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 StatusChip(statusLabel, tone = tone)
             }
-            OcrImagePreview(draft.fileMeta.fileName)
+            OcrImagePreview(draft.fileMeta.imagePathForPreview())
             when (draft.status) {
                 OcrImportStatus.FAILED -> {
                     Spacer(Modifier.height(Dimens.xs))
@@ -957,7 +957,7 @@ private fun OcrImagePreview(imagePath: String) {
 }
 
 private fun retryOcrFromDraft(context: Context, draft: OcrImportDraft, viewModel: AppViewModel) {
-    val file = java.io.File(draft.fileMeta.fileName)
+    val file = java.io.File(draft.fileMeta.imagePathForOcr())
     if (!file.exists() || file.length() <= 0L) {
         viewModel.toast("原图文件不可用，请重新选择图片或手动输入。")
         return
@@ -1002,12 +1002,13 @@ private fun handlePickedImage(context: Context, uri: Uri, perms: OnDevicePermiss
         viewModel.applyImageDraftResult(com.classmate.core.ondevice.OnDeviceImageDraftResult.Unavailable("DECODE_FAILED"))
         return
     }
+    val ocrBytes = highQualityImageBytes(imageBytes, bitmap)
     viewModel.runImageDraft(
         BitmapToRgb.toRgbScaled(bitmap),
         perms.allFilesAccessGranted(),
         originalWidth = bitmap.width,
         originalHeight = bitmap.height,
-        encodedImageBytes = imageBytes,
+        encodedImageBytes = ocrBytes,
     )
 }
 
@@ -1035,16 +1036,19 @@ private fun handlePickedImageBatch(
         }
     }.getOrNull()
     if (bitmap == null) {
+        val originalPath = cachePickedImageBytes(context, uri, imageBytes, batchId, pageIndex)
         viewModel.applyImageOcrBatchItem(
             com.classmate.app.importing.OcrImportDraft(
                 id = "${batchId}_$pageIndex",
                 kind = OcrImportKind.SLIDE_IMAGE,
                 fileMeta = OcrImportFileMeta(
-                    fileName = readDisplayName(context, uri).ifBlank { "image_$pageIndex" },
+                    fileName = originalPath.ifBlank { readDisplayName(context, uri).ifBlank { "image_$pageIndex" } },
                     mimeType = context.contentResolver.getType(uri).orEmpty().ifBlank { "image/*" },
                     sizeBytes = imageBytes.size.toLong().takeIf { it > 0L },
                     displayLabel = appStrings(viewModel.ui.language).ocrImageLabel(pageIndex),
                     pageIndex = pageIndex,
+                    originalImagePath = originalPath,
+                    previewImagePath = originalPath,
                 ),
                 pastedText = "",
                 status = OcrImportStatus.FAILED,
@@ -1059,16 +1063,41 @@ private fun handlePickedImageBatch(
         )
         return
     }
+    val ocrBytes = highQualityImageBytes(imageBytes, bitmap)
     viewModel.ingestMultiImageOcr(
         BitmapToRgb.toRgbScaled(bitmap),
         perms.allFilesAccessGranted(),
         originalWidth = bitmap.width,
         originalHeight = bitmap.height,
-        encodedImageBytes = imageBytes,
+        encodedImageBytes = ocrBytes,
         pageIndex = pageIndex,
         total = total,
         batchId = batchId,
     )
+}
+
+private fun highQualityImageBytes(originalBytes: ByteArray, bitmap: Bitmap): ByteArray {
+    if (originalBytes.isNotEmpty()) return originalBytes
+    val out = java.io.ByteArrayOutputStream()
+    val ok = bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)
+    return if (ok && out.size() > 0) out.toByteArray() else originalBytes
+}
+
+private fun cachePickedImageBytes(context: Context, uri: Uri, bytes: ByteArray, batchId: String, pageIndex: Int): String {
+    if (bytes.isEmpty()) return ""
+    return runCatching {
+        val mime = context.contentResolver.getType(uri).orEmpty().lowercase()
+        val ext = when {
+            "png" in mime -> "png"
+            "webp" in mime -> "webp"
+            "heic" in mime || "heif" in mime -> "heic"
+            else -> "jpg"
+        }
+        val dir = java.io.File(context.filesDir, "classmate_ocr_imports").apply { mkdirs() }
+        val file = java.io.File(dir, "${batchId}_${pageIndex}.$ext")
+        file.writeBytes(bytes)
+        file.absolutePath
+    }.getOrDefault("")
 }
 
 @Composable
@@ -1120,7 +1149,7 @@ fun MaterialTrayScreen(viewModel: AppViewModel) {
                     source = OcrImportAssembler.sourceLabel(draft.kind),
                     meta = "$statusText · ${draft.pastedText.count { !it.isWhitespace() }} 字",
                     onRemove = { viewModel.removeOcrImport(draft.id) },
-                    imagePath = draft.fileMeta.fileName,
+                    imagePath = draft.fileMeta.imagePathForPreview(),
                 )
             }
             ui.transcripts.forEach { transcript ->

@@ -208,10 +208,10 @@ class L3LearningPipeline {
                 .map { it.title }
             val optionB = otherTitles.getOrNull(0)
                 ?.let { "B. 把「$it」的证据直接当成「${kp.title}」的结论" }
-                ?: "B. 只引用证据片段，但没有说明它怎样支撑「${kp.title}」"
+                ?: "B. 颠倒「${kp.title}」中的条件和结论"
             val optionC = otherTitles.getOrNull(1)
                 ?.let { "C. 混淆「$it」和「${kp.title}」的适用范围" }
-                ?: "C. 只背关键词，没有回到证据核对「${kp.title}」"
+                ?: "C. 把「${kp.title}」理解成孤立名称，忽略定义和适用条件"
             L3GeneratedQuestion(
                 id = "q_${now}_${index + 1}",
                 lessonId = source.id,
@@ -221,10 +221,10 @@ class L3LearningPipeline {
                     "A. ${kp.explanation.ifBlank { evidenceQuote }}",
                     optionB,
                     optionC,
-                    "D. 忽略证据摘录，直接给出未被材料支持的结论",
+                    "D. 把相近概念的性质直接套用到本题",
                 ),
                 correctAnswer = "A",
-                explanation = "答案详解：A 对应知识点「${kp.title}」并能由证据推出。B/C 混淆了同课其他知识点或适用范围；D 没有回到材料核对。证据摘录：$evidenceQuote",
+                explanation = "答案详解：A 正确。知识点：「${kp.title}」。为什么正确：A 概括了本知识点的定义、条件或结论。其他选项为什么错误：B/C 混淆了同课其他知识点或适用范围；D 把相近概念直接套用到本题。证据摘录：$evidenceQuote",
                 evidenceIds = listOf(evidenceId),
                 difficulty = Difficulty.MEDIUM,
             )
@@ -612,7 +612,7 @@ class L3LearningPipeline {
                         id = QuizOptionIds.letterId(optionIndex),
                         text = QuizOptionIds.cleanText(option),
                         isCorrect = correct,
-                        rationale = if (correct) question.explanation else "请回到来源证据核对。",
+                        rationale = if (correct) question.explanation else "该项混淆了概念范围、适用条件或结论方向。",
                     )
                 },
                 testedKnowledgePointIds = listOf(question.knowledgePointId).filter { it.isNotBlank() },
@@ -918,37 +918,6 @@ class L3LearningPipeline {
             maxQuestions = 5,
             idPrefix = "q_lf",
         )
-        knowledge
-            .filter { it.sourceEvidenceIds.isNotEmpty() }
-            .filter { SubjectKnowledgeExtractor.isAcceptedKnowledge(it.title, it.explanation) }
-            .take(3)
-            .mapIndexed { index, kp ->
-            val otherTitles = knowledge
-                .filter { it.id != kp.id && it.title.isNotBlank() }
-                .map { it.title }
-            val optionB = otherTitles.getOrNull(0)
-                ?.let { "B. 把「$it」的证据直接当成「${kp.title}」的结论" }
-                ?: "B. 只引用证据片段，但没有说明它怎样支撑「${kp.title}」"
-            val optionC = otherTitles.getOrNull(1)
-                ?.let { "C. 混淆「$it」和「${kp.title}」的适用范围" }
-                ?: "C. 只背关键词，没有回到证据核对「${kp.title}」"
-            L3GeneratedQuestion(
-                id = "q_${now}_lf${index + 1}",
-                lessonId = lessonId,
-                knowledgePointId = kp.id,
-                stem = "关于“${kp.title}”，下面哪一项最符合课堂材料？",
-                options = listOf(
-                    "A. ${kp.explanation.ifBlank { "回到来源证据核对“${kp.title}”的关键表述" }}",
-                    optionB,
-                    optionC,
-                    "D. 该说法无法从课堂材料中得到支持",
-                ),
-                correctAnswer = "A",
-                explanation = "答案详解：A 对应知识点「${kp.title}」并绑定来源证据。B/C 混淆了同课知识点或适用范围；D 没有给出证据支撑。复习时先读证据，再用自己的话解释。",
-                evidenceIds = listOf(kp.sourceEvidenceIds.first()),
-                difficulty = Difficulty.MEDIUM,
-            )
-        }
     }
 
     private fun spanFor(session: CourseSession, quoteHint: String, fallbackSegmentId: String): EvidenceSpan {

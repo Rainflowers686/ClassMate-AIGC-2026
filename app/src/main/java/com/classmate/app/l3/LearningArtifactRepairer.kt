@@ -1,7 +1,6 @@
 package com.classmate.app.l3
 
 import com.classmate.app.platform.ProviderConfigSummary
-import com.classmate.core.model.Difficulty
 
 /**
  * Repairs legacy persisted L3 artifacts before they reach user-facing review, summary, or practice
@@ -245,19 +244,6 @@ object LearningArtifactRepairer {
             relatedTitles = emptyList(),
             index = index,
         )
-        val quote = subjectSentence(rawQuote).ifBlank { kp.explanation }.take(120)
-        val statement = quote.ifBlank { kp.title }
-        return L3GeneratedQuestion(
-            id = "q_repair_${now}_${index}_${kp.id}",
-            lessonId = lessonId,
-            knowledgePointId = kp.id,
-            stem = "关于「${kp.title}」，判断下面说法是否正确：$statement",
-            options = listOf("A. 正确", "B. 错误"),
-            correctAnswer = "A",
-            explanation = "答案详解：A 正确。该题围绕知识点「${kp.title}」，可由课程证据推出；B 错在没有回到证据核对。证据摘录：$quote",
-            evidenceIds = kp.sourceEvidenceIds,
-            difficulty = Difficulty.MEDIUM,
-        )
     }
 
     private fun defaultReviewQueue(lessonId: String, knowledge: List<L3KnowledgePoint>, now: Long): List<ReviewQueueItem> =
@@ -345,7 +331,7 @@ object LearningArtifactRepairer {
     ): String {
         val quote = subjectSentence(rawQuote).take(120)
         val base = explanation.ifBlank {
-            "答案详解：请回到证据核对「${kp.title}」。"
+            "答案详解：本题考查「${kp.title}」的定义、条件和核心结论。"
         }
         return if (quote.isNotBlank() && !base.contains("证据")) {
             "$base 证据摘录：$quote"

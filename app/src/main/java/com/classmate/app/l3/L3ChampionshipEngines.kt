@@ -143,6 +143,19 @@ object PracticeGradingEngine {
     fun grade(item: PracticeItem, selectedAnswers: List<String>, textAnswer: String? = null): PracticeGrade {
         val correctAnswers = item.correctOptionIds.sorted()
         if (item.options.isEmpty()) {
+            if (item.type == com.classmate.core.practice.PracticeItemType.FILL_BLANK) {
+                val submitted = textAnswer.orEmpty().trim()
+                val expected = fillBlankAnswers(item)
+                val correct = submitted.isNotBlank() && expected.any { answerMatches(submitted, it) }
+                return PracticeGrade(
+                    status = if (correct) PracticeGradingStatus.CORRECT else PracticeGradingStatus.WRONG,
+                    correct = correct,
+                    partial = false,
+                    selectedAnswers = if (submitted.isBlank()) emptyList() else listOf(submitted),
+                    correctAnswers = expected,
+                    message = if (correct) "CORRECT" else "WRONG",
+                )
+            }
             return PracticeGrade(
                 status = PracticeGradingStatus.SELF_ASSESSMENT_REQUIRED,
                 correct = false,
@@ -169,6 +182,35 @@ object PracticeGradingEngine {
             message = textAnswer?.takeIf { it.isNotBlank() } ?: status.name,
         )
     }
+
+    private fun fillBlankAnswers(item: PracticeItem): List<String> {
+        val explicit = Regex("正确答案[:：]\\s*([^。；;\\n]+)")
+            .find(item.answer)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.split("/", "、", "，", ",", "或")
+            .orEmpty()
+        val formulaSignals = listOf("F=ma", "F = ma", "limsup", "时间膨胀", "长度收缩")
+            .filter { item.question.contains(it, ignoreCase = true) || item.answer.contains(it, ignoreCase = true) }
+        return (explicit + formulaSignals + item.knowledgePointTitle)
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+    }
+
+    private fun answerMatches(submitted: String, expected: String): Boolean {
+        val left = normalizeFillAnswer(submitted)
+        val right = normalizeFillAnswer(expected)
+        return left == right || left.contains(right) || right.contains(left)
+    }
+
+    private fun normalizeFillAnswer(value: String): String =
+        value.lowercase()
+            .replace("（", "(")
+            .replace("）", ")")
+            .replace("＝", "=")
+            .replace(Regex("\\s+"), "")
+            .replace(Regex("[。；;，,、：:《》“”\"'`]+"), "")
 }
 
 object ExamReportEngine {

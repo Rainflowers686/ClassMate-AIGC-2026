@@ -1,6 +1,7 @@
 package com.classmate.core.ai
 
 import com.classmate.core.practice.isAnswerableQuiz
+import com.classmate.core.practice.PracticeItemType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -60,5 +61,21 @@ class VariantQuizParserTest {
         assertEquals(1, items.size)
         assertEquals("好题", items[0].question)
         assertEquals(AiExecutionSource.ON_DEVICE, items[0].source)
+    }
+
+    @Test
+    fun parsesFillBlankQuestionAsAnswerableTextQuiz() {
+        val raw = """
+            {"questions":[
+              {"stem":"填空题：牛顿第二定律公式是 ____。","type":"fill_blank","options":[],"answer":"F=ma","explanation":"公式表示合外力、质量和加速度的关系。","knowledgePointTitle":"牛顿第二定律"}
+            ]}
+        """.trimIndent()
+
+        val items = VariantQuizParser.parse(raw, AiExecutionSource.CLOUD, "fill", resolver)
+
+        assertEquals(1, items.size)
+        assertEquals(PracticeItemType.FILL_BLANK, items[0].type)
+        assertTrue(items[0].isAnswerableQuiz())
+        assertTrue(items[0].answer.contains("正确答案：F=ma"))
     }
 }

@@ -1,3 +1,17 @@
+# Document Index - ClassMate 1.14.13
+
+Version: `1.14.13 / versionCode 126`
+
+Current entries added in this patch:
+
+| File | Type | Status |
+| --- | --- | --- |
+| `docs/current/CHANGELOG_1_14_13.md` | Current version changelog | Added |
+| `docs/current/REAL_DEVICE_FIX_MATRIX_1_14_13.md` | Image OCR / quiz UX / completion fix matrix | Added |
+| `docs/current/REAL_DEVICE_TEST_MANUAL_1_14_13.md` | 1.14.13 real-device retest manual | Added |
+
+1.14.13 restores the image import/OCR path so uploaded images are preserved in the material tray even when OCR is unavailable or fails, and OCR uses original/high-quality image data rather than thumbnail previews. Micro-quiz content now has a student-visible sanitizer, subject-specific local fallback options, fill-in question support, and completion guards for mixed question types. Evidence-detail pages without a specific micro-quiz remain deferred by user request; existing evidence-backed questions should not be removed. BlueLM/qwen3.5-plus 1.14.9 mode and timeout strategy remains unchanged.
+
 # Document Index - ClassMate 1.14.12
 
 版本：`1.14.12 / versionCode 125`

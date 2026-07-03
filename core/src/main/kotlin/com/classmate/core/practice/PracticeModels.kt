@@ -9,7 +9,7 @@ import com.classmate.core.ai.AiExecutionSource
  */
 enum class PracticeMode { QUICK_REVIEW, WEAKNESS_DRILL, WRONG_ANSWER_RETRY, EVIDENCE_RECALL, NEED_MORE_PRACTICE }
 
-enum class PracticeItemType { QUIZ_RETRY, FLASHCARD, EVIDENCE_CHECK, SHORT_EXPLANATION, SOURCE_TRACE }
+enum class PracticeItemType { QUIZ_RETRY, FILL_BLANK, FLASHCARD, EVIDENCE_CHECK, SHORT_EXPLANATION, SOURCE_TRACE }
 
 enum class PracticeDifficulty { EASY, MEDIUM, HARD }
 
@@ -58,7 +58,8 @@ data class PracticeItem(
  * marked right and "随机小测无正确答案" appears. Every graded-quiz entry point shares this single gate.
  */
 fun PracticeItem.isAnswerableQuiz(): Boolean =
-    options.size >= 2 && correctOptionIds.isNotEmpty()
+    (options.size >= 2 && correctOptionIds.isNotEmpty()) ||
+        (type == PracticeItemType.FILL_BLANK && answer.isNotBlank())
 
 /** One answered item (the learner's self-report). */
 data class PracticeAttempt(
@@ -122,6 +123,7 @@ fun PracticeMode.displayZh(): String = when (this) {
 
 fun PracticeItemType.displayZh(): String = when (this) {
     PracticeItemType.QUIZ_RETRY -> "微测重做"
+    PracticeItemType.FILL_BLANK -> "填空题"
     PracticeItemType.FLASHCARD -> "回忆卡"
     PracticeItemType.EVIDENCE_CHECK -> "证据判断"
     PracticeItemType.SHORT_EXPLANATION -> "一句话解释"

@@ -52,22 +52,32 @@ object VariantQuizParser {
         val jsonText = JsonExtractor.extract(rawModelText) ?: return emptyList()
         val wire = runCatching { json.decodeFromString(VariantWire.serializer(), jsonText) }.getOrNull() ?: return emptyList()
         return wire.questions.mapIndexedNotNull { index, q ->
-            if (q.stem.isBlank() || q.options.size < 2) return@mapIndexedNotNull null
+            if (q.stem.isBlank()) return@mapIndexedNotNull null
+            val normalizedType = q.type.trim().lowercase()
+            val fillBlank = normalizedType == "fill_blank" || normalizedType == "fill-in" || normalizedType == "fill"
+            if (!fillBlank && q.options.size < 2) return@mapIndexedNotNull null
             val options = q.options.mapIndexed { i, o ->
                 QuizOption(id = o.id.trim().ifBlank { ('A' + i).toString() }, text = o.text.trim(), isCorrect = false)
             }.filter { it.text.isNotBlank() }
-            if (options.size < 2) return@mapIndexedNotNull null
-            val correctIds = QuizAnswerNormalizer.resolveCorrectIds(options, q.answer).toSet()
-            if (correctIds.isEmpty()) return@mapIndexedNotNull null
+            if (!fillBlank && options.size < 2) return@mapIndexedNotNull null
+            val correctIds = if (fillBlank) emptySet() else QuizAnswerNormalizer.resolveCorrectIds(options, q.answer).toSet()
+            if (!fillBlank && correctIds.isEmpty()) return@mapIndexedNotNull null
             val practiceOptions = options.map { PracticeOption(it.id, it.text, it.id in correctIds) }
             val correctText = practiceOptions.firstOrNull { it.correct }?.text.orEmpty()
+            val answerText = if (fillBlank) {
+                val explanation = q.explanation.trim()
+                if (explanation.contains("正确答案")) explanation
+                else "正确答案：${q.answer.trim()}。$explanation"
+            } else {
+                q.explanation.trim().ifBlank { "正确答案：$correctText" }
+            }
             val item = PracticeItem(
                 id = "${idPrefix}_$index",
-                type = PracticeItemType.QUIZ_RETRY,
+                type = if (fillBlank) PracticeItemType.FILL_BLANK else PracticeItemType.QUIZ_RETRY,
                 knowledgePointId = knowledgePointIdFor(q.knowledgePointTitle),
                 knowledgePointTitle = q.knowledgePointTitle,
                 question = q.stem.trim(),
-                answer = q.explanation.trim().ifBlank { "正确答案：$correctText" },
+                answer = answerText,
                 options = practiceOptions,
                 difficulty = difficultyOf(q.difficulty),
                 whyThisQuestionMatters = q.whyThisVariant.trim(),

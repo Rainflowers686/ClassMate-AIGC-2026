@@ -235,14 +235,21 @@ class PracticeFlowTest {
     }
 
     @Test
-    fun practiceCompletionStaysOnPracticeScreenUntilExplicitReturn() {
+    fun practiceCompletionReturnsToReviewWithoutCrash() {
         val practice = source("app/src/main/java/com/classmate/app/ui/screens/practice/PracticeSessionScreen.kt")
-        assertTrue(practice.contains("练习已完成，结果已写入复习计划。"))
-        assertTrue(practice.contains("继续练习"))
-        assertTrue(practice.contains("查看解析"))
-        assertTrue(practice.contains("返回课程"))
-        assertTrue(practice.contains("重新生成微测"))
         assertFalse(practice.contains("PrimaryButton(text = \"完成练习\", onClick = { viewModel.exitPractice() }"))
+        val viewModel = vm()
+        viewModel.openHistory(viewModel.ui.history.first())
+        viewModel.startPractice(PracticeMode.QUICK_REVIEW)
+        val itemCount = viewModel.ui.practiceSession!!.items.size
+        repeat(itemCount) { index ->
+            val item = viewModel.currentPracticeItem()!!
+            viewModel.selectPracticeAnswer(item.correctOptionIds.first())
+            assertTrue(viewModel.submitPracticeAnswer(now + index))
+            viewModel.nextPracticeQuestion()
+        }
+        assertEquals(Screen.REVIEW, viewModel.currentScreen)
+        assertNotNull(viewModel.ui.practiceResult)
     }
 
     @Test

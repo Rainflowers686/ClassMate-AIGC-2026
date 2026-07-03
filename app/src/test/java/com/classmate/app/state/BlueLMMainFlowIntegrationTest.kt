@@ -37,11 +37,11 @@ class BlueLMMainFlowIntegrationTest {
                   "stem": "关于${kp.title}，哪项判断最符合课堂证据？",
                   "type": "single_choice",
                   "options": [
-                    {"id": "A", "text": "${kp.title}可以从课堂证据推出"},
-                    {"id": "B", "text": "忽略证据随意概括"}
+                    {"id": "A", "text": "${kp.title}体现了本课材料中的核心关系"},
+                    {"id": "B", "text": "把相近概念的结论直接套用到本题"}
                   ],
                   "answer": "A",
-                  "explanation": "答案详解：A 对应本课证据，B 没有证据支持。证据说明${kp.title}。",
+                  "explanation": "答案详解：A 正确。知识点：${kp.title}。为什么正确：A 体现了本知识点的定义、条件或结论。其他选项为什么错误：B 混淆了相近概念的适用范围。证据摘录：${kp.summary.take(30)}。",
                   "knowledgePointTitle": "${kp.title}",
                   "difficulty": "normal",
                   "whyThisVariant": "考查${kp.title}与证据的对应关系"

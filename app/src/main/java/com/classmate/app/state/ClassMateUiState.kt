@@ -164,6 +164,7 @@ data class ClassMateUiState(
     val practiceRevealed: Boolean = false,
     val practiceQuestionMode: PracticeQuestionMode = PracticeQuestionMode.REAL_QUIZ,
     val practiceSelectedAnswers: Map<String, Set<String>> = emptyMap(),
+    val practiceTextAnswers: Map<String, String> = emptyMap(),
     val practiceSubmittedAnswers: Map<String, PracticeAnswerSubmission> = emptyMap(),
     val examSession: ExamSession? = null,
     val courseEssenceScript: CourseEssenceScript? = null,

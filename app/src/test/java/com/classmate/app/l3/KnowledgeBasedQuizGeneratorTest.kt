@@ -30,8 +30,10 @@ class KnowledgeBasedQuizGeneratorTest {
         assertFalse("local fallback must not be all true/false", questions.all { it.options.size == 2 })
         assertFalse("local fallback must not put every correct answer at A", questions.map { it.correctAnswer }.all { it == "A" })
         assertTrue(questions.any { it.options.size >= 4 })
+        assertTrue("local fallback should include a fill-blank item", questions.any { it.options.isEmpty() && it.stem.contains("填空题") })
         assertTrue(questions.all { it.explanation.contains("证据") && it.explanation.contains("答案详解") })
-        assertTrue(questions.all { it.stem.contains("知识点") || it.stem.contains("理解") || it.stem.contains("判断题") })
+        assertTrue(questions.all { it.stem.contains("知识点") || it.stem.contains("理解") || it.stem.contains("判断题") || it.stem.contains("填空题") || it.stem.contains("牛顿第二定律") })
+        assertStudentVisibleNoMeta(questions)
     }
 
     @Test
@@ -46,6 +48,28 @@ class KnowledgeBasedQuizGeneratorTest {
         assertFalse("option A should not be the raw OCR quote", question.options.first().contains(rawQuote.take(18)))
         assertTrue(question.explanation.contains("狭义相对论"))
         assertTrue(question.explanation.contains("证据摘录"))
+        assertStudentVisibleNoMeta(listOf(question))
+    }
+
+    @Test
+    fun localKnowledgeQuizUsesSubjectSpecificMathOptions() {
+        val evidence = listOf(
+            evidence("ev1", "根值判别法：若 limsup (a_n)^(1/n) < 1，则正项级数收敛；若大于 1，则发散。"),
+            evidence("ev2", "绝对收敛级数任意重排后仍收敛且和不变。"),
+        )
+        val knowledge = listOf(
+            kp("kp1", "根值判别法（柯西判别法）", "用根式极限判断正项级数敛散性。", "ev1"),
+            kp("kp2", "级数重排的性质", "绝对收敛级数重排后和不变。", "ev2"),
+        )
+
+        val questions = KnowledgeBasedQuizGenerator.generate("lesson", knowledge, evidence, now, maxQuestions = 2)
+        val visible = questions.joinToString("\n") { it.stem + "\n" + it.options.joinToString("\n") + "\n" + it.explanation }
+
+        assertTrue(visible.contains("limsup") || visible.contains("绝对收敛"))
+        assertFalse(visible.contains("只背"))
+        assertFalse(visible.contains("OCR"))
+        assertFalse(visible.contains("题干限定"))
+        assertStudentVisibleNoMeta(questions)
     }
 
     private fun kp(id: String, title: String, explanation: String, evidenceId: String) =
@@ -64,4 +88,10 @@ class KnowledgeBasedQuizGeneratorTest {
             sourceType = L3SourceType.OCR_IMAGE,
             text = text,
         )
+
+    private fun assertStudentVisibleNoMeta(questions: List<L3GeneratedQuestion>) {
+        val banned = listOf("OCR", "原文", "课堂原句", "字面顺序", "证据支持", "题干限定", "只背", "relevance", "fallback")
+        val visible = questions.joinToString("\n") { it.stem + "\n" + it.options.joinToString("\n") + "\n" + it.explanation }
+        banned.forEach { token -> assertFalse("student-visible quiz leaked $token", visible.contains(token, ignoreCase = true)) }
+    }
 }

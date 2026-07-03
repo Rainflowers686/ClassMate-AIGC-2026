@@ -17,6 +17,7 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import com.classmate.app.platform.ConfigRepository
 import com.classmate.core.learning.InMemoryLearningStore
+import com.classmate.core.practice.isAnswerableQuiz
 import java.nio.file.Files
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -46,6 +47,7 @@ class L3LearningPipelineAppTest {
         assertTrue(viewModel.ui.l3Pipeline.summary.isNotBlank())
         assertTrue(viewModel.ui.l3Pipeline.evidence.isNotEmpty())
         assertTrue(viewModel.ui.l3Pipeline.questions.size in 3..5)
+        assertTrue(viewModel.ui.l3Pipeline.questions.any { it.options.isEmpty() && it.correctAnswer.isNotBlank() })
         assertTrue(viewModel.ui.learningSnapshot.tasks.isNotEmpty())
         assertEquals(Screen.COURSE_DETAIL, viewModel.currentScreen)
         val reviewItem = viewModel.ui.l3Pipeline.reviewQueue.first()
@@ -318,7 +320,7 @@ class L3LearningPipelineAppTest {
 
         assertEquals(PracticeQuestionMode.REAL_QUIZ, viewModel.ui.practiceQuestionMode)
         assertEquals(2, viewModel.ui.practiceSession!!.items.size)
-        assertTrue(viewModel.ui.practiceSession!!.items.all { it.options.isNotEmpty() })
+        assertTrue(viewModel.ui.practiceSession!!.items.all { it.isAnswerableQuiz() })
     }
 
     private class FakeRecorder : ClassroomAudioRecorder {

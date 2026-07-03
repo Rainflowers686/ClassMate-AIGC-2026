@@ -32,7 +32,7 @@ class L3LearningPipelineTest {
         assertTrue(snapshot.summary.isNotBlank())
         assertTrue(snapshot.evidence.isNotEmpty())
         assertTrue(snapshot.knowledgePoints.isNotEmpty())
-        assertTrue(snapshot.questions.size in 3..5)
+        assertTrue("question count=${snapshot.questions.size}", snapshot.questions.size in 3..5)
         assertEquals(snapshot.knowledgePoints.size, snapshot.reviewQueue.size)
         assertTrue(snapshot.questions.all { it.correctAnswer.isNotBlank() && it.evidenceIds.isNotEmpty() })
         assertTrue(snapshot.stepLogs.any { it.step == "QUERY_REWRITE" && it.status == "OFFICIAL_SMOKE_PASS_LOCAL_PLANNING" })
@@ -270,6 +270,26 @@ class L3LearningPipelineTest {
         val shortAnswer = PracticeGradingEngine.grade(item.copy(options = emptyList()), emptyList(), textAnswer = "because")
         assertEquals(PracticeGradingStatus.SELF_ASSESSMENT_REQUIRED, shortAnswer.status)
         assertTrue(shortAnswer.message.contains("AI_GRADING_SEAM_ONLY"))
+    }
+
+    @Test
+    fun fillBlankPracticeIsGradedByTextAnswer() {
+        val item = com.classmate.core.practice.PracticeItem(
+            id = "item_fill",
+            type = com.classmate.core.practice.PracticeItemType.FILL_BLANK,
+            knowledgePointId = "kp_fill",
+            knowledgePointTitle = "牛顿第二定律",
+            question = "填空题：牛顿第二定律公式是 ____。",
+            answer = "正确答案：F=ma。答案详解：公式表示合外力、质量和加速度的关系。",
+            options = emptyList(),
+        )
+
+        val correct = PracticeGradingEngine.grade(item, emptyList(), textAnswer = "F = ma")
+        val wrong = PracticeGradingEngine.grade(item, emptyList(), textAnswer = "v=at")
+
+        assertEquals(PracticeGradingStatus.CORRECT, correct.status)
+        assertEquals(PracticeGradingStatus.WRONG, wrong.status)
+        assertFalse(wrong.correct)
     }
 
     @Test

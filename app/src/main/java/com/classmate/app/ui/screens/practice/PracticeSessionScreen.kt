@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -80,10 +81,12 @@ fun PracticeSessionScreen(viewModel: AppViewModel) {
             }
             val item = session.items.getOrNull(ui.practiceIndex) ?: return@Column
             val selected = ui.practiceSelectedAnswers[item.id].orEmpty()
+            val textAnswer = ui.practiceTextAnswers[item.id].orEmpty()
             val submitted = ui.practiceSubmittedAnswers[item.id]
+            val fillBlank = item.type == PracticeItemType.FILL_BLANK && item.options.isEmpty()
             val answerState = when {
                 submitted?.state != null -> submitted.state
-                selected.isNotEmpty() -> PracticeAnswerState.ANSWER_SELECTED
+                selected.isNotEmpty() || (fillBlank && textAnswer.isNotBlank()) -> PracticeAnswerState.ANSWER_SELECTED
                 ui.practiceRevealed -> PracticeAnswerState.REVEALED
                 else -> PracticeAnswerState.NOT_ANSWERED
             }
@@ -92,7 +95,7 @@ fun PracticeSessionScreen(viewModel: AppViewModel) {
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
                     StatusChip(if (ui.practiceQuestionMode == PracticeQuestionMode.SELF_ASSESSMENT) "自评复习" else session.mode.displayZh(), tone = ChipTone.PRIMARY)
                     StatusChip("第 ${ui.practiceIndex + 1} / ${session.items.size} 题", tone = ChipTone.NEUTRAL)
-                    StatusChip(questionTypeFor(item.options).displayZh(), tone = ChipTone.INFO)
+                    StatusChip(questionTypeFor(item).displayZh(), tone = ChipTone.INFO)
                     if (ui.practiceQuestionMode == PracticeQuestionMode.EXAM) StatusChip("考试模式", tone = ChipTone.WARNING)
                     if (item.needsRecheck) StatusChip("需复核", tone = ChipTone.WARNING)
                 }
@@ -112,16 +115,29 @@ fun PracticeSessionScreen(viewModel: AppViewModel) {
                     }
                 }
 
-                if (ui.practiceQuestionMode != PracticeQuestionMode.SELF_ASSESSMENT && item.options.isNotEmpty()) {
+                if (ui.practiceQuestionMode != PracticeQuestionMode.SELF_ASSESSMENT && (item.options.isNotEmpty() || fillBlank)) {
                     Spacer(Modifier.height(Dimens.s))
-                    item.options.forEach { opt ->
-                        PracticeOptionRow(
-                            option = opt,
-                            selected = opt.id in selected,
-                            submitted = submitted != null,
-                            onClick = { viewModel.selectPracticeAnswer(opt.id) },
+                    if (fillBlank) {
+                        OutlinedTextField(
+                            value = textAnswer,
+                            onValueChange = { viewModel.updatePracticeTextAnswer(item.id, it) },
+                            label = { Text("填写关键词、公式或概念") },
+                            enabled = submitted == null,
+                            minLines = 1,
+                            maxLines = 2,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.medium,
                         )
-                        Spacer(Modifier.height(Dimens.xxs))
+                    } else {
+                        item.options.forEach { opt ->
+                            PracticeOptionRow(
+                                option = opt,
+                                selected = opt.id in selected,
+                                submitted = submitted != null,
+                                onClick = { viewModel.selectPracticeAnswer(opt.id) },
+                            )
+                            Spacer(Modifier.height(Dimens.xxs))
+                        }
                     }
 
                     Spacer(Modifier.height(Dimens.s))
@@ -133,7 +149,13 @@ fun PracticeSessionScreen(viewModel: AppViewModel) {
                             modifier = Modifier.fillMaxWidth(),
                         )
                     } else {
-                        PracticeAnswerReview(viewModel = viewModel, item = item, selectedAnswers = submitted.selectedAnswers, correct = submitted.correct)
+                        PracticeAnswerReview(
+                            viewModel = viewModel,
+                            item = item,
+                            selectedAnswers = submitted.selectedAnswers,
+                            textAnswer = submitted.textAnswer,
+                            correct = submitted.correct,
+                        )
                         Spacer(Modifier.height(Dimens.xs))
                         SecondaryButton(
                             text = "查看来源证据",
@@ -226,7 +248,13 @@ private fun PracticeOptionRow(
 }
 
 @Composable
-private fun PracticeAnswerReview(viewModel: AppViewModel, item: com.classmate.core.practice.PracticeItem, selectedAnswers: List<String>, correct: Boolean) {
+private fun PracticeAnswerReview(
+    viewModel: AppViewModel,
+    item: com.classmate.core.practice.PracticeItem,
+    selectedAnswers: List<String>,
+    textAnswer: String?,
+    correct: Boolean,
+) {
     val cs = MaterialTheme.colorScheme
     Surface(
         shape = MaterialTheme.shapes.medium,
@@ -235,15 +263,21 @@ private fun PracticeAnswerReview(viewModel: AppViewModel, item: com.classmate.co
     ) {
         Column(Modifier.padding(Dimens.m), verticalArrangement = Arrangement.spacedBy(Dimens.xs)) {
             Text(if (correct) "回答正确" else "回答错误", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            Text("你的答案：${selectedAnswers.joinToString(", ")}", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
-            Text("正确答案：${item.correctOptionIds.joinToString(", ")}", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+            val submittedText = textAnswer?.takeIf { it.isNotBlank() } ?: selectedAnswers.joinToString(", ")
+            val correctText = if (item.type == PracticeItemType.FILL_BLANK) {
+                Regex("正确答案[:：]\\s*([^。；;\\n]+)").find(item.answer)?.groupValues?.getOrNull(1) ?: item.knowledgePointTitle
+            } else {
+                item.correctOptionIds.joinToString(", ")
+            }
+            Text("你的答案：${submittedText.ifBlank { "未填写" }}", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+            Text("正确答案：${correctText.ifBlank { "见解析" }}", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
             Text("本题考点：${item.knowledgePointTitle}", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
             Text("解析：${item.answer.ifBlank { "暂无解析" }}", style = MaterialTheme.typography.bodyMedium, color = cs.onSurface)
             item.options.forEach { option ->
                 val note = when {
-                    option.correct -> "正确项：与来源证据和知识点一致。"
-                    option.id in selectedAnswers -> "你选择了这个干扰项：请回到证据核对题干限定。"
-                    else -> "错误项：与本课证据不一致。"
+                    option.correct -> "正确项：体现了本题知识点的定义、条件或结论。"
+                    option.id in selectedAnswers -> "该项混淆了概念关系或适用条件。"
+                    else -> "干扰项：与本题知识点的结论不一致。"
                 }
                 Text("${option.id}. $note", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
             }
@@ -277,10 +311,11 @@ private fun SelfAssessmentCard(viewModel: AppViewModel, itemRevealed: Boolean, i
     }
 }
 
-private fun questionTypeFor(options: List<PracticeOption>): PracticeQuestionType = when {
-    options.isEmpty() -> PracticeQuestionType.SHORT_ANSWER
-    options.count { it.correct } > 1 -> PracticeQuestionType.MULTI_CHOICE
-    options.size == 2 && options.map { it.text }.any { it.contains("正确") || it.contains("错误") || it.contains("True", ignoreCase = true) || it.contains("False", ignoreCase = true) } -> PracticeQuestionType.TRUE_FALSE
+private fun questionTypeFor(item: com.classmate.core.practice.PracticeItem): PracticeQuestionType = when {
+    item.type == PracticeItemType.FILL_BLANK -> PracticeQuestionType.SHORT_ANSWER
+    item.options.isEmpty() -> PracticeQuestionType.SHORT_ANSWER
+    item.options.count { it.correct } > 1 -> PracticeQuestionType.MULTI_CHOICE
+    item.options.size == 2 && item.options.map { it.text }.any { it.contains("正确") || it.contains("错误") || it.contains("True", ignoreCase = true) || it.contains("False", ignoreCase = true) } -> PracticeQuestionType.TRUE_FALSE
     else -> PracticeQuestionType.SINGLE_CHOICE
 }
 
@@ -288,7 +323,7 @@ private fun PracticeQuestionType.displayZh(): String = when (this) {
     PracticeQuestionType.SINGLE_CHOICE -> "单选题"
     PracticeQuestionType.TRUE_FALSE -> "判断题"
     PracticeQuestionType.MULTI_CHOICE -> "多选题"
-    PracticeQuestionType.SHORT_ANSWER -> "简答 / 自评"
+    PracticeQuestionType.SHORT_ANSWER -> "填空 / 简答"
 }
 
 @Composable

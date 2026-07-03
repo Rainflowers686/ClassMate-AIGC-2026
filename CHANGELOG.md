@@ -1,5 +1,19 @@
 # Changelog
 
+Current candidate version: `1.14.13 / versionCode 126`. This patch restores the image import/OCR path and hardens student-visible quiz UX: selected images are preserved in the material tray even when OCR is unavailable or fails, OCR uses original/high-quality image data instead of thumbnails, local fallback quizzes generate subject-specific options and fill-in questions, and quiz completion handles mixed question types without crashing.
+
+## 1.14.13 / 126 - image OCR import and quiz UX hardening
+
+- Image import is now fail-open for learning materials: a selected image is copied to app-private storage, shown in the material tray, and remains editable even when official OCR is missing, returns empty text, or fails.
+- OCR requests use original bytes or high-quality encoded image data. Thumbnail/preview images are not used as OCR input, and re-OCR uses the saved original image path.
+- OCR results keep the three-layer contract: raw OCR text, normalized OCR text, and subject knowledge candidates remain separate so quiz filters do not destroy image text or evidence.
+- Added a student-visible quiz sanitizer so stems, options, explanations, and knowledge titles do not expose internal OCR/meta wording such as OCR, raw ids, provider traces, fallback labels, or relevance-rule language.
+- Local fallback quiz generation now uses subject-specific templates for mathematics, physics, programming, and general concepts; wrong options are subject misconceptions instead of meta options.
+- Micro-quiz sessions now include fill-in questions where material allows, with fill-in grading and equivalent-answer normalization.
+- Completion paths were hardened for single-choice, true/false, fill-in, mixed, empty, missing-evidence, and duplicate-completion cases; completion returns to Review Plan instead of crashing.
+- Evidence-detail pages with no micro-quiz for a specific knowledge point remain deferred by user request; this patch does not remove existing evidence-backed questions.
+- BlueLM/qwen3.5-plus mode mapping is unchanged from 1.14.9.
+
 当前候选版本：`1.14.12 / versionCode 125`。本轮修复微测生成质量和完成练习崩溃：微测题改为基于学科知识点卡片和证据生成，不再直接照搬 OCR 原文；本地兜底题型混合，正确答案不再固定 A；完成微测后安全写入学习记录并返回复习计划页。
 
 ## 1.14.12 / 125 - quiz generation quality and practice completion stability
