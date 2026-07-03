@@ -276,6 +276,7 @@ fun SettingsScreen(viewModel: AppViewModel) {
 
                 SettingsPage.DEVELOPER_SETTINGS -> {
                     SettingsPageHeader(page = page, onBack = { viewModel.openSettingsPage(SettingsPage.SETTINGS_HOME) })
+                    DiagnosticsAndLogsCard(viewModel)
                     DeveloperSettingsHomeCard(viewModel)
                     OnDeviceDiagnosticCard(viewModel)
                     OnDeviceMultimodalDiagnosticCard(viewModel)
@@ -1421,6 +1422,78 @@ private fun PrivacyAndPermissionsSettingsCard() {
         ProviderStatusRow("云端未配置", "继续端侧处理或手动编辑，不阻断学习")
     }
     PrivacyCard()
+}
+
+@Composable
+private fun DiagnosticsAndLogsCard(viewModel: AppViewModel) {
+    val ui = viewModel.ui
+    val clipboard = LocalClipboardManager.current
+    val lastCrash = viewModel.lastCrashText()
+    ClassMateCard {
+        Text("诊断与日志", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(Dimens.xs))
+        Text(
+            "固定显示。用于真机确认当前 APK、自动出题、练习完成、返回箭头和崩溃前最后一步。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(Dimens.s))
+        ProviderStatusRow("当前版本", BuildInfo.versionName)
+        ProviderStatusRow("versionCode", BuildInfo.versionCode.toString())
+        ProviderStatusRow("Git commit", BuildInfo.gitCommitShort)
+        ProviderStatusRow("Build time", BuildInfo.buildTime)
+        ProviderStatusRow("Build variant", BuildInfo.buildType)
+        ProviderStatusRow("最近事件数", ui.debugEvents.size.toString())
+        ProviderStatusRow("上次崩溃", if (lastCrash.isBlank()) "无" else "有")
+        Spacer(Modifier.height(Dimens.s))
+        SecondaryButton(
+            text = "复制完整诊断包",
+            onClick = {
+                clipboard.setText(AnnotatedString(viewModel.diagnosticsPackageText()))
+                viewModel.toast("已复制诊断包")
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(Dimens.xs))
+        SecondaryButton(
+            text = "复制最近 200 条事件",
+            onClick = {
+                clipboard.setText(AnnotatedString(viewModel.debugEventLogText()))
+                viewModel.toast("已复制最近事件")
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(Dimens.xs))
+        SecondaryButton(
+            text = "复制上次崩溃",
+            onClick = {
+                clipboard.setText(AnnotatedString(lastCrash.ifBlank { "无上次崩溃记录" }))
+                viewModel.toast("已复制上次崩溃")
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(Dimens.xs))
+        SecondaryButton(
+            text = "清空诊断日志",
+            onClick = { viewModel.clearDiagnosticsLog() },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(Dimens.s))
+        Text("DebugEventLog 最近 200 条，已脱敏并持久化。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        val preview = ui.debugEvents.takeLast(6)
+        if (preview.isEmpty()) {
+            Text("暂无调试事件。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            preview.forEach { entry ->
+                Text(
+                    entry.format(),
+                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(Dimens.xxs))
+            }
+        }
+    }
 }
 
 @Composable

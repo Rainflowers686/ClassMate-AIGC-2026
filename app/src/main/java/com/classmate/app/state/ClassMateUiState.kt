@@ -91,10 +91,22 @@ data class DebugEventLogEntry(
     val name: String,
     val details: Map<String, String> = emptyMap(),
     val createdAt: Long,
+    val versionName: String = "",
+    val versionCode: Int = 0,
+    val gitCommit: String = "",
+    val threadName: String = "",
 ) {
     fun format(): String {
         val suffix = details.entries.joinToString(" ") { "${it.key}=${it.value}" }
-        return if (suffix.isBlank()) "$createdAt #$id $name" else "$createdAt #$id $name $suffix"
+        val meta = listOfNotNull(
+            versionName.takeIf { it.isNotBlank() }?.let { "version=$it" },
+            versionCode.takeIf { it > 0 }?.let { "code=$it" },
+            gitCommit.takeIf { it.isNotBlank() }?.let { "commit=$it" },
+            threadName.takeIf { it.isNotBlank() }?.let { "thread=$it" },
+        ).joinToString(" ")
+        return listOf("$createdAt #$id $name", meta, suffix)
+            .filter { it.isNotBlank() }
+            .joinToString(" ")
     }
 }
 
@@ -270,6 +282,7 @@ data class ClassMateUiState(
     val result: CourseAnalysisResult? = null,
     val logs: List<RedactedLogEntry> = emptyList(),
     val debugEvents: List<DebugEventLogEntry> = emptyList(),
+    val diagnosticsLastCrash: String = "",
     val analysisError: String? = null,
 
     // history (persisted business data only)

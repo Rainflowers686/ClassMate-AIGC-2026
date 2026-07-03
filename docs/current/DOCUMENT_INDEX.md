@@ -1,3 +1,16 @@
+# Document Index - ClassMate 1.14.16
+
+Version: `1.14.16 / versionCode 129`
+
+Current entries added in this patch:
+
+| File | Type | Status |
+| --- | --- | --- |
+| `docs/current/CHANGELOG_1_14_16.md` | Current version changelog | Added |
+| `docs/current/REAL_DEVICE_TEST_MANUAL_1_14_16.md` | 1.14.16 real-device diagnostics manual | Added |
+
+1.14.16 fixes the diagnostic entry wiring gap found on real devices. Developer settings now has a fixed `诊断与日志` card with copy actions for the full diagnostics package, recent 200 events, last crash, and clear logs. DebugEventLog is persisted in app-private storage, crash breadcrumbs survive app restart, and `ClassMateDebug` logcat output mirrors redacted events for adb capture.
+
 # Document Index - ClassMate 1.14.15
 
 Version: `1.14.15 / versionCode 128`

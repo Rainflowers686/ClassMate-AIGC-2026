@@ -1,6 +1,16 @@
 # Changelog
 
-Current candidate version: `1.14.15 / versionCode 128`. This patch adds in-app build identity and redacted DebugEventLog tracing so real-device reports can prove which APK and which practice path are running, then hardens completion/back routing with null-safe guards.
+Current candidate version: `1.14.16 / versionCode 129`. This patch makes the real-device diagnostics entry fixed and visible in developer settings, persists redacted events across crashes/restarts, and records practice completion/back events before running risky logic.
+
+## 1.14.16 / 129 - persistent developer diagnostics and crash breadcrumbs
+
+- Developer settings now has a fixed `诊断与日志` card at the top of the developer page. It is not gated by provider config, network, local config, or the old collapsible log section.
+- The card shows versionName, versionCode, Git commit, build time, build variant, recent event count, and whether a previous crash record exists.
+- Added copy actions for the full diagnostics package, recent 200 events, last crash, plus a clear-log action.
+- DebugEventLog is now persisted to app-private storage and flushed on each append, so a crash/restart still leaves the previous event trail available for copying.
+- A process-level uncaught-exception handler records `crash.uncaught`, exception class, top stack frame, current screen summary, build identity, and the last 30 events before delegating to the system handler.
+- Practice completion and practice back-arrow events now log `clicked`, precheck/start/done/error breadcrumbs before navigation or summary work so crash reports show the last reached step.
+- All diagnostic output is redacted and avoids course text, provider request bodies, and credential values.
 
 ## 1.14.15 / 128 - real-device path tracing and practice stabilization
 

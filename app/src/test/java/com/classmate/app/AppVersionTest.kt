@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The competition demo build must report version 1.14.15 / 128, not older release lines. Build metadata is
+ * The competition demo build must report version 1.14.16 / 129, not older release lines. Build metadata is
  * kept separately via BuildConfig fields.
  */
 class AppVersionTest {
@@ -17,7 +17,7 @@ class AppVersionTest {
 
     @Test
     fun versionNameIsCurrentAndNotOld() {
-        assertTrue(gradle.contains("versionName = \"1.14.15\""))
+        assertTrue(gradle.contains("versionName = \"1.14.16\""))
         assertFalse(gradle.contains("versionName = \"0.1.0\""))
         assertFalse(gradle.contains("versionName = \"1.0.0\""))
         assertFalse(gradle.contains("versionName = \"1.0.1\""))
@@ -57,11 +57,12 @@ class AppVersionTest {
         assertFalse(gradle.contains("versionName = \"1.14.12\""))
         assertFalse(gradle.contains("versionName = \"1.14.13\""))
         assertFalse(gradle.contains("versionName = \"1.14.14\""))
+        assertFalse(gradle.contains("versionName = \"1.14.15\""))
     }
 
     @Test
     fun versionCodeIsCurrent() {
-        assertTrue(gradle.contains("versionCode = 128"))
+        assertTrue(gradle.contains("versionCode = 129"))
     }
 
     @Test
@@ -84,5 +85,11 @@ class AppVersionTest {
         assertTrue(settings.contains("BuildInfo.buildTime"))
         assertTrue(settings.contains("DebugEventLog"))
         assertTrue(settings.contains("debugEventLogText"))
+        assertTrue(settings.contains("DiagnosticsAndLogsCard(viewModel)"))
+        assertTrue(settings.contains("诊断与日志"))
+        assertTrue(settings.contains("复制完整诊断包"))
+        assertTrue(settings.contains("复制最近 200 条事件"))
+        assertTrue(settings.contains("复制上次崩溃"))
+        assertTrue(settings.contains("清空诊断日志"))
     }
 }

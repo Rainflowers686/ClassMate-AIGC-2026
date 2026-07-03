@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.classmate.app.BuildInfo
 import com.classmate.app.asr.AsrSession
 import com.classmate.app.asr.AsrSessionController
 import com.classmate.app.asr.AsrState
@@ -28,6 +29,8 @@ import com.classmate.app.data.InMemoryHistoryStore
 import com.classmate.app.data.L3PersistenceRepository
 import com.classmate.app.data.LocalSemanticIndexRepository
 import com.classmate.app.data.ThemePreferenceRepository
+import com.classmate.app.diagnostics.DiagnosticsRuntimeState
+import com.classmate.app.diagnostics.PersistentDebugEventLog
 import com.classmate.app.exporting.ExportArtifact
 import com.classmate.app.audio.FlowAudioController
 import com.classmate.app.audio.NoOpFlowAudioController
@@ -317,6 +320,7 @@ class AppViewModel(
     // P1-2: Flow background music. No-op by default (tests / no audio); the composition root injects the
     // real AmbientSoundPlayer-backed controller so playback survives leaving the Flow page.
     private val flowAudioController: FlowAudioController = NoOpFlowAudioController,
+    private val debugEventLog: PersistentDebugEventLog = PersistentDebugEventLog.disabled(),
     // Stage 8D-2: optional override of the all-files-access signal (tests inject false/true). Used
     // ONLY to CLASSIFY an on-device availability failure (PERMISSION_MISSING vs files/init) — it
     // never blocks the crash-safe generate attempt. Production (null) combines the live permission
@@ -416,6 +420,7 @@ class AppViewModel(
         currentTab = tab
         resetTo(tab.root)
         settingsPage = SettingsPage.SETTINGS_HOME // entering a tab root always starts the settings tree at home
+        updateDiagnosticsRuntimeState()
     }
 
     init {
@@ -432,7 +437,11 @@ class AppViewModel(
             history = historyStore.load(),
             learningSnapshot = learningStore.snapshot(),
             l3Pipeline = repairedPersistedL3,
+            debugEvents = debugEventLog.loadEvents(),
+            diagnosticsLastCrash = debugEventLog.lastCrashText(),
         )
+        debugEventCounter = ui.debugEvents.maxOfOrNull { it.id } ?: 0L
+        DiagnosticsRuntimeState.update(Screen.HOME.name, "tab=${currentTab.name};screen=${Screen.HOME.name};events=${ui.debugEvents.size}")
         if (repairedPersistedL3 != persistedL3) {
             l3PersistenceRepository.saveSnapshot(repairedPersistedL3)
         }
@@ -443,15 +452,30 @@ class AppViewModel(
         ui = ui.copy(learningSnapshot = learningStore.snapshot(), toast = toast ?: ui.toast)
     }
 
+    private fun diagnosticsStateSummary(): String =
+        listOf(
+            "tab=${currentTab.name}",
+            "screen=${currentScreen.name}",
+            "course=${ui.session?.id?.take(16) ?: "none"}",
+            "practice=${ui.practiceSession?.items?.size ?: 0}",
+            "practiceIndex=${ui.practiceIndex}",
+            "events=${ui.debugEvents.size}",
+        ).joinToString(";")
+
+    private fun updateDiagnosticsRuntimeState() {
+        DiagnosticsRuntimeState.update(currentScreen.name, diagnosticsStateSummary())
+    }
+
     private fun logDebugEvent(name: String, details: Map<String, Any?> = emptyMap()) {
         debugEventCounter += 1
-        val entry = DebugEventLogEntry(
+        val entry = debugEventLog.append(
             id = debugEventCounter,
             name = name,
             details = details.mapValues { (_, value) -> sanitizeDebugEventValue(value) },
-            createdAt = System.currentTimeMillis(),
         )
-        ui = ui.copy(debugEvents = (ui.debugEvents + entry).takeLast(100))
+        debugEventCounter = entry.id
+        ui = ui.copy(debugEvents = (ui.debugEvents + entry).takeLast(200))
+        updateDiagnosticsRuntimeState()
     }
 
     private fun sanitizeDebugEventValue(value: Any?): String =
@@ -462,7 +486,24 @@ class AppViewModel(
             ?: "null"
 
     fun debugEventLogText(): String =
-        ui.debugEvents.joinToString("\n") { it.format() }
+        ui.debugEvents.takeLast(200).joinToString("\n") { it.format() }
+
+    fun diagnosticsPackageText(): String =
+        debugEventLog.diagnosticsPackage(currentScreen.name, diagnosticsStateSummary())
+
+    fun lastCrashText(): String =
+        ui.diagnosticsLastCrash.ifBlank { debugEventLog.lastCrashText() }
+
+    fun clearDiagnosticsLog() {
+        debugEventLog.clear()
+        debugEventCounter = 0L
+        ui = ui.copy(
+            debugEvents = emptyList(),
+            diagnosticsLastCrash = "",
+            toast = "已清空诊断日志。",
+        )
+        updateDiagnosticsRuntimeState()
+    }
 
     // --- navigation (compose-observable back stack) ---
     private val backStack = mutableStateListOf(Screen.HOME)
@@ -471,11 +512,13 @@ class AppViewModel(
 
     fun navigateTo(screen: Screen) {
         if (backStack.last() != screen) backStack.add(screen)
+        updateDiagnosticsRuntimeState()
     }
 
     fun goBack(): Boolean =
         if (backStack.size > 1) {
             backStack.removeAt(backStack.lastIndex)
+            updateDiagnosticsRuntimeState()
             true
         } else {
             false
@@ -493,6 +536,7 @@ class AppViewModel(
     fun resetTo(screen: Screen) {
         backStack.clear()
         backStack.add(screen)
+        updateDiagnosticsRuntimeState()
     }
 
     private fun navigateReplacing(screen: Screen) {
@@ -5953,21 +5997,27 @@ class AppViewModel(
                 "selected_answer_count" to (ui.practiceSelectedAnswers.size + ui.practiceTextAnswers.size),
             ),
         )
+        logDebugEvent("practice.complete.precheck", mapOf("has_session" to (session != null), "already_completed" to (ui.practiceResult != null)))
         logDebugEvent("practice.complete.question_count", mapOf("count" to (session?.items?.size ?: 0)))
         logDebugEvent("practice.complete.current_index", mapOf("index" to ui.practiceIndex))
+        logDebugEvent("practice.complete.answer_count", mapOf("count" to (ui.practiceSelectedAnswers.size + ui.practiceTextAnswers.size)))
         logDebugEvent("practice.complete.selected_answer_count", mapOf("count" to (ui.practiceSelectedAnswers.size + ui.practiceTextAnswers.size)))
         if (session == null || session.items.isEmpty()) {
             logDebugEvent("practice.complete.error", mapOf("type" to "empty_session"))
+            logDebugEvent("practice.complete.navigate_review_start", mapOf("target" to "review"))
             logDebugEvent("practice.complete.navigate_review", mapOf("target" to "review"))
             ui = ui.copy(toast = "暂无可完成题目，已返回复习计划。")
             selectTab(Tab.REVIEW)
+            logDebugEvent("practice.complete.navigate_review_done", mapOf("target" to "review"))
             return
         }
         runCatching { finishPractice() }
             .onFailure { error ->
                 logDebugEvent("practice.complete.error", mapOf("type" to (error::class.simpleName ?: "Throwable")))
                 ui = ui.copy(toast = "完成练习时遇到异常，已返回复习计划。")
+                logDebugEvent("practice.complete.navigate_review_start", mapOf("target" to "review", "after_error" to true))
                 runCatching { selectTab(Tab.REVIEW) }
+                    .onSuccess { logDebugEvent("practice.complete.navigate_review_done", mapOf("target" to "review", "after_error" to true)) }
                     .onFailure { navError ->
                         logDebugEvent("practice.complete.error", mapOf("type" to (navError::class.simpleName ?: "NavigationError")))
                     }
@@ -5977,11 +6027,14 @@ class AppViewModel(
     private fun finishPractice() {
         val session = ui.practiceSession ?: return
         if (ui.practiceResult != null) {
+            logDebugEvent("practice.complete.navigate_review_start", mapOf("target" to "review", "already_completed" to true))
             logDebugEvent("practice.complete.navigate_review", mapOf("target" to "review", "already_completed" to true))
             selectTab(Tab.REVIEW)
+            logDebugEvent("practice.complete.navigate_review_done", mapOf("target" to "review", "already_completed" to true))
             return
         }
         val now = System.currentTimeMillis()
+        logDebugEvent("practice.complete.summary_start", mapOf("question_count" to session.items.size))
         val result = PracticeSessionEngine.summarize(session, ui.practiceAttempts, now - ui.practiceStartedAt)
         logDebugEvent(
             "practice.complete.summary_built",
@@ -6030,8 +6083,10 @@ class AppViewModel(
             persistL3(nextL3)
         }
         ensureReviewPlan()
+        logDebugEvent("practice.complete.navigate_review_start", mapOf("target" to "review"))
         logDebugEvent("practice.complete.navigate_review", mapOf("target" to "review"))
         selectTab(Tab.REVIEW)
+        logDebugEvent("practice.complete.navigate_review_done", mapOf("target" to "review"))
         ui = ui.copy(
             practiceResult = result,
             learningSnapshot = learningStore.snapshot(),
@@ -6085,9 +6140,11 @@ class AppViewModel(
             practiceSubmittedAnswers = emptyMap(),
             examSession = null,
         )
+        logDebugEvent("practice.back.navigate_review_start", mapOf("target" to "review"))
         logDebugEvent("practice.back.target_review", mapOf("used_pop_back_stack" to false))
         logDebugEvent("practice.back.used_pop_back_stack", mapOf("value" to false))
         runCatching { selectTab(Tab.REVIEW) }
+            .onSuccess { logDebugEvent("practice.back.navigate_review_done", mapOf("target" to "review")) }
             .onFailure { error -> logDebugEvent("practice.back.error", mapOf("type" to (error::class.simpleName ?: "Throwable"))) }
     }
 
