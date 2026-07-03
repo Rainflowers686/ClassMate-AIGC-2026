@@ -14,9 +14,11 @@ object QuizRelevanceGate {
         evidence: List<Evidence>,
     ): Boolean {
         val kp = knowledge.firstOrNull { it.id == question.knowledgePointId } ?: return false
-        if (!SubjectKnowledgeExtractor.isAcceptedKnowledge(kp.title, kp.explanation)) return false
         val evidenceTexts = question.evidenceIds.mapNotNull { id -> evidence.firstOrNull { it.id == id }?.text?.trim() }
         if (evidenceTexts.isEmpty() || evidenceTexts.all { it.isBlank() }) return false
+        val acceptedKnowledge = SubjectKnowledgeExtractor.isAcceptedKnowledge(kp.title, kp.explanation) ||
+            evidenceTexts.any { SubjectKnowledgeExtractor.isAcceptedKnowledge(kp.title, it) }
+        if (!acceptedKnowledge) return false
         if (SubjectKnowledgeExtractor.isNoiseLine(question.stem) || question.stem.isBlank()) return false
         if (question.options.any { it.contains("与课程无关") || it.contains("无关废话") }) return false
         val haystack = (question.stem + " " + question.explanation + " " + evidenceTexts.joinToString(" ")).lowercase()
@@ -29,7 +31,9 @@ object QuizRelevanceGate {
         val hasAnswerSupport = question.explanation.contains("证据") || evidenceTexts.any { quote ->
             quote.length >= 8 && question.explanation.contains(quote.take(8))
         }
-        return (hasTitleSignal || hasEvidenceSignal) && hasAnswerSupport
+        val hasReadableEvidenceMarker = question.explanation.contains("证据") ||
+            question.explanation.contains("evidence", ignoreCase = true)
+        return (hasTitleSignal || hasEvidenceSignal) && (hasAnswerSupport || hasReadableEvidenceMarker)
     }
 
     private fun subjectTokens(text: String): List<String> =

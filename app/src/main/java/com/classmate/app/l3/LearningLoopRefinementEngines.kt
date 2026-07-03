@@ -244,6 +244,22 @@ object FeedbackLearningOptimizer {
         index: Int,
         aiHint: String?,
     ): L3GeneratedQuestion {
+        val targetKp = kp ?: L3KnowledgePoint(
+            id = old.knowledgePointId,
+            title = old.knowledgePointId.ifBlank { "本课知识点" },
+            explanation = evidence.text.take(120),
+            sourceEvidenceIds = listOf(evidence.id),
+            masteryState = L3MasteryState.LEARNING,
+        )
+        return KnowledgeBasedQuizGenerator.buildQuestion(
+            id = "q_feedback_${now}_$index",
+            lessonId = old.lessonId,
+            kp = targetKp,
+            evidenceId = evidence.id,
+            evidenceQuote = evidence.text,
+            relatedTitles = emptyList(),
+            index = index + 1,
+        )
         val title = kp?.title?.takeIf { it.isNotBlank() } ?: "本课知识点"
         val quote = evidence.text.take(96).ifBlank { title }
         val hint = aiHint?.takeIf { it.isNotBlank() && !SubjectKnowledgeExtractor.isNoiseLine(it) }?.take(160)

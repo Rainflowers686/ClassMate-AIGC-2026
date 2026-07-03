@@ -5237,14 +5237,90 @@ class AppViewModel(
         navigateTo(Screen.PRACTICE)
     }
 
-    private fun sanitizePracticeSession(session: PracticeSession): PracticeSession =
-        session.copy(
-            items = session.items.filterNot { item ->
-                LearningArtifactRepairer.hasForbiddenTitleText(item.knowledgePointTitle) ||
-                    isUnsafePracticeQuestion(item.question) ||
-                    item.options.any { option -> isUnsafePracticeOption(option.text) }
-            },
+    private fun sanitizePracticeSession(session: PracticeSession): PracticeSession {
+        val filtered = session.items.filterNot { item ->
+            LearningArtifactRepairer.hasForbiddenTitleText(item.knowledgePointTitle) ||
+                isUnsafePracticeQuestion(item.question) ||
+                item.options.any { option -> isUnsafePracticeOption(option.text) }
+        }
+        return session.copy(items = balancePracticeItems(filtered))
+    }
+
+    private fun balancePracticeItems(items: List<PracticeItem>): List<PracticeItem> {
+        if (items.isEmpty()) return items
+        val answerable = items.filter { it.isAnswerableQuiz() }
+        val trueFalseLimit = if (answerable.size <= 1) 0 else maxOf(1, (answerable.size * 4) / 10)
+        var trueFalseSeen = 0
+        val typeBalanced = items.mapIndexed { index, item ->
+            if (!item.isAnswerableQuiz() || !isTrueFalsePracticeItem(item)) {
+                item
+            } else {
+                val shouldConvert = trueFalseSeen >= trueFalseLimit
+                trueFalseSeen += 1
+                if (shouldConvert) convertTrueFalseToSingleChoice(item, index) else item
+            }
+        }
+        val balancedAnswerable = typeBalanced.filter { it.isAnswerableQuiz() }
+        val allCorrectA = balancedAnswerable.size > 1 &&
+            balancedAnswerable.all { it.correctOptionIds == listOf("A") }
+        return if (allCorrectA) {
+            typeBalanced.mapIndexed { index, item ->
+                if (item.isAnswerableQuiz()) remapCorrectLetter(item, index) else item
+            }
+        } else {
+            typeBalanced
+        }
+    }
+
+    private fun isTrueFalsePracticeItem(item: PracticeItem): Boolean =
+        item.options.size == 2 &&
+            item.options.map { it.text }.any { text ->
+                text.contains("正确") || text.contains("错误") ||
+                    text.contains("True", ignoreCase = true) ||
+                    text.contains("False", ignoreCase = true)
+            }
+
+    private fun convertTrueFalseToSingleChoice(item: PracticeItem, index: Int): PracticeItem {
+        val title = item.knowledgePointTitle.ifBlank { "本课知识点" }
+        val quote = item.evidenceQuote?.takeIf { it.isNotBlank() } ?: item.answer.take(96)
+        val correctText = "能用课程证据解释「$title」的概念关系和适用条件"
+        val distractors = listOf(
+            "只背 OCR 原句，不解释「$title」的知识点关系",
+            "忽略证据限定，选择未被本课材料支持的结论",
+            "把同课其他概念直接当成「$title」的结论",
         )
+        val correctLetter = listOf("B", "C", "D", "A")[index % 4]
+        val options = listOf("A", "B", "C", "D").map { letter ->
+            val text = if (letter == correctLetter) {
+                correctText
+            } else {
+                distractors.getOrElse((letter.first() - 'A').coerceIn(0, 2)) { "没有回到证据核对知识点" }
+            }
+            PracticeOption(letter, text, letter == correctLetter)
+        }
+        return item.copy(
+            question = "围绕「$title」的理解，下列哪一项最符合本课知识点？",
+            answer = buildString {
+                append("答案详解：$correctLetter 正确。")
+                append("本题考查「$title」的知识点理解，正确项需要能由证据推出。")
+                append("其他选项只是照搬 OCR、忽略证据或混淆概念。")
+                if (quote.isNotBlank()) append("证据摘录：$quote")
+            },
+            options = options,
+        )
+    }
+
+    private fun remapCorrectLetter(item: PracticeItem, index: Int): PracticeItem {
+        val shift = index % item.options.size
+        if (shift == 0) return item
+        val rotated = item.options.drop(shift) + item.options.take(shift)
+        val options = rotated.mapIndexed { optionIndex, option ->
+            option.copy(id = QuizOptionIds.letterId(optionIndex))
+        }
+        val correctIds = options.filter { it.correct }.map { it.id }.joinToString(", ")
+        val answer = "页面正确答案：$correctIds。${item.answer}"
+        return item.copy(options = options, answer = answer)
+    }
 
     private fun isUnsafePracticeQuestion(text: String): Boolean =
         LearningArtifactRepairer.hasForbiddenTitleText(text) &&
@@ -5539,7 +5615,20 @@ class AppViewModel(
 
     fun nextPracticeQuestion() {
         val session = ui.practiceSession ?: return
-        val item = session.items.getOrNull(ui.practiceIndex) ?: return
+        if (ui.practiceResult != null) {
+            selectTab(Tab.REVIEW)
+            return
+        }
+        if (session.items.isEmpty()) {
+            ui = ui.copy(toast = "暂无可完成题目。")
+            selectTab(Tab.REVIEW)
+            return
+        }
+        val item = session.items.getOrNull(ui.practiceIndex) ?: run {
+            ui = ui.copy(toast = "暂无可完成题目。")
+            selectTab(Tab.REVIEW)
+            return
+        }
         if (ui.practiceQuestionMode != PracticeQuestionMode.SELF_ASSESSMENT && item.id !in ui.practiceSubmittedAnswers) {
             ui = ui.copy(toast = "请先提交当前题。")
             return
@@ -5574,6 +5663,10 @@ class AppViewModel(
 
     private fun finishPractice() {
         val session = ui.practiceSession ?: return
+        if (ui.practiceResult != null) {
+            selectTab(Tab.REVIEW)
+            return
+        }
         val now = System.currentTimeMillis()
         val result = PracticeSessionEngine.summarize(session, ui.practiceAttempts, now - ui.practiceStartedAt)
         // Reuse the existing ReviewEngine rules: correct lowers priority, wrong raises + re-queues,
@@ -5614,6 +5707,8 @@ class AppViewModel(
             ui = ui.copy(l3Pipeline = nextL3)
             persistL3(nextL3)
         }
+        ensureReviewPlan()
+        selectTab(Tab.REVIEW)
         ui = ui.copy(
             practiceResult = result,
             learningSnapshot = learningStore.snapshot(),

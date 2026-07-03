@@ -92,6 +92,9 @@ class FreshInstallLearningFlowRegressionTest {
         }
         noise.forEach { assertFalse("fresh practice leaked prompt word: $it", practiceText.contains(it)) }
         assertTrue(session.items.all { it.knowledgePointTitle.isNotBlank() && it.evidenceQuote?.isNotBlank() == true })
+        val answerableItems = session.items.filter { it.options.size >= 2 && it.correctOptionIds.isNotEmpty() }
+        assertFalse("fresh micro-quiz should not be all true/false", answerableItems.size > 1 && answerableItems.all { it.options.size == 2 })
+        assertFalse("fresh micro-quiz should not put every answer at A", answerableItems.size > 1 && answerableItems.all { it.correctOptionIds == listOf("A") })
 
         repeat(session.items.size) { index ->
             val item = viewModel.currentPracticeItem()!!
@@ -100,7 +103,7 @@ class FreshInstallLearningFlowRegressionTest {
             viewModel.nextPracticeQuestion()
         }
 
-        assertEquals("completion should stay on practice until explicit return", Screen.PRACTICE, viewModel.currentScreen)
+        assertEquals("completion should return to review plan", Screen.REVIEW, viewModel.currentScreen)
         assertNotNull(viewModel.ui.practiceResult)
         assertTrue(viewModel.isPracticeComplete())
     }

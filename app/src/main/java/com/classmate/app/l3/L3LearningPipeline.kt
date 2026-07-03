@@ -197,7 +197,7 @@ class L3LearningPipeline {
                 masteryState = L3MasteryState.LEARNING,
             )
         }
-        val draftQuestions = knowledge.take(5).mapIndexed { index, kp ->
+        val legacyDraftQuestions = knowledge.take(5).mapIndexed { index, kp ->
             val evidenceId = kp.sourceEvidenceIds.first()
             val rawEvidenceText = evidence.firstOrNull { it.id == evidenceId }?.text.orEmpty()
             val evidenceQuote = summaryFrom(listOf(rawEvidenceText)).take(96).ifBlank {
@@ -229,6 +229,14 @@ class L3LearningPipeline {
                 difficulty = Difficulty.MEDIUM,
             )
         }
+        val draftQuestions = KnowledgeBasedQuizGenerator.generate(
+            lessonId = source.id,
+            knowledge = knowledge,
+            evidence = evidence,
+            now = now,
+            maxQuestions = 5,
+            idPrefix = "q",
+        )
         val questions = QuizRelevanceGate.filter(draftQuestions, knowledge, evidence)
         return assembleSnapshot(
             source = source,
@@ -891,7 +899,25 @@ class L3LearningPipeline {
      * knowledge point and its evidence. Only points that actually carry evidence are turned into questions,
      * so insufficient material yields an empty list (the UI then shows "资料不足", never a fake question).
      */
-    private fun localBasicQuestions(lessonId: String, knowledge: List<L3KnowledgePoint>, now: Long): List<L3GeneratedQuestion> =
+    private fun localBasicQuestions(lessonId: String, knowledge: List<L3KnowledgePoint>, now: Long): List<L3GeneratedQuestion> {
+        return KnowledgeBasedQuizGenerator.generate(
+            lessonId = lessonId,
+            knowledge = knowledge,
+            evidence = knowledge.mapNotNull { kp ->
+                kp.sourceEvidenceIds.firstOrNull()?.let { id ->
+                    Evidence(
+                        id = id,
+                        sourceId = lessonId,
+                        sourceType = L3SourceType.TEXT,
+                        text = kp.explanation,
+                        sourceLabel = kp.title,
+                    )
+                }
+            },
+            now = now,
+            maxQuestions = 5,
+            idPrefix = "q_lf",
+        )
         knowledge
             .filter { it.sourceEvidenceIds.isNotEmpty() }
             .filter { SubjectKnowledgeExtractor.isAcceptedKnowledge(it.title, it.explanation) }
@@ -923,6 +949,7 @@ class L3LearningPipeline {
                 difficulty = Difficulty.MEDIUM,
             )
         }
+    }
 
     private fun spanFor(session: CourseSession, quoteHint: String, fallbackSegmentId: String): EvidenceSpan {
         val cleanHint = quoteHint.trim().take(60)

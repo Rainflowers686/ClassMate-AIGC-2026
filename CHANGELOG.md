@@ -1,5 +1,17 @@
 # Changelog
 
+当前候选版本：`1.14.12 / versionCode 125`。本轮修复微测生成质量和完成练习崩溃：微测题改为基于学科知识点卡片和证据生成，不再直接照搬 OCR 原文；本地兜底题型混合，正确答案不再固定 A；完成微测后安全写入学习记录并返回复习计划页。
+
+## 1.14.12 / 125 - quiz generation quality and practice completion stability
+
+- 新增知识点驱动的本地微测生成器：输入为 `knowledgePointTitle`、摘要、证据摘录和同课相关知识点，不再把 OCR 原文直接拼成题干或固定 A 选项。
+- 题型分布增加兜底：优先单选题，限制判断题占比；单题场景不默认生成判断题；模型或旧题返回全判断题时会在进入 PracticeSession 前转换超额判断题。
+- 答案分布修复：正确项按 B/C/D/A 稳定分布；进入 UI 前如果整组题仍全为 A，会重排选项并保持 correct option mapping。
+- 完成微测路径加固：空题、缺 evidence、缺 knowledge point、重复点击完成均不崩溃。
+- 最新产品行为：点击“完成练习”后保存学习记录并返回复习计划页，不退出 App，也不 pop 到空栈。
+- 证据详情页个别知识点无微测题本轮按用户反馈暂不强制修复；已有 evidence-backed questions 不会被清空。
+- 保持 1.14.9 BlueLM/qwen3.5-plus 三档模式和长 timeout 策略，不做 provider 大重构。
+
 当前候选版本：`1.14.11 / versionCode 124`。本轮修复 fresh-install 新材料主流程和 OCR 回归：OCR 原文/轻清洗/学科候选三层分离，学科过滤只作用于知识点候选，不再破坏 OCR 草稿和 evidence；新装新课从图片 OCR 到课程总结、复习计划、微测入口和完成练习都有端到端回归守卫。
 
 ## 1.14.11 / 124 - fresh OCR text protection and learning flow repair

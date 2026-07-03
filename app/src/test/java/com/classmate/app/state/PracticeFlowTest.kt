@@ -231,6 +231,7 @@ class PracticeFlowTest {
         assertEquals(1, viewModel.ui.learningSnapshot.practiceHistory.size)
         assertTrue(viewModel.isPracticeComplete())
         assertTrue(viewModel.ui.practiceAttempts.all { it.feedback != null })
+        assertEquals(Screen.REVIEW, viewModel.currentScreen)
     }
 
     @Test

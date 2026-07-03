@@ -236,6 +236,15 @@ object LearningArtifactRepairer {
         now: Long,
         index: Int,
     ): L3GeneratedQuestion {
+        return KnowledgeBasedQuizGenerator.buildQuestion(
+            id = "q_repair_${now}_${index}_${kp.id}",
+            lessonId = lessonId,
+            kp = kp,
+            evidenceId = kp.sourceEvidenceIds.firstOrNull().orEmpty(),
+            evidenceQuote = rawQuote,
+            relatedTitles = emptyList(),
+            index = index,
+        )
         val quote = subjectSentence(rawQuote).ifBlank { kp.explanation }.take(120)
         val statement = quote.ifBlank { kp.title }
         return L3GeneratedQuestion(

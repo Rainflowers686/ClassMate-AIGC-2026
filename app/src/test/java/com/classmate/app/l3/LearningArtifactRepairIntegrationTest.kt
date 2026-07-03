@@ -98,7 +98,7 @@ class LearningArtifactRepairIntegrationTest {
     }
 
     @Test
-    fun completingPracticeKeepsSessionUntilExplicitExit() {
+    fun completingPracticeReturnsToReviewPlan() {
         val viewModel = AppViewModel(
             configRepository = ConfigRepository(Files.createTempDirectory("cm-old-complete").resolve("config.local.json").toFile()),
             historyStore = InMemoryHistoryStore(listOf(legacyDirtyHistoryRecord())),
@@ -126,7 +126,7 @@ class LearningArtifactRepairIntegrationTest {
             viewModel.nextPracticeQuestion()
         }
 
-        assertEquals(Screen.PRACTICE, viewModel.currentScreen)
+        assertEquals(Screen.REVIEW, viewModel.currentScreen)
         assertNotNull(viewModel.ui.practiceSession)
         assertNotNull(viewModel.ui.practiceResult)
         assertTrue(viewModel.isPracticeComplete())

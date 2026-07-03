@@ -1,3 +1,17 @@
+# Document Index - ClassMate 1.14.12
+
+版本：`1.14.12 / versionCode 125`
+
+本轮新增当前入口：
+
+| 文件 | 类型 | 状态 |
+| --- | --- | --- |
+| `docs/current/CHANGELOG_1_14_12.md` | 当前版本变更 | 新增 |
+| `docs/current/REAL_DEVICE_FIX_MATRIX_1_14_12.md` | 微测质量/完成崩溃修复矩阵 | 新增 |
+| `docs/current/REAL_DEVICE_TEST_MANUAL_1_14_12.md` | 1.14.12 真机复测手册 | 新增 |
+
+1.14.12 之后，微测题必须从 accepted subject knowledge point + evidence 生成，不得直接复制 OCR 原文；本地 fallback 会混合题型并打散正确答案位置，避免“全判断题 / 全 A”；点击完成练习会保存学习记录并返回复习计划。证据详情页个别知识点无题暂不强制修复，但已有题不应被破坏。BlueLM/qwen3.5-plus 1.14.9 三档策略保持不变。
+
 # Document Index - ClassMate 1.14.11
 
 版本：`1.14.11 / versionCode 124`
