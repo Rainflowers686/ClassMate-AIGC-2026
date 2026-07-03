@@ -1,6 +1,17 @@
 # Changelog
 
-Current candidate version: `1.14.13 / versionCode 126`. This patch restores the image import/OCR path and hardens student-visible quiz UX: selected images are preserved in the material tray even when OCR is unavailable or fails, OCR uses original/high-quality image data instead of thumbnails, local fallback quizzes generate subject-specific options and fill-in questions, and quiz completion handles mixed question types without crashing.
+Current candidate version: `1.14.14 / versionCode 127`. This patch makes quiz preparation part of the material-submission flow, adds a final quality gate before questions enter the practice UI, and stabilizes practice completion/back navigation so practice returns to the Review tab instead of exiting the app.
+
+## 1.14.14 / 127 - auto-prepared quality quizzes and practice navigation
+
+- Submitting material now prepares micro-quiz questions automatically after accepted subject knowledge points and the review plan are generated. The user no longer has to click "start quiz" before generation begins.
+- Review and course pages expose preparation state: preparing, ready with question count, insufficient material, or retryable failure. Existing good questions are reused to avoid duplicate quiz generation.
+- Added `QuizQualityGate` as the final student-visible gate before `PracticeSessionScreen`: generic stems, internal meta wording, duplicate options, missing evidence, weak fill-in answers, and low-value distractors are rejected.
+- Cloud-generated and local fallback quizzes both pass through `StudentVisibleQuizSanitizer` plus `QuizQualityGate`; bad generated questions are filtered before storage or display.
+- Automatic preparation uses BlueLM first when the main provider is ready, then falls back to the knowledge-based local generator. Missing BlueLM configuration still keeps local quiz preparation available and is not labeled as BlueLM.
+- Practice completion, the top-left practice arrow, and system back from the practice page now route to the Review tab/root review plan rather than popping to an empty stack or exiting the app.
+- Evidence-detail pages that currently lack a micro-quiz for some knowledge points remain deferred by user request; this patch does not remove existing evidence-backed questions.
+- BlueLM/qwen3.5-plus model, reasoning-mode mapping, long formal timeouts, short dry-run timeout, and hidden `reasoning_content` behavior are unchanged from 1.14.9.
 
 ## 1.14.13 / 126 - image OCR import and quiz UX hardening
 

@@ -84,6 +84,8 @@ data class AiConfigPromptUiState(
     }
 }
 
+enum class PracticePreparationStatus { IDLE, PREPARING, READY, INSUFFICIENT, FAILED }
+
 /** All UI state in one immutable snapshot, updated via copy() from [AppViewModel]. */
 data class ClassMateUiState(
     // appearance
@@ -166,6 +168,9 @@ data class ClassMateUiState(
     val practiceSelectedAnswers: Map<String, Set<String>> = emptyMap(),
     val practiceTextAnswers: Map<String, String> = emptyMap(),
     val practiceSubmittedAnswers: Map<String, PracticeAnswerSubmission> = emptyMap(),
+    val preparedPracticeSession: PracticeSession? = null,
+    val practicePreparationStatus: PracticePreparationStatus = PracticePreparationStatus.IDLE,
+    val practicePreparationMessage: String = "",
     val examSession: ExamSession? = null,
     val courseEssenceScript: CourseEssenceScript? = null,
     val courseEssenceAudioResult: CourseEssenceAudioResult? = null,

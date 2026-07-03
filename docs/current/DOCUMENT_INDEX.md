@@ -1,3 +1,17 @@
+# Document Index - ClassMate 1.14.14
+
+Version: `1.14.14 / versionCode 127`
+
+Current entries added in this patch:
+
+| File | Type | Status |
+| --- | --- | --- |
+| `docs/current/CHANGELOG_1_14_14.md` | Current version changelog | Added |
+| `docs/current/REAL_DEVICE_FIX_MATRIX_1_14_14.md` | Auto quiz / quality gate / practice navigation fix matrix | Added |
+| `docs/current/REAL_DEVICE_TEST_MANUAL_1_14_14.md` | 1.14.14 real-device retest manual | Added |
+
+1.14.14 prepares micro-quiz questions automatically after material submission and course analysis, exposes preparation status in Review, filters low-quality questions through `QuizQualityGate` before they reach the practice UI, and routes practice completion/back actions to the Review tab instead of exiting the app. Evidence-detail pages with no quiz for some individual knowledge points remain deferred by user request. BlueLM/qwen3.5-plus 1.14.9 mode and timeout strategy remains unchanged.
+
 # Document Index - ClassMate 1.14.13
 
 Version: `1.14.13 / versionCode 126`

@@ -86,6 +86,7 @@ import com.classmate.app.l3.LearningLoopInputKind
 import com.classmate.app.l3.LearningDiagnosisEngine
 import com.classmate.app.l3.LearningExportEngine
 import com.classmate.app.l3.LearningArtifactRepairer
+import com.classmate.app.l3.KnowledgeBasedQuizGenerator
 import com.classmate.app.l3.LearningLoopCapabilityOrchestrator
 import com.classmate.app.l3.LocalTtsPlayer
 import com.classmate.app.l3.LocalSemanticIndexEngine
@@ -103,6 +104,7 @@ import com.classmate.app.l3.PracticeGradingEngine
 import com.classmate.app.l3.PracticeAnswerState
 import com.classmate.app.l3.PracticeAnswerSubmission
 import com.classmate.app.l3.PracticeQuestionMode
+import com.classmate.app.l3.QuizQualityGate
 import com.classmate.app.l3.QuizRelevanceGate
 import com.classmate.app.l3.QuestionBankParser
 import com.classmate.app.l3.RecordingFileManager
@@ -490,7 +492,7 @@ class AppViewModel(
 
     /** True when a system-back press has somewhere to go inside the app (so we must NOT exit the app). */
     val canHandleSystemBack: Boolean
-        get() = recordingActive || onSettingsSubPage || canGoBack
+        get() = recordingActive || onSettingsSubPage || currentScreen == Screen.PRACTICE || canGoBack
 
     /**
      * Single entry point for BOTH the system back key/gesture AND the top-left back button, so the two
@@ -504,6 +506,10 @@ class AppViewModel(
         }
         if (onSettingsSubPage) {
             settingsPage = settingsPage.parent ?: SettingsPage.SETTINGS_HOME
+            return true
+        }
+        if (currentScreen == Screen.PRACTICE) {
+            exitPractice()
             return true
         }
         return goBack()
@@ -2774,6 +2780,9 @@ class AppViewModel(
             currentQuestionIndex = 0,
             feedbackEvents = emptyList(),
             reviewPlan = null,
+            preparedPracticeSession = null,
+            practicePreparationStatus = PracticePreparationStatus.PREPARING,
+            practicePreparationMessage = "正在准备微测题",
             analysisStatus = AnalysisStatus.SUCCESS,
             analysisError = null,
             selectedCourseKey = CourseLibraryBuilder.normalizeCourseName(artifacts.session.title).lowercase(),
@@ -2784,6 +2793,7 @@ class AppViewModel(
         // Replace the loading screen so system back from the course never returns to the analyze/loading
         // screen (P0-1). From any other entry, just push the course.
         if (currentScreen == Screen.ANALYZE) navigateReplacing(Screen.COURSE_DETAIL) else navigateTo(Screen.COURSE_DETAIL)
+        beginAutomaticPracticePreparation(artifacts.result, artifacts.session, now + 1)
         return true
     }
 
@@ -4744,6 +4754,69 @@ class AppViewModel(
         return KnowledgePointSearch.forKnowledgePoint(course, kp.title, highConfidence)
     }
 
+    private fun beginAutomaticPracticePreparation(result: CourseAnalysisResult, session: CourseSession, now: Long) {
+        val existing = ui.preparedPracticeSession
+        if (existing?.courseSessionId == session.id && existing.items.any { it.isAnswerableQuiz() }) {
+            ui = ui.copy(
+                practicePreparationStatus = PracticePreparationStatus.READY,
+                practicePreparationMessage = "微测已准备 ${existing.items.count { it.isAnswerableQuiz() }} 题",
+            )
+            return
+        }
+        val request = PracticeGenerationRequest(
+            result = result,
+            snapshot = ui.learningSnapshot,
+            mode = PracticeMode.QUICK_REVIEW,
+            now = now,
+            courseTitle = session.title,
+        )
+        ui = ui.copy(
+            preparedPracticeSession = null,
+            practicePreparationStatus = PracticePreparationStatus.PREPARING,
+            practicePreparationMessage = "正在准备微测题",
+        )
+        if (blueLmReadyForMainPath()) {
+            viewModelScope.launch {
+                val generated = withContext(Dispatchers.IO) {
+                    practiceGeneration.generate(request, cloud = { cloudPracticeGeneration(request) })
+                }
+                finishAutomaticPracticePreparation(generated, result, session, now)
+            }
+        } else {
+            finishAutomaticPracticePreparation(practiceGeneration.generate(request), result, session, now)
+        }
+    }
+
+    private fun finishAutomaticPracticePreparation(
+        generated: AiCapabilityResult<com.classmate.core.practice.GeneratedPracticeSession>,
+        result: CourseAnalysisResult,
+        session: CourseSession,
+        now: Long,
+    ) {
+        val generatedPractice = generated.value?.session ?: PracticeSessionEngine.build(result, ui.learningSnapshot, PracticeMode.QUICK_REVIEW, now, courseTitle = session.title)
+        val sanitized = sanitizePracticeSession(generatedPractice)
+        val answerable = sanitized.copy(items = sanitized.items.filter { it.isAnswerableQuiz() && it.quizId !in ui.flaggedQuestionIds })
+        val prepared = if (answerable.items.isNotEmpty()) {
+            answerable.copy(id = "prepared_practice_$now", routeReason = "auto-prepared after material submission")
+        } else {
+            practiceFromRepairedL3(session, PracticeMode.QUICK_REVIEW, PracticeQuestionMode.REAL_QUIZ, now)
+        }
+        if (prepared == null || prepared.items.isEmpty()) {
+            ui = ui.copy(
+                preparedPracticeSession = null,
+                practicePreparationStatus = PracticePreparationStatus.INSUFFICIENT,
+                practicePreparationMessage = "资料不足以生成高质量微测，请补充资料或手动修正 OCR 文本。",
+                toast = if (ui.toast.isNullOrBlank()) "资料不足以生成高质量微测，请补充资料或手动修正 OCR 文本。" else ui.toast,
+            )
+            return
+        }
+        ui = ui.copy(
+            preparedPracticeSession = prepared,
+            practicePreparationStatus = PracticePreparationStatus.READY,
+            practicePreparationMessage = "微测已准备 ${prepared.items.size} 题",
+        )
+    }
+
     // --- adaptive practice (Stage 7C): in-app drill that writes back through ReviewEngine rules ---
 
     /** Start a real quiz session in [mode] for the current course (or load a course if none is open). */
@@ -5134,8 +5207,13 @@ class AppViewModel(
             ui = ui.copy(toast = "请先打开一门已分析的课程再开始练习。")
             return
         }
-        maybePromptMissingCloudConfig("Practice generation")
         val now = System.currentTimeMillis()
+        val prepared = preparedPracticeFor(s.id, mode, questionMode, now)
+        if (prepared != null) {
+            enterPracticeSession(prepared, questionMode, now)
+            return
+        }
+        maybePromptMissingCloudConfig("Practice generation")
         ui = ui.copy(
             aiProcessing = AiProcessingUiState(
                 visible = true,
@@ -5244,13 +5322,57 @@ class AppViewModel(
         navigateTo(Screen.PRACTICE)
     }
 
+    private fun preparedPracticeFor(
+        courseSessionId: String,
+        mode: PracticeMode,
+        questionMode: PracticeQuestionMode,
+        now: Long,
+    ): PracticeSession? {
+        if (mode != PracticeMode.QUICK_REVIEW || questionMode != PracticeQuestionMode.REAL_QUIZ) return null
+        val prepared = ui.preparedPracticeSession ?: return null
+        if (prepared.courseSessionId != courseSessionId) return null
+        val sanitized = sanitizePracticeSession(prepared)
+        val items = sanitized.items.filter { it.isAnswerableQuiz() && it.quizId !in ui.flaggedQuestionIds }
+        if (items.isEmpty()) return null
+        return sanitized.copy(
+            id = "practice_prepared_$now",
+            mode = mode,
+            items = items,
+            createdAt = now,
+            routeReason = "prepared after material submission",
+        )
+    }
+
+    private fun enterPracticeSession(
+        practice: PracticeSession,
+        questionMode: PracticeQuestionMode,
+        now: Long,
+        exam: ExamSession? = null,
+    ) {
+        ui = ui.copy(
+            practiceSession = practice,
+            practiceIndex = 0,
+            practiceAttempts = emptyList(),
+            practiceResult = null,
+            practiceStartedAt = now,
+            practiceRevealed = false,
+            practiceQuestionMode = questionMode,
+            practiceSelectedAnswers = emptyMap(),
+            practiceTextAnswers = emptyMap(),
+            practiceSubmittedAnswers = emptyMap(),
+            examSession = exam,
+            aiProcessing = AiProcessingUiState.hidden(),
+        )
+        navigateTo(Screen.PRACTICE)
+    }
+
     private fun sanitizePracticeSession(session: PracticeSession): PracticeSession {
         val filtered = session.items.filterNot { item ->
             val gradedQuiz = item.type == PracticeItemType.QUIZ_RETRY || item.type == PracticeItemType.FILL_BLANK
             LearningArtifactRepairer.hasForbiddenTitleText(item.knowledgePointTitle) ||
                 isUnsafePracticeQuestion(item.question) ||
                 item.options.any { option -> isUnsafePracticeOption(option.text) } ||
-                (gradedQuiz && !StudentVisibleQuizSanitizer.isStudentSafe(item))
+                (gradedQuiz && (!StudentVisibleQuizSanitizer.isStudentSafe(item) || !QuizQualityGate.isHighQuality(item)))
         }
         return session.copy(items = balancePracticeItems(filtered))
     }
@@ -5378,16 +5500,34 @@ class AppViewModel(
         val gatedQuestions = QuizRelevanceGate
             .filter(l3.questions, l3.knowledgePoints, l3.evidence)
             .filter { it.id !in ui.flaggedQuestionIds }
+        val regeneratedQuestions = if (gatedQuestions.isEmpty()) {
+            QuizRelevanceGate.filter(
+                KnowledgeBasedQuizGenerator.generate(
+                    lessonId = session.id,
+                    knowledge = l3.knowledgePoints,
+                    evidence = l3.evidence,
+                    now = now,
+                    maxQuestions = 8,
+                    idPrefix = "q_auto",
+                ),
+                l3.knowledgePoints,
+                l3.evidence,
+            )
+        } else {
+            emptyList()
+        }
         val repairedQuestions = gatedQuestions.ifEmpty {
-            l3.questions.filter { question ->
-                val kp = knowledgeById[question.knowledgePointId] ?: return@filter false
-                val evidenceReady = question.evidenceIds.any { id -> evidenceById[id]?.text?.isNotBlank() == true }
-                evidenceReady &&
-                    !LearningArtifactRepairer.hasForbiddenTitleText(kp.title) &&
-                    !isUnsafePracticeQuestion(question.stem) &&
-                    question.options.size >= 2 &&
-                    question.options.none { option -> isUnsafePracticeOption(option) }
-            }.filter { it.id !in ui.flaggedQuestionIds }
+            regeneratedQuestions.ifEmpty {
+                l3.questions.filter { question ->
+                    val kp = knowledgeById[question.knowledgePointId] ?: return@filter false
+                    val evidenceReady = question.evidenceIds.any { id -> evidenceById[id]?.text?.isNotBlank() == true }
+                    evidenceReady &&
+                        !LearningArtifactRepairer.hasForbiddenTitleText(kp.title) &&
+                        !isUnsafePracticeQuestion(question.stem) &&
+                        question.options.size >= 2 &&
+                        question.options.none { option -> isUnsafePracticeOption(option) }
+                }.filter { it.id !in ui.flaggedQuestionIds }
+            }
         }
         val items = repairedQuestions.mapNotNull { question ->
             val kp = knowledgeById[question.knowledgePointId] ?: return@mapNotNull null
@@ -5419,6 +5559,8 @@ class AppViewModel(
         val practiceItems = when (questionMode) {
             PracticeQuestionMode.REAL_QUIZ, PracticeQuestionMode.EXAM -> items.filter { it.isAnswerableQuiz() }
             PracticeQuestionMode.SELF_ASSESSMENT -> items
+        }.filter { item ->
+            questionMode == PracticeQuestionMode.SELF_ASSESSMENT || QuizQualityGate.isHighQuality(item)
         }.take(10)
         if (practiceItems.isEmpty()) return null
         return PracticeSession(
@@ -5459,6 +5601,7 @@ class AppViewModel(
         val items = parsed
             .mapNotNull { item -> enrichCloudPracticeItem(item, points) }
             .filter { StudentVisibleQuizSanitizer.isStudentSafe(it) }
+            .filter { QuizQualityGate.isHighQuality(it) }
             .filter { it.isAnswerableQuiz() }
             .take(request.limit.coerceIn(1, 10))
         if (items.isEmpty()) return StageOutcome.Unavailable(AiExecutionStatus.LOW_CONFIDENCE)
@@ -5773,7 +5916,7 @@ class AppViewModel(
             practiceSubmittedAnswers = emptyMap(),
             examSession = null,
         )
-        goBack()
+        selectTab(Tab.REVIEW)
     }
 
     fun practiceHistoryForCourse(courseSessionId: String): List<PracticeHistoryRecord> =

@@ -308,6 +308,10 @@ private fun PracticeEntryCard(viewModel: AppViewModel) {
         Text("专项练习", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.xxs))
         Text("在 App 内针对性练习，结果会更新复习队列；不联网生成新题，只复用本课题目与知识点。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        viewModel.ui.practicePreparationMessage.takeIf { it.isNotBlank() }?.let { message ->
+            Spacer(Modifier.height(Dimens.xxs))
+            Text(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+        }
         Spacer(Modifier.height(Dimens.s))
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
             ActionChip("开始练习") { viewModel.startPractice(PracticeMode.QUICK_REVIEW) }

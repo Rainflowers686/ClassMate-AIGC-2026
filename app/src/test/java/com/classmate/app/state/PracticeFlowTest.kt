@@ -232,6 +232,7 @@ class PracticeFlowTest {
         assertTrue(viewModel.isPracticeComplete())
         assertTrue(viewModel.ui.practiceAttempts.all { it.feedback != null })
         assertEquals(Screen.REVIEW, viewModel.currentScreen)
+        assertEquals(Tab.REVIEW, viewModel.currentTab)
     }
 
     @Test
@@ -249,6 +250,7 @@ class PracticeFlowTest {
             viewModel.nextPracticeQuestion()
         }
         assertEquals(Screen.REVIEW, viewModel.currentScreen)
+        assertEquals(Tab.REVIEW, viewModel.currentTab)
         assertNotNull(viewModel.ui.practiceResult)
     }
 
@@ -349,6 +351,21 @@ class PracticeFlowTest {
         viewModel.exitPractice()
         assertNull(viewModel.ui.practiceSession)
         assertNull(viewModel.ui.practiceResult)
+        assertEquals(Screen.REVIEW, viewModel.currentScreen)
+        assertEquals(Tab.REVIEW, viewModel.currentTab)
+    }
+
+    @Test
+    fun practiceSystemBackReturnsToReviewTab() {
+        val viewModel = vm()
+        viewModel.openHistory(viewModel.ui.history.first())
+        viewModel.startPractice(PracticeMode.QUICK_REVIEW)
+
+        assertTrue(viewModel.handleSystemBack())
+
+        assertNull(viewModel.ui.practiceSession)
+        assertEquals(Screen.REVIEW, viewModel.currentScreen)
+        assertEquals(Tab.REVIEW, viewModel.currentTab)
     }
 
     @Test

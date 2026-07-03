@@ -81,11 +81,16 @@ class FreshInstallLearningFlowRegressionTest {
         noise.forEach { assertFalse("fresh user-facing learning flow leaked prompt word: $it", userFacingKnowledge.contains(it)) }
         assertTrue("evidence may keep original OCR sentence for traceability", l3.evidence.any { it.text.contains("同学们注意") })
 
+        assertEquals("material submission should auto-prepare quizzes", PracticePreparationStatus.READY, viewModel.ui.practicePreparationStatus)
+        assertNotNull("auto-prepared quiz session should be stored before the user taps start practice", viewModel.ui.preparedPracticeSession)
+        assertTrue(viewModel.ui.practicePreparationMessage.contains("微测已准备"))
+
         viewModel.startPractice(PracticeMode.QUICK_REVIEW)
         assertEquals(Screen.PRACTICE, viewModel.currentScreen)
         val session = viewModel.ui.practiceSession
         assertNotNull("fresh timeline/course practice should not be empty", session)
         assertTrue(session!!.items.isNotEmpty())
+        assertTrue("start practice should reuse prepared quiz instead of waiting for click-time generation", session.routeReason.contains("prepared"))
         val practiceText = session.items.joinToString("\n") { item ->
             item.knowledgePointTitle + "\n" + item.question + "\n" + item.answer + "\n" +
                 item.options.joinToString("\n") { it.text }
