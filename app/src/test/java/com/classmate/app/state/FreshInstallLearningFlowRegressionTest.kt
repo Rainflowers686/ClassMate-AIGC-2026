@@ -85,7 +85,14 @@ class FreshInstallLearningFlowRegressionTest {
         assertNotNull("auto-prepared quiz session should be stored before the user taps start practice", viewModel.ui.preparedPracticeSession)
         assertTrue(viewModel.ui.practicePreparationMessage.contains("微测已准备"))
 
+        val autoEvents = viewModel.ui.debugEvents.map { it.name }
+        assertTrue(autoEvents.contains("course.analysis.completed"))
+        assertTrue(autoEvents.contains("l3.snapshot.published"))
+        assertTrue(autoEvents.contains("quiz.auto_prepare.started"))
+        assertTrue(autoEvents.contains("quiz.auto_prepare.final_count"))
+
         viewModel.startPractice(PracticeMode.QUICK_REVIEW)
+        viewModel.onPracticeScreenRendered()
         assertEquals(Screen.PRACTICE, viewModel.currentScreen)
         val session = viewModel.ui.practiceSession
         assertNotNull("fresh timeline/course practice should not be empty", session)
@@ -100,6 +107,12 @@ class FreshInstallLearningFlowRegressionTest {
         val answerableItems = session.items.filter { it.options.size >= 2 && it.correctOptionIds.isNotEmpty() }
         assertFalse("fresh micro-quiz should not be all true/false", answerableItems.size > 1 && answerableItems.all { it.options.size == 2 })
         assertFalse("fresh micro-quiz should not put every answer at A", answerableItems.size > 1 && answerableItems.all { it.correctOptionIds == listOf("A") })
+        val practiceEvents = viewModel.ui.debugEvents.map { it.name }
+        assertTrue(practiceEvents.contains("practice.start.clicked"))
+        assertTrue(practiceEvents.contains("practice.builder.question_count_before_gate"))
+        assertTrue(practiceEvents.contains("practice.builder.question_count_after_gate"))
+        assertTrue(practiceEvents.contains("practice.screen.render.question_count"))
+        assertTrue(practiceEvents.contains("practice.screen.has_fill_blank"))
 
         repeat(session.items.size) { index ->
             val item = viewModel.currentPracticeItem()!!
@@ -111,5 +124,9 @@ class FreshInstallLearningFlowRegressionTest {
         assertEquals("completion should return to review plan", Screen.REVIEW, viewModel.currentScreen)
         assertNotNull(viewModel.ui.practiceResult)
         assertTrue(viewModel.isPracticeComplete())
+        val completionEvents = viewModel.ui.debugEvents.map { it.name }
+        assertTrue(completionEvents.contains("practice.complete.clicked"))
+        assertTrue(completionEvents.contains("practice.complete.summary_built"))
+        assertTrue(completionEvents.contains("practice.complete.navigate_review"))
     }
 }

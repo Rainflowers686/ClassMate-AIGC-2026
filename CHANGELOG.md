@@ -1,6 +1,16 @@
 # Changelog
 
-Current candidate version: `1.14.14 / versionCode 127`. This patch makes quiz preparation part of the material-submission flow, adds a final quality gate before questions enter the practice UI, and stabilizes practice completion/back navigation so practice returns to the Review tab instead of exiting the app.
+Current candidate version: `1.14.15 / versionCode 128`. This patch adds in-app build identity and redacted DebugEventLog tracing so real-device reports can prove which APK and which practice path are running, then hardens completion/back routing with null-safe guards.
+
+## 1.14.15 / 128 - real-device path tracing and practice stabilization
+
+- Developer settings now show versionName, versionCode, commit short hash, build time, and build variant so testers can confirm the installed APK.
+- Added a copyable redacted DebugEventLog with recent material submission, course publication, automatic quiz preparation, practice builder, practice render, quality rejection, completion, and back-arrow events.
+- Automatic quiz preparation records generated, filtered, final, skipped, and failed states so testers can distinguish "not triggered" from "all questions rejected".
+- Practice rendering runs the final quality gate again before display, logs rejection reasons without question text, and shows a reliable empty state if all questions are rejected.
+- Practice completion records counts and summary status, catches unexpected completion errors by type only, and returns safely to Review.
+- Practice top-left back and system back from practice use explicit Review navigation and log that no generic stack pop was used.
+- BlueLM/qwen3.5-plus mode mapping, OCR text layering, and local fallback labeling are unchanged.
 
 ## 1.14.14 / 127 - auto-prepared quality quizzes and practice navigation
 

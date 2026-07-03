@@ -4,6 +4,7 @@ package com.classmate.app
 object BuildInfo {
     val buildType: String = BuildConfig.BUILD_TYPE
     val builtAt: String = BuildConfig.BUILT_AT
+    val buildTime: String = BuildConfig.BUILD_TIME
     val gitCommitShort: String = BuildConfig.GIT_COMMIT
     val versionName: String = BuildConfig.VERSION_NAME
     val versionCode: Int = BuildConfig.VERSION_CODE

@@ -6,8 +6,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The competition demo build must report version 1.14.14 / 127, not older release lines. The build commit is
- * kept separately via BuildConfig.GIT_COMMIT (not asserted here).
+ * The competition demo build must report version 1.14.15 / 128, not older release lines. Build metadata is
+ * kept separately via BuildConfig fields.
  */
 class AppVersionTest {
 
@@ -17,7 +17,7 @@ class AppVersionTest {
 
     @Test
     fun versionNameIsCurrentAndNotOld() {
-        assertTrue(gradle.contains("versionName = \"1.14.14\""))
+        assertTrue(gradle.contains("versionName = \"1.14.15\""))
         assertFalse(gradle.contains("versionName = \"0.1.0\""))
         assertFalse(gradle.contains("versionName = \"1.0.0\""))
         assertFalse(gradle.contains("versionName = \"1.0.1\""))
@@ -56,15 +56,33 @@ class AppVersionTest {
         assertFalse(gradle.contains("versionName = \"1.14.11\""))
         assertFalse(gradle.contains("versionName = \"1.14.12\""))
         assertFalse(gradle.contains("versionName = \"1.14.13\""))
+        assertFalse(gradle.contains("versionName = \"1.14.14\""))
     }
 
     @Test
     fun versionCodeIsCurrent() {
-        assertTrue(gradle.contains("versionCode = 127"))
+        assertTrue(gradle.contains("versionCode = 128"))
     }
 
     @Test
-    fun buildKeepsGitCommitField() {
+    fun buildKeepsSafeMetadataFields() {
         assertTrue(gradle.contains("GIT_COMMIT"))
+        assertTrue(gradle.contains("BUILD_TIME"))
+    }
+
+    @Test
+    fun developerSettingsExposeBuildMetadataAndDebugEvents() {
+        val settings = listOf(
+            File("app/src/main/java/com/classmate/app/ui/screens/settings/SettingsScreen.kt"),
+            File("../app/src/main/java/com/classmate/app/ui/screens/settings/SettingsScreen.kt"),
+        ).firstOrNull { it.exists() }?.readText(Charsets.UTF_8)
+            ?: error("missing SettingsScreen.kt")
+
+        assertTrue(settings.contains("BuildInfo.versionName"))
+        assertTrue(settings.contains("BuildInfo.versionCode"))
+        assertTrue(settings.contains("BuildInfo.gitCommitShort"))
+        assertTrue(settings.contains("BuildInfo.buildTime"))
+        assertTrue(settings.contains("DebugEventLog"))
+        assertTrue(settings.contains("debugEventLogText"))
     }
 }

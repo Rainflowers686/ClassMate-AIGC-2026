@@ -66,7 +66,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -2175,6 +2177,8 @@ private fun PrivacyCard() {
 @Composable
 private fun LogsCard(viewModel: AppViewModel) {
     val logs = viewModel.ui.logs
+    val debugEvents = viewModel.ui.debugEvents
+    val clipboard = LocalClipboardManager.current
     ClassMateCard {
         Text("Last analysis logs (redacted)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(Dimens.s))
@@ -2182,6 +2186,27 @@ private fun LogsCard(viewModel: AppViewModel) {
             Text("No log yet.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
             logs.forEach { entry ->
+                Text(
+                    entry.format(),
+                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(Dimens.xxs))
+            }
+        }
+        Spacer(Modifier.height(Dimens.m))
+        Text("DebugEventLog (recent 100, redacted)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(Dimens.s))
+        SecondaryButton(
+            text = "复制调试事件",
+            onClick = { clipboard.setText(AnnotatedString(viewModel.debugEventLogText())) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(Dimens.s))
+        if (debugEvents.isEmpty()) {
+            Text("No debug event yet.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            debugEvents.takeLast(12).forEach { entry ->
                 Text(
                     entry.format(),
                     style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
@@ -2201,6 +2226,7 @@ private fun BuildInfoCard() {
         listOf(
             "Version" to "${BuildInfo.versionName} (${BuildInfo.versionCode})",
             "Build type" to BuildInfo.buildType,
+            "Build time" to BuildInfo.buildTime,
             "Built at" to BuildInfo.builtAt,
             "Commit" to BuildInfo.gitCommitShort,
         ).forEach { (label, value) ->

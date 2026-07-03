@@ -1,3 +1,16 @@
+# Document Index - ClassMate 1.14.15
+
+Version: `1.14.15 / versionCode 128`
+
+Current entries added in this patch:
+
+| File | Type | Status |
+| --- | --- | --- |
+| `docs/current/CHANGELOG_1_14_15.md` | Current version changelog | Added |
+| `docs/current/REAL_DEVICE_TEST_MANUAL_1_14_15.md` | 1.14.15 real-device tracing manual | Added |
+
+1.14.15 adds install identity and redacted DebugEventLog tracing in developer settings. Real-device testers can now copy proof that material submission, course publication, automatic quiz preparation, practice builder, final quality gate, completion, and back-arrow navigation are using the expected path. The patch also adds null-safe completion handling and explicit Review-tab navigation for practice exits. BlueLM/qwen3.5-plus, OCR text layering, and local fallback labeling remain unchanged.
+
 # Document Index - ClassMate 1.14.14
 
 Version: `1.14.14 / versionCode 127`

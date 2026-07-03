@@ -405,6 +405,8 @@ class AppViewModel(
     )
         private set
 
+    private var debugEventCounter = 0L
+
     // --- bottom-navigation tabs ---
     var currentTab by mutableStateOf(Tab.HOME)
         private set
@@ -440,6 +442,27 @@ class AppViewModel(
     private fun syncLearning(toast: String? = null) {
         ui = ui.copy(learningSnapshot = learningStore.snapshot(), toast = toast ?: ui.toast)
     }
+
+    private fun logDebugEvent(name: String, details: Map<String, Any?> = emptyMap()) {
+        debugEventCounter += 1
+        val entry = DebugEventLogEntry(
+            id = debugEventCounter,
+            name = name,
+            details = details.mapValues { (_, value) -> sanitizeDebugEventValue(value) },
+            createdAt = System.currentTimeMillis(),
+        )
+        ui = ui.copy(debugEvents = (ui.debugEvents + entry).takeLast(100))
+    }
+
+    private fun sanitizeDebugEventValue(value: Any?): String =
+        value?.toString()
+            ?.replace(Regex("\\s+"), "_")
+            ?.take(80)
+            ?.ifBlank { "blank" }
+            ?: "null"
+
+    fun debugEventLogText(): String =
+        ui.debugEvents.joinToString("\n") { it.format() }
 
     // --- navigation (compose-observable back stack) ---
     private val backStack = mutableStateListOf(Screen.HOME)
@@ -1716,6 +1739,7 @@ class AppViewModel(
             return
         }
         val origin = ui.imageDraftOrigin ?: "图片学习输入"
+        logDebugEvent("material.submit.clicked", mapOf("source" to "image_single", "has_text" to true))
         val draft = ui.imageStudyDraft
         val confirmed = draft?.let { captureGateway.confirmImageDraft(it, text, ui.courseTitle.ifBlank { origin }) }
         val now = System.currentTimeMillis()
@@ -1724,6 +1748,7 @@ class AppViewModel(
         val imageRef = ui.imageDraftImageRef.ifBlank { draft?.id?.let { "image_asset_$it" } ?: "image_asset_$now" }
         val thumbnailRef = ui.imageDraftThumbnailRef.ifBlank { "thumbnail_$imageRef" }
         val mimeType = ui.imageDraftMimeType.ifBlank { "image/jpeg" }
+        val rawDraftText = ui.imageDraftRawText
         ui = ui.copy(
             courseTitle = courseTitle,
             courseText = courseText,
@@ -1749,7 +1774,7 @@ class AppViewModel(
             imageDraftBatchProcessed = 0,
             aiProcessing = AiProcessingUiState.hidden(),
         )
-        val rawEvidenceText = ui.imageDraftRawText.ifBlank { courseText }
+        val rawEvidenceText = rawDraftText.ifBlank { courseText }
         val input = currentLearningLoopInput(
             now = now + 1,
             text = courseText,
@@ -1776,11 +1801,12 @@ class AppViewModel(
             sourceLabel = origin,
             providerProvenance = providerProvenanceFor(L3SourceType.OCR_IMAGE),
         )
-        publishL3Snapshot(
+        val published = publishL3Snapshot(
             l3Pipeline.buildFromLearningLoopInput(input, ui.providerConfigSummary, now + 1),
             now + 1,
             "已确认（$origin · 端侧多模态理解草稿），用户确认后进入学习资料，并已生成学习闭环。",
         )
+        logDebugEvent("material.submit.completed", mapOf("source" to "image_single", "published" to published))
     }
 
     fun confirmImageOcrBatch(now: Long = System.currentTimeMillis()): Boolean {
@@ -1800,6 +1826,10 @@ class AppViewModel(
             return false
         }
         val origin = ui.imageDraftOrigin ?: "图片学习输入"
+        logDebugEvent(
+            "material.submit.clicked",
+            mapOf("source" to "image_batch", "ok_images" to merged.okDrafts.size, "failed_images" to merged.failedDrafts.size),
+        )
         val title = ui.courseTitle.ifBlank { origin }
         val assets = merged.okDrafts.map { draft ->
             EvidenceAsset(
@@ -1856,11 +1886,12 @@ class AppViewModel(
             sourceLabel = origin,
             providerProvenance = providerProvenanceFor(L3SourceType.OCR_IMAGE),
         )
-        publishL3Snapshot(
+        val published = publishL3Snapshot(
             l3Pipeline.buildFromLearningLoopInput(input, ui.providerConfigSummary, now),
             now,
             "已确认图片 OCR 批次，成功图片 ${merged.okDrafts.size} 张，失败 ${merged.failedDrafts.size} 张；已生成学习闭环。",
         )
+        logDebugEvent("material.submit.completed", mapOf("source" to "image_batch", "published" to published))
         return true
     }
 
@@ -2745,12 +2776,31 @@ class AppViewModel(
         val repairedSnapshot = repairLearningArtifacts(enrichedSnapshot, now)
         val artifacts = l3Pipeline.toCourseArtifacts(repairedSnapshot, now)
         if (artifacts == null) {
+            logDebugEvent("course.analysis.completed", mapOf("status" to "insufficient_material"))
+            logDebugEvent("l3.snapshot.published", mapOf("published" to false, "reason" to "no_artifacts"))
             // P0-4: honest "insufficient material" — never a silent no-quiz; the user is told to add material
             // or edit the OCR text rather than left wondering why there are no 微测.
             ui = ui.copy(l3Pipeline = repairedSnapshot, toast = "资料不足，暂不能生成微测，请补充资料或手动编辑 OCR 文本后重试。")
             persistL3(repairedSnapshot)
             return false
         }
+        logDebugEvent(
+            "course.analysis.completed",
+            mapOf(
+                "status" to "success",
+                "knowledge_count" to artifacts.result.knowledgePoints.size,
+                "question_count" to artifacts.result.quizQuestions.size,
+            ),
+        )
+        logDebugEvent(
+            "l3.snapshot.published",
+            mapOf(
+                "published" to true,
+                "knowledge_count" to repairedSnapshot.knowledgePoints.size,
+                "question_count" to repairedSnapshot.questions.size,
+                "evidence_count" to repairedSnapshot.evidenceAssets.size,
+            ),
+        )
         val outcome = AnalysisOutcome.Success(
             result = artifacts.result,
             report = com.classmate.core.validation.ValidationReport.PASS,
@@ -3409,6 +3459,11 @@ class AppViewModel(
         maybePromptMissingCloudConfig("CourseAnalysis 云端增强")
         val now = System.currentTimeMillis()
         val isSample = text.trim() == SampleCourses.SERIES_TEXT.trim() && ui.ocrImports.isEmpty() && ui.transcripts.isEmpty()
+        logDebugEvent(
+            "material.submit.clicked",
+            mapOf("source" to ui.importSourceType.name, "has_text" to text.isNotBlank(), "has_ocr" to hasOcrText, "has_transcript" to hasTranscript),
+        )
+        logDebugEvent("course.analysis.started", mapOf("source" to ui.importSourceType.name, "sample" to isSample))
         val title = ui.courseTitle.ifBlank { "未命名课程" }
 
         // Stage 4B: unify text-class inputs through a LessonMaterialBundle, then feed the EXISTING
@@ -3507,6 +3562,7 @@ class AppViewModel(
             detectedDomainConfidence = domainResult.confidence,
             detectedDomainNeedsConfirm = domainResult.requiresUserConfirmation,
         )
+        logDebugEvent("material.submit.completed", mapOf("source" to ui.importSourceType.name, "accepted" to true))
         navigateTo(Screen.ANALYZE)
 
         analysisJob = viewModelScope.launch {
@@ -4755,8 +4811,12 @@ class AppViewModel(
     }
 
     private fun beginAutomaticPracticePreparation(result: CourseAnalysisResult, session: CourseSession, now: Long) {
+        logDebugEvent("quiz.auto_prepare.started", mapOf("courseIdPresent" to session.id.isNotBlank(), "knowledge_count" to result.knowledgePoints.size))
         val existing = ui.preparedPracticeSession
         if (existing?.courseSessionId == session.id && existing.items.any { it.isAnswerableQuiz() }) {
+            val count = existing.items.count { it.isAnswerableQuiz() }
+            logDebugEvent("quiz.auto_prepare.skipped_existing_good_questions", mapOf("count" to count))
+            logDebugEvent("quiz.auto_prepare.final_count", mapOf("count" to count, "source" to "existing"))
             ui = ui.copy(
                 practicePreparationStatus = PracticePreparationStatus.READY,
                 practicePreparationMessage = "微测已准备 ${existing.items.count { it.isAnswerableQuiz() }} 题",
@@ -4794,14 +4854,19 @@ class AppViewModel(
         now: Long,
     ) {
         val generatedPractice = generated.value?.session ?: PracticeSessionEngine.build(result, ui.learningSnapshot, PracticeMode.QUICK_REVIEW, now, courseTitle = session.title)
+        val beforeGate = generatedPractice.items.count { it.isAnswerableQuiz() }
         val sanitized = sanitizePracticeSession(generatedPractice)
         val answerable = sanitized.copy(items = sanitized.items.filter { it.isAnswerableQuiz() && it.quizId !in ui.flaggedQuestionIds })
+        logDebugEvent("quiz.auto_prepare.generated_count", mapOf("count" to beforeGate, "source" to generated.source.name))
+        logDebugEvent("quiz.auto_prepare.filtered_count", mapOf("count" to (beforeGate - answerable.items.size).coerceAtLeast(0)))
         val prepared = if (answerable.items.isNotEmpty()) {
             answerable.copy(id = "prepared_practice_$now", routeReason = "auto-prepared after material submission")
         } else {
             practiceFromRepairedL3(session, PracticeMode.QUICK_REVIEW, PracticeQuestionMode.REAL_QUIZ, now)
         }
         if (prepared == null || prepared.items.isEmpty()) {
+            logDebugEvent("quiz.auto_prepare.failed_reason", mapOf("reason" to "generated_all_rejected"))
+            logDebugEvent("quiz.auto_prepare.final_count", mapOf("count" to 0))
             ui = ui.copy(
                 preparedPracticeSession = null,
                 practicePreparationStatus = PracticePreparationStatus.INSUFFICIENT,
@@ -4810,6 +4875,7 @@ class AppViewModel(
             )
             return
         }
+        logDebugEvent("quiz.auto_prepare.final_count", mapOf("count" to prepared.items.size))
         ui = ui.copy(
             preparedPracticeSession = prepared,
             practicePreparationStatus = PracticePreparationStatus.READY,
@@ -5193,6 +5259,7 @@ class AppViewModel(
     }
 
     private fun startPracticeInternal(mode: PracticeMode, questionMode: PracticeQuestionMode) {
+        logDebugEvent("practice.start.clicked", mapOf("mode" to mode.name, "question_mode" to questionMode.name))
         repairCurrentLearningArtifacts()
         var result = ui.result
         var session = ui.session
@@ -5203,13 +5270,16 @@ class AppViewModel(
         }
         val r = result
         val s = session
+        logDebugEvent("practice.builder.courseId", mapOf("present" to (s?.id?.isNotBlank() == true), "source" to "current_course"))
         if (r == null || s == null) {
+            logDebugEvent("practice.builder.empty_reason", mapOf("reason" to "no_course"))
             ui = ui.copy(toast = "请先打开一门已分析的课程再开始练习。")
             return
         }
         val now = System.currentTimeMillis()
         val prepared = preparedPracticeFor(s.id, mode, questionMode, now)
         if (prepared != null) {
+            logDebugEvent("practice.start.source", mapOf("source" to "prepared", "question_count" to prepared.items.size))
             enterPracticeSession(prepared, questionMode, now)
             return
         }
@@ -5268,7 +5338,9 @@ class AppViewModel(
         now: Long,
     ) {
         val generatedPractice = generated.value?.session ?: PracticeSessionEngine.build(r, ui.learningSnapshot, mode, now, courseTitle = s.title)
+        logDebugEvent("practice.builder.question_count_before_gate", mapOf("count" to generatedPractice.items.size, "source" to generated.source.name))
         val repairedPractice = sanitizePracticeSession(generatedPractice)
+        logDebugEvent("practice.builder.question_count_after_gate", mapOf("count" to repairedPractice.items.size, "source" to "generated"))
         val candidatePractice = when (questionMode) {
             // Graded quizzes (real quiz / exam) only keep questions that actually have a correct answer
             // — see PracticeItem.isAnswerableQuiz(). Self-assessment cards have no graded answer.
@@ -5285,6 +5357,7 @@ class AppViewModel(
             candidatePractice
         }
         if (practice.items.isEmpty()) {
+            logDebugEvent("practice.builder.empty_reason", mapOf("reason" to "no_questions_after_gate"))
             val message = if (questionMode == PracticeQuestionMode.SELF_ASSESSMENT) {
                 "暂时没有可复盘的内容。"
             } else {
@@ -5319,6 +5392,7 @@ class AppViewModel(
             examSession = exam,
             aiProcessing = AiProcessingUiState.hidden(),
         )
+        logDebugEvent("practice.start.source", mapOf("source" to "generated", "question_count" to practice.items.size))
         navigateTo(Screen.PRACTICE)
     }
 
@@ -5331,8 +5405,10 @@ class AppViewModel(
         if (mode != PracticeMode.QUICK_REVIEW || questionMode != PracticeQuestionMode.REAL_QUIZ) return null
         val prepared = ui.preparedPracticeSession ?: return null
         if (prepared.courseSessionId != courseSessionId) return null
+        logDebugEvent("practice.builder.question_count_before_gate", mapOf("count" to prepared.items.size, "source" to "prepared"))
         val sanitized = sanitizePracticeSession(prepared)
         val items = sanitized.items.filter { it.isAnswerableQuiz() && it.quizId !in ui.flaggedQuestionIds }
+        logDebugEvent("practice.builder.question_count_after_gate", mapOf("count" to items.size, "source" to "prepared"))
         if (items.isEmpty()) return null
         return sanitized.copy(
             id = "practice_prepared_$now",
@@ -5349,6 +5425,7 @@ class AppViewModel(
         now: Long,
         exam: ExamSession? = null,
     ) {
+        logDebugEvent("practice.start.source", mapOf("source" to (practice.routeReason.ifBlank { "direct" }), "question_count" to practice.items.size))
         ui = ui.copy(
             practiceSession = practice,
             practiceIndex = 0,
@@ -5367,14 +5444,30 @@ class AppViewModel(
     }
 
     private fun sanitizePracticeSession(session: PracticeSession): PracticeSession {
-        val filtered = session.items.filterNot { item ->
-            val gradedQuiz = item.type == PracticeItemType.QUIZ_RETRY || item.type == PracticeItemType.FILL_BLANK
-            LearningArtifactRepairer.hasForbiddenTitleText(item.knowledgePointTitle) ||
-                isUnsafePracticeQuestion(item.question) ||
-                item.options.any { option -> isUnsafePracticeOption(option.text) } ||
-                (gradedQuiz && (!StudentVisibleQuizSanitizer.isStudentSafe(item) || !QuizQualityGate.isHighQuality(item)))
+        val filtered = session.items.filter { item ->
+            val reason = practiceQualityRejectionReason(item)
+            if (reason != null) {
+                logDebugEvent("quiz.quality.rejected", mapOf("reason" to reason, "type" to item.type.name))
+                false
+            } else {
+                true
+            }
         }
         return session.copy(items = balancePracticeItems(filtered))
+    }
+
+    private fun practiceQualityRejectionReason(item: PracticeItem): String? {
+        val gradedQuiz = item.type == PracticeItemType.QUIZ_RETRY || item.type == PracticeItemType.FILL_BLANK
+        if (LearningArtifactRepairer.hasForbiddenTitleText(item.knowledgePointTitle)) return "meta_wording"
+        if (isUnsafePracticeQuestion(item.question)) return "meta_wording"
+        if (item.options.any { option -> isUnsafePracticeOption(option.text) }) return "meta_wording"
+        if (!gradedQuiz) return null
+        if (!StudentVisibleQuizSanitizer.isStudentSafe(item)) return "meta_wording"
+        if (item.knowledgePointTitle.isBlank() || item.evidenceQuote.isNullOrBlank()) return "no_evidence"
+        if (item.type == PracticeItemType.FILL_BLANK && item.options.isEmpty() && !QuizQualityGate.isHighQuality(item)) return "weak_fill_blank"
+        val normalizedOptions = item.options.map { it.text.lowercase().replace(Regex("\\s+"), "") }
+        if (normalizedOptions.size > 1 && normalizedOptions.distinct().size != normalizedOptions.size) return "duplicate_option"
+        return if (!QuizQualityGate.isHighQuality(item)) "generic_stem" else null
     }
 
     private fun balancePracticeItems(items: List<PracticeItem>): List<PracticeItem> {
@@ -5388,7 +5481,12 @@ class AppViewModel(
             } else {
                 val shouldConvert = trueFalseSeen >= trueFalseLimit
                 trueFalseSeen += 1
-                if (shouldConvert) convertTrueFalseToSingleChoice(item, index) else item
+                if (shouldConvert) {
+                    logDebugEvent("quiz.quality.rejected", mapOf("reason" to "true_false_over_limit", "type" to item.type.name, "action" to "converted"))
+                    convertTrueFalseToSingleChoice(item, index)
+                } else {
+                    item
+                }
             }
         }
         val balancedAnswerable = typeBalanced.filter { it.isAnswerableQuiz() }
@@ -5818,7 +5916,7 @@ class AppViewModel(
         }
         val nextIndex = ui.practiceIndex + 1
         if (nextIndex >= session.items.size) {
-            finishPractice()
+            finishPracticeSafely("next_button")
         } else {
             ui = ui.copy(practiceIndex = nextIndex, practiceRevealed = false)
         }
@@ -5841,17 +5939,58 @@ class AppViewModel(
         )
         val nextIndex = ui.practiceIndex + 1
         ui = ui.copy(practiceAttempts = attempts, practiceIndex = nextIndex, practiceRevealed = false)
-        if (nextIndex >= session.items.size) finishPractice()
+        if (nextIndex >= session.items.size) finishPracticeSafely("self_assessment")
+    }
+
+    private fun finishPracticeSafely(trigger: String) {
+        val session = ui.practiceSession
+        logDebugEvent(
+            "practice.complete.clicked",
+            mapOf(
+                "trigger" to trigger,
+                "question_count" to (session?.items?.size ?: 0),
+                "current_index" to ui.practiceIndex,
+                "selected_answer_count" to (ui.practiceSelectedAnswers.size + ui.practiceTextAnswers.size),
+            ),
+        )
+        logDebugEvent("practice.complete.question_count", mapOf("count" to (session?.items?.size ?: 0)))
+        logDebugEvent("practice.complete.current_index", mapOf("index" to ui.practiceIndex))
+        logDebugEvent("practice.complete.selected_answer_count", mapOf("count" to (ui.practiceSelectedAnswers.size + ui.practiceTextAnswers.size)))
+        if (session == null || session.items.isEmpty()) {
+            logDebugEvent("practice.complete.error", mapOf("type" to "empty_session"))
+            logDebugEvent("practice.complete.navigate_review", mapOf("target" to "review"))
+            ui = ui.copy(toast = "暂无可完成题目，已返回复习计划。")
+            selectTab(Tab.REVIEW)
+            return
+        }
+        runCatching { finishPractice() }
+            .onFailure { error ->
+                logDebugEvent("practice.complete.error", mapOf("type" to (error::class.simpleName ?: "Throwable")))
+                ui = ui.copy(toast = "完成练习时遇到异常，已返回复习计划。")
+                runCatching { selectTab(Tab.REVIEW) }
+                    .onFailure { navError ->
+                        logDebugEvent("practice.complete.error", mapOf("type" to (navError::class.simpleName ?: "NavigationError")))
+                    }
+            }
     }
 
     private fun finishPractice() {
         val session = ui.practiceSession ?: return
         if (ui.practiceResult != null) {
+            logDebugEvent("practice.complete.navigate_review", mapOf("target" to "review", "already_completed" to true))
             selectTab(Tab.REVIEW)
             return
         }
         val now = System.currentTimeMillis()
         val result = PracticeSessionEngine.summarize(session, ui.practiceAttempts, now - ui.practiceStartedAt)
+        logDebugEvent(
+            "practice.complete.summary_built",
+            mapOf(
+                "item_count" to result.itemCount,
+                "correct" to result.correctCount,
+                "wrong" to result.wrongCount,
+            ),
+        )
         // Reuse the existing ReviewEngine rules: correct lowers priority, wrong raises + re-queues,
         // mastered defers, need-more-practice keeps it due. No schema or provider changes.
         val after = if (ui.practiceQuestionMode == PracticeQuestionMode.SELF_ASSESSMENT) {
@@ -5891,6 +6030,7 @@ class AppViewModel(
             persistL3(nextL3)
         }
         ensureReviewPlan()
+        logDebugEvent("practice.complete.navigate_review", mapOf("target" to "review"))
         selectTab(Tab.REVIEW)
         ui = ui.copy(
             practiceResult = result,
@@ -5903,7 +6043,36 @@ class AppViewModel(
     fun currentPracticeItem() = ui.practiceSession?.items?.getOrNull(ui.practiceIndex)
     fun isPracticeComplete(): Boolean = ui.practiceResult != null
 
+    fun onPracticeScreenRendered() {
+        val session = ui.practiceSession ?: return
+        val sanitized = sanitizePracticeSession(session)
+        val effectiveSession = if (sanitized.items.size != session.items.size) {
+            val fixedIndex = ui.practiceIndex.coerceIn(0, sanitized.items.lastIndex.coerceAtLeast(0))
+            ui = ui.copy(
+                practiceSession = sanitized,
+                practiceIndex = fixedIndex,
+                toast = if (sanitized.items.isEmpty()) "当前资料不足以生成高质量微测，请补充资料或手动修正 OCR 文本。" else ui.toast,
+            )
+            sanitized
+        } else {
+            session
+        }
+        logDebugEvent(
+            "practice.screen.render.question_count",
+            mapOf("count" to effectiveSession.items.size, "index" to ui.practiceIndex),
+        )
+        logDebugEvent(
+            "practice.screen.first_question_type",
+            mapOf("type" to (effectiveSession.items.firstOrNull()?.type?.name ?: "none")),
+        )
+        logDebugEvent(
+            "practice.screen.has_fill_blank",
+            mapOf("value" to effectiveSession.items.any { it.type == PracticeItemType.FILL_BLANK }),
+        )
+    }
+
     fun exitPractice() {
+        logDebugEvent("practice.back.clicked", mapOf("screen" to "practice"))
         ui = ui.copy(
             practiceSession = null,
             practiceIndex = 0,
@@ -5916,7 +6085,10 @@ class AppViewModel(
             practiceSubmittedAnswers = emptyMap(),
             examSession = null,
         )
-        selectTab(Tab.REVIEW)
+        logDebugEvent("practice.back.target_review", mapOf("used_pop_back_stack" to false))
+        logDebugEvent("practice.back.used_pop_back_stack", mapOf("value" to false))
+        runCatching { selectTab(Tab.REVIEW) }
+            .onFailure { error -> logDebugEvent("practice.back.error", mapOf("type" to (error::class.simpleName ?: "Throwable"))) }
     }
 
     fun practiceHistoryForCourse(courseSessionId: String): List<PracticeHistoryRecord> =

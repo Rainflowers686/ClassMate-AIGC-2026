@@ -36,10 +36,11 @@ android {
         applicationId = "com.classmate.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 127
-        versionName = "1.14.14"
+        versionCode = 128
+        versionName = "1.14.15"
         vectorDrawables { useSupportLibrary = true }
         buildConfigField("String", "BUILT_AT", "\"$builtAtValue\"")
+        buildConfigField("String", "BUILD_TIME", "\"$builtAtValue\"")
         buildConfigField("String", "GIT_COMMIT", "\"$gitCommitValue\"")
         // The on-device SDK ships ONLY arm64-v8a native libraries; restrict packaged ABIs to match
         // (avoids shipping a half-supported ABI). Applied only when the AAR is actually present.

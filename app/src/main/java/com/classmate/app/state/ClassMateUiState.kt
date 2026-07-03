@@ -86,6 +86,18 @@ data class AiConfigPromptUiState(
 
 enum class PracticePreparationStatus { IDLE, PREPARING, READY, INSUFFICIENT, FAILED }
 
+data class DebugEventLogEntry(
+    val id: Long,
+    val name: String,
+    val details: Map<String, String> = emptyMap(),
+    val createdAt: Long,
+) {
+    fun format(): String {
+        val suffix = details.entries.joinToString(" ") { "${it.key}=${it.value}" }
+        return if (suffix.isBlank()) "$createdAt #$id $name" else "$createdAt #$id $name $suffix"
+    }
+}
+
 /** All UI state in one immutable snapshot, updated via copy() from [AppViewModel]. */
 data class ClassMateUiState(
     // appearance
@@ -257,6 +269,7 @@ data class ClassMateUiState(
     val localProviderPath: List<String> = emptyList(),
     val result: CourseAnalysisResult? = null,
     val logs: List<RedactedLogEntry> = emptyList(),
+    val debugEvents: List<DebugEventLogEntry> = emptyList(),
     val analysisError: String? = null,
 
     // history (persisted business data only)

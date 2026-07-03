@@ -19,6 +19,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
@@ -61,6 +62,10 @@ fun PracticeSessionScreen(viewModel: AppViewModel) {
         PracticeQuestionMode.EXAM -> "模拟考试"
     }
 
+    LaunchedEffect(session?.id, session?.items?.size, ui.practiceIndex) {
+        viewModel.onPracticeScreenRendered()
+    }
+
     ClassMateScaffold(title = screenTitle, onBack = { viewModel.exitPractice() }) { padding ->
         Column(
             Modifier
@@ -72,6 +77,10 @@ fun PracticeSessionScreen(viewModel: AppViewModel) {
         ) {
             if (session == null) {
                 EmptyStateCard(title = "没有进行中的练习", message = "请从复习或课程详情开始一轮专项练习。")
+                return@Column
+            }
+            if (session.items.isEmpty()) {
+                EmptyStateCard(title = "暂无可练习题目", message = "当前资料不足以生成高质量微测，请补充资料或手动修正 OCR 文本。")
                 return@Column
             }
             val result = ui.practiceResult

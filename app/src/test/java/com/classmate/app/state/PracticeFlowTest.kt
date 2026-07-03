@@ -233,6 +233,10 @@ class PracticeFlowTest {
         assertTrue(viewModel.ui.practiceAttempts.all { it.feedback != null })
         assertEquals(Screen.REVIEW, viewModel.currentScreen)
         assertEquals(Tab.REVIEW, viewModel.currentTab)
+        val events = viewModel.ui.debugEvents.map { it.name }
+        assertTrue(events.contains("practice.complete.clicked"))
+        assertTrue(events.contains("practice.complete.summary_built"))
+        assertTrue(events.contains("practice.complete.navigate_review"))
     }
 
     @Test
@@ -252,6 +256,7 @@ class PracticeFlowTest {
         assertEquals(Screen.REVIEW, viewModel.currentScreen)
         assertEquals(Tab.REVIEW, viewModel.currentTab)
         assertNotNull(viewModel.ui.practiceResult)
+        assertTrue(viewModel.ui.debugEvents.map { it.name }.contains("practice.complete.navigate_review"))
     }
 
     @Test
@@ -353,6 +358,10 @@ class PracticeFlowTest {
         assertNull(viewModel.ui.practiceResult)
         assertEquals(Screen.REVIEW, viewModel.currentScreen)
         assertEquals(Tab.REVIEW, viewModel.currentTab)
+        val events = viewModel.ui.debugEvents.map { it.name }
+        assertTrue(events.contains("practice.back.clicked"))
+        assertTrue(events.contains("practice.back.target_review"))
+        assertTrue(events.contains("practice.back.used_pop_back_stack"))
     }
 
     @Test
@@ -366,6 +375,7 @@ class PracticeFlowTest {
         assertNull(viewModel.ui.practiceSession)
         assertEquals(Screen.REVIEW, viewModel.currentScreen)
         assertEquals(Tab.REVIEW, viewModel.currentTab)
+        assertTrue(viewModel.ui.debugEvents.map { it.name }.contains("practice.back.target_review"))
     }
 
     @Test
