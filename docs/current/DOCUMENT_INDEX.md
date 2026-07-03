@@ -1,3 +1,17 @@
+# Document Index - ClassMate 1.14.17
+
+Version: `1.14.17 / versionCode 130`
+
+Current entries added in this patch:
+
+| File | Type | Status |
+| --- | --- | --- |
+| `docs/current/CHANGELOG_1_14_17.md` | Current version changelog | Added |
+| `docs/current/REAL_DEVICE_FIX_MATRIX_1_14_17.md` | Real-device placeholder/review crash fix matrix | Added |
+| `docs/current/REAL_DEVICE_TEST_MANUAL_1_14_17.md` | 1.14.17 real-device retest manual | Added |
+
+1.14.17 is based on copied 1.14.16 diagnostics: auto quiz preparation was triggered, but `SAFE_PLACEHOLDER` / `QUIZ_RETRY` items entered practice and completion crashed after switching to Review. This version rejects placeholder/retry items from student sessions, requires fill-in coverage for normal generated sessions, clears active practice state before Review render, and adds Review render key diagnostics.
+
 # Document Index - ClassMate 1.14.16
 
 Version: `1.14.16 / versionCode 129`

@@ -2,6 +2,7 @@ package com.classmate.app.l3
 
 import com.classmate.core.practice.PracticeItem
 import com.classmate.core.practice.PracticeItemType
+import com.classmate.core.ai.AiExecutionSource
 
 /**
  * Final quality gate for graded practice shown to students. It rejects generic stems, internal
@@ -33,6 +34,8 @@ object QuizQualityGate {
     fun isHighQuality(item: PracticeItem): Boolean = score(item) >= 70
 
     fun score(item: PracticeItem): Int {
+        if (item.source == AiExecutionSource.SAFE_PLACEHOLDER) return 0
+        if (item.type == PracticeItemType.QUIZ_RETRY) return 0
         if (!StudentVisibleQuizSanitizer.isStudentSafe(item)) return 0
         if (item.knowledgePointTitle.isBlank()) return 0
         if (LearningArtifactRepairer.hasForbiddenTitleText(item.knowledgePointTitle)) return 0

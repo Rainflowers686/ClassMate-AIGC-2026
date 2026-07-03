@@ -305,7 +305,7 @@ private fun SelfAssessmentCard(viewModel: AppViewModel, itemRevealed: Boolean, i
     if (!itemRevealed) {
         Spacer(Modifier.height(Dimens.s))
         SecondaryButton(
-            text = if (itemType == PracticeItemType.QUIZ_RETRY) "查看答案" else "查看证据",
+            text = if (itemType == PracticeItemType.SINGLE_CHOICE || itemType == PracticeItemType.QUIZ_RETRY) "查看答案" else "查看证据",
             onClick = { viewModel.revealPracticeAnswer() },
             modifier = Modifier.fillMaxWidth(),
         )

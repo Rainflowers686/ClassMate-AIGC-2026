@@ -73,7 +73,7 @@ object VariantQuizParser {
             }
             val item = PracticeItem(
                 id = "${idPrefix}_$index",
-                type = if (fillBlank) PracticeItemType.FILL_BLANK else PracticeItemType.QUIZ_RETRY,
+                type = if (fillBlank) PracticeItemType.FILL_BLANK else PracticeItemType.SINGLE_CHOICE,
                 knowledgePointId = knowledgePointIdFor(q.knowledgePointTitle),
                 knowledgePointTitle = q.knowledgePointTitle,
                 question = q.stem.trim(),

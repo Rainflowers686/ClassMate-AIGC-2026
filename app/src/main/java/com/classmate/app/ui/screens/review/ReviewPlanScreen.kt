@@ -20,6 +20,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -65,6 +66,17 @@ fun ReviewPlanScreen(viewModel: AppViewModel) {
     val due = ReviewEngine.listDueTasks(snapshot, now)
     val upcoming = ReviewEngine.listUpcomingTasks(snapshot, now)
     val removed = snapshot.tasks.filter { it.manuallyRemoved }
+    val renderKeys = buildList {
+        add("section:hero")
+        add("section:overview")
+        add("section:l3")
+        due.forEachIndexed { index, task -> add("due:${task.courseSessionId}:${task.taskId.ifBlank { "empty" }}:$index") }
+        upcoming.take(8).forEachIndexed { index, task -> add("upcoming:${task.courseSessionId}:${task.taskId.ifBlank { "empty" }}:$index") }
+        removed.forEachIndexed { index, task -> add("removed:${task.courseSessionId}:${task.taskId.ifBlank { "empty" }}:$index") }
+    }
+    LaunchedEffect(renderKeys.joinToString("|")) {
+        viewModel.onReviewScreenRendered(renderKeys)
+    }
 
     ProductCanvas {
       ProductScaffold(contextLabel = "复习") { padding ->

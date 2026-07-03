@@ -12,6 +12,8 @@ import com.classmate.core.model.FeedbackTargetKind
 import com.classmate.core.model.FeedbackType
 import com.classmate.core.practice.PracticeMode
 import com.classmate.core.practice.PracticeOutcome
+import com.classmate.core.practice.PracticeItem
+import com.classmate.core.practice.PracticeItemType
 import com.classmate.core.practice.isAnswerableQuiz
 import com.classmate.core.sample.SampleCourses
 import java.io.File
@@ -120,7 +122,8 @@ class PracticeFlowTest {
         assertNotNull(viewModel.ui.practiceSession)
         assertTrue(viewModel.ui.practiceSession!!.items.isNotEmpty())
         assertEquals(PracticeQuestionMode.REAL_QUIZ, viewModel.ui.practiceQuestionMode)
-        assertTrue(viewModel.ui.practiceSession!!.items.all { it.options.isNotEmpty() })
+        assertTrue(viewModel.ui.practiceSession!!.items.all { it.isAnswerableQuiz() })
+        assertTrue(viewModel.ui.practiceSession!!.items.any { it.type == PracticeItemType.FILL_BLANK })
         assertEquals(Screen.PRACTICE, viewModel.currentScreen)
     }
 
@@ -197,8 +200,8 @@ class PracticeFlowTest {
         assertNotNull(session)
         assertTrue("random quiz produced questions", session!!.items.isNotEmpty())
         assertTrue(
-            "every random-quiz question must have a correct answer",
-            session.items.all { it.isAnswerableQuiz() && it.correctOptionIds.isNotEmpty() },
+            "every random-quiz question must be answerable",
+            session.items.all { it.isAnswerableQuiz() },
         )
     }
 
@@ -221,7 +224,7 @@ class PracticeFlowTest {
 
         repeat(itemCount) { index ->
             val item = viewModel.currentPracticeItem()!!
-            viewModel.selectPracticeAnswer(item.correctOptionIds.first())
+            answerCorrectly(viewModel, item)
             assertTrue(viewModel.submitPracticeAnswer(now + index))
             viewModel.nextPracticeQuestion()
         }
@@ -230,12 +233,16 @@ class PracticeFlowTest {
         assertEquals(itemCount, viewModel.ui.practiceResult!!.correctCount)
         assertEquals(1, viewModel.ui.learningSnapshot.practiceHistory.size)
         assertTrue(viewModel.isPracticeComplete())
+        assertNull(viewModel.ui.practiceSession)
+        assertEquals(0, viewModel.ui.practiceIndex)
         assertTrue(viewModel.ui.practiceAttempts.all { it.feedback != null })
         assertEquals(Screen.REVIEW, viewModel.currentScreen)
         assertEquals(Tab.REVIEW, viewModel.currentTab)
         val events = viewModel.ui.debugEvents.map { it.name }
         assertTrue(events.contains("practice.complete.clicked"))
         assertTrue(events.contains("practice.complete.summary_built"))
+        assertTrue(events.contains("practice.complete.state_cleared"))
+        assertTrue(events.contains("practice.complete.review_state_ready"))
         assertTrue(events.contains("practice.complete.navigate_review"))
     }
 
@@ -249,12 +256,13 @@ class PracticeFlowTest {
         val itemCount = viewModel.ui.practiceSession!!.items.size
         repeat(itemCount) { index ->
             val item = viewModel.currentPracticeItem()!!
-            viewModel.selectPracticeAnswer(item.correctOptionIds.first())
+            answerCorrectly(viewModel, item)
             assertTrue(viewModel.submitPracticeAnswer(now + index))
             viewModel.nextPracticeQuestion()
         }
         assertEquals(Screen.REVIEW, viewModel.currentScreen)
         assertEquals(Tab.REVIEW, viewModel.currentTab)
+        assertNull(viewModel.ui.practiceSession)
         assertNotNull(viewModel.ui.practiceResult)
         assertTrue(viewModel.ui.debugEvents.map { it.name }.contains("practice.complete.navigate_review"))
     }
@@ -305,12 +313,14 @@ class PracticeFlowTest {
 
         repeat(itemCount) { index ->
             val item = viewModel.currentPracticeItem()!!
-            viewModel.selectPracticeAnswer(item.correctOptionIds.first())
+            answerCorrectly(viewModel, item)
             assertTrue(viewModel.submitPracticeAnswer(now + index))
             viewModel.nextPracticeQuestion()
         }
 
-        assertEquals(PracticeQuestionMode.EXAM, viewModel.ui.practiceQuestionMode)
+        assertEquals(Screen.REVIEW, viewModel.currentScreen)
+        assertEquals(Tab.REVIEW, viewModel.currentTab)
+        assertNull(viewModel.ui.practiceSession)
         assertNotNull(viewModel.ui.examSession)
         assertEquals("SUBMITTED", viewModel.ui.examSession!!.status.name)
         assertEquals(100, viewModel.ui.examSession!!.score)
@@ -379,6 +389,17 @@ class PracticeFlowTest {
     }
 
     @Test
+    fun reviewRenderDiagnosticsRecordKeyCounts() {
+        val viewModel = vm()
+        viewModel.onReviewScreenRendered(listOf("section:hero", "review:task:0", "review:task:0"))
+
+        val events = viewModel.ui.debugEvents.associate { it.name to it.details }
+        assertTrue(events.containsKey("review.render.started"))
+        assertEquals("3", events["review.render.key_count"]?.get("count"))
+        assertEquals("1", events["review.render.duplicate_key_count"]?.get("count"))
+    }
+
+    @Test
     fun reviewAndPracticeUiExposeExpectedEntries() {
         val review = source("app/src/main/java/com/classmate/app/ui/screens/review/ReviewPlanScreen.kt")
         listOf("开始练习", "错题重练", "需要多练").forEach { assertTrue("Review missing $it", review.contains(it)) }
@@ -391,4 +412,12 @@ class PracticeFlowTest {
 
     private fun source(path: String): String =
         listOf(File(path), File(path.removePrefix("app/"))).first { it.exists() }.readText()
+
+    private fun answerCorrectly(viewModel: AppViewModel, item: PracticeItem) {
+        if (item.type == PracticeItemType.FILL_BLANK && item.options.isEmpty()) {
+            viewModel.updatePracticeTextAnswer(item.id, item.knowledgePointTitle)
+        } else {
+            viewModel.selectPracticeAnswer(item.correctOptionIds.first())
+        }
+    }
 }

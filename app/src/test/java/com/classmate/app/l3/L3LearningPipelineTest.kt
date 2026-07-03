@@ -246,7 +246,7 @@ class L3LearningPipelineTest {
     fun multiChoiceStrictGradingAndShortAnswerSeamAreExplicit() {
         val item = com.classmate.core.practice.PracticeItem(
             id = "item_multi",
-            type = com.classmate.core.practice.PracticeItemType.QUIZ_RETRY,
+            type = com.classmate.core.practice.PracticeItemType.SINGLE_CHOICE,
             knowledgePointId = "kp_multi",
             knowledgePointTitle = "Multi",
             taskId = "task_multi",

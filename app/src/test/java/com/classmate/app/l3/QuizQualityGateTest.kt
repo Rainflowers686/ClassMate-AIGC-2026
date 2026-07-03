@@ -67,8 +67,14 @@ class QuizQualityGateTest {
         assertFalse(QuizQualityGate.isHighQuality(bad))
     }
 
+    @Test
+    fun placeholderSourceAndRetryTypeAreRejected() {
+        assertFalse(QuizQualityGate.isHighQuality(item(source = AiExecutionSource.SAFE_PLACEHOLDER)))
+        assertFalse(QuizQualityGate.isHighQuality(item(type = PracticeItemType.QUIZ_RETRY)))
+    }
+
     private fun item(
-        type: PracticeItemType = PracticeItemType.QUIZ_RETRY,
+        type: PracticeItemType = PracticeItemType.SINGLE_CHOICE,
         question: String = "关于牛顿第二定律，下列说法正确的是？",
         answer: String = "答案详解：A 正确。知识点：牛顿第二定律。为什么正确：它说明合外力、质量和加速度的关系。其他选项为什么错误：它们颠倒或忽略了条件。证据摘录：物体的加速度与所受合外力成正比，与质量成反比，公式 F=ma。",
         options: List<PracticeOption> = listOf(
@@ -77,6 +83,7 @@ class QuizQualityGateTest {
             PracticeOption("C", "没有合外力时物体一定产生加速度", correct = false),
             PracticeOption("D", "F=ma 只描述速度大小，与力没有关系", correct = false),
         ),
+        source: AiExecutionSource = AiExecutionSource.MANUAL,
     ): PracticeItem = PracticeItem(
         id = "pi_test",
         type = type,
@@ -87,6 +94,6 @@ class QuizQualityGateTest {
         evidenceQuote = "物体的加速度与所受合外力成正比，与质量成反比，公式 F=ma。",
         quizId = "q_newton",
         options = options,
-        source = AiExecutionSource.SAFE_PLACEHOLDER,
+        source = source,
     )
 }

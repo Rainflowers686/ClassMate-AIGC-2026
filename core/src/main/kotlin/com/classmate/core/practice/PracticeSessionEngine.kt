@@ -133,7 +133,7 @@ object PracticeSessionEngine {
     private fun quizRetry(kp: KnowledgePoint, task: ReviewTask?, quiz: com.classmate.core.model.QuizQuestion, courseTitle: String, index: Int) =
         PracticeItem(
             id = "pi_${index}_${kp.id}",
-            type = PracticeItemType.QUIZ_RETRY,
+            type = PracticeItemType.SINGLE_CHOICE,
             knowledgePointId = kp.id,
             knowledgePointTitle = kp.title,
             taskId = task?.taskId,

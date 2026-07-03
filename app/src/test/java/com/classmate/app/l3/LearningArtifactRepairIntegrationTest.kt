@@ -7,6 +7,7 @@ import com.classmate.app.platform.ConfigRepository
 import com.classmate.app.platform.ProviderConfigSummary
 import com.classmate.app.state.AppViewModel
 import com.classmate.app.state.Screen
+import com.classmate.app.state.Tab
 import com.classmate.core.analysis.CourseSegmenter
 import com.classmate.core.learning.InMemoryLearningStore
 import com.classmate.core.model.AnalysisProvenance
@@ -20,6 +21,7 @@ import com.classmate.core.model.QuestionType
 import com.classmate.core.model.QuizOption
 import com.classmate.core.model.QuizQuestion
 import com.classmate.core.practice.PracticeMode
+import com.classmate.core.practice.PracticeItemType
 import java.nio.file.Files
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -121,13 +123,19 @@ class LearningArtifactRepairIntegrationTest {
 
         repeat(itemCount) { index ->
             val item = viewModel.currentPracticeItem()!!
-            viewModel.selectPracticeAnswer(item.correctOptionIds.first())
+            if (item.type == PracticeItemType.FILL_BLANK && item.options.isEmpty()) {
+                viewModel.updatePracticeTextAnswer(item.id, item.knowledgePointTitle)
+            } else {
+                viewModel.selectPracticeAnswer(item.correctOptionIds.first())
+            }
             assertTrue(viewModel.submitPracticeAnswer(now + index))
             viewModel.nextPracticeQuestion()
         }
 
         assertEquals(Screen.REVIEW, viewModel.currentScreen)
-        assertNotNull(viewModel.ui.practiceSession)
+        assertEquals(Tab.REVIEW, viewModel.currentTab)
+        assertTrue(viewModel.ui.debugEvents.map { it.name }.contains("practice.complete.state_cleared"))
+        assertTrue(viewModel.ui.practiceSession == null)
         assertNotNull(viewModel.ui.practiceResult)
         assertTrue(viewModel.isPracticeComplete())
 

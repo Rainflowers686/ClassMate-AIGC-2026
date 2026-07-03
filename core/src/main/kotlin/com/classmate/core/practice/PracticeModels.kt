@@ -9,7 +9,7 @@ import com.classmate.core.ai.AiExecutionSource
  */
 enum class PracticeMode { QUICK_REVIEW, WEAKNESS_DRILL, WRONG_ANSWER_RETRY, EVIDENCE_RECALL, NEED_MORE_PRACTICE }
 
-enum class PracticeItemType { QUIZ_RETRY, FILL_BLANK, FLASHCARD, EVIDENCE_CHECK, SHORT_EXPLANATION, SOURCE_TRACE }
+enum class PracticeItemType { SINGLE_CHOICE, QUIZ_RETRY, FILL_BLANK, FLASHCARD, EVIDENCE_CHECK, SHORT_EXPLANATION, SOURCE_TRACE }
 
 enum class PracticeDifficulty { EASY, MEDIUM, HARD }
 
@@ -122,6 +122,7 @@ fun PracticeMode.displayZh(): String = when (this) {
 }
 
 fun PracticeItemType.displayZh(): String = when (this) {
+    PracticeItemType.SINGLE_CHOICE -> "单选题"
     PracticeItemType.QUIZ_RETRY -> "微测重做"
     PracticeItemType.FILL_BLANK -> "填空题"
     PracticeItemType.FLASHCARD -> "回忆卡"

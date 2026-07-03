@@ -1,6 +1,17 @@
 # Changelog
 
-Current candidate version: `1.14.16 / versionCode 129`. This patch makes the real-device diagnostics entry fixed and visible in developer settings, persists redacted events across crashes/restarts, and records practice completion/back events before running risky logic.
+Current candidate version: `1.14.17 / versionCode 130`. This patch uses the 1.14.16 real-device diagnostics to block placeholder/retry quiz items from student practice and stabilize the Review transition after practice completion.
+
+## 1.14.17 / 130 - reject placeholder quizzes and stabilize review navigation
+
+- Real-device logs showed automatic quiz preparation was triggered, but `SAFE_PLACEHOLDER` / `QUIZ_RETRY` items reached `PracticeSessionScreen`. These are now treated as non-student placeholders and rejected before storage, builder counts, and rendering.
+- Added a real `SINGLE_CHOICE` practice item type. `QUIZ_RETRY` is no longer used as the normal student single-choice type.
+- `auto_prepare.final_count`, `practice.builder.question_count_after_gate`, and practice start now count only accepted student questions, excluding placeholder/retry items and flagged questions.
+- Normal generated sessions with three or more questions must include at least one fill-in question. If not, the app records `quiz.quality.reject_no_fill_blank` and shows the reliable insufficient-material state instead of entering practice with weak questions.
+- Practice completion now clears active practice state before switching to Review and records `practice.complete.state_cleared` plus `practice.complete.review_state_ready`, avoiding stale `practiceIndex`/question-list state during Review composition.
+- Review screen render diagnostics now record item count, key count, and duplicate key count to help identify any remaining Compose key/state crash.
+- Practice back/left arrow still explicitly returns to Review and records state-cleared breadcrumbs.
+- BlueLM/qwen3.5-plus model, reasoning-mode mapping, official provider diagnostics, OCR layering, and developer diagnostics remain unchanged.
 
 ## 1.14.16 / 129 - persistent developer diagnostics and crash breadcrumbs
 

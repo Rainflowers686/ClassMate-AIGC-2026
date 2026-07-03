@@ -14,7 +14,7 @@ class PracticeAnswerableGateTest {
 
     private fun item(options: List<PracticeOption>): PracticeItem = PracticeItem(
         id = "i1",
-        type = PracticeItemType.QUIZ_RETRY,
+        type = PracticeItemType.SINGLE_CHOICE,
         knowledgePointId = "kp1",
         knowledgePointTitle = "KP",
         question = "Q?",

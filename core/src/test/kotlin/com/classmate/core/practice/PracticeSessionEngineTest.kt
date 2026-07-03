@@ -84,7 +84,7 @@ class PracticeSessionEngineTest {
         val r = result(listOf(kp("k1", "磁通量")), listOf(quizFor("k1")))
         val session = PracticeSessionEngine.build(r, LearningSnapshot(), PracticeMode.QUICK_REVIEW, now, "大学物理")
         val item = session.items.first()
-        assertEquals(PracticeItemType.QUIZ_RETRY, item.type)
+        assertEquals(PracticeItemType.SINGLE_CHOICE, item.type)
         assertEquals("q_k1", item.quizId)
         assertTrue(item.options.any { it.correct })
     }

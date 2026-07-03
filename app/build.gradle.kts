@@ -36,8 +36,8 @@ android {
         applicationId = "com.classmate.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 129
-        versionName = "1.14.16"
+        versionCode = 130
+        versionName = "1.14.17"
         vectorDrawables { useSupportLibrary = true }
         buildConfigField("String", "BUILT_AT", "\"$builtAtValue\"")
         buildConfigField("String", "BUILD_TIME", "\"$builtAtValue\"")
