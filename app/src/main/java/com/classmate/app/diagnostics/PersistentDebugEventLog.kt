@@ -75,11 +75,16 @@ class PersistentDebugEventLog private constructor(
     ) {
         val topFrame = throwable.stackTrace.firstOrNull()?.let { "${it.className}.${it.methodName}:${it.lineNumber}" }
             ?: "unknown"
+        val crashMessage = throwable.message?.let { cleanSegment(it, 200) }.orEmpty()
+        val stackTraceTop20 = throwable.stackTrace.take(20).joinToString(" | ") { it.safeFrame() }
+        val cause = throwable.cause
+        val causeStackTop10 = cause?.stackTrace?.take(10)?.joinToString(" | ") { it.safeFrame() }.orEmpty()
         val event = append(
             id = (loadEvents().lastOrNull()?.id ?: 0L) + 1L,
             name = "crash.uncaught",
             details = mapOf(
                 "exception" to (throwable::class.simpleName ?: "Throwable"),
+                "message" to crashMessage,
                 "top_frame" to topFrame,
                 "screen" to currentScreen,
             ),
@@ -92,13 +97,23 @@ class PersistentDebugEventLog private constructor(
             appendLine("screen=${cleanSegment(currentScreen, 80)}")
             appendLine("state=${cleanSegment(stateSummary, 240)}")
             appendLine("exception=${event.details["exception"].orEmpty()}")
+            appendLine("message=${event.details["message"].orEmpty()}")
             appendLine("topFrame=${event.details["top_frame"].orEmpty()}")
+            appendLine("stackTraceTop20=$stackTraceTop20")
+            if (cause != null) {
+                appendLine("cause=${cause::class.simpleName ?: "Throwable"}:${cleanSegment(cause.message.orEmpty(), 200)}")
+                appendLine("causeStackTop10=$causeStackTop10")
+            }
             appendLine("lastEvents:")
             loadEvents().takeLast(30).forEach { appendLine(it.format()) }
         }
         crashFile?.parentFile?.mkdirs()
         crashFile?.writeText(text, Charsets.UTF_8)
-        logError("crash.uncaught ${event.details["exception"].orEmpty()} ${event.details["top_frame"].orEmpty()}")
+        logError(
+            "crash.uncaught ${event.details["exception"].orEmpty()} ${event.details["top_frame"].orEmpty()}\n" +
+                "stackTraceTop20=$stackTraceTop20" +
+                if (causeStackTop10.isNotBlank()) "\ncauseStackTop10=$causeStackTop10" else "",
+        )
     }
 
     fun diagnosticsPackage(currentScreen: String, stateSummary: String): String =
@@ -160,6 +175,9 @@ class PersistentDebugEventLog private constructor(
             details = details,
         )
     }
+
+    private fun StackTraceElement.safeFrame(): String =
+        cleanSegment("${className}.${methodName}:${lineNumber}", 220)
 
     private fun cleanValue(key: String, value: String): String {
         val lowered = key.lowercase()

@@ -76,6 +76,24 @@ fun PracticeSessionScreen(viewModel: AppViewModel) {
             verticalArrangement = Arrangement.spacedBy(Dimens.cardGap),
         ) {
             if (session == null) {
+                if (ui.safePracticeCompletionVisible) {
+                    QuietCard {
+                        Text("Practice completed", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(Dimens.s))
+                        Text(
+                            "The result has been saved. If the review page did not open automatically, return to the review plan here.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(Dimens.s))
+                        PrimaryButton(
+                            text = "Return to review plan",
+                            onClick = { viewModel.retryPendingReviewNavigationFromSafeScreen() },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    return@Column
+                }
                 EmptyStateCard(title = "没有进行中的练习", message = "请从复习或课程详情开始一轮专项练习。")
                 return@Column
             }

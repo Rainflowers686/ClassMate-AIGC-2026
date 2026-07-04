@@ -63,9 +63,9 @@ import com.classmate.core.video.VideoRecommendationEngine
 fun ReviewPlanScreen(viewModel: AppViewModel) {
     val snapshot = viewModel.ui.learningSnapshot
     val now = System.currentTimeMillis()
-    val due = ReviewEngine.listDueTasks(snapshot, now)
-    val upcoming = ReviewEngine.listUpcomingTasks(snapshot, now)
-    val removed = snapshot.tasks.filter { it.manuallyRemoved }
+    val due = ReviewEngine.listDueTasks(snapshot, now).toList()
+    val upcoming = ReviewEngine.listUpcomingTasks(snapshot, now).toList()
+    val removed = snapshot.tasks.filter { it.manuallyRemoved }.toList()
     val renderKeys = buildList {
         add("section:hero")
         add("section:overview")
@@ -74,8 +74,13 @@ fun ReviewPlanScreen(viewModel: AppViewModel) {
         upcoming.take(8).forEachIndexed { index, task -> add("upcoming:${task.courseSessionId}:${task.taskId.ifBlank { "empty" }}:$index") }
         removed.forEachIndexed { index, task -> add("removed:${task.courseSessionId}:${task.taskId.ifBlank { "empty" }}:$index") }
     }
+    LaunchedEffect(Unit) {
+        viewModel.onReviewComposeCheckpoint("review.compose.enter", snapshot.tasks.size)
+    }
     LaunchedEffect(renderKeys.joinToString("|")) {
+        viewModel.onReviewComposeCheckpoint("review.compose.before_lazy", renderKeys.size)
         viewModel.onReviewScreenRendered(renderKeys)
+        viewModel.onReviewComposeCheckpoint("review.compose.after_lazy_setup", renderKeys.size)
     }
 
     ProductCanvas {

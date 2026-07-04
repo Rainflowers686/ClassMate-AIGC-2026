@@ -1,6 +1,17 @@
 # Changelog
 
-Current candidate version: `1.14.17 / versionCode 130`. This patch uses the 1.14.16 real-device diagnostics to block placeholder/retry quiz items from student practice and stabilize the Review transition after practice completion.
+Current candidate version: `1.14.18 / versionCode 131`. This patch uses the 1.14.17 real-device diagnostics to defer Practice -> Review navigation, remove the high-risk top-level Crossfade switch, expand crash stack diagnostics, and prepare the round-two submission material set.
+
+## 1.14.18 / 131 - defer review navigation and prepare round two materials
+
+- Real-device 1.14.17 diagnostics proved practice completion summary and active-state clearing completed successfully, then the app crashed after `navigate_review_done` while entering Review. This points to a Compose screen-switch/key transition issue, not the completion business logic.
+- Practice completion and practice back now set a deferred Review navigation request. The app root consumes it after a frame, after active practice state is already null, instead of switching Review in the button call stack.
+- Removed the top-level `Crossfade(targetState = currentScreen)` navigation wrapper and use a plain `when` screen switch to avoid slot-table key instability during Practice -> Review.
+- Review render diagnostics now also record `review.compose.enter`, `review.compose.before_lazy`, and `review.compose.after_lazy_setup`.
+- Crash diagnostics now persist `stackTraceTop20` and `causeStackTop10` in the copied diagnostics package and filtered `ClassMateDebug` logcat.
+- A safe completion fallback remains on the practice screen if deferred Review navigation ever fails.
+- Added round-two submission docs, PPT content draft, poster copy/layout, 3-minute vertical demo script, scoring rubric mapping, runnable package instructions, and a safe core LLM code packaging script.
+- BlueLM/qwen3.5-plus mode mapping, OCR three-layer separation, diagnostics, `QuizQualityGate`, and placeholder/retry rejection remain unchanged.
 
 ## 1.14.17 / 130 - reject placeholder quizzes and stabilize review navigation
 

@@ -236,6 +236,9 @@ class PracticeFlowTest {
         assertNull(viewModel.ui.practiceSession)
         assertEquals(0, viewModel.ui.practiceIndex)
         assertTrue(viewModel.ui.practiceAttempts.all { it.feedback != null })
+        assertEquals(Screen.PRACTICE, viewModel.currentScreen)
+        assertNotNull(viewModel.ui.pendingNavigation)
+        consumePendingReview(viewModel)
         assertEquals(Screen.REVIEW, viewModel.currentScreen)
         assertEquals(Tab.REVIEW, viewModel.currentTab)
         val events = viewModel.ui.debugEvents.map { it.name }
@@ -243,6 +246,7 @@ class PracticeFlowTest {
         assertTrue(events.contains("practice.complete.summary_built"))
         assertTrue(events.contains("practice.complete.state_cleared"))
         assertTrue(events.contains("practice.complete.review_state_ready"))
+        assertTrue(events.contains("navigation.review.pending_set"))
         assertTrue(events.contains("practice.complete.navigate_review"))
     }
 
@@ -260,6 +264,9 @@ class PracticeFlowTest {
             assertTrue(viewModel.submitPracticeAnswer(now + index))
             viewModel.nextPracticeQuestion()
         }
+        assertEquals(Screen.PRACTICE, viewModel.currentScreen)
+        assertNotNull(viewModel.ui.pendingNavigation)
+        consumePendingReview(viewModel)
         assertEquals(Screen.REVIEW, viewModel.currentScreen)
         assertEquals(Tab.REVIEW, viewModel.currentTab)
         assertNull(viewModel.ui.practiceSession)
@@ -318,6 +325,8 @@ class PracticeFlowTest {
             viewModel.nextPracticeQuestion()
         }
 
+        assertNotNull(viewModel.ui.pendingNavigation)
+        consumePendingReview(viewModel)
         assertEquals(Screen.REVIEW, viewModel.currentScreen)
         assertEquals(Tab.REVIEW, viewModel.currentTab)
         assertNull(viewModel.ui.practiceSession)
@@ -366,6 +375,9 @@ class PracticeFlowTest {
         viewModel.exitPractice()
         assertNull(viewModel.ui.practiceSession)
         assertNull(viewModel.ui.practiceResult)
+        assertEquals(Screen.PRACTICE, viewModel.currentScreen)
+        assertNotNull(viewModel.ui.pendingNavigation)
+        consumePendingReview(viewModel)
         assertEquals(Screen.REVIEW, viewModel.currentScreen)
         assertEquals(Tab.REVIEW, viewModel.currentTab)
         val events = viewModel.ui.debugEvents.map { it.name }
@@ -383,6 +395,9 @@ class PracticeFlowTest {
         assertTrue(viewModel.handleSystemBack())
 
         assertNull(viewModel.ui.practiceSession)
+        assertEquals(Screen.PRACTICE, viewModel.currentScreen)
+        assertNotNull(viewModel.ui.pendingNavigation)
+        consumePendingReview(viewModel)
         assertEquals(Screen.REVIEW, viewModel.currentScreen)
         assertEquals(Tab.REVIEW, viewModel.currentTab)
         assertTrue(viewModel.ui.debugEvents.map { it.name }.contains("practice.back.target_review"))
@@ -419,5 +434,12 @@ class PracticeFlowTest {
         } else {
             viewModel.selectPracticeAnswer(item.correctOptionIds.first())
         }
+    }
+
+    private fun consumePendingReview(viewModel: AppViewModel) {
+        val pending = viewModel.ui.pendingNavigation
+        assertNotNull(pending)
+        viewModel.onDeferredNavigationFrame(pending!!.id)
+        viewModel.consumePendingNavigation(pending.id)
     }
 }

@@ -1,7 +1,6 @@
 package com.classmate.app.navigation
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.AlertDialog
@@ -28,7 +27,7 @@ import com.classmate.app.ui.screens.quiz.QuizScreen
 import com.classmate.app.ui.screens.review.ReviewPlanScreen
 import com.classmate.app.ui.screens.settings.SettingsScreen
 
-/** Lightweight, dependency-free navigation: a Crossfade over the back stack's current screen. */
+/** Lightweight, dependency-free navigation over the back stack's current screen. */
 @Composable
 fun ClassMateNavHost(viewModel: AppViewModel) {
     // Single source of truth for system back: protect recordings, walk settings sub-pages, then pop the
@@ -50,25 +49,23 @@ fun ClassMateNavHost(viewModel: AppViewModel) {
         )
     }
 
-    Crossfade(targetState = viewModel.currentScreen, label = "nav") { screen ->
-        when (screen) {
-            Screen.HOME -> HomeScreen(viewModel)
-            Screen.IMPORT -> ImportCourseScreen(viewModel)
-            Screen.IMPORT_TRAY -> MaterialTrayScreen(viewModel)
-            Screen.IMPORT_SETTINGS -> ImportSettingsScreen(viewModel)
-            Screen.TRANSCRIPT_IMPORT -> TranscriptImportScreen(viewModel)
-            Screen.TRANSCRIPT_EDITOR -> TranscriptEditorScreen(viewModel)
-            Screen.LIVE -> LiveCompanionScreen(viewModel)
-            Screen.ANALYZE -> AnalyzeProgressScreen(viewModel)
-            Screen.KNOWLEDGE -> KnowledgeTimelineScreen(viewModel)
-            Screen.COURSE_DETAIL -> com.classmate.app.ui.screens.course.CourseDetailScreen(viewModel)
-            Screen.EVIDENCE -> EvidenceDetailScreen(viewModel)
-            Screen.QUIZ -> QuizScreen(viewModel)
-            Screen.REVIEW -> ReviewPlanScreen(viewModel)
-            Screen.PRACTICE -> PracticeSessionScreen(viewModel)
-            Screen.FEEDBACK -> FeedbackScreen(viewModel)
-            Screen.HISTORY -> HistoryScreen(viewModel)
-            Screen.SETTINGS -> SettingsScreen(viewModel)
-        }
+    when (viewModel.currentScreen) {
+        Screen.HOME -> HomeScreen(viewModel)
+        Screen.IMPORT -> ImportCourseScreen(viewModel)
+        Screen.IMPORT_TRAY -> MaterialTrayScreen(viewModel)
+        Screen.IMPORT_SETTINGS -> ImportSettingsScreen(viewModel)
+        Screen.TRANSCRIPT_IMPORT -> TranscriptImportScreen(viewModel)
+        Screen.TRANSCRIPT_EDITOR -> TranscriptEditorScreen(viewModel)
+        Screen.LIVE -> LiveCompanionScreen(viewModel)
+        Screen.ANALYZE -> AnalyzeProgressScreen(viewModel)
+        Screen.KNOWLEDGE -> KnowledgeTimelineScreen(viewModel)
+        Screen.COURSE_DETAIL -> com.classmate.app.ui.screens.course.CourseDetailScreen(viewModel)
+        Screen.EVIDENCE -> EvidenceDetailScreen(viewModel)
+        Screen.QUIZ -> QuizScreen(viewModel)
+        Screen.REVIEW -> ReviewPlanScreen(viewModel)
+        Screen.PRACTICE -> PracticeSessionScreen(viewModel)
+        Screen.FEEDBACK -> FeedbackScreen(viewModel)
+        Screen.HISTORY -> HistoryScreen(viewModel)
+        Screen.SETTINGS -> SettingsScreen(viewModel)
     }
 }

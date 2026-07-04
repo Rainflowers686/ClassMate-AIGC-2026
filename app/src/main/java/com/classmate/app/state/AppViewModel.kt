@@ -410,6 +410,7 @@ class AppViewModel(
         private set
 
     private var debugEventCounter = 0L
+    private var pendingNavigationCounter = 0L
 
     // --- bottom-navigation tabs ---
     var currentTab by mutableStateOf(Tab.HOME)
@@ -421,6 +422,70 @@ class AppViewModel(
         resetTo(tab.root)
         settingsPage = SettingsPage.SETTINGS_HOME // entering a tab root always starts the settings tree at home
         updateDiagnosticsRuntimeState()
+    }
+
+    private fun requestDeferredReviewNavigation(reason: String, source: String) {
+        pendingNavigationCounter += 1L
+        val pending = PendingNavigation(
+            id = pendingNavigationCounter,
+            target = PendingNavigationTarget.REVIEW,
+            reason = reason,
+        )
+        logDebugEvent("navigation.review.pending_set", mapOf("id" to pending.id, "reason" to reason, "source" to source))
+        if (source.startsWith("practice.complete")) {
+            logDebugEvent("practice.complete.navigate_review_start", mapOf("target" to "review", "deferred" to true, "reason" to reason))
+        }
+        if (source.startsWith("practice.back")) {
+            logDebugEvent("practice.back.navigate_review_start", mapOf("target" to "review", "deferred" to true, "reason" to reason))
+        }
+        ui = ui.copy(
+            pendingNavigation = pending,
+            safePracticeCompletionVisible = source.startsWith("practice.complete"),
+        )
+    }
+
+    fun onDeferredNavigationFrame(id: Long) {
+        val pending = ui.pendingNavigation ?: return
+        if (pending.id != id) return
+        logDebugEvent("navigation.review.deferred_frame", mapOf("id" to id, "reason" to pending.reason))
+    }
+
+    fun consumePendingNavigation(id: Long) {
+        val pending = ui.pendingNavigation ?: return
+        if (pending.id != id) return
+        if (pending.target != PendingNavigationTarget.REVIEW) return
+        logDebugEvent("navigation.review.applied", mapOf("id" to id, "target" to "review", "reason" to pending.reason))
+        runCatching {
+            if (currentScreen != Screen.REVIEW || currentTab != Tab.REVIEW) {
+                selectTab(Tab.REVIEW)
+            }
+        }.onSuccess {
+            ui = ui.copy(
+                pendingNavigation = null,
+                safePracticeCompletionVisible = false,
+            )
+            logDebugEvent("navigation.review.consumed", mapOf("id" to id, "target" to "review", "reason" to pending.reason))
+            if (pending.reason.startsWith("practice.complete")) {
+                logDebugEvent("practice.complete.navigate_review", mapOf("target" to "review", "deferred" to true))
+                logDebugEvent("practice.complete.navigate_review_done", mapOf("target" to "review", "deferred" to true))
+            }
+            if (pending.reason.startsWith("practice.back")) {
+                logDebugEvent("practice.back.navigate_review_done", mapOf("target" to "review", "deferred" to true))
+            }
+        }.onFailure { error ->
+            ui = ui.copy(
+                pendingNavigation = null,
+                safePracticeCompletionVisible = true,
+                toast = "Practice complete. Tap return to review plan.",
+            )
+            logDebugEvent("navigation.review.error", mapOf("id" to id, "type" to (error::class.simpleName ?: "Throwable")))
+            logDebugEvent("practice.complete.safe_completion_screen_shown", mapOf("reason" to pending.reason))
+        }
+    }
+
+    fun retryPendingReviewNavigationFromSafeScreen() {
+        logDebugEvent("practice.complete.safe_return_clicked", mapOf("target" to "review"))
+        requestDeferredReviewNavigation(reason = "practice.complete.safe_return", source = "practice.complete")
     }
 
     init {
@@ -5998,17 +6063,17 @@ class AppViewModel(
     fun nextPracticeQuestion() {
         val session = ui.practiceSession ?: return
         if (ui.practiceResult != null) {
-            selectTab(Tab.REVIEW)
+            requestDeferredReviewNavigation(reason = "practice.complete.already_result", source = "practice.complete")
             return
         }
         if (session.items.isEmpty()) {
             ui = ui.copy(toast = "暂无可完成题目。")
-            selectTab(Tab.REVIEW)
+            requestDeferredReviewNavigation(reason = "practice.complete.empty_session", source = "practice.complete")
             return
         }
         val item = session.items.getOrNull(ui.practiceIndex) ?: run {
             ui = ui.copy(toast = "暂无可完成题目。")
-            selectTab(Tab.REVIEW)
+            requestDeferredReviewNavigation(reason = "practice.complete.index_oob", source = "practice.complete")
             return
         }
         if (ui.practiceQuestionMode != PracticeQuestionMode.SELF_ASSESSMENT && item.id !in ui.practiceSubmittedAnswers) {
@@ -6062,11 +6127,8 @@ class AppViewModel(
         if (session == null || session.items.isEmpty()) {
             logDebugEvent("practice.complete.error", mapOf("type" to "empty_session"))
             clearActivePracticeStateForReview(reason = "empty_session", result = null, examSession = null)
-            logDebugEvent("practice.complete.navigate_review_start", mapOf("target" to "review"))
-            logDebugEvent("practice.complete.navigate_review", mapOf("target" to "review"))
             ui = ui.copy(toast = "暂无可完成题目，已返回复习计划。")
-            selectTab(Tab.REVIEW)
-            logDebugEvent("practice.complete.navigate_review_done", mapOf("target" to "review"))
+            requestDeferredReviewNavigation(reason = "practice.complete.empty_session", source = "practice.complete")
             return
         }
         runCatching { finishPractice() }
@@ -6074,12 +6136,7 @@ class AppViewModel(
                 logDebugEvent("practice.complete.error", mapOf("type" to (error::class.simpleName ?: "Throwable")))
                 clearActivePracticeStateForReview(reason = "error", result = ui.practiceResult, examSession = null)
                 ui = ui.copy(toast = "完成练习时遇到异常，已返回复习计划。")
-                logDebugEvent("practice.complete.navigate_review_start", mapOf("target" to "review", "after_error" to true))
-                runCatching { selectTab(Tab.REVIEW) }
-                    .onSuccess { logDebugEvent("practice.complete.navigate_review_done", mapOf("target" to "review", "after_error" to true)) }
-                    .onFailure { navError ->
-                        logDebugEvent("practice.complete.error", mapOf("type" to (navError::class.simpleName ?: "NavigationError")))
-                    }
+                requestDeferredReviewNavigation(reason = "practice.complete.error", source = "practice.complete")
             }
     }
 
@@ -6107,10 +6164,7 @@ class AppViewModel(
         val session = ui.practiceSession ?: return
         if (ui.practiceResult != null) {
             clearActivePracticeStateForReview(reason = "already_completed")
-            logDebugEvent("practice.complete.navigate_review_start", mapOf("target" to "review", "already_completed" to true))
-            logDebugEvent("practice.complete.navigate_review", mapOf("target" to "review", "already_completed" to true))
-            selectTab(Tab.REVIEW)
-            logDebugEvent("practice.complete.navigate_review_done", mapOf("target" to "review", "already_completed" to true))
+            requestDeferredReviewNavigation(reason = "practice.complete.already_completed", source = "practice.complete")
             return
         }
         val now = System.currentTimeMillis()
@@ -6170,16 +6224,13 @@ class AppViewModel(
         )
         clearActivePracticeStateForReview(reason = "completed", result = result, examSession = submittedExam ?: ui.examSession)
         logDebugEvent("practice.complete.review_state_ready", mapOf("target" to "review"))
-        logDebugEvent("practice.complete.navigate_review_start", mapOf("target" to "review"))
-        logDebugEvent("practice.complete.navigate_review", mapOf("target" to "review"))
-        selectTab(Tab.REVIEW)
-        logDebugEvent("practice.complete.navigate_review_done", mapOf("target" to "review"))
         ui = ui.copy(
             practiceResult = result,
             learningSnapshot = learningStore.snapshot(),
             examSession = submittedExam ?: ui.examSession,
             toast = if (ui.practiceQuestionMode == PracticeQuestionMode.EXAM) "模拟考试已提交。" else "本轮练习完成。",
         )
+        requestDeferredReviewNavigation(reason = "practice.complete.completed", source = "practice.complete")
     }
 
     fun currentPracticeItem() = ui.practiceSession?.items?.getOrNull(ui.practiceIndex)
@@ -6225,6 +6276,13 @@ class AppViewModel(
         logDebugEvent("review.render.duplicate_key_count", mapOf("count" to (keys.size - keys.distinct().size)))
     }
 
+    fun onReviewComposeCheckpoint(event: String, itemCount: Int = -1) {
+        logDebugEvent(
+            event,
+            if (itemCount >= 0) mapOf("item_count" to itemCount) else emptyMap(),
+        )
+    }
+
     fun exitPractice() {
         logDebugEvent("practice.back.clicked", mapOf("screen" to "practice"))
         ui = ui.copy(
@@ -6243,9 +6301,7 @@ class AppViewModel(
         logDebugEvent("practice.back.navigate_review_start", mapOf("target" to "review"))
         logDebugEvent("practice.back.target_review", mapOf("used_pop_back_stack" to false))
         logDebugEvent("practice.back.used_pop_back_stack", mapOf("value" to false))
-        runCatching { selectTab(Tab.REVIEW) }
-            .onSuccess { logDebugEvent("practice.back.navigate_review_done", mapOf("target" to "review")) }
-            .onFailure { error -> logDebugEvent("practice.back.error", mapOf("type" to (error::class.simpleName ?: "Throwable"))) }
+        requestDeferredReviewNavigation(reason = "practice.back.clicked", source = "practice.back")
     }
 
     fun practiceHistoryForCourse(courseSessionId: String): List<PracticeHistoryRecord> =

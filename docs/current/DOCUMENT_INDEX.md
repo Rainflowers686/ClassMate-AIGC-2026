@@ -1,3 +1,28 @@
+# Document Index - ClassMate 1.14.18
+
+Version: `1.14.18 / versionCode 131`
+
+Current entries added in this patch:
+
+| File | Type | Status |
+| --- | --- | --- |
+| `docs/current/CHANGELOG_1_14_18.md` | Current version changelog | Added |
+| `docs/current/REAL_DEVICE_FIX_MATRIX_1_14_18.md` | Final Practice->Review crash fix matrix | Added |
+| `docs/current/REAL_DEVICE_TEST_MANUAL_1_14_18.md` | 1.14.18 real-device retest manual | Added |
+| `docs/current/BUILD_AND_RELEASE_GUIDE_1_14_18.md` | Final build/package guide | Added |
+| `docs/current/FINAL_SUBMISSION_CHECKLIST_1_14_18.md` | Round-two submission checklist | Added |
+| `docs/current/FINAL_ROUND_MATERIAL_PLAN_1_14_18.md` | Round-two material plan | Added |
+| `docs/current/CORE_LLM_CODE_PACKAGE_GUIDE_1_14_18.md` | Core LLM code package guide | Added |
+| `docs/current/DEMO_VIDEO_SCRIPT_3MIN_VERTICAL_1_14_18.md` | 3-minute vertical demo script | Added |
+| `docs/current/POSTER_COPY_AND_LAYOUT_1_14_18.md` | Poster copy and layout | Added |
+| `docs/current/PPT_CONTENT_DRAFT_1_14_18.md` | PPT content draft | Added |
+| `docs/current/SCORE_RUBRIC_MAPPING_1_14_18.md` | Scoring rubric mapping | Added |
+| `docs/current/KNOWN_LIMITATIONS_AND_DEFERRED_ITEMS_1_14_18.md` | Honest remaining gaps | Added |
+| `docs/submission/round2/` | Round-two submission workspace | Added |
+| `scripts/submission/package_core_llm_code.ps1` | Safe core LLM code packaging script | Added |
+
+1.14.18 is based on copied 1.14.17 real-device diagnostics: practice completion summary and active-state cleanup succeeded, but Compose crashed after Review navigation before Review render diagnostics started. This version defers Review navigation to the root after a frame, removes the high-risk top-level Crossfade screen switch, adds deeper crash stack capture, and prepares all repository-side round-two submission materials. The fix is implemented and command-verified; final real-device confirmation is still required.
+
 # Document Index - ClassMate 1.14.17
 
 Version: `1.14.17 / versionCode 130`

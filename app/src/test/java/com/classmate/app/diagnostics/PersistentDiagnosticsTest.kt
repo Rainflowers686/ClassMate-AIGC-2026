@@ -43,7 +43,28 @@ class PersistentDiagnosticsTest {
         val crash = log.lastCrashText()
         assertTrue(crash.contains("exception=IllegalStateException"))
         assertTrue(crash.contains("screen=PRACTICE"))
+        assertTrue(crash.contains("stackTraceTop20="))
         assertTrue(log.diagnosticsPackage("PRACTICE", "practice=3").contains("lastCrash:"))
+    }
+
+    @Test
+    fun crashRecordIncludesCauseStackWhenPresent() {
+        val dir = Files.createTempDirectory("classmate-crash-cause").toFile()
+        val log = PersistentDebugEventLog(dir)
+        val error = IllegalStateException("outer", IllegalArgumentException("inner"))
+
+        log.recordUncaughtCrash(
+            throwable = error,
+            currentScreen = "REVIEW",
+            stateSummary = "screen=review",
+            now = 456L,
+        )
+
+        val crash = log.lastCrashText()
+        assertTrue(crash.contains("stackTraceTop20="))
+        assertTrue(crash.contains("cause=IllegalArgumentException"))
+        assertTrue(crash.contains("causeStackTop10="))
+        assertFalse(crash.contains("AppKey=abc"))
     }
 
     @Test

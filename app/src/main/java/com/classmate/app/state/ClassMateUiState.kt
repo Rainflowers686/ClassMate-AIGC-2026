@@ -86,6 +86,14 @@ data class AiConfigPromptUiState(
 
 enum class PracticePreparationStatus { IDLE, PREPARING, READY, INSUFFICIENT, FAILED }
 
+enum class PendingNavigationTarget { REVIEW }
+
+data class PendingNavigation(
+    val id: Long,
+    val target: PendingNavigationTarget,
+    val reason: String,
+)
+
 data class DebugEventLogEntry(
     val id: Long,
     val name: String,
@@ -195,6 +203,8 @@ data class ClassMateUiState(
     val preparedPracticeSession: PracticeSession? = null,
     val practicePreparationStatus: PracticePreparationStatus = PracticePreparationStatus.IDLE,
     val practicePreparationMessage: String = "",
+    val pendingNavigation: PendingNavigation? = null,
+    val safePracticeCompletionVisible: Boolean = false,
     val examSession: ExamSession? = null,
     val courseEssenceScript: CourseEssenceScript? = null,
     val courseEssenceAudioResult: CourseEssenceAudioResult? = null,

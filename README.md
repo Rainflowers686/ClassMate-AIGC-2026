@@ -1,92 +1,70 @@
-# ClassMate 1.14.3
+# ClassMate 1.14.18
 
-> 面向 AIGC 全国计算机大赛的证据绑定学习闭环 Android App。
-
-ClassMate 把真实课堂资料变成可复习、可练习、可回溯、可导出的学习资产。它不是通用聊天 App，也不是单一 OCR、转写或刷题工具；主线是：
+ClassMate is an AIGC learning-loop Android app for the national AIGC competition. It turns classroom material into a traceable study workflow:
 
 ```text
-资料输入 -> 知识结构 -> 证据绑定 -> 微测 -> 反馈 -> 复习闭环 -> AI 精修导出
+material input -> subject knowledge -> evidence binding -> micro quiz -> feedback -> review plan -> AI-polished export
 ```
 
-当前候选版本：
+Current candidate:
 
-| 项 | 状态 |
+| Item | Value |
 | --- | --- |
-| 版本 | `1.14.3 / versionCode 116` |
-| 最新候选改动 | 录音/ASR readiness、反馈即时优化、复习知识摘要、题目详解增强 |
-| 分支 | `feature/audio-official-loop-hardening-v1` |
-| 定位 | 多模态课堂学习闭环 App |
-| 演示状态 | 核心链路最终候选版；官方网络能力仍需真实 AppKey 与真机验证 |
+| Version | `1.14.18 / versionCode 131` |
+| Branch | `main` |
+| Commit | local 1.14.18 commit after validation |
+| Main demo state | Final round-two candidate; Practice -> Review crash fix still needs final real-device confirmation |
 
-## 当前可演示主链路
+## Current Focus
 
-1. 导入课堂资料：文本、Markdown、图片、拍照、TXT/MD、多文件、PDF 页文本、录音或转写。
-2. 生成知识结构：课程主题、知识点、重点解释、易错点。
-3. 绑定证据：文本、图片、文档、音频转写都作为 EvidenceAsset 回溯。
-4. 做微测：题目来自本节课资料；无可用题时有本地兜底题，不出现空页面。
-5. 学习反馈：答题后进入错题、薄弱点、已复习/需复核状态和复习计划；题目/证据/知识点反馈会即时生成替换题或重新整理摘要。
-6. 外部学习入口：B 站/浏览器搜索是 Intent 搜索入口，不是 API 推荐算法。
-7. 导出：普通导出始终可用；AI 精修导出由用户主动触发，失败不覆盖普通版。
+- Practice completion uses deferred Review navigation to avoid Compose screen-switch/key crashes.
+- Placeholder/retry quiz items are blocked from student practice.
+- Quiz quality gate, fill-in requirement, OCR raw/normalized/candidate separation, and persistent diagnostics remain active.
+- BlueLM/qwen strategy remains unchanged: users see BlueLM/蓝心大模型 wording, while technical docs describe the qwen3.5-plus API mapping.
 
-## 官方能力真实状态
+## 当前中文说明
 
-ClassMate 使用官方能力时坚持“能用则用，失败不阻断，状态不夸大”。
+ClassMate 当前候选版本是 `1.14.18 / versionCode 131`。本轮重点不是新增大功能，而是修复真机完成小测后切回复习页时的 Compose 导航崩溃，并把复赛材料整理到仓库内可执行状态。练习完成后不再在按钮点击同一帧同步切换页面，而是先保存结果、清理练习状态，再由根页面延迟消费导航请求进入复习页；如果导航失败，页面会保留安全完成态，用户可以再次点击返回复习计划。复习页和题目列表继续保留稳定 key、不可变列表、诊断事件和崩溃堆栈记录，便于真机复测定位。
 
-| 能力 | 当前状态 | fallback |
-| --- | --- | --- |
-| 蓝心大模型 HTTP | 已接入学习分析、精修导出、反馈增强；需配置验证真实网络 | 端侧模型或本地规则 |
-| 官方长语音转写 1739 HTTP | 任务流代码接入；需 AppKey 与真机验证 | 系统 ASR、录音保存、手动转写 |
-| 官方实时 ASR WebSocket | 协议底座接入；流式真机体验待验证 | 系统 SpeechRecognizer、录音保存、语音设置入口、手动转写 |
-| 官方 TTS WebSocket | 已按官方 WebSocket 协议代码接入；不是“缺协议不能做” | 系统 TTS、听背文稿 |
-| 系统 ASR/TTS | 已接入；依赖设备服务 | 手动转写 / 文稿 |
-| 端侧 3B | optional fallback；依赖机型、模型文件和权限 | 云端或本地规则 |
-| 文本向量/相似度/查询改写 | 官方 runtime/fallback 结构存在；真实 official used 需配置验证 | 本地 lexical / similarity |
-| 外部搜索 | 浏览器 Intent | 无 API 伪装 |
+能力状态保持诚实口径：蓝心大模型、官方 OCR/ASR/TTS 的真实成功仍依赖有效配置、网络和设备权限；配置缺失或服务失败时，主学习链路会进入本地基础整理，不把本地结果冒充为蓝心输出。实验性能力默认关闭，不影响“资料导入 -> 证据绑定 -> 微测 -> 复习计划 -> 导出”的核心闭环。18 项官方能力的当前 readiness 和兜底边界以 [official_18_capability_l3_readiness.md](docs/current/official_18_capability_l3_readiness.md) 以及 `docs/current` 下 1.14.18 文档为准。
 
-完整矩阵见 [docs/current/OFFICIAL_CAPABILITY_MATRIX_1_14_2.md](docs/current/OFFICIAL_CAPABILITY_MATRIX_1_14_2.md)。
-旧版 18 项能力横向自检仍保留为兼容入口：[docs/current/official_18_capability_l3_readiness.md](docs/current/official_18_capability_l3_readiness.md)。该文档与当前 README 的共同口径是：官方配置缺失时回到本地基础整理；图片生成、视频生成、同声传译等实验性入口默认关闭，不影响主学习闭环。
-
-## 重要边界
-
-- 不声称官方 ASR/TTS 已 100% 真机跑通；真实网络成功依赖 AppKey、权限、设备和接口状态。
-- 不把端侧模型说成所有手机可用；它是 optional fallback。
-- 不把浏览器搜索包装成推荐 API。
-- 不把本地 fallback 冒充蓝心结果。
-- 导出内容经过 SafeExportText 清理，不包含密钥、内部状态、provider trace 或 raw id。
-
-## 构建与验证
-
-在仓库根目录运行：
-
-```powershell
-.\gradlew.bat :core:test --no-daemon
-.\gradlew.bat :app:testDebugUnitTest --no-daemon
-.\gradlew.bat :app:assembleDebug --no-daemon
-powershell -ExecutionPolicy Bypass -File scripts\qa\current_preflight.ps1
-powershell -ExecutionPolicy Bypass -File scripts\qa\cloud_device_precheck.ps1
-```
-
-打包候选 APK：
+## Build
 
 ```powershell
 cd "D:\Edge Download\AIGC\ClassMate"
-git pull
-.\gradlew.bat clean :app:assembleDebug --no-daemon
-$commit = git rev-parse --short HEAD
-Copy-Item "app\build\outputs\apk\debug\app-debug.apk" "ClassMate-debug-v1.14.3-$commit.apk"
-explorer .
+.\gradlew.bat :core:test --no-daemon
+.\gradlew.bat :app:testDebugUnitTest --no-daemon
+.\gradlew.bat :app:assembleDebug --no-daemon
 ```
 
-不要提交 `config.local.json`、AAR、APK、AAB、字体、密钥或 OfficialDemos。
+Debug APK:
 
-## 文档入口
+```text
+app\build\outputs\apk\debug\app-debug.apk
+```
 
-- 当前总索引：[docs/current/DOCUMENT_INDEX.md](docs/current/DOCUMENT_INDEX.md)
-- 最终状态报告：[docs/current/FINAL_STATUS_1_14_2.md](docs/current/FINAL_STATUS_1_14_2.md)
-- 官方能力矩阵：[docs/current/OFFICIAL_CAPABILITY_MATRIX_1_14_2.md](docs/current/OFFICIAL_CAPABILITY_MATRIX_1_14_2.md)
-- 真机问题修复矩阵：[docs/current/REAL_DEVICE_FIX_MATRIX_1_14_2.md](docs/current/REAL_DEVICE_FIX_MATRIX_1_14_2.md)
-- 真机测试手册：[docs/current/REAL_DEVICE_TEST_MANUAL_1_14_2.md](docs/current/REAL_DEVICE_TEST_MANUAL_1_14_2.md)
-- 演示脚本：[docs/current/DEMO_SCRIPT_1_14_2.md](docs/current/DEMO_SCRIPT_1_14_2.md)
-- 答辩叙事：[docs/current/DEFENSE_NARRATIVE.md](docs/current/DEFENSE_NARRATIVE.md)
-- 构建发布：[docs/current/BUILD_AND_RELEASE.md](docs/current/BUILD_AND_RELEASE.md)
-- 安全与密钥：[docs/current/PRIVACY_SECURITY_AND_SECRETS.md](docs/current/PRIVACY_SECURITY_AND_SECRETS.md)
+## Validate
+
+```powershell
+git diff --check
+powershell -ExecutionPolicy Bypass -File scripts\qa\current_preflight.ps1
+powershell -ExecutionPolicy Bypass -File scripts\qa\cloud_device_precheck.ps1
+powershell -ExecutionPolicy Bypass -File scripts\qa\provider_live_smoke.ps1
+```
+
+## Current Docs
+
+- [Current document index](docs/current/DOCUMENT_INDEX.md)
+- [1.14.18 changelog](docs/current/CHANGELOG_1_14_18.md)
+- [1.14.18 real-device test manual](docs/current/REAL_DEVICE_TEST_MANUAL_1_14_18.md)
+- [1.14.18 fix matrix](docs/current/REAL_DEVICE_FIX_MATRIX_1_14_18.md)
+- [Round-two submission workspace](docs/submission/round2/README.md)
+- [Build and release guide](docs/current/BUILD_AND_RELEASE_GUIDE_1_14_18.md)
+- [Core LLM code package guide](docs/current/CORE_LLM_CODE_PACKAGE_GUIDE_1_14_18.md)
+
+## Safety Boundaries
+
+- Do not commit `config.local.json`, APK/AAB/AAR, fonts, OfficialDemos, or real credentials.
+- Do not expose AppKey, Authorization, Bearer, or token values in docs, UI, logs, screenshots, or exports.
+- Do not claim official provider live success without real AppKey/device/network verification.
+- Do not describe local fallback as BlueLM output.

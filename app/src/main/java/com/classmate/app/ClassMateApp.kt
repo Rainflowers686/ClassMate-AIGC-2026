@@ -34,6 +34,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -127,6 +128,7 @@ fun ClassMateApp() {
     val strings = appStrings(ui.language)
     val darkTheme = ui.darkMode ?: isSystemInDarkTheme()
     val showBottomBar = viewModel.currentScreen in TAB_ROOTS
+    val pendingNavigation = ui.pendingNavigation
 
     ClassMateTheme(
         themePreset = ui.theme,
@@ -149,6 +151,15 @@ fun ClassMateApp() {
                 },
             ) { padding ->
                 Box(Modifier.fillMaxSize().padding(padding)) {
+                    LaunchedEffect(pendingNavigation?.id) {
+                        val pending = pendingNavigation ?: return@LaunchedEffect
+                        withFrameNanos { }
+                        viewModel.onDeferredNavigationFrame(pending.id)
+                        if (viewModel.ui.practiceSession != null) {
+                            withFrameNanos { }
+                        }
+                        viewModel.consumePendingNavigation(pending.id)
+                    }
                     ClassMateNavHost(viewModel)
 
                     val toast = ui.toast

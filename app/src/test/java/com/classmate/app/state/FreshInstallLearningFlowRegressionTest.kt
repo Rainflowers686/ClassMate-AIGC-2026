@@ -121,7 +121,12 @@ class FreshInstallLearningFlowRegressionTest {
             viewModel.nextPracticeQuestion()
         }
 
-        assertEquals("completion should return to review plan", Screen.REVIEW, viewModel.currentScreen)
+        val pending = viewModel.ui.pendingNavigation
+        assertNotNull("completion should set deferred review navigation", pending)
+        assertEquals("completion should stay in practice until root consumes deferred navigation", Screen.PRACTICE, viewModel.currentScreen)
+        viewModel.onDeferredNavigationFrame(pending!!.id)
+        viewModel.consumePendingNavigation(pending.id)
+        assertEquals("completion should return to review plan after deferred navigation is consumed", Screen.REVIEW, viewModel.currentScreen)
         assertNotNull(viewModel.ui.practiceResult)
         assertTrue(viewModel.isPracticeComplete())
         val completionEvents = viewModel.ui.debugEvents.map { it.name }

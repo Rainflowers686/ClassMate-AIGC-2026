@@ -132,6 +132,11 @@ class LearningArtifactRepairIntegrationTest {
             viewModel.nextPracticeQuestion()
         }
 
+        assertEquals(Screen.PRACTICE, viewModel.currentScreen)
+        assertNotNull(viewModel.ui.pendingNavigation)
+        val pending = viewModel.ui.pendingNavigation!!
+        viewModel.onDeferredNavigationFrame(pending.id)
+        viewModel.consumePendingNavigation(pending.id)
         assertEquals(Screen.REVIEW, viewModel.currentScreen)
         assertEquals(Tab.REVIEW, viewModel.currentTab)
         assertTrue(viewModel.ui.debugEvents.map { it.name }.contains("practice.complete.state_cleared"))
