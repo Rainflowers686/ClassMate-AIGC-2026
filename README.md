@@ -2,11 +2,13 @@
 
 *An Android study workflow for course materials, evidence-linked micro quizzes, and review.*
 
+![Android](https://img.shields.io/badge/Platform-Android-3DDC84?logo=android&logoColor=white) ![Candidate v1.14.18](https://img.shields.io/badge/Candidate-v1.14.18-6574CD) ![Course project](https://img.shields.io/badge/Status-Course%20project-687078)
 
-[English](README.md) | [简体中文](README.zh-CN.md)
+
 
 **Guide:** [Project status](#project-status) · [Build](#build) · [Project notes](#project-notes)
 
+[English](README.md) | [简体中文](README.zh-CN.md)
 
 ClassMate is an Android study-workflow project that turns course material into a sequence of evidence-linked questions, feedback and review planning.
 
